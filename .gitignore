@@ -1,0 +1,29 @@
+# Pebble build output
+build/
+build.*
+.lock-waf_darwin_build
+
+# Node.js dependencies
+node_modules/
+
+# macOS
+.DS_Store
+
+#debug
+debug/
+
+# Editor / IDE
+.idea/
+.vscode/
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.swp
+*~
+
+# OS/editor metadata
+*.sublime-workspace
+*.sublime-project

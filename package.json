@@ -1,0 +1,322 @@
+ {
+  "name": "eclipse-watch",
+  "author": "zalew",
+  "version": "1.2.0",
+  "keywords": ["pebble-app", "watchface", "eclipse", "sky", "astronomy", "analog", "digital", "zalew", "weather", "planets", "ISS", "moon", "phases", "health", "steps"],
+  "private": true,
+  "pebble": {
+    "displayName": "Eclipz",
+    "uuid": "48506a10-1d10-42a0-bc0d-a94e56124e0f",
+    "sdkVersion": "3",
+    "enableMultiJS": true,
+    "targetPlatforms": ["emery"],
+    "watchapp": {
+      "watchface": true
+    },
+    "projectType": "native",
+    "capabilities": ["location", "configurable", "health"],
+    "messageKeys": [
+      "C1_TIME",
+      "C2_TIME",
+      "MAX_TIME",
+      "C3_TIME",
+      "C4_TIME",
+      "SUNSET_TIME",
+      "MAGNITUDE",
+      "ECLIPSE_TYPE",
+      "POS_ANGLE",
+      "SAMPLE_START",
+      "SAMPLE_INTERVAL",
+      "SAMPLE_COUNT",
+      "SEP_SAMPLES",
+      "MAG_SAMPLES",
+      "RADIUS_RATIO_PCT",
+      "CLOUD_COVER",
+      "VIS_SCORE",
+      "WEATHER_SOURCES",
+      "WEATHER_CONDITION",
+      "WEATHER_TEMP_C",
+      "WEATHER_TEMP_HIGH_C",
+      "WEATHER_TEMP_LOW_C",
+      "UV_INDEX_X10",
+      "RAIN_CHANCE_PCT",
+      "HUMIDITY_PCT",
+      "WIND_SPEED_KMH",
+      "WIND_SPEED_UNIT",
+      "TEMP_UNIT",
+      "SHOW_SECONDS",
+      "SHOW_SUN_TIME",
+      "SHOW_ISS",
+      "ISS_ALT",
+      "ISS_AZ",
+      "ISS_COMPUTED_AT",
+      "CORNER_CONTENT",
+      "CORNER_COLOR_MODE",
+      "DAILY_STEP_GOAL",
+      "COLOR_SCHEME",
+      "CUSTOM_BG",
+      "CUSTOM_TEXT",
+      "CUSTOM_ACCENT",
+      "NIGHT_SCHEME_ENABLED",
+      "NIGHT_COLOR_SCHEME",
+      "NIGHT_CUSTOM_BG",
+      "NIGHT_CUSTOM_TEXT",
+      "NIGHT_CUSTOM_ACCENT",
+      "BOTTOM_STYLE",
+      "ANALOG_STYLE",
+      "SUN_MOON_SIZE_PCT",
+      "CLOUD_RENDER_STYLE",
+      "SHAKE_LABEL_SECONDS",
+      "BOTTOM_INFO_BAR_MODE",
+      "VIBRATE_ON_PHASE_CHANGE",
+      "OUTLINE_ENABLED",
+      "CORNER_FONT_SIZE",
+      "CORNER_CUSTOM_FONT",
+      "BIG_ANALOG_HAND_STYLE",
+      "BIG_ANALOG_HANDS_TRANSPARENT",
+      "HAND_HOUR_STYLE",
+      "HAND_HOUR_WIDTH",
+      "HAND_HOUR_LENGTH",
+      "HAND_HOUR_BACK_OFFSET",
+      "HAND_HOUR_COLOR",
+      "HAND_HOUR_OUTLINE_ENABLED",
+      "HAND_HOUR_OUTLINE_COLOR",
+      "HAND_HOUR_TRANSLUCENT",
+      "HAND_MIN_STYLE",
+      "HAND_MIN_WIDTH",
+      "HAND_MIN_LENGTH",
+      "HAND_MIN_BACK_OFFSET",
+      "HAND_MIN_COLOR",
+      "HAND_MIN_OUTLINE_ENABLED",
+      "HAND_MIN_OUTLINE_COLOR",
+      "HAND_MIN_TRANSLUCENT",
+      "HAND_SEC_STYLE",
+      "HAND_SEC_WIDTH",
+      "HAND_SEC_LENGTH",
+      "HAND_SEC_BACK_OFFSET",
+      "HAND_SEC_COLOR",
+      "HAND_SEC_OUTLINE_ENABLED",
+      "HAND_SEC_OUTLINE_COLOR",
+      "HAND_SEC_TRANSLUCENT",
+      "CENTER_CIRCLE_RADIUS",
+      "CENTER_CIRCLE_COLOR",
+      "BIG_ANALOG_MARKER_STYLE",
+      "CUSTOM_HOUR_STYLE",
+      "CUSTOM_HOUR_THICKNESS",
+      "CUSTOM_HOUR_INNER_ECC",
+      "CUSTOM_HOUR_OUTER_ECC",
+      "CUSTOM_HOUR_INNER_BORDER",
+      "CUSTOM_HOUR_OUTER_BORDER",
+      "CUSTOM_SEC_STYLE",
+      "CUSTOM_SEC_THICKNESS",
+      "CUSTOM_SEC_INNER_ECC",
+      "CUSTOM_SEC_OUTER_ECC",
+      "CUSTOM_SEC_INNER_BORDER",
+      "CUSTOM_SEC_OUTER_BORDER",
+      "MARKER_TEXT_TARGET",
+      "MARKER_TEXT_FONT",
+      "MARKER_TEXT_OFFSET",
+      "MARKER_TEXT_HOUR_MASK",
+      "MARKER_TEXT_SEC_MASK",
+      "UPPER_MIDDLE_LINE1_CONTENT",
+      "UPPER_MIDDLE_LINE1_COLOR_MODE",
+      "UPPER_MIDDLE_LINE2_CONTENT",
+      "UPPER_MIDDLE_LINE2_COLOR_MODE",
+      "BOTTOM_MIDDLE_LINE1_CONTENT",
+      "BOTTOM_MIDDLE_LINE1_COLOR_MODE",
+      "BOTTOM_MIDDLE_LINE2_CONTENT",
+      "BOTTOM_MIDDLE_LINE2_COLOR_MODE",
+      "MIDDLE_LEFT_CONTENT",
+      "MIDDLE_LEFT_COLOR_MODE",
+      "MIDDLE_RIGHT_CONTENT",
+      "MIDDLE_RIGHT_COLOR_MODE",
+      "SKY_SAMPLE_START",
+      "SKY_SAMPLE_INTERVAL",
+      "SKY_SAMPLE_COUNT",
+      "SUN_ALT_SAMPLES",
+      "CLOUD_SAMPLES",
+      "CLOUD_ALTITUDE_PCT",
+      "MOON_ALT_SAMPLES",
+      "PLANET_ALT_SAMPLES",
+      "PLANET_RISE",
+      "PLANET_SET",
+      "SATURN_RING_OPEN_PCT",
+      "SKY_SCALE_MAX_ALT",
+      "MOON_PHASE_PCT",
+      "MOON_WAXING",
+      "SUN_RISE",
+      "SUN_SET",
+      "MOON_RISE",
+      "MOON_SET",
+      "METEOR_INTENSITY",
+      "METEOR_SHOWER_NAME",
+      "CLOCK_FONT",
+      "LOCATION_NAME",
+      "DATA_VALID",
+      "ERROR_CODE",
+      "REQUEST_UPDATE"
+    ],
+    "resources": {
+      "media": [
+        {
+          "type": "font",
+          "name": "DIGITALDREAM_FONT_12",
+          "file": "fonts/DIGITALDREAM.ttf"
+        },
+        {
+          "type": "font",
+          "name": "MINECRAFTER_FONT_12",
+          "file": "fonts/Minecrafter.ttf"
+        },
+        {
+          "type": "font",
+          "name": "MISO_FONT_19",
+          "file": "fonts/miso.otf"
+        },
+        {
+          "type": "font",
+          "name": "BEBAS_FONT_20",
+          "file": "fonts/BebasNeueBold.otf"
+        },
+        {
+          "type": "font",
+          "name": "SFPIXELATE_FONT_14",
+          "file": "fonts/SFPixelate.ttf"
+        },
+        {
+          "type": "png",
+          "menuIcon": true,
+          "name": "IMAGE_MENU_ICON",
+          "file": "images/icon.png"
+        },
+        {
+          "characterRegex": "[:0-9]",
+          "type": "font",
+          "name": "BEBAS_FONT_48",
+          "file": "fonts/BebasNeueBold.otf"
+        },
+        {
+          "characterRegex": "[:0-9]",
+          "type": "font",
+          "name": "CLOCKFORGE_FONT_48",
+          "file": "fonts/ClockForge.ttf"
+        },
+        {
+          "characterRegex": "[:0-9]",
+          "type": "font",
+          "name": "SFPIXELATE_FONT_48",
+          "file": "fonts/SFPixelate.ttf"
+        },
+        {
+          "characterRegex": "[:0-9]",
+          "type": "font",
+          "name": "RADIOLAND_FONT_48",
+          "file": "fonts/RADIOLAND.ttf"
+        },
+        {
+          "characterRegex": "[:0-9]",
+          "type": "font",
+          "name": "MINISYSTEM_FONT_48",
+          "file": "fonts/minisystem.otf"
+        },
+        {
+          "characterRegex": "[:0-9]",
+          "type": "font",
+          "name": "MINECRAFTER_FONT_48",
+          "file": "fonts/Minecrafter.ttf"
+        },
+        {
+          "characterRegex": "[:0-9]",
+          "type": "font",
+          "name": "KITCHENPOLICE_FONT_48",
+          "file": "fonts/KITCHENPOLICE.ttf"
+        },
+        {
+          "characterRegex": "[:0-9]",
+          "type": "font",
+          "name": "DSDIGIB_FONT_48",
+          "file": "fonts/DS-DIGIB.ttf"
+        },
+        {
+          "characterRegex": "[:0-9]",
+          "type": "font",
+          "name": "DISTGRG_FONT_48",
+          "file": "fonts/DISTGRG.ttf"
+        },
+        {
+          "characterRegex": "[:0-9]",
+          "type": "font",
+          "name": "DIMITRI_FONT_48",
+          "file": "fonts/DIMITRI.ttf"
+        },
+        {
+          "characterRegex": "[:0-9]",
+          "type": "font",
+          "name": "DIGITALDREAM_FONT_48",
+          "file": "fonts/DIGITALDREAM.ttf"
+        },
+        {
+          "characterRegex": "[:0-9]",
+          "type": "font",
+          "name": "BLACKOUT_FONT_48",
+          "file": "fonts/Blackout.ttf"
+        },
+        {
+          "characterRegex": "[:0-9]",
+          "type": "font",
+          "name": "AUDIOWIDE_FONT_48",
+          "file": "fonts/Audiowide.ttf"
+        },
+        {
+          "characterRegex": "[:0-9]",
+          "type": "font",
+          "name": "FORMATION_FONT_48",
+          "file": "fonts/Formation.ttf"
+        },
+        {
+          "characterRegex": "[:0-9]",
+          "type": "font",
+          "name": "KOMIKAHB_FONT_48",
+          "file": "fonts/KOMIKAHB.ttf"
+        },
+        {
+          "characterRegex": "[:0-9]",
+          "type": "font",
+          "name": "MISO_FONT_48",
+          "file": "fonts/miso.otf"
+        },
+        {
+          "characterRegex": "[:0-9]",
+          "type": "font",
+          "name": "PRICEDOWN_FONT_48",
+          "file": "fonts/pricedown.otf"
+        },
+        {
+          "type": "bitmap",
+          "name": "MODERN_BACKGROUND",
+          "file": "images/modern_background.png"
+        },
+        {
+          "type": "bitmap",
+          "name": "SWISS_BACKGROUND",
+          "file": "images/swiss_background.png"
+        },
+        {
+          "type": "bitmap",
+          "name": "TALLY_BACKGROUND",
+          "file": "images/tally_background.png"
+        },
+        {
+          "type": "bitmap",
+          "name": "BELL_BACKGROUND",
+          "file": "images/bell_background.png"
+        },
+        {
+          "type": "bitmap",
+          "name": "BROWN_BACKGROUND",
+          "file": "images/brown_background.png"
+        }
+      ]
+    }
+  }
+}

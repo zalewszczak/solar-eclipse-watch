@@ -1,0 +1,2176 @@
+/**
+ * config-page.js -- builds the settings webview HTML for the classic
+ * Pebble "configurable" capability (no Clay, no build-time
+ * dependency). PKJS opens this via a data: URI in index.js.
+ *
+ * The page hands settings back by navigating to a "return URL" --
+ * but that URL is *not* a fixed constant. The runtime that opened the
+ * page (the real phone app, `pebble emu-app-config`, CloudPebble's
+ * emulator, etc.) appends its own `return_to` query parameter to the
+ * page URL, and the page is expected to use that value if present,
+ * falling back to the legacy `pebblejs://close#` prefix only when
+ * it's absent. This is the standard pattern from Pebble's own "App
+ * Configuration (manual setup)" guide -- skipping it is why Save can
+ * silently do nothing under some runtimes (there's no handler
+ * registered for a URL scheme we made up ourselves).
+ *
+ * Font/colour "previews" here are necessarily approximations -- the
+ * watch's actual system fonts (Leco, Roboto subset, Bitham) and
+ * custom resource fonts aren't available as web fonts in a phone
+ * browser, so each option gets a CSS style chosen to be visually
+ * evocative of the real thing rather than pixel-identical to it.
+ * Good enough to tell them apart before committing to one. The color
+ * scheme preview, however, is exact -- both this page and the watch
+ * derive colors the same way (2-bit-per-channel packed bytes), so
+ * what you see here is exactly what you'll get.
+ */
+
+function esc(str) {
+  return String(str == null ? '' : str)
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+// Base64 data: URIs for each bitmap marker style's preview image,
+// generated at build time from the same resource PNGs used on the
+// watch itself (resources/images/<name>_background.png -- see
+// scripts/generate-marker-previews.js -- this file itself has no way
+// to load an external image at runtime, since the whole settings
+// page ends up as one self-contained data: URI with no server behind
+// it). Missing entries (a style with no PNG provided yet) are handled
+// gracefully wherever this is used below, not treated as an error.
+var MARKER_PREVIEW_IMAGES = require('./marker-preview-images');
+
+// Must match CLOCK_STYLE_IDS in index.js / apply_clock_font()'s code
+// numbers in pebble-eclipse-watch.c. `preview` is inline CSS applied
+// to the "88:88" sample so each option looks distinct even without
+// the real (custom, resource-loaded) font available in this webview.
+var CLOCK_FONTS = [
+  { id: 'leco', label: 'Leco (default)', preview: 'font-family: Arial, sans-serif; font-weight: 700;' },
+  { id: 'clockforge', label: 'ClockForge', preview: "font-family: Impact, sans-serif; font-weight: 700; letter-spacing: 1px;" },
+  { id: 'sfpixelate', label: 'SF Pixelate', preview: "font-family: 'Courier New', monospace; letter-spacing: 2px;" },
+  { id: 'radioland', label: 'Radioland', preview: "font-family: 'Courier New', monospace; font-weight: 700;" },
+  { id: 'minisystem', label: 'Mini System', preview: "font-family: 'Courier New', monospace;" },
+  { id: 'minecrafter', label: 'Minecrafter', preview: "font-family: 'Courier New', monospace; letter-spacing: 3px;" },
+  { id: 'kitchenpolice', label: 'Kitchen Police', preview: "font-family: Impact, 'Arial Narrow', sans-serif;" },
+  { id: 'dsdigib', label: 'DS Digital', preview: "font-family: 'Courier New', monospace; font-weight: 700; letter-spacing: 2px;" },
+  { id: 'distgrg', label: 'Distant Galaxy', preview: "font-family: 'Arial Narrow', sans-serif; letter-spacing: 3px; font-weight: 700;" },
+  { id: 'dimitri', label: 'Dimitri', preview: "font-family: Georgia, serif; font-weight: 700;" },
+  { id: 'digitaldream', label: 'Digital Dream', preview: "font-family: 'Courier New', monospace; letter-spacing: 4px; font-weight: 700;" },
+  { id: 'blackout', label: 'Blackout', preview: "font-family: Impact, sans-serif; font-weight: 900;" },
+  { id: 'audiowide', label: 'Audiowide', preview: "font-family: 'Arial Black', sans-serif; letter-spacing: 1px;" },
+  { id: 'formation', label: 'Formation', preview: "font-family: Verdana, sans-serif; font-weight: 700;" },
+  { id: 'komikahb', label: 'Komika', preview: "font-family: 'Comic Sans MS', cursive; font-weight: 700;" },
+  { id: 'miso', label: 'Miso', preview: "font-family: 'Century Gothic', sans-serif; font-weight: 600;" },
+  { id: 'pricedown', label: 'Pricedown', preview: "font-family: Impact, 'Arial Narrow', sans-serif; font-style: italic; letter-spacing: 1px;" },
+  { id: 'roboto', label: 'Roboto', preview: "font-family: 'Roboto', Arial, sans-serif; font-weight: 700;" },
+  { id: 'bithamlight', label: 'Bitham Light', preview: "font-family: 'Futura', 'Century Gothic', sans-serif; font-weight: 300; letter-spacing: 1px;" },
+  { id: 'bithambold', label: 'Bitham Bold', preview: "font-family: 'Futura', 'Century Gothic', sans-serif; font-weight: 700; letter-spacing: 1px;" },
+  { id: 'bebas', label: 'Bebas', preview: "font-family: 'Bebas', 'Century Gothic', sans-serif; font-weight: 700; letter-spacing: 1px;" }
+];
+
+// Fonts too wide to fit a seconds readout next to them by default in
+// digital mode (analog mode's seconds hand has no such issue) -- the
+// seconds checkbox is grayed out accordingly (but not silently
+// ignored: index.js's showSecondsCode() double-checks this same rule
+// server-side regardless of what the checkbox holds).
+var FONTS_WITHOUT_SECONDS = { digitaldream: true, minecrafter: true};
+
+// Must match get_color_scheme() in pebble-eclipse-watch.c exactly --
+// same order, same id, same colors.
+var COLOR_SCHEMES = [
+  { id: 0, label: 'Black on White', bg: '#ffffff', text: '#000000', accent: '#000000' },
+  { id: 1, label: 'White on Black', bg: '#000000', text: '#ffffff', accent: '#ffffff' },
+  { id: 2, label: 'Red on Black', bg: '#000000', text: '#ff0000', accent: '#ff0000' },
+  { id: 3, label: 'White on Dark Blue', bg: '#00003c', text: '#ffffff', accent: '#ffffff' },
+  { id: 4, label: 'Yellow on Dark Blue', bg: '#00003c', text: '#ffff00', accent: '#ffff00' },
+  { id: 5, label: 'White on Black, Red accent', bg: '#000000', text: '#ffffff', accent: '#ff0000' },
+  { id: 6, label: 'Black on White, Dark Red accent', bg: '#ffffff', text: '#000000', accent: '#8b0000' },
+  { id: 7, label: 'Black on White, Dark Blue accent', bg: '#ffffff', text: '#000000', accent: '#00008b' },
+  { id: 8, label: 'Red on Black, White accent', bg: '#000000', text: '#ff0000', accent: '#ffffff' },
+  { id: 9, label: 'Red on White, Orange accent', bg: '#ffffff', text: '#ff0000', accent: '#ff8c00' },
+  { id: 11, label: 'Brown on Green, Orange accent', bg: '#228b22', text: '#8b4513', accent: '#ff8c00' }
+];
+
+// Must match corner_content's switch in pebble-eclipse-watch.c exactly.
+var CORNER_CONTENT_OPTIONS = [
+  { id: 0, label: 'None' },
+  { id: 1, label: 'Heart rate' },
+  { id: 2, label: 'Steps today' },
+  { id: 3, label: 'Step goal %' },
+  { id: 4, label: 'High / low temperature' },
+  { id: 5, label: 'Current conditions' },
+  { id: 6, label: 'UV index' },
+  { id: 7, label: 'Rain chance today' },
+  { id: 8, label: 'Humidity' },
+  { id: 9, label: 'Wind' },
+  { id: 10, label: 'Battery' },
+  { id: 11, label: 'Moon phase' },
+  { id: 12, label: 'Short date' },
+  { id: 13, label: 'Location' },
+  { id: 14, label: 'Visibility' },
+  { id: 15, label: 'Cloud cover' },
+  { id: 16, label: 'Sunrise / sunset' },
+  { id: 17, label: 'Pebble logo /w battery bar' },
+  { id: 18, label: 'Time' },
+  { id: 19, label: 'Week number' }
+];
+// Must match draw_corner_item()'s color_mode switch exactly.
+var CORNER_COLOR_MODE_LABELS = ['MONO', 'ACC', 'SEMI', 'COLOR'];
+function cornerContentOptionsHtml(selected) {
+  return CORNER_CONTENT_OPTIONS.map(function (o) {
+    return '<option value="' + o.id + '"' + (String(selected) === String(o.id) ? ' selected' : '') + '>' + esc(o.label) + '</option>';
+  }).join('');
+}
+
+// Same encoding as corner_custom_font/corner_font_size combined -- see
+// marker_text_font_resource_id() in marker_layer.c.
+var MARKER_TEXT_FONTS = [
+  { id: 0, label: 'System - small' },
+  { id: 1, label: 'System - medium' },
+  { id: 2, label: 'System - large' },
+  { id: 3, label: 'System - extra large' },
+  { id: 4, label: 'Minecraft' },
+  { id: 5, label: 'Pixelate' },
+  { id: 6, label: 'Miso' },
+  { id: 7, label: 'Digital' },
+  { id: 8, label: 'Bebas' }
+];
+function markerTextFontOptionsHtml(selected) {
+  var sel = selected || '0';
+  return MARKER_TEXT_FONTS.map(function (f) {
+    return '<option value="' + f.id + '"' + (String(sel) === String(f.id) ? ' selected' : '') + '>' + esc(f.label) + '</option>';
+  }).join('');
+}
+
+// A 12-button grid for picking which hour numerals (kind='hour', labels
+// 12,1..11) or which every-5-second slots (kind='sec', labels 0,5..55)
+// should get a text marker -- bit i of the mask corresponds to button i,
+// same order marker_layer_draw_text() iterates on-watch.
+function markBtnGridHtml(kind, maskStr) {
+  var mask = parseInt(maskStr, 10);
+  if (isNaN(mask)) mask = 0;
+  var html = '<div class="mark-btn-grid">';
+  for (var i = 0; i < 12; i++) {
+    var label = kind === 'hour' ? (i === 0 ? 12 : i) : (i * 5);
+    var active = (mask & (1 << i)) !== 0;
+    html += '<button type="button" class="mark-btn' + (active ? ' active' : '') +
+      '" id="markBtn-' + kind + '-' + i + '" onclick="toggleMarkBtn(\'' + kind + '\',' + i + ')">' + label + '</button>';
+  }
+  return html + '</div>';
+}
+
+// The 16 fields that actually get sent to the watch for the custom
+// marker system -- kept as hidden inputs (same pattern as the corner
+// slots' hidden color inputs) since they're edited inside the two
+// popups, not directly on the page. Defaults approximate the "Big"
+// procedural preset so the ring is visible rather than invisible
+// (thickness 0) the first time someone picks "Custom".
+// Border sliders are 0-100% "reach" values -- see marker_reach_px() in
+// marker_layer.c for the exact mapping. On a 200x228 screen that's a
+// px range of [100,114]: 0% is the largest circle guaranteed to stay
+// fully on-screen (min(w,h)/2), 100% is the screen-fitted rectangle's
+// own far edge (max(w,h)/2). Deliberately narrow -- the range only
+// widens on a screen with a more extreme aspect ratio -- because it's
+// derived directly from "never let a marker end up off the screen".
+var MARKER_BORDER_MIN = 0;
+var MARKER_BORDER_MAX = 100;
+
+function customMarkerHiddenInputsHtml(current) {
+  var d = {
+    customHourStyle: '0', customHourThickness: '3',
+    customHourInnerEcc: '0', customHourOuterEcc: '0', customHourInnerBorder: '20', customHourOuterBorder: '100',
+    customSecStyle: '0', customSecThickness: '1',
+    customSecInnerEcc: '0', customSecOuterEcc: '0', customSecInnerBorder: '70', customSecOuterBorder: '100',
+    markerTextHourMask: '4095', markerTextSecMask: '4095'
+  };
+  var html = '';
+  for (var key in d) {
+    html += '<input type="hidden" id="' + key + '" value="' + esc(current[key] || d[key]) + '">';
+  }
+  return html;
+}
+
+// The hour/second custom-marker popup -- kind is 'hour' or 'sec', used
+// as an id suffix throughout (cmStyle-hour, cmStyle-sec, ...) so one
+// generator serves both. thicknessMax is 20 for hour, 10 for second
+// (see MarkerRingConfig in marker_layer.h). All fields here are drafted
+// in the popup and only committed to the real customHour*/customSec*
+// hidden inputs when OK is pressed -- same "don't touch the real
+// settings until Save" pattern as the corner slot editor.
+function customMarkerModalHtml(kind, title, thicknessMax) {
+  var p = kind === 'hour' ? 'cmHour' : 'cmSec';
+  return (
+'<div class="modal-overlay" id="customMarkerModal-' + kind + '" onclick="if (event.target === this) closeCustomMarkerEditor(\'' + kind + '\');">' +
+'  <div class="modal-box">' +
+'    <div class="modal-title">' + esc(title) + '</div>' +
+
+'    <label for="' + p + 'Style">Shape</label>' +
+'    <select id="' + p + 'Style">' +
+'      <option value="0">Dot (round)</option>' +
+'      <option value="1">Line (flat ends)</option>' +
+'      <option value="2">Square (blocky ends)</option>' +
+'    </select>' +
+
+'    <div class="slider-row">' +
+'      <label for="' + p + 'Thickness">Thickness <span class="val" id="' + p + 'ThicknessVal"></span></label>' +
+'      <div class="slider-with-buttons">' +
+'      <button type="button" class="slider-step-btn" onclick="stepSlider(\'' + p + 'Thickness\', -1)">&minus;</button>' +
+'      <input type="range" id="' + p + 'Thickness" min="1" max="' + thicknessMax + '" step="1" oninput="onCustomMarkerSliderInput(\'' + kind + '\')">' +
+'      <button type="button" class="slider-step-btn" onclick="stepSlider(\'' + p + 'Thickness\', 1)">+</button>' +
+'      </div>' +
+'    </div>' +
+'    <div class="help">Each mark is drawn directly between its inner and outer border points below -- no separate length setting.</div>' +
+
+'    <div class="slider-row">' +
+'      <label for="' + p + 'InnerEcc">Inner eccentricity <span class="val" id="' + p + 'InnerEccVal"></span></label>' +
+'      <div class="slider-with-buttons">' +
+'      <button type="button" class="slider-step-btn" onclick="stepSlider(\'' + p + 'InnerEcc\', -1)">&minus;</button>' +
+'      <input type="range" id="' + p + 'InnerEcc" min="0" max="100" step="1" oninput="onCustomMarkerSliderInput(\'' + kind + '\')">' +
+'      <button type="button" class="slider-step-btn" onclick="stepSlider(\'' + p + 'InnerEcc\', 1)">+</button>' +
+'      </div>' +
+'    </div>' +
+'    <div class="slider-row">' +
+'      <label for="' + p + 'OuterEcc">Outer eccentricity <span class="val" id="' + p + 'OuterEccVal"></span></label>' +
+'      <div class="slider-with-buttons">' +
+'      <button type="button" class="slider-step-btn" onclick="stepSlider(\'' + p + 'OuterEcc\', -1)">&minus;</button>' +
+'      <input type="range" id="' + p + 'OuterEcc" min="0" max="100" step="1" oninput="onCustomMarkerSliderInput(\'' + kind + '\')">' +
+'      <button type="button" class="slider-step-btn" onclick="stepSlider(\'' + p + 'OuterEcc\', 1)">+</button>' +
+'      </div>' +
+'    </div>' +
+'    <div class="help">0 = circle, 100 = a rectangle fitted to the screen edges -- this is what "bends" each mark around corners as it changes.</div>' +
+
+'    <div class="slider-row">' +
+'      <label for="' + p + 'InnerBorder">Inner border <span class="val" id="' + p + 'InnerBorderVal"></span></label>' +
+'      <div class="slider-with-buttons">' +
+'      <button type="button" class="slider-step-btn" onclick="stepSlider(\'' + p + 'InnerBorder\', -1)">&minus;</button>' +
+'      <input type="range" id="' + p + 'InnerBorder" min="' + MARKER_BORDER_MIN + '" max="' + MARKER_BORDER_MAX + '" step="1" oninput="onCustomMarkerBorderInput(\'' + kind + '\', true)">' +
+'      <button type="button" class="slider-step-btn" onclick="stepSlider(\'' + p + 'InnerBorder\', 1)">+</button>' +
+'      </div>' +
+'    </div>' +
+'    <div class="slider-row">' +
+'      <label for="' + p + 'OuterBorder">Outer border <span class="val" id="' + p + 'OuterBorderVal"></span></label>' +
+'      <div class="slider-with-buttons">' +
+'      <button type="button" class="slider-step-btn" onclick="stepSlider(\'' + p + 'OuterBorder\', -1)">&minus;</button>' +
+'      <input type="range" id="' + p + 'OuterBorder" min="' + MARKER_BORDER_MIN + '" max="' + MARKER_BORDER_MAX + '" step="1" oninput="onCustomMarkerBorderInput(\'' + kind + '\', false)">' +
+'      <button type="button" class="slider-step-btn" onclick="stepSlider(\'' + p + 'OuterBorder\', 1)">+</button>' +
+'      </div>' +
+'    </div>' +
+'    <div class="help">Outer can\'t go below inner -- it gets pulled up automatically if you drag inner past it.</div>' +
+
+'    <label style="margin-top:12px;">Presets (translated from the procedural styles)</label>' +
+'    <div class="preset-btn-row">' +
+'      <button type="button" onclick="applyMarkerPreset(\'' + kind + '\', \'minimal\')">Minimal</button>' +
+'      <button type="button" onclick="applyMarkerPreset(\'' + kind + '\', \'small\')">Small</button>' +
+'      <button type="button" onclick="applyMarkerPreset(\'' + kind + '\', \'big\')">Big</button>' +
+'    </div>' +
+'    <button type="button" class="marker-edit-btn" style="margin-top:8px;" onclick="copyMarkerConfig(\'' + kind + '\')">Copy from ' + (kind === 'hour' ? 'second' : 'hour') + ' markers</button>' +
+
+'    <button type="button" onclick="saveCustomMarkerEditor(\'' + kind + '\')" style="width:100%; box-sizing:border-box; padding:14px; font-size:16px; font-weight:600; color:#fff; background:#ff9200; border:none; border-radius:8px; margin-top:14px;">OK</button>' +
+'    <button type="button" class="modal-cancel-btn" onclick="closeCustomMarkerEditor(\'' + kind + '\')">Cancel</button>' +
+'  </div>' +
+'</div>'
+  );
+}
+
+// The "Edit text markers" popup -- numerals shown on the hour or second
+// custom-marker ring (never both). Everything here commits live (same
+// as the hour/second button grids always have) rather than draft-then-
+// Save, since there's no risk of an inconsistent in-between state the
+// way there is with the ring geometry popups.
+function textMarkerModalHtml(current) {
+  return (
+'<div class="modal-overlay" id="textMarkerModal" onclick="if (event.target === this) closeTextMarkerEditor();">' +
+'  <div class="modal-box">' +
+'    <div class="modal-title">Edit text markers</div>' +
+
+'    <label for="markerTextTarget">Numbers</label>' +
+'    <select id="markerTextTarget" onchange="onMarkerTextTargetChange()">' +
+'      <option value="0"' + (current.markerTextTarget === '0' || !current.markerTextTarget ? ' selected' : '') + '>Off</option>' +
+'      <option value="1"' + (current.markerTextTarget === '1' ? ' selected' : '') + '>On hour markers</option>' +
+'      <option value="2"' + (current.markerTextTarget === '2' ? ' selected' : '') + '>On second markers (every 5s)</option>' +
+'    </select>' +
+'    <div class="help">Numbers can go on the hour ring or the second ring, not both at once.</div>' +
+
+'    <div id="markerTextOptions" style="' + (current.markerTextTarget && current.markerTextTarget !== '0' ? '' : 'display:none;') + '">' +
+'      <label for="markerTextFont" style="margin-top:10px;">Font</label>' +
+'      <select id="markerTextFont">' + markerTextFontOptionsHtml(current.markerTextFont) + '</select>' +
+
+'      <div class="slider-row">' +
+'        <label for="markerTextOffset">Offset from marker <span class="val" id="markerTextOffsetVal">' + esc(current.markerTextOffset || '0') + 'px</span></label>' +
+'        <div class="slider-with-buttons">' +
+'        <button type="button" class="slider-step-btn" onclick="stepSlider(\'markerTextOffset\', -1)">&minus;</button>' +
+'        <input type="range" id="markerTextOffset" min="-50" max="50" step="1" value="' + esc(current.markerTextOffset || '0') + '" oninput="document.getElementById(\'markerTextOffsetVal\').textContent = this.value + \'px\';">' +
+'        <button type="button" class="slider-step-btn" onclick="stepSlider(\'markerTextOffset\', 1)">+</button>' +
+'        </div>' +
+'      </div>' +
+'      <div class="help">Positive nudges numbers outward (away from center), negative pulls them inward -- so they don\'t overlap the dot/line/square marker.</div>' +
+
+'      <div id="markerTextHourGrid" style="' + (current.markerTextTarget === '1' ? '' : 'display:none;') + '">' +
+'        <label style="margin-top:10px;">Which hours get a number</label>' +
+          markBtnGridHtml('hour', current.markerTextHourMask !== undefined ? current.markerTextHourMask : '4095') +
+'      </div>' +
+'      <div id="markerTextSecGrid" style="' + (current.markerTextTarget === '2' ? '' : 'display:none;') + '">' +
+'        <label style="margin-top:10px;">Which 5-second marks get a number</label>' +
+          markBtnGridHtml('sec', current.markerTextSecMask !== undefined ? current.markerTextSecMask : '4095') +
+'      </div>' +
+'    </div>' +
+
+'    <button type="button" class="modal-cancel-btn" onclick="closeTextMarkerEditor()" style="margin-top:14px;">Close</button>' +
+'  </div>' +
+'</div>'
+  );
+}
+
+function schemeColorOptionsHtml(selected) {
+  var sel = selected || '0';
+  return (
+'<option value="0"' + (sel === '0' ? ' selected' : '') + '>Main color</option>' +
+'<option value="1"' + (sel === '1' ? ' selected' : '') + '>Accent color</option>' +
+'<option value="2"' + (sel === '2' ? ' selected' : '') + '>Background color</option>'
+  );
+}
+
+// The 7 fields per hand (hour/min/sec -- 21 total) that get sent to the
+// watch, kept as hidden inputs edited via the 3 popups below, same
+// pattern as customMarkerHiddenInputsHtml(). Defaults approximate the
+// "Pointy" procedural style so hands are visible immediately, rather
+// than defaulting to width/length 0.
+function handHiddenInputsHtml(current) {
+  var d = {
+    handHourStyle: '1', handHourWidth: '12', handHourLength: '51', handHourBackOffset: '0',
+    handHourColor: '0', handHourOutlineEnabled: 'false', handHourOutlineColor: '0', handHourTranslucent: 'false',
+    handMinStyle: '1', handMinWidth: '18', handMinLength: '78', handMinBackOffset: '0',
+    handMinColor: '0', handMinOutlineEnabled: 'false', handMinOutlineColor: '0', handMinTranslucent: 'false',
+    handSecStyle: '0', handSecWidth: '2', handSecLength: '85', handSecBackOffset: '0',
+    handSecColor: '1', handSecOutlineEnabled: 'false', handSecOutlineColor: '0', handSecTranslucent: 'false'
+  };
+  var html = '';
+  for (var key in d) {
+    var val = current[key] !== undefined ? current[key] : d[key];
+    html += '<input type="hidden" id="' + key + '" value="' + esc(val) + '">';
+  }
+  return html;
+}
+
+// The hour/minute/second custom-hand popup -- kind is 'hour', 'min', or
+// 'sec'. Same "draft in the popup, commit on OK" pattern as
+// customMarkerModalHtml().
+// Copy-preset direction is fixed per hand (not "the other one" generically,
+// per how this was asked for): hour offers to copy minute's settings,
+// minute offers hour's, second offers minute's.
+var HAND_COPY_SOURCE = { hour: 'min', min: 'hour', sec: 'min' };
+var HAND_COPY_SOURCE_LABEL = { hour: 'minute', min: 'hour', sec: 'minute' };
+
+function handEditorModalHtml(kind, title) {
+  var p = 'he' + kind.charAt(0).toUpperCase() + kind.slice(1); // heHour / heMin / heSec
+  return (
+'<div class="modal-overlay" id="handEditorModal-' + kind + '" onclick="if (event.target === this) closeHandEditor(\'' + kind + '\');">' +
+'  <div class="modal-box">' +
+'    <div class="modal-title">' + esc(title) + '</div>' +
+
+'    <label for="' + p + 'Style">Shape</label>' +
+'    <select id="' + p + 'Style">' +
+'      <option value="0">Dot (round caps)</option>' +
+'      <option value="1">Triangle</option>' +
+'      <option value="2">Square (flat caps)</option>' +
+'    </select>' +
+
+'    <div class="slider-row">' +
+'      <label for="' + p + 'Width">Width <span class="val" id="' + p + 'WidthVal"></span></label>' +
+'      <div class="slider-with-buttons">' +
+'      <button type="button" class="slider-step-btn" onclick="stepSlider(\'' + p + 'Width\', -1)">&minus;</button>' +
+'      <input type="range" id="' + p + 'Width" min="1" max="40" step="1" oninput="onHandSliderInput(\'' + kind + '\')">' +
+'      <button type="button" class="slider-step-btn" onclick="stepSlider(\'' + p + 'Width\', 1)">+</button>' +
+'      </div>' +
+'    </div>' +
+'    <div class="slider-row">' +
+'      <label for="' + p + 'Length">Length <span class="val" id="' + p + 'LengthVal"></span></label>' +
+'      <div class="slider-with-buttons">' +
+'      <button type="button" class="slider-step-btn" onclick="stepSlider(\'' + p + 'Length\', -1)">&minus;</button>' +
+'      <input type="range" id="' + p + 'Length" min="10" max="100" step="1" oninput="onHandSliderInput(\'' + kind + '\')">' +
+'      <button type="button" class="slider-step-btn" onclick="stepSlider(\'' + p + 'Length\', 1)">+</button>' +
+'      </div>' +
+'    </div>' +
+'    <div class="slider-row">' +
+'      <label for="' + p + 'BackOffset">Back offset <span class="val" id="' + p + 'BackOffsetVal"></span></label>' +
+'      <div class="slider-with-buttons">' +
+'      <button type="button" class="slider-step-btn" onclick="stepSlider(\'' + p + 'BackOffset\', -1)">&minus;</button>' +
+'      <input type="range" id="' + p + 'BackOffset" min="-40" max="40" step="1" oninput="onHandSliderInput(\'' + kind + '\')">' +
+'      <button type="button" class="slider-step-btn" onclick="stepSlider(\'' + p + 'BackOffset\', 1)">+</button>' +
+'      </div>' +
+'    </div>' +
+'    <div class="help">Positive extends a tail behind the pivot; negative starts the hand short of center (a detached gap).</div>' +
+
+'    <label for="' + p + 'Color">Color</label>' +
+'    <select id="' + p + 'Color">' + schemeColorOptionsHtml('0') + '<option value="3">None (don\'t fill)</option></select>' +
+'    <div class="help">"None" skips the fill entirely -- combine with Outline below for a hollow look.</div>' +
+
+'    <div class="checkbox-row" style="margin-top:12px;">' +
+'      <input type="checkbox" id="' + p + 'Translucent">' +
+'      <label for="' + p + 'Translucent" style="margin:0;">Semi-transparent</label>' +
+'    </div>' +
+'    <div class="help">Dithers the fill (and outline, if enabled) to ~50% so the sky shows through.</div>' +
+
+'    <div class="checkbox-row" style="margin-top:12px;">' +
+'      <input type="checkbox" id="' + p + 'OutlineEnabled">' +
+'      <label for="' + p + 'OutlineEnabled" style="margin:0;">Outline</label>' +
+'    </div>' +
+'    <label for="' + p + 'OutlineColor">Outline color</label>' +
+'    <select id="' + p + 'OutlineColor">' + schemeColorOptionsHtml('0') + '</select>' +
+
+'    <button type="button" class="marker-edit-btn" style="margin-top:8px;" onclick="copyHandConfig(\'' + kind + '\')">Copy ' + HAND_COPY_SOURCE_LABEL[kind] + ' hand settings</button>' +
+
+'    <button type="button" onclick="saveHandEditor(\'' + kind + '\')" style="width:100%; box-sizing:border-box; padding:14px; font-size:16px; font-weight:600; color:#fff; background:#ff9200; border:none; border-radius:8px; margin-top:14px;">OK</button>' +
+'    <button type="button" class="modal-cancel-btn" onclick="closeHandEditor(\'' + kind + '\')">Cancel</button>' +
+'  </div>' +
+'</div>'
+  );
+}
+
+
+/**
+ * @param {object} current  current settings, as plain values:
+ *   { autoLoc, lat, lon, owmKey, updateMins,
+ *     clockFont, showSeconds, bottomStyle: 'digital'|'analog'|'biganalog', analogStyle: '0'-'3',
+ *     bigAnalogHandStyle: '0'-'2', bigAnalogTransparent,
+ *     bigAnalogMarkerStyle: '0'-'8' (8=custom -- see customHour.../customSec.../markerText... below), upperMiddleLine1Content/upperMiddleLine2Content: '0'-'12', upperMiddleLine1Color/upperMiddleLine2Color: '0'-'3',
+ *     colorScheme: '0'-'9'|'custom', customBg, customText, customAccent (packed byte strings),
+ *     nightEnabled, nightScheme, nightCustomBg, nightCustomText, nightCustomAccent,
+ *     showSunTime, showIss, sunMoonSize: '25'|'50'|'75'|'100', shakeLabelSeconds, vibrateOnPhaseChange,
+ *     tempUnit: 'C'|'F',
+ *     cornerTL, cornerTR, cornerBL, cornerBR: '0'-'9', cornerTLColor, cornerTRColor, cornerBLColor, cornerBRColor: '0'-'3', stepGoal,
+ *     customHourStyle/customSecStyle: '0'-'2' (dot/line/square), customHourThickness (1-20)/
+ *     customSecThickness (1-10), customHourInnerEcc/customHourOuterEcc/customSecInnerEcc/
+ *     customSecOuterEcc: '0'-'100', customHourInnerBorder/customHourOuterBorder/
+ *     customSecInnerBorder/customSecOuterBorder: '0'-'100' (% reach, see marker_reach_px()
+ *     in marker_layer.c -- each mark spans directly between its inner/outer border points),
+ *     markerTextTarget: '0'(off)|'1'(hour)|'2'(second), markerTextFont: '0'-'6', markerTextOffset: '-50'-'50',
+ *     markerTextHourMask/markerTextSecMask: 0-4095 (12-bit),
+ *     testMode, testDateTime }
+ */
+function buildConfigHtml(current) {
+  var autoLocChecked = current.autoLoc ? 'checked' : '';
+  var manualDisabled = current.autoLoc ? 'disabled' : '';
+  var testModeChecked = current.testMode ? 'checked' : '';
+  var testDisabled = current.testMode ? '' : 'disabled';
+  var debugTextareaInitial = (current.debugOverrideEnabled && current.debugOverrideData)
+    ? current.debugOverrideData
+    : (current.lastSentData || '');
+  var bottomStyleVal = current.bottomStyle === 'biganalog' ? 'biganalog' : (current.bottomStyle === 'analog' ? 'analog' : 'digital');
+  var isAnalog = bottomStyleVal === 'analog';
+  var isBigAnalog = bottomStyleVal === 'biganalog';
+  var secondsUnsupported = (bottomStyleVal === 'digital') && !!FONTS_WITHOUT_SECONDS[current.clockFont];
+  var secondsChecked = (current.showSeconds && !secondsUnsupported) ? 'checked' : '';
+  var secondsDisabled = secondsUnsupported ? 'disabled' : '';
+
+  // Which edge-middle slots (upper/bottom/left/right-middle) does the
+  // current mode/style support, and are the 4 corners themselves
+  // suppressed? Must match corners_layer_update_proc's rules in
+  // pebble-eclipse-watch.c exactly, or the settings page would show
+  // slots as available that the watch itself won't actually draw.
+  var markerStyleNum = parseInt(current.bigAnalogMarkerStyle || '0', 10);
+  var edgeAvail = { upper: false, bottom: false, left: false, right: false, cornersGrayed: false };
+  if (isBigAnalog) {
+    if (markerStyleNum < 3 || markerStyleNum === 8) {
+      edgeAvail = { upper: true, bottom: true, left: true, right: true, cornersGrayed: false };
+    } else if (markerStyleNum === 3 || markerStyleNum === 4 || markerStyleNum === 6) {
+      edgeAvail = { upper: true, bottom: true, left: false, right: false, cornersGrayed: true };
+    } else if (markerStyleNum === 5 || markerStyleNum === 7) {
+      edgeAvail = { upper: true, bottom: true, left: true, right: true, cornersGrayed: true };
+    } else {
+      edgeAvail = { upper: true, bottom: false, left: false, right: false, cornersGrayed: true };
+    }
+  }
+  var colorSchemeVal = current.colorScheme || '0';
+  var nightSchemeVal = current.nightScheme || '1';
+
+  var fontOptions = CLOCK_FONTS.map(function (f) {
+    return '<option value="' + f.id + '" data-preview="' + esc(f.preview) + '" data-seconds="' +
+      (FONTS_WITHOUT_SECONDS[f.id] ? '0' : '1') + '"' +
+      (current.clockFont === f.id ? ' selected' : '') + '>' + esc(f.label) + '</option>';
+  }).join('');
+
+  function schemeOptionsHtml(selectedVal, includeCustomOption) {
+    var opts = '';
+    if (!includeCustomOption && selectedVal === 'custom') {
+      opts += '<option value="" disabled selected>(Custom colors)</option>';
+    }
+    opts += COLOR_SCHEMES.map(function (s) {
+      return '<option value="' + s.id + '"' + (String(selectedVal) === String(s.id) ? ' selected' : '') + '>' + esc(s.label) + '</option>';
+    }).join('');
+    if (includeCustomOption) {
+      opts += '<option value="custom"' + (selectedVal === 'custom' ? ' selected' : '') + '>Custom...</option>';
+    }
+    return opts;
+  }
+
+  function hexFromPackedByte(byte) {
+    var b = parseInt(byte, 10);
+    if (isNaN(b)) return '#000000';
+    var r2 = (b >> 4) & 3, g2 = (b >> 2) & 3, b2 = b & 3;
+    function ch(v) { var h = (v * 85).toString(16); return h.length < 2 ? '0' + h : h; }
+    return '#' + ch(r2) + ch(g2) + ch(b2);
+  }
+  function resolveInitialColors(schemeVal, bgByte, textByte, accentByte) {
+    if (schemeVal === 'custom') {
+      return {
+        bg: hexFromPackedByte(bgByte),
+        text: hexFromPackedByte(textByte),
+        accent: hexFromPackedByte(accentByte)
+      };
+    }
+    var preset = COLOR_SCHEMES.filter(function (s) { return String(s.id) === String(schemeVal); })[0] || COLOR_SCHEMES[0];
+    return { bg: preset.bg, text: preset.text, accent: preset.accent };
+  }
+  var initialColors = resolveInitialColors(colorSchemeVal, current.customBg || '255', current.customText || '192', current.customAccent || '192');
+  var initialNightColors = resolveInitialColors(nightSchemeVal, current.nightCustomBg || '192', current.nightCustomText || '255', current.nightCustomAccent || '255');
+
+  return '<!DOCTYPE html>' +
+'<html><head><meta charset="utf-8">' +
+'<meta name="viewport" content="width=device-width, initial-scale=1">' +
+'<title>Eclipz Settings</title>' +
+'<style>' +
+'  body { font-family: -apple-system, Helvetica, Arial, sans-serif; margin: 0; padding: 16px 20px 90px; background: #f4f4f4; color: #222; }' +
+'  fieldset { border: none; background: #fff; border-radius: 8px; padding: 14px 16px; margin-bottom: 16px; box-shadow: 0 1px 2px rgba(0,0,0,0.08); }' +
+'  legend { font-weight: 600; font-size: 14px; padding: 0; color: #333; }' +
+'  label { display: block; font-size: 14px; margin: 10px 0 4px; color: #333; }' +
+'  input[type=text], input[type=number], select { width: 100%; box-sizing: border-box; padding: 8px; font-size: 15px; border: 1px solid #ccc; border-radius: 5px; background: #fff; }' +
+'  input[disabled], select[disabled] { background: #eee; color: #999; }' +
+'  .checkbox-row { display: flex; align-items: center; gap: 10px; }' +
+'  input[type=checkbox] { appearance: none; -webkit-appearance: none; width: 30px; height: 30px; flex-shrink: 0; margin: 0; padding: 0; box-sizing: border-box; border: 2px solid #ccc; border-radius: 8px; background: #fff; position: relative; }' +
+'  input[type=checkbox]:checked { background: #ff9200; border-color: #ff9200; }' +
+'  input[type=checkbox]:checked::after { content: ""; position: absolute; left: 9px; top: 4px; width: 7px; height: 14px; border: solid #fff; border-width: 0 3px 3px 0; transform: rotate(45deg); }' +
+'  input[type=checkbox][disabled] { background: #eee; border-color: #ddd; }' +
+'  input[type=checkbox][disabled]:checked { background: #f0c785; border-color: #f0c785; }' +
+'  .help { color: #888; font-size: 12px; margin-top: 4px; }' +
+'  .radio-row { display: flex; gap: 16px; margin-top: 8px; flex-wrap: wrap; }' +
+'  .radio-row label { display: flex; align-items: center; gap: 6px; margin: 0; font-weight: normal; }' +
+'  .radio-row input { width: auto; }' +
+'  .secondary-btn { width: 100%; padding: 12px; font-size: 14px; font-weight: 600; color: #333; background: #eee; border: 1px solid #ccc; border-radius: 8px; margin-top: 12px; }' +
+'  .secondary-btn:active { background: #ddd; }' +
+'  .save-bar { position: fixed; left: 0; right: 0; bottom: 0; padding: 12px 20px calc(12px + env(safe-area-inset-bottom, 0px)); background: #f4f4f4; box-shadow: 0 -2px 6px rgba(0,0,0,0.1); }' +
+'  .save-bar button { width: 100%; padding: 14px; font-size: 16px; font-weight: 600; color: #fff; background: #ff9200; border: none; border-radius: 8px; }' +
+'  .save-bar button:active { background: #e08300; }' +
+'  #topBar { position: fixed; top: 0; left: 0; right: 0; max-height: 25vh; overflow: hidden; background: #f4f4f4; box-shadow: 0 2px 6px rgba(0,0,0,0.12); display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 14px; padding-top: calc(10px + env(safe-area-inset-top, 0px)); box-sizing: border-box; z-index: 50; }' +
+'  .top-bar-left { display: flex; flex-direction: column; justify-content: center; flex: 0 1 66%; min-width: 0; }' +
+'  .top-bar-actions { display: flex; gap: 6px; align-items: center; }' +
+'  .back-btn { padding: 6px 10px; font-size: 13px; font-weight: 600; color: #333; background: #fff; border: 1px solid #ccc; border-radius: 6px; }' +
+'  .back-btn:active { background: #eee; }' +
+'  .donate-btn { padding: 6px 10px; font-size: 13px; font-weight: 700; color: #fff; background: linear-gradient(135deg, #ffb347, #ff8c00); border: none; border-radius: 6px; box-shadow: 0 1px 3px rgba(255,140,0,0.5); }' +
+'  .donate-btn:active { filter: brightness(0.92); }' +
+'  .top-bar-title { font-size: 15px; font-weight: 700; margin-top: 6px; color: #222; white-space: nowrap; }' +
+'  .top-bar-desc { font-size: 10px; line-height: 1.3; color: #666; margin-top: 3px; }' +
+'  .top-bar-preview { flex: 0 1 33%; display: flex; justify-content: center; align-items: center; min-width: 0; height: 100%; max-height: calc(25vh - 20px); padding: 1%; box-sizing: border-box; }' +
+'  #previewCanvas { height: 50%; max-height: 50%; width: auto; max-width: 98%; border-radius: 4px; }' +
+'  .subsection { margin-top: 10px; padding-top: 10px; border-top: 1px solid #eee; }' +
+'  .color-role-buttons { display: flex; gap: 8px; margin-top: 6px; }' +
+'  .color-role-btn { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 8px 4px; border: 1px solid #ccc; border-radius: 8px; background: #fafafa; }' +
+'  .color-role-btn:active { background: #eee; }' +
+'  .color-role-swatch { width: 36px; height: 36px; border-radius: 50%; border: 2px solid #ccc; box-sizing: border-box; }' +
+'  .color-role-label { font-size: 11px; color: #555; }' +
+'  .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: none; align-items: flex-end; justify-content: center; z-index: 100; }' +
+'  .modal-overlay.open { display: flex; }' +
+'  .modal-box { background: #fff; border-radius: 12px 12px 0 0; padding: 16px; width: 100%; max-width: 400px; max-height: 80vh; overflow-y: auto; box-sizing: border-box; }' +
+'  .modal-title { font-weight: 600; font-size: 15px; margin-bottom: 10px; text-align: center; }' +
+'  .hex-grid { position: relative; width: 260px; height: 255px; margin: 0 auto; }' +
+'  .hex-swatch { position: absolute; width: 26px; height: 30px; margin: -15px 0 0 -13px; clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%); border: 1px solid rgba(0,0,0,0.15); box-sizing: border-box; }' +
+'  .hex-swatch.hollow { border: none; background: transparent !important; pointer-events: none; }' +
+'  .hex-swatch.selected { border: 2px solid #ff9200; }' +
+'  .modal-cancel-btn { width: 100%; padding: 12px; font-size: 14px; font-weight: 600; color: #333; background: #eee; border: none; border-radius: 8px; margin-top: 12px; }' +
+'  .mode-btn-group { display: flex; width: 100%; margin-top: 6px; border-radius: 6px; overflow: hidden; border: 1px solid #ccc; box-sizing: border-box; }' +
+'  .mode-btn { flex: 1; padding: 10px 0; font-size: 12px; font-weight: 700; color: #333; background: #fafafa; border: none; border-right: 1px solid #ccc; }' +
+'  .mode-btn:last-child { border-right: none; }' +
+'  .mode-btn.active { background: #ff9200; color: #fff; box-shadow: inset 0 2px 4px rgba(0,0,0,0.35); }' +
+'  .slider-row { margin-top: 12px; }' +
+'  .slider-row label { display: flex; justify-content: space-between; font-size: 13px; color: #555; margin-bottom: 2px; }' +
+'  .slider-row label .val { font-weight: 700; color: #333; }' +
+'  input[type=range] { width: 100%; -webkit-appearance: none; appearance: none; height: 30px; background: transparent; margin: 0; }' +
+'  input[type=range]::-webkit-slider-runnable-track { height: 6px; border-radius: 3px; background: #ddd; }' +
+'  input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 24px; height: 24px; border-radius: 50%; background: #ff9200; border: 2px solid #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.4); margin-top: -9px; }' +
+'  input[type=range]::-moz-range-track { height: 6px; border-radius: 3px; background: #ddd; }' +
+'  input[type=range]::-moz-range-thumb { width: 20px; height: 20px; border-radius: 50%; background: #ff9200; border: 2px solid #fff; }' +
+'  .mark-btn-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; margin-top: 6px; }' +
+'  .mark-btn { padding: 8px 0; font-size: 12px; font-weight: 700; color: #333; background: #fafafa; border: 1px solid #ccc; border-radius: 6px; }' +
+'  .mark-btn.active { background: #ff9200; color: #fff; border-color: #ff9200; }' +
+'  .preset-btn-row { display: flex; gap: 6px; margin-top: 8px; }' +
+'  .preset-btn-row button { flex: 1; padding: 8px 0; font-size: 11px; font-weight: 700; color: #333; background: #fafafa; border: 1px solid #ccc; border-radius: 6px; }' +
+'  .marker-edit-btn { width: 100%; box-sizing: border-box; padding: 12px; font-size: 14px; font-weight: 600; color: #333; background: #fafafa; border: 1px solid #ccc; border-radius: 8px; margin-top: 8px; text-align: left; }' +
+'  .section-legend { cursor: pointer; display: block; width: 100%; box-sizing: border-box; margin: 0; padding: 6px 0; user-select: none; }' +
+'  .chevron { float: right; display: inline-block; font-size: 13px; transition: transform 0.15s; }' +
+'  .chevron.open { transform: rotate(90deg); }' +
+'  .slider-with-buttons { display: flex; align-items: center; gap: 8px; }' +
+'  .slider-with-buttons input[type=range] { flex: 1; }' +
+'  .slider-step-btn { width: 34px; height: 34px; flex-shrink: 0; border-radius: 8px; background: #fafafa; border: 1px solid #ccc; font-size: 20px; font-weight: 700; color: #333; line-height: 1; }' +
+'  .grayed-out { opacity: 0.4; pointer-events: none; }' +
+'  #slotPickerDiagram { position: relative; width: 240px; height: 274px; margin: 10px auto; background: linear-gradient(to bottom, #4a90d9, #bfe3f5); border-radius: 8px; overflow: hidden; }' +
+'  .slot-btn { position: absolute; min-width: 54px; padding: 5px 8px; font-size: 11px; font-weight: 700; color: #222; background: rgba(255,255,255,0.85); border: 1px solid rgba(0,0,0,0.2); border-radius: 6px; text-align: center; }' +
+'  .slot-btn:active { background: #fff; }' +
+'  .slot-btn.slot-off { color: #777; font-weight: 400; }' +
+'  .slot-btn.slot-na { color: #aaa; background: rgba(230,230,230,0.7); font-style: italic; pointer-events: none; }' +
+'  .slot-corner-tl { left: 6px; top: 6px; }' +
+'  .slot-corner-tr { right: 6px; top: 6px; }' +
+'  .slot-corner-bl { left: 6px; bottom: 6px; }' +
+'  .slot-corner-br { right: 6px; bottom: 6px; }' +
+'  .slot-upper-l1 { left: 50%; top: 34px; transform: translateX(-50%); }' +
+'  .slot-upper-l2 { left: 50%; top: 62px; transform: translateX(-50%); }' +
+'  .slot-bottom-l1 { left: 50%; bottom: 62px; transform: translateX(-50%); }' +
+'  .slot-bottom-l2 { left: 50%; bottom: 34px; transform: translateX(-50%); }' +
+'  .slot-middle-left { left: 6px; top: 50%; transform: translateY(-50%); }' +
+'  .slot-middle-right { right: 6px; top: 50%; transform: translateY(-50%); }' +
+'</style></head>' +
+'<body>' +
+
+'<div id="topBar">' +
+'  <div class="top-bar-left">' +
+'    <div class="top-bar-actions">' +
+'      <button type="button" class="back-btn" onclick="goBack()">&lsaquo; Back</button>' +
+'      <button type="button" class="donate-btn" onclick="openDonateModal()">&#9825; Donate</button>' +
+'    </div>' +
+'    <div class="top-bar-title">Eclipz</div>' +
+'    <div class="top-bar-desc">Configure where the eclipse geometry should be calculated for, and (optionally) a second weather source.</div>' +
+'  </div>' +
+'  <div class="top-bar-preview">' +
+'    <canvas id="previewCanvas" width="176" height="201"></canvas>' +
+'  </div>' +
+'</div>' +
+
+'<div class="modal-overlay" id="slotEditModal" onclick="if (event.target === this) closeSlotEditor();">' +
+'  <div class="modal-box">' +
+'    <div class="modal-title" id="slotEditTitle">Edit slot</div>' +
+'    <label for="slotEditContent">Content</label>' +
+'    <select id="slotEditContent" onchange="onSlotEditContentChange()">' + cornerContentOptionsHtml(0) + '</select>' +
+'    <div class="mode-btn-group" id="slotEditColorGroup" style="margin-top:10px;">' +
+'      <button type="button" class="mode-btn" onclick="slotEditorSelectColor(0)">MONO</button>' +
+'      <button type="button" class="mode-btn" onclick="slotEditorSelectColor(1)">ACC</button>' +
+'      <button type="button" class="mode-btn" onclick="slotEditorSelectColor(2)">SEMI</button>' +
+'      <button type="button" class="mode-btn" onclick="slotEditorSelectColor(3)">COLOR</button>' +
+'    </div>' +
+'    <div class="help"><b>MONO</b> = your main color, <b>ACC</b> = accent color, <b>SEMI</b> = translucent accent, <b>COLOR</b> = dynamic (changes with the value shown).</div>' +
+'    <button type="button" onclick="saveSlotEditor()" style="width:100%; box-sizing:border-box; padding:14px; font-size:16px; font-weight:600; color:#fff; background:#ff9200; border:none; border-radius:8px; margin-top:14px;">OK</button>' +
+'    <button type="button" class="modal-cancel-btn" onclick="closeSlotEditor()">Cancel</button>' +
+'  </div>' +
+'</div>' +
+
+customMarkerModalHtml('hour', 'Edit hour markers', 20) +
+customMarkerModalHtml('sec', 'Edit second markers', 10) +
+textMarkerModalHtml(current) +
+
+handEditorModalHtml('hour', 'Edit hour hand') +
+handEditorModalHtml('min', 'Edit minute hand') +
+handEditorModalHtml('sec', 'Edit second hand') +
+
+'<div class="modal-overlay" id="donateModal">' +
+'  <div class="modal-box">' +
+'    <div class="modal-title">Support this project</div>' +
+'    <a class="secondary-btn" style="display:block; box-sizing:border-box; text-align:center; text-decoration:none;" href="#" onclick="return false;">Donate via PayPal</a>' +
+'    <a class="secondary-btn" style="display:block; box-sizing:border-box; text-align:center; text-decoration:none; margin-top:8px;" href="#" onclick="return false;">Donate Bitcoin</a>' +
+'    <div class="help" style="text-align:center; margin-top:10px;">Links coming soon.</div>' +
+'    <button type="button" class="modal-cancel-btn" onclick="closeDonateModal()">Close</button>' +
+'  </div>' +
+'</div>' +
+
+'  <fieldset>' +
+'    <div class="section-legend" onclick="toggleSection(\'style\')">Style <span class="chevron" id="chev-style">&#9656;</span></div>' +
+'    <div class="section-body" id="section-style" style="display:none;">' +
+
+'    <label>Layout</label>' +
+'    <div class="radio-row">' +
+'      <label><input type="radio" name="bottomStyle" value="digital" ' + (bottomStyleVal === 'digital' ? 'checked' : '') + ' onchange="onBottomStyleChange()"> Digital</label>' +
+'      <label><input type="radio" name="bottomStyle" value="analog" ' + (isAnalog ? 'checked' : '') + ' onchange="onBottomStyleChange()"> Analog + info</label>' +
+'      <label><input type="radio" name="bottomStyle" value="biganalog" ' + (isBigAnalog ? 'checked' : '') + ' onchange="onBottomStyleChange()"> Big analog</label>' +
+'    </div>' +
+'    <div class="help">Analog shows a clock face on the left and clouds/location/date/week on the right. Big analog fills the whole screen with fullscreen hands over the sky/eclipse view -- no bottom bar.</div>' +
+
+'    <div id="digitalOnlySettings" class="subsection" style="' + (bottomStyleVal === 'digital' ? '' : 'display:none;') + '">' +
+'      <label for="clockFont">Clock font</label>' +
+'      <select id="clockFont" onchange="onFontChange()">' + fontOptions + '</select>' +
+'    </div>' +
+
+'    <div id="analogOnlySettings" class="subsection" style="' + (isAnalog ? '' : 'display:none;') + '">' +
+'      <label for="analogStyle">Analog face style</label>' +
+'      <select id="analogStyle" onchange="onAnalogStyleChange()">' +
+'        <option value="0"' + (current.analogStyle === '0' || !current.analogStyle ? ' selected' : '') + '>Solid circle</option>' +
+'        <option value="1"' + (current.analogStyle === '1' ? ' selected' : '') + '>Hour markers</option>' +
+'        <option value="2"' + (current.analogStyle === '2' ? ' selected' : '') + '>Solid circle + hour markers</option>' +
+'        <option value="3"' + (current.analogStyle === '3' ? ' selected' : '') + '>12 / 3 / 6 / 9 tiny numerals</option>' +
+'      </select>' +
+'    </div>' +
+
+'    <div id="bigAnalogSettings" class="subsection" style="' + (isBigAnalog ? '' : 'display:none;') + '">' +
+'      <label for="bigAnalogHandStyle">Hand style</label>' +
+'      <select id="bigAnalogHandStyle" onchange="onHandStyleChange()">' +
+'        <option value="0"' + (current.bigAnalogHandStyle === '0' || !current.bigAnalogHandStyle ? ' selected' : '') + '>Pointy (triangular)</option>' +
+'        <option value="1"' + (current.bigAnalogHandStyle === '1' ? ' selected' : '') + '>Square (rectangular)</option>' +
+'        <option value="2"' + (current.bigAnalogHandStyle === '2' ? ' selected' : '') + '>Modern (hollow, rounded)</option>' +
+'        <option value="3"' + (current.bigAnalogHandStyle === '3' ? ' selected' : '') + '>Rounded (classic Pebble, accent hour hand)</option>' +
+'        <option value="4"' + (current.bigAnalogHandStyle === '4' ? ' selected' : '') + '>Custom</option>' +
+'      </select>' +
+'      <div class="checkbox-row" id="bigAnalogTransparentRow" style="margin-top:12px;' + (current.bigAnalogHandStyle === '4' ? ' display:none;' : '') + '">' +
+'        <input type="checkbox" id="bigAnalogTransparent" ' + (current.bigAnalogTransparent ? 'checked' : '') + ' onchange="updatePreview()">' +
+'        <label for="bigAnalogTransparent" style="margin:0;">Semi-transparent hands (see the sky through them)</label>' +
+'      </div>' +
+'      <div class="help">To show the date behind the hands, pick "Short date" as a line in the Corners &amp; edge slots section below (bottom-middle line 1 does this by default).</div>' +
+
+'      <div id="customHandSection" style="' + (current.bigAnalogHandStyle === '4' ? '' : 'display:none;') + '">' +
+'        <button type="button" class="marker-edit-btn" onclick="openHandEditor(\'hour\')">Edit hour hand &rsaquo;</button>' +
+'        <button type="button" class="marker-edit-btn" onclick="openHandEditor(\'min\')">Edit minute hand &rsaquo;</button>' +
+'        <button type="button" class="marker-edit-btn" onclick="openHandEditor(\'sec\')">Edit second hand &rsaquo;</button>' +
+'        <div class="slider-row">' +
+'          <label for="centerCircleRadius">Center circle <span class="val" id="centerCircleRadiusVal">' + esc(current.centerCircleRadius || '3') + 'px</span></label>' +
+'        <div class="slider-with-buttons">' +
+'        <button type="button" class="slider-step-btn" onclick="stepSlider(\'centerCircleRadius\', -1)">&minus;</button>' +
+'          <input type="range" id="centerCircleRadius" min="0" max="30" step="1" value="' + esc(current.centerCircleRadius || '3') + '" oninput="document.getElementById(\'centerCircleRadiusVal\').textContent = this.value + \'px\';">' +
+'        <button type="button" class="slider-step-btn" onclick="stepSlider(\'centerCircleRadius\', 1)">+</button>' +
+'        </div>' +
+'        </div>' +
+'        <div class="help">0 = off.</div>' +
+'        <label for="centerCircleColor">Center circle color</label>' +
+'        <select id="centerCircleColor">' + schemeColorOptionsHtml(current.centerCircleColor) + '</select>' +
+          handHiddenInputsHtml(current) +
+'      </div>' +
+
+'      <label for="bigAnalogMarkerStyle" style="margin-top:12px;">Hour/second marker style</label>' +
+'      <select id="bigAnalogMarkerStyle" onchange="onMarkerStyleChange()">' +
+'        <option value="0"' + (current.bigAnalogMarkerStyle === '0' || !current.bigAnalogMarkerStyle ? ' selected' : '') + '>Minimal (thin hour markers only)</option>' +
+'        <option value="1"' + (current.bigAnalogMarkerStyle === '1' ? ' selected' : '') + '>Small markers (hour + second)</option>' +
+'        <option value="2"' + (current.bigAnalogMarkerStyle === '2' ? ' selected' : '') + '>Big markers (thick hour, thin second)</option>' +
+'        <option value="3"' + (current.bigAnalogMarkerStyle === '3' ? ' selected' : '') + '>Modern</option>' +
+'        <option value="4"' + (current.bigAnalogMarkerStyle === '4' ? ' selected' : '') + '>Shadow</option>' +
+'        <option value="5"' + (current.bigAnalogMarkerStyle === '5' ? ' selected' : '') + '>Tally</option>' +
+'        <option value="6"' + (current.bigAnalogMarkerStyle === '6' ? ' selected' : '') + '>Bell</option>' +
+'        <option value="7"' + (current.bigAnalogMarkerStyle === '7' ? ' selected' : '') + '>Brown</option>' +
+'        <option value="8"' + (current.bigAnalogMarkerStyle === '8' ? ' selected' : '') + '>Custom</option>' +
+'      </select>' +
+'      <div class="help">Bitmap styles are tinted with your main color (see the preview above) and their mask art shows behind the hands there once you\'ve added a resource PNG for that style. Which edge-middle info slots they support (instead of the 4 corners) varies by style -- see the Corners section below.</div>' +
+'      <div class="help">When an eclipse is actually happening, the Sun fills the whole screen as a background behind the hands.</div>' +
+
+'      <div id="customMarkerSection" style="' + (current.bigAnalogMarkerStyle === '8' ? '' : 'display:none;') + '">' +
+'        <button type="button" class="marker-edit-btn" onclick="openCustomMarkerEditor(\'hour\')">Edit hour markers &rsaquo;</button>' +
+'        <button type="button" class="marker-edit-btn" onclick="openCustomMarkerEditor(\'sec\')">Edit second markers &rsaquo;</button>' +
+'        <button type="button" class="marker-edit-btn" onclick="openTextMarkerEditor()">Edit text markers &rsaquo;</button>' +
+          customMarkerHiddenInputsHtml(current) +
+'      </div>' +
+'    </div>' +
+
+'    <label for="cloudRenderStyle" style="margin-top:12px;">Weather drawing style</label>' +
+'    <select id="cloudRenderStyle">' +
+'      <option value="1"' + (current.cloudRenderStyle === '1' || !current.cloudRenderStyle ? ' selected' : '') + '>Realistic</option>' +
+'      <option value="0"' + (current.cloudRenderStyle === '0' ? ' selected' : '') + '>Simple (battery friendly)</option>' +
+'    </select>' +
+'    <div class="help">Realistic clouds are a soft painterly shape shaded by the Sun\'s actual position -- costs more battery per redraw. Simple uses plain circle puffs instead.</div>' +
+
+'    <div class="checkbox-row subsection">' +
+'      <input type="checkbox" id="showSeconds" ' + secondsChecked + ' ' + secondsDisabled + ' onchange="updatePreview()">' +
+'      <label for="showSeconds" style="margin:0;">Show seconds</label>' +
+'    </div>' +
+'    <div class="help" id="secondsHelp" style="' + (secondsUnsupported ? '' : 'display:none;') + '">This font is too wide to fit seconds alongside it.</div>' +
+
+'    <div class="checkbox-row subsection">' +
+'      <input type="checkbox" id="outlineEnabled" ' + (current.outlineEnabled !== false ? 'checked' : '') + '>' +
+'      <label for="outlineEnabled" style="margin:0;">Outline text, icons, and hands for contrast</label>' +
+'    </div>' +
+'    <div class="help">Adds a thin outline (in your color scheme\'s background color) behind corner/edge text and icons, the big-analog date, the eclipse phase text, and the hands -- so they stay readable over any part of the sky. Icons and hands only get it outside translucent/transparent mode.</div>' +
+'    </div>' +
+'  </fieldset>' +
+
+'  <fieldset>' +
+'    <div class="section-legend" onclick="toggleSection(\'colors\')">Colors <span class="chevron" id="chev-colors">&#9656;</span></div>' +
+'    <div class="section-body" id="section-colors" style="display:none;">' +
+
+'    <div class="subsection">' +
+'      <label>Colors</label>' +
+'      <div class="color-role-buttons">' +
+'        <button type="button" class="color-role-btn" onclick="openColorPicker(\'text\')">' +
+'          <span class="color-role-swatch" id="swatchMain" style="background:' + esc(initialColors.text) + ';"></span>' +
+'          <span class="color-role-label">Main</span>' +
+'        </button>' +
+'        <button type="button" class="color-role-btn" onclick="openColorPicker(\'accent\')">' +
+'          <span class="color-role-swatch" id="swatchAccent" style="background:' + esc(initialColors.accent) + ';"></span>' +
+'          <span class="color-role-label">Accent</span>' +
+'        </button>' +
+'        <button type="button" class="color-role-btn" onclick="openColorPicker(\'bg\')">' +
+'          <span class="color-role-swatch" id="swatchBg" style="background:' + esc(initialColors.bg) + ';"></span>' +
+'          <span class="color-role-label">Background</span>' +
+'        </button>' +
+'      </div>' +
+'      <label for="colorSchemePreset" style="margin-top:12px;">Or pick a preset</label>' +
+'      <select id="colorSchemePreset" onchange="onPresetChange()">' + schemeOptionsHtml(colorSchemeVal, false) + '</select>' +
+'      <div class="help">Tapping a color above switches to a custom combination; picking a preset here overwrites it.</div>' +
+'      <input type="hidden" id="colorSchemeValue" value="' + esc(colorSchemeVal) + '">' +
+'      <input type="hidden" id="customBgValue" value="' + esc(current.customBg || '255') + '">' +
+'      <input type="hidden" id="customTextValue" value="' + esc(current.customText || '192') + '">' +
+'      <input type="hidden" id="customAccentValue" value="' + esc(current.customAccent || '192') + '">' +
+'    </div>' +
+
+'    <div class="modal-overlay" id="colorPickerModal">' +
+'      <div class="modal-box">' +
+'        <div class="modal-title" id="colorPickerTitle">Pick a color</div>' +
+'        <div class="hex-grid" id="hexColorGrid"></div>' +
+'        <button type="button" class="modal-cancel-btn" onclick="closeColorPicker()">Cancel</button>' +
+'      </div>' +
+'    </div>' +
+
+'    <div class="checkbox-row subsection">' +
+'      <input type="checkbox" id="nightEnabled" ' + (current.nightEnabled ? 'checked' : '') + ' onchange="onNightToggle()">' +
+'      <label for="nightEnabled" style="margin:0;">Use different colors at night</label>' +
+'    </div>' +
+'    <div id="nightSchemeSettings" style="' + (current.nightEnabled ? '' : 'display:none;') + '">' +
+'      <label>Night colors</label>' +
+'      <div class="color-role-buttons">' +
+'        <button type="button" class="color-role-btn" onclick="openColorPicker(\'text\', \'night\')">' +
+'          <span class="color-role-swatch" id="swatchNightMain" style="background:' + esc(initialNightColors.text) + ';"></span>' +
+'          <span class="color-role-label">Main</span>' +
+'        </button>' +
+'        <button type="button" class="color-role-btn" onclick="openColorPicker(\'accent\', \'night\')">' +
+'          <span class="color-role-swatch" id="swatchNightAccent" style="background:' + esc(initialNightColors.accent) + ';"></span>' +
+'          <span class="color-role-label">Accent</span>' +
+'        </button>' +
+'        <button type="button" class="color-role-btn" onclick="openColorPicker(\'bg\', \'night\')">' +
+'          <span class="color-role-swatch" id="swatchNightBg" style="background:' + esc(initialNightColors.bg) + ';"></span>' +
+'          <span class="color-role-label">Background</span>' +
+'        </button>' +
+'      </div>' +
+'      <label for="nightSchemePreset" style="margin-top:12px;">Or pick a preset</label>' +
+'      <select id="nightSchemePreset" onchange="onPresetChange(\'night\')">' + schemeOptionsHtml(nightSchemeVal, false) + '</select>' +
+'      <div class="help">Tapping a color above switches to a custom combination; picking a preset here overwrites it.</div>' +
+'      <input type="hidden" id="nightSchemeValue" value="' + esc(nightSchemeVal) + '">' +
+'      <input type="hidden" id="nightCustomBgValue" value="' + esc(current.nightCustomBg || '192') + '">' +
+'      <input type="hidden" id="nightCustomTextValue" value="' + esc(current.nightCustomText || '255') + '">' +
+'      <input type="hidden" id="nightCustomAccentValue" value="' + esc(current.nightCustomAccent || '255') + '">' +
+'    </div>' +
+'    <div class="help">Battery and Moon phase are now pickable as Corners content below, with their own color style.</div>' +
+'    </div>' +
+'  </fieldset>' +
+
+'  <fieldset>' +
+'    <div class="section-legend" onclick="toggleSection(\'misc\')">More display options <span class="chevron" id="chev-misc">&#9656;</span></div>' +
+'    <div class="section-body" id="section-misc" style="display:none;">' +
+'    <div class="subsection" id="showSunTimeSection" style="' + (isBigAnalog ? 'display:none;' : '') + '">' +
+'      <label>Week number or sunrise/sunset</label>' +
+'      <div class="mode-btn-group" id="showSunTimeGroup">' +
+'        <button type="button" class="mode-btn' + (!current.showSunTime ? ' active' : '') + '" onclick="selectSunTimeMode(false)">WEEK #</button>' +
+'        <button type="button" class="mode-btn' + (current.showSunTime ? ' active' : '') + '" onclick="selectSunTimeMode(true)">SUN/SET</button>' +
+'      </div>' +
+'      <input type="hidden" id="showSunTime" value="' + (current.showSunTime ? 'true' : 'false') + '">' +
+'      <div class="help">Falls back to the week number once today\'s sunset has passed, until the next refresh rolls over to a new day. Only applies to digital and analog modes.</div>' +
+'    </div>' +
+'    </div>' +
+'  </fieldset>' +
+
+'  <fieldset id="cornersFieldset">' +
+'    <div class="section-legend" onclick="toggleSection(\'corners\')">Corners &amp; edge slots <span class="chevron" id="chev-corners">&#9656;</span></div>' +
+'    <div class="section-body" id="section-corners" style="display:none;">' +
+'    <div class="help">Small info readouts around the sky view / big-analogue clock face. These refresh on their own independent schedule, separate from the main display.</div>' +
+'    <div class="help">The 4 corners only apply to procedural (non-bitmap) big-analogue styles, digital, and small analog. The 4 edge-middle slots (top/bottom/left/right) only apply to big-analogue mode, and which ones a bitmap style supports depends on that style\'s own artwork -- unsupported slots are grayed out below.</div>' +
+'    <div class="help">Pick what shows in each corner and edge slot of the big-analog view. Tap a spot on the diagram below to choose its content and color -- procedural styles support all 8 slots, bitmap styles (Modern, Shadow, Tally, Bell, Brown) are each limited to whatever room their artwork actually has, and unavailable slots show as N/A.</div>' +
+
+'    <label for="cornerCustomFont">Font</label>' +
+'    <select id="cornerCustomFont" onchange="onCornerFontChange()">' +
+'      <option value="0"' + (current.cornerCustomFont === '0' || !current.cornerCustomFont ? ' selected' : '') + '>Default (allows size below)</option>' +
+'      <option value="1"' + (current.cornerCustomFont === '1' ? ' selected' : '') + '>Digital</option>' +
+'      <option value="2"' + (current.cornerCustomFont === '2' ? ' selected' : '') + '>Minecraft</option>' +
+'      <option value="3"' + (current.cornerCustomFont === '3' ? ' selected' : '') + '>Pixelate</option>' +
+'      <option value="4"' + (current.cornerCustomFont === '4' ? ' selected' : '') + '>Miso</option>' +
+'      <option value="5"' + (current.cornerCustomFont === '5' ? ' selected' : '') + '>Bebas</option>' +
+'    </select>' +
+'    <label for="cornerFontSize">Font size</label>' +
+'    <select id="cornerFontSize" ' + (current.cornerCustomFont && current.cornerCustomFont !== '0' ? 'disabled' : '') + '>' +
+'      <option value="0"' + (current.cornerFontSize === '0' ? ' selected' : '') + '>Small</option>' +
+'      <option value="1"' + (current.cornerFontSize === '1' || !current.cornerFontSize ? ' selected' : '') + '>Medium</option>' +
+'      <option value="2"' + (current.cornerFontSize === '2' ? ' selected' : '') + '>Large</option>' +
+'      <option value="3"' + (current.cornerFontSize === '3' ? ' selected' : '') + '>Extra Large</option>' +
+'    </select>' +
+'    <div class="help">Applies to corner/edge feature text and the big-analog date. A custom font has its own fixed size, so the size option above only applies to "Default".</div>' +
+
+'    <div id="slotPickerDiagram">' +
+'      <button type="button" class="slot-btn slot-corner-tl" id="slotBtn-cornerTL" onclick="openSlotEditor(\'cornerTL\')"></button>' +
+'      <button type="button" class="slot-btn slot-corner-tr" id="slotBtn-cornerTR" onclick="openSlotEditor(\'cornerTR\')"></button>' +
+'      <button type="button" class="slot-btn slot-corner-bl" id="slotBtn-cornerBL" onclick="openSlotEditor(\'cornerBL\')"></button>' +
+'      <button type="button" class="slot-btn slot-corner-br" id="slotBtn-cornerBR" onclick="openSlotEditor(\'cornerBR\')"></button>' +
+'      <button type="button" class="slot-btn slot-upper-l1" id="slotBtn-upperMiddleLine1" onclick="openSlotEditor(\'upperMiddleLine1\')"></button>' +
+'      <button type="button" class="slot-btn slot-upper-l2" id="slotBtn-upperMiddleLine2" onclick="openSlotEditor(\'upperMiddleLine2\')"></button>' +
+'      <button type="button" class="slot-btn slot-bottom-l1" id="slotBtn-bottomMiddleLine1" onclick="openSlotEditor(\'bottomMiddleLine1\')"></button>' +
+'      <button type="button" class="slot-btn slot-bottom-l2" id="slotBtn-bottomMiddleLine2" onclick="openSlotEditor(\'bottomMiddleLine2\')"></button>' +
+'      <button type="button" class="slot-btn slot-middle-left" id="slotBtn-middleLeft" onclick="openSlotEditor(\'middleLeft\')"></button>' +
+'      <button type="button" class="slot-btn slot-middle-right" id="slotBtn-middleRight" onclick="openSlotEditor(\'middleRight\')"></button>' +
+'    </div>' +
+
+'    <div style="display:none;" id="slotDataStore">' +
+'      <select id="cornerTL">' + cornerContentOptionsHtml(current.cornerTL) + '</select>' +
+'      <input type="hidden" id="cornerTLColor" value="' + esc(current.cornerTLColor || '0') + '">' +
+'      <select id="cornerTR">' + cornerContentOptionsHtml(current.cornerTR) + '</select>' +
+'      <input type="hidden" id="cornerTRColor" value="' + esc(current.cornerTRColor || '0') + '">' +
+'      <select id="cornerBL">' + cornerContentOptionsHtml(current.cornerBL) + '</select>' +
+'      <input type="hidden" id="cornerBLColor" value="' + esc(current.cornerBLColor || '0') + '">' +
+'      <select id="cornerBR">' + cornerContentOptionsHtml(current.cornerBR) + '</select>' +
+'      <input type="hidden" id="cornerBRColor" value="' + esc(current.cornerBRColor || '0') + '">' +
+'      <select id="upperMiddleLine1Content">' + cornerContentOptionsHtml(current.upperMiddleLine1Content) + '</select>' +
+'      <input type="hidden" id="upperMiddleLine1Color" value="' + esc(current.upperMiddleLine1Color || '0') + '">' +
+'      <select id="upperMiddleLine2Content">' + cornerContentOptionsHtml(current.upperMiddleLine2Content) + '</select>' +
+'      <input type="hidden" id="upperMiddleLine2Color" value="' + esc(current.upperMiddleLine2Color || '0') + '">' +
+'      <select id="bottomMiddleLine1Content">' + cornerContentOptionsHtml(current.bottomMiddleLine1Content) + '</select>' +
+'      <input type="hidden" id="bottomMiddleLine1Color" value="' + esc(current.bottomMiddleLine1Color || '0') + '">' +
+'      <select id="bottomMiddleLine2Content">' + cornerContentOptionsHtml(current.bottomMiddleLine2Content) + '</select>' +
+'      <input type="hidden" id="bottomMiddleLine2Color" value="' + esc(current.bottomMiddleLine2Color || '0') + '">' +
+'      <select id="middleLeftContent">' + cornerContentOptionsHtml(current.middleLeftContent) + '</select>' +
+'      <input type="hidden" id="middleLeftColor" value="' + esc(current.middleLeftColor || '0') + '">' +
+'      <select id="middleRightContent">' + cornerContentOptionsHtml(current.middleRightContent) + '</select>' +
+'      <input type="hidden" id="middleRightColor" value="' + esc(current.middleRightColor || '0') + '">' +
+'    </div>' +
+
+'    <div class="subsection">' +
+'      <label for="stepGoal">Daily step goal (used by "Step goal %")</label>' +
+'      <input type="number" id="stepGoal" min="1000" max="60000" step="500" value="' + esc(current.stepGoal || '10000') + '">' +
+'      <div class="help">Pebble doesn\'t expose a system step goal, so this app keeps its own -- same as every other Pebble health app.</div>' +
+'    </div>' +
+'    </div>' +
+'  </fieldset>' +
+
+'  <fieldset>' +
+'    <div class="section-legend" onclick="toggleSection(\'weather\')">Weather <span class="chevron" id="chev-weather">&#9656;</span></div>' +
+'    <div class="section-body" id="section-weather" style="display:none;">' +
+'    <div class="help">Cloud cover is always pulled from Open-Meteo (no signup needed). Optionally add an OpenWeatherMap API key to average in a second forecast.</div>' +
+'    <label for="owmKey">OpenWeatherMap API key (optional)</label>' +
+'    <input type="text" id="owmKey" placeholder="leave blank to skip" value="' + esc(current.owmKey) + '">' +
+
+'    <label for="tempUnit" style="margin-top:10px;">Temperature unit</label>' +
+'    <select id="tempUnit">' +
+'      <option value="C"' + (current.tempUnit === 'C' || !current.tempUnit ? ' selected' : '') + '>Celsius</option>' +
+'      <option value="F"' + (current.tempUnit === 'F' ? ' selected' : '') + '>Fahrenheit</option>' +
+'      <option value="K"' + (current.tempUnit === 'K' ? ' selected' : '') + '>Kelvin</option>' +
+'    </select>' +
+'    <div class="help">Used everywhere temperature is shown, including the Corners section below.</div>' +
+
+'    <label for="windSpeedUnit" style="margin-top:10px;">Wind speed unit</label>' +
+'    <select id="windSpeedUnit">' +
+'      <option value="kmh"' + (current.windSpeedUnit === 'kmh' || !current.windSpeedUnit ? ' selected' : '') + '>km/h</option>' +
+'      <option value="mph"' + (current.windSpeedUnit === 'mph' ? ' selected' : '') + '>mph</option>' +
+'      <option value="ms"' + (current.windSpeedUnit === 'ms' ? ' selected' : '') + '>m/s</option>' +
+'      <option value="kn"' + (current.windSpeedUnit === 'kn' ? ' selected' : '') + '>knots</option>' +
+'    </select>' +
+'    <div class="help">Used by the "Wind" corner content.</div>' +
+'    </div>' +
+'    </div>' +
+'  </fieldset>' +
+
+'  <fieldset>' +
+'    <div class="section-legend" onclick="toggleSection(\'astronomy\')">Astronomy <span class="chevron" id="chev-astronomy">&#9656;</span></div>' +
+'    <div class="section-body" id="section-astronomy" style="display:none;">' +
+
+'    <label for="sunMoonSize">Sun &amp; Moon size</label>' +
+'    <select id="sunMoonSize">' +
+'      <option value="100"' + (current.sunMoonSize === '100' ? ' selected' : '') + '>Large</option>' +
+'      <option value="75"' + (current.sunMoonSize === '75' || !current.sunMoonSize ? ' selected' : '') + '>Medium</option>' +
+'      <option value="50"' + (current.sunMoonSize === '50' ? ' selected' : '') + '>Small</option>' +
+'      <option value="25"' + (current.sunMoonSize === '25' ? ' selected' : '') + '>Extra small</option>' +
+'    </select>' +
+'    <div class="help">Ignored during an actual eclipse, which sizes the Sun and Moon by their real geometry instead.</div>' +
+
+'    <div class="subsection">' +
+'      <label for="shakeLabelSeconds">Shake-to-reveal labels stay on screen for</label>' +
+'      <input type="number" id="shakeLabelSeconds" min="1" max="10" step="1" value="' + esc(current.shakeLabelSeconds || '3') + '"> seconds' +
+'    </div>' +
+
+'    <div class="subsection">' +
+'      <label for="bottomInfoBarMode">Clouds/visibility/location bar (bottom of sky view)</label>' +
+'      <select id="bottomInfoBarMode">' +
+'        <option value="0"' + (current.bottomInfoBarMode === '0' ? ' selected' : '') + '>Off</option>' +
+'        <option value="1"' + (current.bottomInfoBarMode === '1' || !current.bottomInfoBarMode ? ' selected' : '') + '>On shake (with the name labels above)</option>' +
+'        <option value="2"' + (current.bottomInfoBarMode === '2' ? ' selected' : '') + '>Permanent</option>' +
+'      </select>' +
+'      <div class="help">Permanent shifts the sky view up 20px to make room, rather than the bar overlapping it. Not shown in analog mode, which already has this in its persistent info panel.</div>' +
+'    </div>' +
+
+'    <div class="checkbox-row subsection">' +
+'      <input type="checkbox" id="showIss" ' + (current.showIss ? 'checked' : '') + '>' +
+'      <label for="showIss" style="margin:0;">Show the ISS when overhead (experimental)</label>' +
+'    </div>' +
+'    <div class="help">Fetches live orbital data each refresh. Position is a snapshot, not continuously tracked, and doesn\'t account for the station being in Earth\'s shadow -- it can occasionally show when it wouldn\'t really be visible.</div>' +
+
+'    <div class="checkbox-row subsection">' +
+'      <input type="checkbox" id="vibrateOnPhaseChange" ' + (current.vibrateOnPhaseChange ? 'checked' : '') + '>' +
+'      <label for="vibrateOnPhaseChange" style="margin:0;">Vibrate when the eclipse reaches its next phase</label>' +
+'    </div>' +
+'    <div class="help">A brief double buzz right as C1/C2/C3/C4 happens -- not on ordinary day-to-day changes.</div>' +
+'    </div>' +
+'  </fieldset>' +
+
+'  <fieldset>' +
+'    <div class="section-legend" onclick="toggleSection(\'location\')">Location <span class="chevron" id="chev-location">&#9656;</span></div>' +
+'    <div class="section-body" id="section-location" style="display:none;">' +
+'    <div class="checkbox-row">' +
+'      <input type="checkbox" id="autoLoc" ' + autoLocChecked + ' onchange="toggleManual()">' +
+'      <label for="autoLoc" style="margin:0;">Use phone GPS automatically</label>' +
+'    </div>' +
+'    <label for="locationSearch">Search for a place</label>' +
+'    <div style="display:flex; gap:6px;">' +
+'      <input type="text" id="locationSearch" style="flex:1;" placeholder="e.g. Innsbruck, Austria" ' + manualDisabled + '>' +
+'      <button type="button" id="locationSearchBtn" class="secondary-btn" style="width:auto; margin-top:0; padding:8px 14px;" onclick="searchLocation()" ' + manualDisabled + '>Find</button>' +
+'    </div>' +
+'    <div class="help" id="locationSearchStatus"></div>' +
+'    <label for="lat">Manual latitude (decimal degrees)</label>' +
+'    <input type="number" step="any" id="lat" ' + manualDisabled + ' placeholder="e.g. 40.7128" value="' + esc(current.lat) + '">' +
+'    <label for="lon">Manual longitude (decimal degrees)</label>' +
+'    <input type="number" step="any" id="lon" ' + manualDisabled + ' placeholder="e.g. -74.0060" value="' + esc(current.lon) + '">' +
+'    <div class="help">Only used when GPS is turned off above.</div>' +
+'    </div>' +
+'  </fieldset>' +
+
+'  <fieldset>' +
+'    <div class="section-legend" onclick="toggleSection(\'updates\')">Updates <span class="chevron" id="chev-updates">&#9656;</span></div>' +
+'    <div class="section-body" id="section-updates" style="display:none;">' +
+'    <label for="updateMins">Refresh interval (minutes, 5-60)</label>' +
+'    <input type="number" id="updateMins" min="5" max="60" step="5" value="' + esc(current.updateMins) + '">' +
+'    <div class="help">The watch won\'t re-fetch more often than this unless your location changes by more than ~10km.</div>' +
+'    <button type="button" class="secondary-btn" onclick="save()">Force refresh now</button>' +
+'    </div>' +
+'  </fieldset>' +
+
+'  <fieldset>' +
+'    <div class="section-legend" onclick="toggleSection(\'testing\')">Testing <span class="chevron" id="chev-testing">&#9656;</span></div>' +
+'    <div class="section-body" id="section-testing" style="display:none;">' +
+'    <div class="checkbox-row">' +
+'      <input type="checkbox" id="testMode" ' + testModeChecked + ' onchange="toggleTestMode()">' +
+'      <label for="testMode" style="margin:0;">Use a custom test date/time</label>' +
+'    </div>' +
+'    <label for="testDateTime">Test date &amp; time</label>' +
+'    <input type="datetime-local" id="testDateTime" ' + testDisabled + ' value="' + esc(current.testDateTime) + '">' +
+'    <div class="help">Overrides "now" for the eclipse calculation only (e.g. a known historical/future eclipse date), so you can preview the watchface without waiting for one. Set your watch\'s own clock to this same date/time too, so the countdown on-screen lines up with the data sent over.</div>' +
+
+'    <div class="subsection">' +
+'      <label for="debugData">Raw data sent to watch (editable)</label>' +
+'      <textarea id="debugData" rows="12" style="width:100%; box-sizing:border-box; font-family:monospace; font-size:11px;">' + esc(debugTextareaInitial) + '</textarea>' +
+'      <button type="button" class="secondary-btn" style="width:auto; margin-top:6px; padding:6px 12px;" onclick="reloadDebugData()">Reload last sent data</button>' +
+'      <button type="button" class="secondary-btn" id="copyDebugDataBtn" style="width:auto; margin-top:6px; margin-left:6px; padding:6px 12px;" onclick="copyDebugData()">Copy</button>' +
+'      <div class="checkbox-row" style="margin-top:8px;">' +
+'        <input type="checkbox" id="debugOverrideEnabled" ' + (current.debugOverrideEnabled ? 'checked' : '') + '>' +
+'        <label for="debugOverrideEnabled" style="margin:0;">Override data sent to watch with the text above</label>' +
+'      </div>' +
+'      <div class="help">Shows the full JSON payload the app last computed and sent to the watch (weather, location, eclipse timing, every setting). Edit it freely; enabling the checkbox sends exactly this text instead of the normally-computed data on every future refresh, useful for testing specific values without needing real conditions to match. Invalid JSON is ignored and the app falls back to normal data rather than failing to send anything.</div>' +
+'    </div>' +
+'    </div>' +
+'  </fieldset>' +
+
+'  <div class="save-bar"><button onclick="save()">Save</button></div>' +
+
+'<script>' +
+'var MARKER_PREVIEW_IMAGES = ' + JSON.stringify(MARKER_PREVIEW_IMAGES) + ';' +
+'function toggleManual() {' +
+'  var on = !document.getElementById("autoLoc").checked;' +
+'  document.getElementById("lat").disabled = !on;' +
+'  document.getElementById("lon").disabled = !on;' +
+'  document.getElementById("locationSearch").disabled = !on;' +
+'  document.getElementById("locationSearchBtn").disabled = !on;' +
+'}' +
+'function toggleTestMode() {' +
+'  document.getElementById("testDateTime").disabled = !document.getElementById("testMode").checked;' +
+'}' +
+'function reloadDebugData() {' +
+'  document.getElementById("debugData").value = ' + JSON.stringify(current.lastSentData || '') + ';' +
+'}' +
+'function copyDebugData() {' +
+'  var ta = document.getElementById("debugData");' +
+'  ta.focus();' +
+'  ta.select();' +
+'  ta.setSelectionRange(0, 999999);' +
+'  var ok = false;' +
+'  try { ok = document.execCommand("copy"); } catch (e) {}' +
+'  var btn = document.getElementById("copyDebugDataBtn");' +
+'  if (btn) {' +
+'    var original = btn.textContent;' +
+'    btn.textContent = ok ? "Copied!" : "Copy failed";' +
+'    setTimeout(function () { btn.textContent = original; }, 1500);' +
+'  }' +
+'}' +
+'function searchLocation() {' +
+'  var query = document.getElementById("locationSearch").value;' +
+'  query = query ? query.trim() : "";' +
+'  if (!query) return;' +
+'  var statusEl = document.getElementById("locationSearchStatus");' +
+'  statusEl.textContent = "Searching...";' +
+'  var xhr = new XMLHttpRequest();' +
+'  xhr.open("GET", "https://nominatim.openstreetmap.org/search?format=json&limit=1&q=" + encodeURIComponent(query), true);' +
+'  xhr.timeout = 8000;' +
+'  xhr.onload = function () {' +
+'    try {' +
+'      var results = JSON.parse(xhr.responseText);' +
+'      if (results && results.length > 0) {' +
+'        document.getElementById("lat").value = parseFloat(results[0].lat).toFixed(5);' +
+'        document.getElementById("lon").value = parseFloat(results[0].lon).toFixed(5);' +
+'        statusEl.textContent = "Found: " + (results[0].display_name || query);' +
+'      } else {' +
+'        statusEl.textContent = "No results found.";' +
+'      }' +
+'    } catch (e) {' +
+'      statusEl.textContent = "Search failed.";' +
+'    }' +
+'  };' +
+'  xhr.onerror = function () { statusEl.textContent = "Network error."; };' +
+'  xhr.ontimeout = function () { statusEl.textContent = "Timed out."; };' +
+'  xhr.send();' +
+'}' +
+
+'function packedByteFor(r2,g2,b2) { return 0xC0 | (r2<<4) | (g2<<2) | b2; }' +
+'function chHex(v) { var h = (v*85).toString(16); return h.length<2 ? "0"+h : h; }' +
+'function hexFor(r2,g2,b2) { return "#" + chHex(r2) + chHex(g2) + chHex(b2); }' +
+'function hexFromByte(byte) { return hexFor((byte>>4)&3, (byte>>2)&3, byte&3); }' +
+
+
+'function findPresetById(id) {' +
+'  var presets = ' + JSON.stringify(COLOR_SCHEMES) + ';' +
+'  for (var i = 0; i < presets.length; i++) {' +
+'    if (String(presets[i].id) === String(id)) return presets[i];' +
+'  }' +
+'  return presets[0];' +
+'}' +
+
+'function colorsForValue(val, bgId, textId, accentId) {' +
+'  if (val === "custom") {' +
+'    return {' +
+'      bg: hexFromByte(parseInt(document.getElementById(bgId).value, 10)),' +
+'      text: hexFromByte(parseInt(document.getElementById(textId).value, 10)),' +
+'      accent: hexFromByte(parseInt(document.getElementById(accentId).value, 10))' +
+'    };' +
+'  }' +
+'  var preset = findPresetById(val);' +
+'  return { bg: preset.bg, text: preset.text, accent: preset.accent };' +
+'}' +
+'function dayColors() {' +
+'  return colorsForValue(document.getElementById("colorSchemeValue").value, "customBgValue", "customTextValue", "customAccentValue");' +
+'}' +
+'function nightColors() {' +
+'  return colorsForValue(document.getElementById("nightSchemeValue").value, "nightCustomBgValue", "nightCustomTextValue", "nightCustomAccentValue");' +
+'}' +
+
+'function canvasFontFor(previewCss, px) {' +
+'  var familyMatch = /font-family:\\s*([^;]+);?/.exec(previewCss);' +
+'  var family = familyMatch ? familyMatch[1] : "sans-serif";' +
+'  var weightMatch = /font-weight:\\s*([^;]+);?/.exec(previewCss);' +
+'  var weight = weightMatch ? weightMatch[1].trim() : "400";' +
+'  var boldPrefix = (parseInt(weight, 10) >= 600 || weight === "bold") ? "bold " : "";' +
+'  return boldPrefix + px + "px " + family;' +
+'}' +
+
+'function drawSkyLayer(ctx, x, y, w, h) {' +
+'  var grad = ctx.createLinearGradient(0, y, 0, y + h);' +
+'  grad.addColorStop(0, "#4a90d9");' +
+'  grad.addColorStop(1, "#bfe3f5");' +
+'  ctx.fillStyle = grad;' +
+'  ctx.fillRect(x, y, w, h);' +
+'  ctx.beginPath();' +
+'  ctx.arc(x + w * 0.72, y + h * 0.2, Math.max(7, w * 0.09), 0, 2 * Math.PI);' +
+'  ctx.fillStyle = "#fff6d0";' +
+'  ctx.fill();' +
+'  ctx.fillStyle = "rgba(255,255,255,0.9)";' +
+'  function puff(cx, cy, r) { ctx.beginPath(); ctx.arc(cx, cy, r, 0, 2 * Math.PI); ctx.fill(); }' +
+'  var cy = y + h * 0.6;' +
+'  puff(x + w * 0.22, cy, w * 0.08);' +
+'  puff(x + w * 0.32, cy - 3, w * 0.1);' +
+'  puff(x + w * 0.42, cy, w * 0.07);' +
+'}' +
+
+// Rough sample values matching what each corner content type would
+// actually show on the watch, purely for preview purposes -- these
+// aren't live health/weather data, just illustrative placeholders.
+'var CORNER_PREVIEW_LABELS = {' +
+'  1: "72", 2: "5234", 3: "68%", 4: "H72 L58", 5: "68F Clear",' +
+'  6: "UV5", 7: "R20%", 8: "H45%", 9: "W12", 10: "82%", 11: "Full", 12: "Mon 15",' +
+'  13: "Innsbruck", 14: "80%", 15: "45%", 16: "19:42", 17: "LOGO", 18: "12:34", 19: "WK 34"' +
+'};' +
+
+'function hasPreviewContent(contentId) {' +
+'  var el = document.getElementById(contentId);' +
+'  if (!el) return false;' +
+'  var v = parseInt(el.value, 10);' +
+'  return v !== 0 && !!CORNER_PREVIEW_LABELS[v];' +
+'}' +
+
+'function slotAvailable(wrapId) {' +
+'  var avail = computeSlotAvailability();' +
+'  switch (wrapId) {' +
+'    case "cornerTLWrap": case "cornerTRWrap": case "cornerBLWrap": case "cornerBRWrap":' +
+'      return !avail.cornersGrayed;' +
+'    case "upperMiddleWrap": return avail.upper;' +
+'    case "bottomMiddleWrap": return avail.bottom;' +
+'    case "middleLeftWrap": return avail.left;' +
+'    case "middleRightWrap": return avail.right;' +
+'    default: return false;' +
+'  }' +
+'}' +
+
+'function drawCornerSlot(ctx, contentId, colorId, x, y, textAlign, colors) {' +
+'  var contentEl = document.getElementById(contentId);' +
+'  var colorEl = document.getElementById(colorId);' +
+'  if (!contentEl || !colorEl) return;' +
+'  var content = parseInt(contentEl.value, 10);' +
+'  var label = CORNER_PREVIEW_LABELS[content];' +
+'  if (!label) return;' +
+'  var mode = parseInt(colorEl.value, 10);' +
+'  var color = colors.text, alpha = 1;' +
+'  if (mode === 1) { color = colors.accent; }' +
+'  else if (mode === 2) { color = colors.accent; alpha = 0.55; }' +
+'  else if (mode === 3) { color = "#4caf50"; }' +
+'  ctx.font = "bold 9px sans-serif";' +
+'  ctx.textAlign = textAlign;' +
+'  ctx.textBaseline = "top";' +
+'  ctx.globalAlpha = alpha;' +
+'  ctx.fillStyle = color;' +
+'  ctx.fillText(label, x, y);' +
+'  ctx.globalAlpha = 1;' +
+'}' +
+
+'function drawCornersAndEdges(ctx, w, h, colors, skyBottom) {' +
+'  var bottomY = (typeof skyBottom === "number") ? skyBottom : h;' +
+'  var lineH = 14;' +
+'  if (slotAvailable("cornerTLWrap")) drawCornerSlot(ctx, "cornerTL", "cornerTLColor", 5, 5, "left", colors);' +
+'  if (slotAvailable("cornerTRWrap")) drawCornerSlot(ctx, "cornerTR", "cornerTRColor", w - 5, 5, "right", colors);' +
+'  if (slotAvailable("cornerBLWrap")) drawCornerSlot(ctx, "cornerBL", "cornerBLColor", 5, bottomY - 14, "left", colors);' +
+'  if (slotAvailable("cornerBRWrap")) drawCornerSlot(ctx, "cornerBR", "cornerBRColor", w - 5, bottomY - 14, "right", colors);' +
+'  if (slotAvailable("upperMiddleWrap")) {' +
+'    var upperHasLine2 = hasPreviewContent("upperMiddleLine2Content");' +
+'    drawCornerSlot(ctx, "upperMiddleLine1Content", "upperMiddleLine1Color", w / 2, upperHasLine2 ? 26 : 26 + lineH / 2, "center", colors);' +
+'    if (upperHasLine2) drawCornerSlot(ctx, "upperMiddleLine2Content", "upperMiddleLine2Color", w / 2, 26 + lineH, "center", colors);' +
+'  }' +
+'  if (slotAvailable("bottomMiddleWrap")) {' +
+'    var bottomHasLine2 = hasPreviewContent("bottomMiddleLine2Content");' +
+'    drawCornerSlot(ctx, "bottomMiddleLine1Content", "bottomMiddleLine1Color", w / 2, bottomHasLine2 ? bottomY - 24 - lineH : bottomY - 24 - lineH / 2, "center", colors);' +
+'    if (bottomHasLine2) drawCornerSlot(ctx, "bottomMiddleLine2Content", "bottomMiddleLine2Color", w / 2, bottomY - 24, "center", colors);' +
+'  }' +
+'  if (slotAvailable("middleLeftWrap")) drawCornerSlot(ctx, "middleLeftContent", "middleLeftColor", 5, h / 2 - 4, "left", colors);' +
+'  if (slotAvailable("middleRightWrap")) drawCornerSlot(ctx, "middleRightContent", "middleRightColor", w - 5, h / 2 - 4, "right", colors);' +
+'}' +
+
+'function drawAnalogPreview(ctx, colors, now, showSeconds, w, panelTop, panelBottom) {' +
+'  var panelH = panelBottom - panelTop;' +
+'  var cx = panelH * 0.58, cy = panelTop + panelH / 2, r = panelH * 0.4;' +
+'  var style = parseInt(document.getElementById("analogStyle").value, 10);' +
+'  if (style === 0 || style === 2) {' +
+'    ctx.strokeStyle = colors.text; ctx.lineWidth = 2;' +
+'    ctx.beginPath(); ctx.arc(cx, cy, r, 0, 2 * Math.PI); ctx.stroke();' +
+'  }' +
+'  if (style === 1 || style === 2) {' +
+'    for (var hIdx = 0; hIdx < 12; hIdx++) {' +
+'      var ang = hIdx * Math.PI / 6;' +
+'      var outer = r, inner = (hIdx % 3 === 0) ? r - 6 : r - 3;' +
+'      ctx.strokeStyle = colors.text; ctx.lineWidth = 1;' +
+'      ctx.beginPath();' +
+'      ctx.moveTo(cx + outer * Math.sin(ang), cy - outer * Math.cos(ang));' +
+'      ctx.lineTo(cx + inner * Math.sin(ang), cy - inner * Math.cos(ang));' +
+'      ctx.stroke();' +
+'    }' +
+'  }' +
+'  if (style === 3) {' +
+'    ctx.font = "bold 9px monospace";' +
+'    ctx.fillStyle = colors.text;' +
+'    ctx.textAlign = "center"; ctx.textBaseline = "middle";' +
+'    ctx.fillText("12", cx, cy - r + 8);' +
+'    ctx.fillText("3", cx + r - 7, cy);' +
+'    ctx.fillText("6", cx, cy + r - 8);' +
+'    ctx.fillText("9", cx - r + 7, cy);' +
+'  }' +
+'  var hh = now.getHours() % 12, mm = now.getMinutes(), ss = now.getSeconds();' +
+'  var hourAngle = ((hh * 60 + mm) / 720) * 2 * Math.PI;' +
+'  var minAngle = (mm / 60) * 2 * Math.PI;' +
+'  ctx.strokeStyle = colors.text;' +
+'  ctx.lineWidth = 3;' +
+'  ctx.beginPath(); ctx.moveTo(cx, cy);' +
+'  ctx.lineTo(cx + r * 0.55 * Math.sin(hourAngle), cy - r * 0.55 * Math.cos(hourAngle));' +
+'  ctx.stroke();' +
+'  ctx.lineWidth = 2;' +
+'  ctx.beginPath(); ctx.moveTo(cx, cy);' +
+'  ctx.lineTo(cx + r * 0.8 * Math.sin(minAngle), cy - r * 0.8 * Math.cos(minAngle));' +
+'  ctx.stroke();' +
+'  if (showSeconds) {' +
+'    var secAngle = (ss / 60) * 2 * Math.PI;' +
+'    ctx.strokeStyle = colors.accent;' +
+'    ctx.lineWidth = 1;' +
+'    ctx.beginPath(); ctx.moveTo(cx, cy);' +
+'    ctx.lineTo(cx + r * 0.88 * Math.sin(secAngle), cy - r * 0.88 * Math.cos(secAngle));' +
+'    ctx.stroke();' +
+'  }' +
+'  ctx.fillStyle = colors.text;' +
+'  ctx.beginPath(); ctx.arc(cx, cy, 2, 0, 2 * Math.PI); ctx.fill();' +
+'  return cx + r;' + // right edge of the clock, so the caller knows where to start the info panel
+'}' +
+
+'function drawBigHandPreview(ctx, cx, cy, angle, length, style, color, transparent) {' +
+'  if (style === 3) {' +
+'    ctx.save();' +
+'    ctx.translate(cx, cy);' +
+'    ctx.rotate(angle);' +
+'    ctx.lineCap = "round";' +
+'    ctx.strokeStyle = color;' +
+'    ctx.lineWidth = Math.max(4, length / 7);' +
+'    ctx.globalAlpha = transparent ? 0.5 : 1;' +
+'    ctx.beginPath();' +
+'    ctx.moveTo(0, 0);' +
+'    ctx.lineTo(0, -length);' +
+'    ctx.stroke();' +
+'    ctx.globalAlpha = 1;' +
+'    ctx.restore();' +
+'    return;' +
+'  }' +
+'  ctx.save();' +
+'  ctx.translate(cx, cy);' +
+'  ctx.rotate(angle);' +
+'  var hw;' +
+'  ctx.beginPath();' +
+'  if (style === 1) {' +
+'    hw = Math.max(3, length / 8);' +
+'    ctx.rect(-hw, -length, hw * 2, length + 6);' +
+'  } else if (style === 2) {' +
+'    hw = Math.max(2, length / 10);' +
+'    ctx.rect(-hw, -length, hw * 2, length + 8);' +
+'  } else {' +
+'    hw = Math.max(4, length / 6);' +
+'    ctx.moveTo(-hw, 6); ctx.lineTo(hw, 6); ctx.lineTo(0, -length); ctx.closePath();' +
+'  }' +
+'  if (transparent) {' +
+'    ctx.globalAlpha = 0.5;' +
+'    ctx.fillStyle = color; ctx.fill();' +
+'    ctx.globalAlpha = 1;' +
+'  } else if (style === 2) {' +
+'    ctx.strokeStyle = color; ctx.lineWidth = 1.5; ctx.stroke();' +
+'  } else {' +
+'    ctx.fillStyle = color; ctx.fill();' +
+'  }' +
+'  ctx.restore();' +
+'}' +
+
+// Loaded lazily and cached per style -- base64 data: URIs decode
+// effectively instantly in practice, but img.complete is checked
+// before drawing rather than assumed, so a not-yet-ready image is
+// simply skipped for this tick (the next one, ~1s later via the
+// preview\'s own refresh interval, picks it up once ready) instead of
+// drawing nothing or throwing.
+'var MARKER_PREVIEW_IMG_CACHE = {};' +
+'function getMarkerPreviewImg(styleVal) {' +
+'  var src = MARKER_PREVIEW_IMAGES[styleVal];' +
+'  if (!src) return null;' +
+'  if (!MARKER_PREVIEW_IMG_CACHE[styleVal]) {' +
+'    var img = new Image();' +
+'    img.src = src;' +
+'    MARKER_PREVIEW_IMG_CACHE[styleVal] = img;' +
+'  }' +
+'  var cached = MARKER_PREVIEW_IMG_CACHE[styleVal];' +
+'  return (cached.complete && cached.naturalWidth > 0) ? cached : null;' +
+'}' +
+'function hexToRgb(hex) {' +
+'  var m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex || "");' +
+'  if (!m) return { r: 0, g: 0, b: 0 };' +
+'  return { r: parseInt(m[1], 16), g: parseInt(m[2], 16), b: parseInt(m[3], 16) };' +
+'}' +
+// Recolors an offscreen copy of the image by directly rewriting pixel
+// RGB values while leaving each pixel\'s own alpha untouched -- unlike
+// relying on globalCompositeOperation (which isn\'t consistently
+// supported across the range of embedded WebViews Pebble phones
+// actually ship), this works the same everywhere and mirrors exactly
+// what the watch\'s own tint_marker_bitmap() does. Cached per
+// style+color combination since it\'s real per-pixel work and the
+// preview redraws roughly once a second.
+'var MARKER_TINT_CACHE = {};' +
+'function getTintedMarkerCanvas(styleVal, tintColor) {' +
+'  var cacheKey = styleVal + "|" + tintColor;' +
+'  if (MARKER_TINT_CACHE[cacheKey]) return MARKER_TINT_CACHE[cacheKey];' +
+'  var img = getMarkerPreviewImg(styleVal);' +
+'  if (!img) return null;' +
+'  var iw = img.naturalWidth, ih = img.naturalHeight;' +
+'  if (!iw || !ih) return null;' +
+'  try {' +
+'    var off = document.createElement("canvas");' +
+'    off.width = iw; off.height = ih;' +
+'    var octx = off.getContext("2d");' +
+'    octx.drawImage(img, 0, 0, iw, ih);' +
+'    var imageData = octx.getImageData(0, 0, iw, ih);' +
+'    var rgb = hexToRgb(tintColor);' +
+'    var data = imageData.data;' +
+'    for (var i = 0; i < data.length; i += 4) {' +
+'      if (data[i + 3] > 0) {' +
+'        data[i] = rgb.r;' +
+'        data[i + 1] = rgb.g;' +
+'        data[i + 2] = rgb.b;' +
+'      }' +
+'    }' +
+'    octx.putImageData(imageData, 0, 0);' +
+'    MARKER_TINT_CACHE[cacheKey] = off;' +
+'    return off;' +
+'  } catch (e) {' +
+'    return null;' +
+'  }' +
+'}' +
+// Draws the tinted mask stretched to fill (w, h). Returns whether it
+// actually drew anything, so the caller can fall back to a
+// placeholder when no preview image exists yet for this style.
+'function drawTintedMarkerBitmap(ctx, styleVal, w, h, tintColor) {' +
+'  var tinted = getTintedMarkerCanvas(styleVal, tintColor);' +
+'  if (!tinted) return false;' +
+'  ctx.drawImage(tinted, 0, 0, w, h);' +
+'  return true;' +
+'}' +
+
+'function drawBigAnalogPreview(ctx, colors, now, showSeconds, w, h, markerImageDrawn) {' +
+'  var cx = w / 2, cy = h / 2, r = Math.min(w, h) / 2 - 12;' +
+'  var style = parseInt(document.getElementById("bigAnalogHandStyle").value, 10);' +
+'  var transparent = document.getElementById("bigAnalogTransparent").checked;' +
+'  var markerStyle = parseInt(document.getElementById("bigAnalogMarkerStyle").value, 10);' +
+
+'  if (markerStyle <= 2) {' +
+'    var showSecondMarkers = markerStyle !== 0;' +
+'    var hourOuter = r + (markerStyle === 2 ? 4 : 3);' +
+'    var hourWidth = markerStyle === 2 ? 3 : 1;' +
+'    for (var hIdx = 0; hIdx < 12; hIdx++) {' +
+'      var ang = hIdx * Math.PI / 6;' +
+'      var inner = (hIdx % 3 === 0) ? hourOuter - 5 : hourOuter - 3;' +
+'      ctx.strokeStyle = colors.text; ctx.lineWidth = hourWidth;' +
+'      ctx.beginPath();' +
+'      ctx.moveTo(cx + hourOuter * Math.sin(ang), cy - hourOuter * Math.cos(ang));' +
+'      ctx.lineTo(cx + inner * Math.sin(ang), cy - inner * Math.cos(ang));' +
+'      ctx.stroke();' +
+'    }' +
+'    if (showSecondMarkers) {' +
+'      for (var s = 0; s < 60; s++) {' +
+'        if (s % 5 === 0) continue;' +
+'        var ang2 = s * Math.PI / 30;' +
+'        var outer2 = r + 1, inner2 = r - 1;' +
+'        ctx.strokeStyle = colors.text; ctx.lineWidth = 1;' +
+'        ctx.beginPath();' +
+'        ctx.moveTo(cx + outer2 * Math.sin(ang2), cy - outer2 * Math.cos(ang2));' +
+'        ctx.lineTo(cx + inner2 * Math.sin(ang2), cy - inner2 * Math.cos(ang2));' +
+'        ctx.stroke();' +
+'      }' +
+'    }' +
+'  } else if (!markerImageDrawn) {' +
+'    ctx.font = "10px sans-serif";' +
+'    ctx.fillStyle = colors.text;' +
+'    ctx.textAlign = "center"; ctx.textBaseline = "middle";' +
+'    ctx.fillText(markerStyle === 8 ? "(custom -- edit below)" : "(bitmap markers)", cx, cy - r - 8);' +
+'  }' +
+
+'  var hh = now.getHours() % 12, mm = now.getMinutes(), ss = now.getSeconds();' +
+'  var hourAngle = ((hh * 60 + mm) / 720) * 2 * Math.PI;' +
+'  var minAngle = (mm / 60) * 2 * Math.PI;' +
+'  var hourColor = (style === 3) ? colors.accent : colors.text;' +
+'  drawBigHandPreview(ctx, cx, cy, hourAngle, r * 0.55, style, hourColor, transparent);' +
+'  drawBigHandPreview(ctx, cx, cy, minAngle, r * 0.85, style, colors.text, transparent);' +
+
+'  if (showSeconds) {' +
+'    var secAngle = (ss / 60) * 2 * Math.PI;' +
+'    ctx.strokeStyle = colors.accent; ctx.lineWidth = 1;' +
+'    ctx.beginPath(); ctx.moveTo(cx, cy);' +
+'    ctx.lineTo(cx + r * 0.92 * Math.sin(secAngle), cy - r * 0.92 * Math.cos(secAngle));' +
+'    ctx.stroke();' +
+'  }' +
+'  ctx.fillStyle = colors.text;' +
+'  ctx.beginPath(); ctx.arc(cx, cy, 2, 0, 2 * Math.PI); ctx.fill();' +
+'}' +
+
+'function drawInfoPanelPreview(ctx, colors, now, panelLeft, w, panelTop, panelBottom) {' +
+'  var dayOfYear = Math.floor((now - new Date(now.getFullYear(), 0, 0)) / 86400000);' +
+'  var weekNum = Math.ceil(dayOfYear / 7);' +
+'  var days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];' +
+'  var months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];' +
+'  var dateStr = days[now.getDay()] + " " + months[now.getMonth()] + " " + now.getDate();' +
+'  var lines = ["Clouds 20% Vis 80%", "Innsbruck, Austria", dateStr, "Week " + weekNum];' +
+'  ctx.font = "9px sans-serif";' +
+'  ctx.fillStyle = colors.text;' +
+'  ctx.textAlign = "left"; ctx.textBaseline = "top";' +
+'  var lineH = (panelBottom - panelTop) / (lines.length + 1);' +
+'  for (var i = 0; i < lines.length; i++) {' +
+'    ctx.fillText(lines[i], panelLeft + 8, panelTop + lineH * (i + 0.5));' +
+'  }' +
+'}' +
+
+'function drawDigitalPreview(ctx, colors, now, showSeconds, w, panelTop, panelBottom) {' +
+'  var fontSel = document.getElementById("clockFont");' +
+'  var opt = fontSel.options[fontSel.selectedIndex];' +
+'  var hh = now.getHours(), mm = now.getMinutes();' +
+'  var txt = (hh < 10 ? "0" : "") + hh + ":" + (mm < 10 ? "0" : "") + mm;' +
+'  if (showSeconds) { var ss = now.getSeconds(); txt += ":" + (ss < 10 ? "0" : "") + ss; }' +
+'  ctx.font = canvasFontFor(opt.getAttribute("data-preview") || "", 26);' +
+'  ctx.fillStyle = colors.text;' +
+'  ctx.textAlign = "center"; ctx.textBaseline = "middle";' +
+'  ctx.fillText(txt, w / 2, panelTop + (panelBottom - panelTop) * 0.42);' +
+'  ctx.font = "11px sans-serif";' +
+'  ctx.fillText(now.toDateString(), w / 2, panelBottom - 12);' +
+'}' +
+
+'function updatePreview() {' +
+'  var canvas = document.getElementById("previewCanvas");' +
+'  if (!canvas || !canvas.getContext) return;' +
+'  var ctx = canvas.getContext("2d");' +
+'  var w = canvas.width, h = canvas.height;' +
+'  ctx.clearRect(0, 0, w, h);' +
+
+'  var colors = dayColors();' +
+'  var styleVal = document.querySelector("input[name=bottomStyle]:checked").value;' +
+'  var now = new Date();' +
+'  var secondsBox = document.getElementById("showSeconds");' +
+'  var showSeconds = secondsBox.checked && !secondsBox.disabled;' +
+
+'  if (styleVal === "biganalog") {' +
+'    drawSkyLayer(ctx, 0, 0, w, h);' +
+'    var markerStyleVal = document.getElementById("bigAnalogMarkerStyle").value;' +
+'    var markerImageDrawn = (parseInt(markerStyleVal, 10) >= 3) && drawTintedMarkerBitmap(ctx, markerStyleVal, w, h, colors.text);' +
+'    drawBigAnalogPreview(ctx, colors, now, showSeconds, w, h, markerImageDrawn);' +
+'    drawCornersAndEdges(ctx, w, h, colors, h);' +
+'  } else {' +
+'    var skyH = Math.round(h * 152 / 228);' +
+'    drawSkyLayer(ctx, 0, 0, w, skyH);' +
+'    drawCornersAndEdges(ctx, w, h, colors, skyH);' +
+'    ctx.fillStyle = colors.bg;' +
+'    ctx.fillRect(0, skyH, w, h - skyH);' +
+'    if (styleVal === "analog") {' +
+'      var clockRight = drawAnalogPreview(ctx, colors, now, showSeconds, w, skyH, h);' +
+'      drawInfoPanelPreview(ctx, colors, now, clockRight, w, skyH, h);' +
+'    } else {' +
+'      drawDigitalPreview(ctx, colors, now, showSeconds, w, skyH, h);' +
+'    }' +
+'  }' +
+'}' +
+
+'function onBottomStyleChange() {' +
+'  var styleVal = document.querySelector("input[name=bottomStyle]:checked").value;' +
+'  var isAnalog = styleVal === "analog";' +
+'  var isBigAnalog = styleVal === "biganalog";' +
+'  document.getElementById("digitalOnlySettings").style.display = (styleVal === "digital") ? "block" : "none";' +
+'  document.getElementById("analogOnlySettings").style.display = isAnalog ? "block" : "none";' +
+'  document.getElementById("bigAnalogSettings").style.display = isBigAnalog ? "block" : "none";' +
+'  document.getElementById("showSunTimeSection").style.display = isBigAnalog ? "none" : "block";' +
+'  var secondsBox = document.getElementById("showSeconds");' +
+'  var fontSel = document.getElementById("clockFont");' +
+'  var opt = fontSel.options[fontSel.selectedIndex];' +
+'  var fontOk = opt.getAttribute("data-seconds") === "1";' +
+'  var handBased = isAnalog || isBigAnalog;' +
+'  var secondsUnavailable = !handBased && !fontOk;' +
+'  secondsBox.disabled = secondsUnavailable;' +
+'  if (secondsUnavailable) secondsBox.checked = false;' +
+'  document.getElementById("secondsHelp").style.display = secondsUnavailable ? "block" : "none";' +
+'  renderSlotPicker();' +
+'  updatePreview();' +
+'}' +
+'var SLOT_DEFS = {' +
+'  cornerTL: { contentId: "cornerTL", colorId: "cornerTLColor", btnId: "slotBtn-cornerTL", label: "Top-left", avail: function (a) { return !a.cornersGrayed; } },' +
+'  cornerTR: { contentId: "cornerTR", colorId: "cornerTRColor", btnId: "slotBtn-cornerTR", label: "Top-right", avail: function (a) { return !a.cornersGrayed; } },' +
+'  cornerBL: { contentId: "cornerBL", colorId: "cornerBLColor", btnId: "slotBtn-cornerBL", label: "Bottom-left", avail: function (a) { return !a.cornersGrayed; } },' +
+'  cornerBR: { contentId: "cornerBR", colorId: "cornerBRColor", btnId: "slotBtn-cornerBR", label: "Bottom-right", avail: function (a) { return !a.cornersGrayed; } },' +
+'  upperMiddleLine1: { contentId: "upperMiddleLine1Content", colorId: "upperMiddleLine1Color", btnId: "slotBtn-upperMiddleLine1", label: "Upper-middle, line 1", avail: function (a) { return a.upper; } },' +
+'  upperMiddleLine2: { contentId: "upperMiddleLine2Content", colorId: "upperMiddleLine2Color", btnId: "slotBtn-upperMiddleLine2", label: "Upper-middle, line 2", avail: function (a) { return a.upper; } },' +
+'  bottomMiddleLine1: { contentId: "bottomMiddleLine1Content", colorId: "bottomMiddleLine1Color", btnId: "slotBtn-bottomMiddleLine1", label: "Bottom-middle, line 1", avail: function (a) { return a.bottom; } },' +
+'  bottomMiddleLine2: { contentId: "bottomMiddleLine2Content", colorId: "bottomMiddleLine2Color", btnId: "slotBtn-bottomMiddleLine2", label: "Bottom-middle, line 2", avail: function (a) { return a.bottom; } },' +
+'  middleLeft: { contentId: "middleLeftContent", colorId: "middleLeftColor", btnId: "slotBtn-middleLeft", label: "Middle-left", avail: function (a) { return a.left; } },' +
+'  middleRight: { contentId: "middleRightContent", colorId: "middleRightColor", btnId: "slotBtn-middleRight", label: "Middle-right", avail: function (a) { return a.right; } }' +
+'};' +
+'var CURRENT_SLOT_KEY = null;' +
+'var SLOT_EDITOR_DRAFT_COLOR = 0;' +
+// Same per-marker-style room rules as before: procedural styles (<3)
+// have all 8 slots and the 4 corners; bitmap styles are each limited
+// to whatever their own artwork actually has room for and suppress
+// the corners entirely (the mask fills most of the screen).
+'function computeSlotAvailability() {' +
+'  var styleVal = document.querySelector("input[name=bottomStyle]:checked").value;' +
+'  var isBigAnalog = styleVal === "biganalog";' +
+'  var markerStyle = parseInt(document.getElementById("bigAnalogMarkerStyle").value, 10);' +
+'  var avail = { upper: false, bottom: false, left: false, right: false, cornersGrayed: false };' +
+'  if (isBigAnalog) {' +
+'    if (markerStyle < 3 || markerStyle === 8) {' +
+'      avail = { upper: true, bottom: true, left: true, right: true, cornersGrayed: false };' +
+'    } else if (markerStyle === 3 || markerStyle === 4 || markerStyle === 6) {' +
+'      avail = { upper: true, bottom: true, left: false, right: false, cornersGrayed: true };' +
+'    } else if (markerStyle === 5 || markerStyle === 7) {' +
+'      avail = { upper: true, bottom: true, left: true, right: true, cornersGrayed: true };' +
+'    } else {' +
+'      avail = { upper: true, bottom: false, left: false, right: false, cornersGrayed: true };' +
+'    }' +
+'  }' +
+'  return avail;' +
+'}' +
+// Updates each slot button\'s label (its example preview value, "OFF",
+// or "N/A") and styling to match current settings -- called on init
+// and whenever bottom-style/marker-style or a slot\'s own content
+// changes.
+'function renderSlotPicker() {' +
+'  var avail = computeSlotAvailability();' +
+'  for (var key in SLOT_DEFS) {' +
+'    var def = SLOT_DEFS[key];' +
+'    var btn = document.getElementById(def.btnId);' +
+'    var baseClass = btn.getAttribute("data-base-class");' +
+'    if (!baseClass) { baseClass = btn.className; btn.setAttribute("data-base-class", baseClass); }' +
+'    if (!def.avail(avail)) {' +
+'      btn.textContent = "N/A";' +
+'      btn.className = baseClass + " slot-na";' +
+'      continue;' +
+'    }' +
+'    var val = parseInt(document.getElementById(def.contentId).value, 10);' +
+'    if (!val || !CORNER_PREVIEW_LABELS[val]) {' +
+'      btn.textContent = "OFF";' +
+'      btn.className = baseClass + " slot-off";' +
+'    } else {' +
+'      btn.textContent = CORNER_PREVIEW_LABELS[val];' +
+'      btn.className = baseClass;' +
+'    }' +
+'  }' +
+'}' +
+'function setSlotEditorColorGroupVisibility(contentVal) {' +
+'  document.getElementById("slotEditColorGroup").style.display = (contentVal === "0") ? "none" : "flex";' +
+'}' +
+'function setSlotEditorColorButtons(value) {' +
+'  SLOT_EDITOR_DRAFT_COLOR = parseInt(value, 10) || 0;' +
+'  var buttons = document.getElementById("slotEditColorGroup").getElementsByClassName("mode-btn");' +
+'  for (var i = 0; i < buttons.length; i++) {' +
+'    buttons[i].className = "mode-btn" + (i === SLOT_EDITOR_DRAFT_COLOR ? " active" : "");' +
+'  }' +
+'}' +
+'function slotEditorSelectColor(value) {' +
+'  setSlotEditorColorButtons(value);' +
+'}' +
+'function onSlotEditContentChange() {' +
+'  setSlotEditorColorGroupVisibility(document.getElementById("slotEditContent").value);' +
+'}' +
+// Opens the popup pre-filled with this slot\'s current (already-saved)
+// content/color -- nothing is written back to the real elements until
+// saveSlotEditor() runs, so closing without saving (Cancel, or a tap
+// outside the box) leaves the slot exactly as it was.
+'function openSlotEditor(slotKey) {' +
+'  var def = SLOT_DEFS[slotKey];' +
+'  if (!def) return;' +
+'  CURRENT_SLOT_KEY = slotKey;' +
+'  document.getElementById("slotEditTitle").textContent = def.label;' +
+'  var contentVal = document.getElementById(def.contentId).value;' +
+'  var colorVal = document.getElementById(def.colorId).value;' +
+'  document.getElementById("slotEditContent").value = contentVal;' +
+'  setSlotEditorColorGroupVisibility(contentVal);' +
+'  setSlotEditorColorButtons(colorVal);' +
+'  document.getElementById("slotEditModal").className = "modal-overlay open";' +
+'}' +
+'function closeSlotEditor() {' +
+'  document.getElementById("slotEditModal").className = "modal-overlay";' +
+'  CURRENT_SLOT_KEY = null;' +
+'}' +
+'function saveSlotEditor() {' +
+'  if (!CURRENT_SLOT_KEY) return;' +
+'  var def = SLOT_DEFS[CURRENT_SLOT_KEY];' +
+'  document.getElementById(def.contentId).value = document.getElementById("slotEditContent").value;' +
+'  document.getElementById(def.colorId).value = String(SLOT_EDITOR_DRAFT_COLOR);' +
+'  closeSlotEditor();' +
+'  renderSlotPicker();' +
+'  updatePreview();' +
+'}' +
+
+// ---- collapsible sections + slider step buttons ------------------------
+'function toggleSection(id) {' +
+'  var body = document.getElementById("section-" + id);' +
+'  var chev = document.getElementById("chev-" + id);' +
+'  if (!body) return;' +
+'  var isOpen = body.style.display !== "none";' +
+'  body.style.display = isOpen ? "none" : "";' +
+'  if (chev) chev.className = isOpen ? "chevron" : "chevron open";' +
+'}' +
+'function stepSlider(id, delta) {' +
+'  var el = document.getElementById(id);' +
+'  if (!el) return;' +
+'  var min = parseFloat(el.min), max = parseFloat(el.max);' +
+'  var v = parseFloat(el.value) + delta;' +
+'  if (!isNaN(min) && v < min) v = min;' +
+'  if (!isNaN(max) && v > max) v = max;' +
+'  el.value = v;' +
+'  if (el.oninput) el.oninput();' +
+'  else if (el.onchange) el.onchange();' +
+'}' +
+
+'function onMarkerStyleChange() {' +
+'  var val = document.getElementById("bigAnalogMarkerStyle").value;' +
+'  document.getElementById("customMarkerSection").style.display = (val === "8") ? "" : "none";' +
+'  renderSlotPicker();' +
+'  updatePreview();' +
+'}' +
+
+// ---- custom hour/second marker popups --------------------------------
+'var CM_FIELDS = ["Style", "Thickness", "InnerEcc", "OuterEcc", "InnerBorder", "OuterBorder"];' +
+'function cmHiddenPrefix(kind) { return kind === "hour" ? "customHour" : "customSec"; }' +
+'function cmPopupPrefix(kind) { return kind === "hour" ? "cmHour" : "cmSec"; }' +
+'var MARKER_PRESETS = {' +
+'  hour: {' +
+'    minimal: { Style: "1", Thickness: "1", InnerEcc: "0", OuterEcc: "0", InnerBorder: "20", OuterBorder: "100" },' +
+'    small:   { Style: "1", Thickness: "1", InnerEcc: "0", OuterEcc: "0", InnerBorder: "0", OuterBorder: "100" },' +
+'    big:     { Style: "2", Thickness: "3", InnerEcc: "0", OuterEcc: "0", InnerBorder: "0", OuterBorder: "100" }' +
+'  },' +
+'  sec: {' +
+'    minimal: { Style: "0", Thickness: "1", InnerEcc: "0", OuterEcc: "0", InnerBorder: "85", OuterBorder: "100" },' +
+'    small:   { Style: "1", Thickness: "1", InnerEcc: "0", OuterEcc: "0", InnerBorder: "60", OuterBorder: "100" },' +
+'    big:     { Style: "1", Thickness: "1", InnerEcc: "0", OuterEcc: "0", InnerBorder: "60", OuterBorder: "100" }' +
+'  }' +
+'};' +
+// A rough approximation of the 3 built-in procedural styles, translated
+// into border-reach percentages (see marker_reach_px() in
+// marker_layer.c) now that a mark's length comes directly from its
+// inner/outer border points rather than a separate slider -- a starting
+// point to tune from, not an exact match. The "second" ring has no real
+// minimal-style equivalent (that style draws no second markers at all),
+// so its "minimal" preset is just a short stub near the outer edge.
+'function updateCustomMarkerValLabels(kind) {' +
+'  var p = cmPopupPrefix(kind);' +
+'  ["Thickness", "InnerEcc", "OuterEcc", "InnerBorder", "OuterBorder"].forEach(function (f) {' +
+'    var el = document.getElementById(p + f);' +
+'    var out = document.getElementById(p + f + "Val");' +
+'    if (el && out) out.textContent = el.value + (f === "Thickness" ? "px" : "%");' +
+'  });' +
+'}' +
+'function onCustomMarkerSliderInput(kind) {' +
+'  updateCustomMarkerValLabels(kind);' +
+'}' +
+'function onCustomMarkerBorderInput(kind, isInner) {' +
+'  var p = cmPopupPrefix(kind);' +
+'  var innerEl = document.getElementById(p + "InnerBorder"), outerEl = document.getElementById(p + "OuterBorder");' +
+'  var innerVal = parseInt(innerEl.value, 10), outerVal = parseInt(outerEl.value, 10);' +
+'  outerEl.min = innerVal;' +
+'  if (outerVal < innerVal) outerEl.value = innerVal;' +
+'  updateCustomMarkerValLabels(kind);' +
+'}' +
+// Pre-fills the popup from the currently-saved customHour*/customSec*
+// hidden inputs -- nothing is written back until saveCustomMarkerEditor()
+// runs, so Cancel (or tapping outside) leaves the saved config untouched.
+'function openCustomMarkerEditor(kind) {' +
+'  var hp = cmHiddenPrefix(kind), p = cmPopupPrefix(kind);' +
+'  CM_FIELDS.forEach(function (f) {' +
+'    var hidden = document.getElementById(hp + f);' +
+'    var popupEl = document.getElementById(p + f);' +
+'    if (hidden && popupEl) popupEl.value = hidden.value;' +
+'  });' +
+'  document.getElementById(p + "OuterBorder").min = document.getElementById(p + "InnerBorder").value;' +
+'  updateCustomMarkerValLabels(kind);' +
+'  document.getElementById("customMarkerModal-" + kind).className = "modal-overlay open";' +
+'}' +
+'function closeCustomMarkerEditor(kind) {' +
+'  document.getElementById("customMarkerModal-" + kind).className = "modal-overlay";' +
+'}' +
+'function saveCustomMarkerEditor(kind) {' +
+'  var hp = cmHiddenPrefix(kind), p = cmPopupPrefix(kind);' +
+'  CM_FIELDS.forEach(function (f) {' +
+'    var hidden = document.getElementById(hp + f);' +
+'    var popupEl = document.getElementById(p + f);' +
+'    if (hidden && popupEl) hidden.value = popupEl.value;' +
+'  });' +
+'  closeCustomMarkerEditor(kind);' +
+'  updatePreview();' +
+'}' +
+'function applyMarkerPreset(kind, name) {' +
+'  var p = cmPopupPrefix(kind);' +
+'  var preset = MARKER_PRESETS[kind][name];' +
+'  if (!preset) return;' +
+'  CM_FIELDS.forEach(function (f) {' +
+'    var el = document.getElementById(p + f);' +
+'    if (el && preset[f] !== undefined) el.value = preset[f];' +
+'  });' +
+'  document.getElementById(p + "OuterBorder").min = document.getElementById(p + "InnerBorder").value;' +
+'  updateCustomMarkerValLabels(kind);' +
+'}' +
+// Copies the OTHER ring\'s last-saved (not currently-open-popup-draft)
+// config into this popup\'s controls -- text-marker settings are never
+// touched here, since hour/second numbers already exclude each other.
+'function copyMarkerConfig(kind) {' +
+'  var otherKind = kind === "hour" ? "sec" : "hour";' +
+'  var otherHiddenPrefix = cmHiddenPrefix(otherKind), p = cmPopupPrefix(kind);' +
+'  CM_FIELDS.forEach(function (f) {' +
+'    var src = document.getElementById(otherHiddenPrefix + f);' +
+'    var dst = document.getElementById(p + f);' +
+'    if (src && dst) dst.value = src.value;' +
+'  });' +
+'  document.getElementById(p + "OuterBorder").min = document.getElementById(p + "InnerBorder").value;' +
+'  updateCustomMarkerValLabels(kind);' +
+'}' +
+'function onMarkerTextTargetChange() {' +
+'  var val = document.getElementById("markerTextTarget").value;' +
+'  document.getElementById("markerTextOptions").style.display = (val === "0") ? "none" : "";' +
+'  document.getElementById("markerTextHourGrid").style.display = (val === "1") ? "" : "none";' +
+'  document.getElementById("markerTextSecGrid").style.display = (val === "2") ? "" : "none";' +
+'  updatePreview();' +
+'}' +
+'function openTextMarkerEditor() {' +
+'  document.getElementById("textMarkerModal").className = "modal-overlay open";' +
+'}' +
+'function closeTextMarkerEditor() {' +
+'  document.getElementById("textMarkerModal").className = "modal-overlay";' +
+'}' +
+'function toggleMarkBtn(kind, i) {' +
+'  var hiddenId = kind === "hour" ? "markerTextHourMask" : "markerTextSecMask";' +
+'  var hidden = document.getElementById(hiddenId);' +
+'  var mask = parseInt(hidden.value, 10) || 0;' +
+'  var btn = document.getElementById("markBtn-" + kind + "-" + i);' +
+'  var bit = 1 << i;' +
+'  if (mask & bit) { mask &= ~bit; btn.className = "mark-btn"; } else { mask |= bit; btn.className = "mark-btn active"; }' +
+'  hidden.value = String(mask);' +
+'}' +
+
+// ---- custom hour/minute/second hand popups ----------------------------
+'var HE_FIELDS = ["Style", "Width", "Length", "BackOffset", "Color", "OutlineEnabled", "OutlineColor", "Translucent"];' +
+'var HE_CHECKBOX_FIELDS = ["OutlineEnabled", "Translucent"];' +
+'var HAND_COPY_SOURCE = { hour: "min", min: "hour", sec: "min" };' +
+'function heHiddenPrefix(kind) { return kind === "hour" ? "handHour" : (kind === "min" ? "handMin" : "handSec"); }' +
+'function hePopupPrefix(kind) { return "he" + kind.charAt(0).toUpperCase() + kind.slice(1); }' +
+// Rough translations of the 4 procedural hand styles into the custom
+// field set, keyed by bigAnalogHandStyle's own value -- applied to all
+// 3 hands whenever that dropdown changes, so switching to "Custom"
+// later starts from something close to whichever style was picked.
+// Approximated from draw_big_hand()'s constants (see
+// pebble-eclipse-watch.c) at a ~92px radius; not an exact match, a
+// starting point to tune from.
+'var HAND_PRESETS = {' +
+'  "0": { hour: {Style:"1",Width:"12",Length:"51",BackOffset:"0",Color:"0"}, min: {Style:"1",Width:"18",Length:"78",BackOffset:"0",Color:"0"}, sec: {Style:"0",Width:"2",Length:"85",BackOffset:"0",Color:"1"} },' +
+'  "1": { hour: {Style:"2",Width:"8",Length:"51",BackOffset:"0",Color:"0"}, min: {Style:"2",Width:"12",Length:"78",BackOffset:"0",Color:"0"}, sec: {Style:"0",Width:"2",Length:"85",BackOffset:"0",Color:"1"} },' +
+'  "2": { hour: {Style:"2",Width:"6",Length:"51",BackOffset:"0",Color:"0"}, min: {Style:"2",Width:"8",Length:"78",BackOffset:"0",Color:"0"}, sec: {Style:"0",Width:"2",Length:"85",BackOffset:"0",Color:"1"} },' +
+'  "3": { hour: {Style:"0",Width:"6",Length:"51",BackOffset:"0",Color:"1"}, min: {Style:"0",Width:"10",Length:"78",BackOffset:"0",Color:"0"}, sec: {Style:"0",Width:"2",Length:"85",BackOffset:"0",Color:"1"} }' +
+'};' +
+'function applyHandPresetToKind(kind, preset) {' +
+'  var hp = heHiddenPrefix(kind);' +
+'  for (var f in preset) {' +
+'    var hidden = document.getElementById(hp + f);' +
+'    if (hidden) hidden.value = preset[f];' +
+'  }' +
+'}' +
+'function onHandStyleChange() {' +
+'  var val = document.getElementById("bigAnalogHandStyle").value;' +
+'  document.getElementById("customHandSection").style.display = (val === "4") ? "" : "none";' +
+'  document.getElementById("bigAnalogTransparentRow").style.display = (val === "4") ? "none" : "";' +
+'  var preset = HAND_PRESETS[val];' +
+'  if (preset) {' +
+'    applyHandPresetToKind("hour", preset.hour);' +
+'    applyHandPresetToKind("min", preset.min);' +
+'    applyHandPresetToKind("sec", preset.sec);' +
+'  }' +
+'  updatePreview();' +
+'}' +
+'function updateHandValLabels(kind) {' +
+'  var p = hePopupPrefix(kind);' +
+'  ["Width", "Length", "BackOffset"].forEach(function (f) {' +
+'    var el = document.getElementById(p + f);' +
+'    var out = document.getElementById(p + f + "Val");' +
+'    if (el && out) out.textContent = el.value + "px";' +
+'  });' +
+'}' +
+'function onHandSliderInput(kind) {' +
+'  updateHandValLabels(kind);' +
+'}' +
+// Pre-fills the popup from the currently-saved handHour*/handMin*/
+// handSec* hidden inputs -- nothing is written back until
+// saveHandEditor() runs.
+'function openHandEditor(kind) {' +
+'  var hp = heHiddenPrefix(kind), p = hePopupPrefix(kind);' +
+'  HE_FIELDS.forEach(function (f) {' +
+'    var hidden = document.getElementById(hp + f);' +
+'    var popupEl = document.getElementById(p + f);' +
+'    if (!hidden || !popupEl) return;' +
+'    if (HE_CHECKBOX_FIELDS.indexOf(f) !== -1) { popupEl.checked = hidden.value === "true"; } else { popupEl.value = hidden.value; }' +
+'  });' +
+'  updateHandValLabels(kind);' +
+'  document.getElementById("handEditorModal-" + kind).className = "modal-overlay open";' +
+'}' +
+'function closeHandEditor(kind) {' +
+'  document.getElementById("handEditorModal-" + kind).className = "modal-overlay";' +
+'}' +
+'function saveHandEditor(kind) {' +
+'  var hp = heHiddenPrefix(kind), p = hePopupPrefix(kind);' +
+'  HE_FIELDS.forEach(function (f) {' +
+'    var hidden = document.getElementById(hp + f);' +
+'    var popupEl = document.getElementById(p + f);' +
+'    if (!hidden || !popupEl) return;' +
+'    hidden.value = (HE_CHECKBOX_FIELDS.indexOf(f) !== -1) ? String(popupEl.checked) : popupEl.value;' +
+'  });' +
+'  closeHandEditor(kind);' +
+'  updatePreview();' +
+'}' +
+// Copies the OTHER hand's last-saved settings into this popup's draft
+// controls (not committed until OK) -- direction is fixed per hand, see
+// HAND_COPY_SOURCE: hour<-minute, minute<-hour, second<-minute.
+'function copyHandConfig(kind) {' +
+'  var srcHp = heHiddenPrefix(HAND_COPY_SOURCE[kind]);' +
+'  var p = hePopupPrefix(kind);' +
+'  HE_FIELDS.forEach(function (f) {' +
+'    var src = document.getElementById(srcHp + f);' +
+'    var dst = document.getElementById(p + f);' +
+'    if (!src || !dst) return;' +
+'    if (HE_CHECKBOX_FIELDS.indexOf(f) !== -1) { dst.checked = src.value === "true"; } else { dst.value = src.value; }' +
+'  });' +
+'  updateHandValLabels(kind);' +
+'}' +
+
+'function onCornerFontChange() {' +
+'  var custom = document.getElementById("cornerCustomFont").value;' +
+'  document.getElementById("cornerFontSize").disabled = (custom !== "0");' +
+'}' +
+'function selectSunTimeMode(isSunTime) {' +
+'  document.getElementById("showSunTime").value = isSunTime ? "true" : "false";' +
+'  var buttons = document.getElementById("showSunTimeGroup").getElementsByClassName("mode-btn");' +
+'  buttons[0].className = "mode-btn" + (!isSunTime ? " active" : "");' +
+'  buttons[1].className = "mode-btn" + (isSunTime ? " active" : "");' +
+'}' +
+'function onFontChange() {' +
+'  onBottomStyleChange();' +
+'}' +
+'function onAnalogStyleChange() { updatePreview(); }' +
+
+'function updateColorRoleButtons(scheme) {' +
+'  var colors = scheme === "night" ? nightColors() : dayColors();' +
+'  var prefix = scheme === "night" ? "swatchNight" : "swatch";' +
+'  document.getElementById(prefix + "Main").style.background = colors.text;' +
+'  document.getElementById(prefix + "Accent").style.background = colors.accent;' +
+'  document.getElementById(prefix + "Bg").style.background = colors.bg;' +
+'}' +
+
+'function onPresetChange(scheme) {' +
+'  var presetSelectId = scheme === "night" ? "nightSchemePreset" : "colorSchemePreset";' +
+'  var valueId = scheme === "night" ? "nightSchemeValue" : "colorSchemeValue";' +
+'  var picked = document.getElementById(presetSelectId).value;' +
+'  if (!picked) return;' +
+'  document.getElementById(valueId).value = picked;' +
+'  updateColorRoleButtons(scheme);' +
+'  if (scheme !== "night") updatePreview();' +
+'}' +
+
+'var CURRENT_PICKER_ROLE = null;' +
+'var CURRENT_PICKER_SCHEME = "day";' +
+'function openColorPicker(role, scheme) {' +
+'  CURRENT_PICKER_ROLE = role;' +
+'  CURRENT_PICKER_SCHEME = scheme || "day";' +
+'  var titles = { text: "Pick main color", accent: "Pick accent color", bg: "Pick background color" };' +
+'  document.getElementById("colorPickerTitle").textContent = titles[role] || "Pick a color";' +
+'  renderHexColorGrid();' +
+'  document.getElementById("colorPickerModal").className = "modal-overlay open";' +
+'}' +
+'function closeColorPicker() {' +
+'  document.getElementById("colorPickerModal").className = "modal-overlay";' +
+'  CURRENT_PICKER_ROLE = null;' +
+'}' +
+'function goBack() {' +
+'  document.location = getQueryParam("return_to", "pebblejs://close#");' +
+'}' +
+'function openDonateModal() {' +
+'  document.getElementById("donateModal").className = "modal-overlay open";' +
+'}' +
+'function closeDonateModal() {' +
+'  document.getElementById("donateModal").className = "modal-overlay";' +
+'}' +
+// The bar's own height varies by device (font scaling, safe-area
+// insets) and is capped at 25vh by CSS, so this measures it after
+// layout rather than assuming a fixed value, and pushes the
+// scrollable content down by exactly that much so nothing starts out
+// hidden underneath it.
+'function adjustTopBarSpacing() {' +
+'  var bar = document.getElementById("topBar");' +
+'  if (!bar) return;' +
+'  document.body.style.paddingTop = bar.offsetHeight + "px";' +
+'}' +
+'window.addEventListener("load", adjustTopBarSpacing);' +
+'window.addEventListener("resize", adjustTopBarSpacing);' +
+'function customHiddenIdFor(role, scheme) {' +
+'  var prefix = scheme === "night" ? "night" : "";' +
+'  if (role === "text") return prefix ? "nightCustomTextValue" : "customTextValue";' +
+'  if (role === "accent") return prefix ? "nightCustomAccentValue" : "customAccentValue";' +
+'  return prefix ? "nightCustomBgValue" : "customBgValue";' +
+'}' +
+
+// Converts 0-255 RGB to HSL (h in degrees 0-360, s/l 0-1) -- used to
+// arrange the wheel by hue, the way a real color wheel reads.
+// Exact layout of Pebble's real color-picker tool (developer.rebble.io/
+// guides/tools-and-resources/color-picker/), extracted directly from
+// its SVG: each hexagon's pixel center was converted to axial (q, r)
+// hex-grid coordinates (pointy-top orientation -- flat left/right
+// sides, pointed top/bottom vertices, unlike the flat-top approximation
+// used before), and matched to its packed color byte. The shape isn't
+// a simple symmetric hexagon; flood-filling from outside the shape\'s
+// bounding box found exactly 5 cells fully enclosed by colored
+// neighbors on all sides but not themselves colored -- those are the
+// genuine hollow gaps, listed separately below.
+'var PEBBLE_WHEEL_POSITIONS = [' +
+'{q:-5,r:2,b:239},{q:-4,r:1,b:223},{q:-3,r:-1,b:222},{q:-3,r:0,b:206},{q:-3,r:1,b:207},{q:-3,r:3,b:219},{q:-3,r:4,b:199},{q:-2,r:-4,b:238},{q:-2,r:-3,b:221},{q:-2,r:-2,b:205},{q:-2,r:-1,b:201},{q:-2,r:0,b:202},{q:-2,r:2,b:203},{q:-2,r:3,b:195},{q:-2,r:4,b:215},{q:-2,r:5,b:235},{q:-1,r:-3,b:204},{q:-1,r:-2,b:200},{q:-1,r:-1,b:217},{q:-1,r:0,b:218},{q:-1,r:1,b:198},{q:-1,r:2,b:194},{q:-1,r:3,b:211},{q:-1,r:4,b:214},{q:0,r:-4,b:220},{q:0,r:-2,b:216},{q:0,r:-1,b:196},{q:0,r:0,b:197},{q:0,r:2,b:193},{q:0,r:3,b:210},{q:0,r:4,b:227},{q:0,r:5,b:231},{q:1,r:-5,b:237},{q:1,r:-4,b:236},{q:1,r:-2,b:233},{q:1,r:-1,b:212},{q:1,r:2,b:209},{q:1,r:3,b:226},{q:1,r:4,b:230},{q:2,r:-2,b:232},{q:2,r:1,b:208},{q:2,r:2,b:225},{q:2,r:3,b:243},{q:2,r:4,b:247},{q:3,r:-3,b:252},{q:3,r:-2,b:248},{q:3,r:-1,b:228},{q:3,r:0,b:229},{q:3,r:1,b:224},{q:3,r:2,b:242},{q:3,r:3,b:246},{q:3,r:4,b:251},{q:4,r:-5,b:254},{q:4,r:-4,b:253},{q:4,r:-3,b:249},{q:4,r:-2,b:244},{q:4,r:-1,b:240},{q:4,r:0,b:241},{q:5,r:-1,b:245},{q:6,r:-5,b:234},{q:6,r:-4,b:192},{q:6,r:-2,b:250},{q:7,r:-5,b:255},{q:7,r:-4,b:213}' +
+'];' +
+'var PEBBLE_WHEEL_HOLLOW = [{q:0,r:1},{q:1,r:0},{q:1,r:1},{q:2,r:-1},{q:2,r:0}];' +
+
+'function renderHexColorGrid() {' +
+'  var container = document.getElementById("hexColorGrid");' +
+'  container.innerHTML = "";' +
+'  var hiddenId = customHiddenIdFor(CURRENT_PICKER_ROLE, CURRENT_PICKER_SCHEME);' +
+'  var selected = parseInt(document.getElementById(hiddenId).value, 10);' +
+'  var size = 15;' +
+'  var centerX = 130, centerY = 127.5;' + // must match .hex-grid's fixed CSS width/height
+'  function place(q, r) {' +
+'    return {' +
+'      x: centerX + size * Math.sqrt(3) * (q + r / 2),' +
+'      y: centerY + size * 1.5 * r' +
+'    };' +
+'  }' +
+'  for (var i = 0; i < PEBBLE_WHEEL_POSITIONS.length; i++) {' +
+'    var pos = PEBBLE_WHEEL_POSITIONS[i];' +
+'    var pt = place(pos.q, pos.r);' +
+'    var sw = document.createElement("div");' +
+'    sw.style.left = pt.x + "px";' +
+'    sw.style.top = pt.y + "px";' +
+'    sw.className = "hex-swatch" + (pos.b === selected ? " selected" : "");' +
+'    sw.style.background = hexFromByte(pos.b);' +
+'    sw.onclick = (function (byte) { return function () { pickColor(byte); }; })(pos.b);' +
+'    container.appendChild(sw);' +
+'  }' +
+'  for (var j = 0; j < PEBBLE_WHEEL_HOLLOW.length; j++) {' +
+'    var hp = PEBBLE_WHEEL_HOLLOW[j];' +
+'    var hpt = place(hp.q, hp.r);' +
+'    var hsw = document.createElement("div");' +
+'    hsw.style.left = hpt.x + "px";' +
+'    hsw.style.top = hpt.y + "px";' +
+'    hsw.className = "hex-swatch hollow";' +
+'    container.appendChild(hsw);' +
+'  }' +
+'}' +
+'function pickColor(byte) {' +
+'  if (!CURRENT_PICKER_ROLE) return;' +
+'  var scheme = CURRENT_PICKER_SCHEME;' +
+'  var valueId = scheme === "night" ? "nightSchemeValue" : "colorSchemeValue";' +
+'  if (document.getElementById(valueId).value !== "custom") {' +
+'    var existingColors = scheme === "night" ? nightColors() : dayColors();' +
+'    function toByte(hex) {' +
+'      var r = parseInt(hex.substr(1, 2), 16), g = parseInt(hex.substr(3, 2), 16), b = parseInt(hex.substr(5, 2), 16);' +
+'      function to2bit(v) { return Math.round(v / 85); }' +
+'      return packedByteFor(to2bit(r), to2bit(g), to2bit(b));' +
+'    }' +
+'    document.getElementById(customHiddenIdFor("text", scheme)).value = toByte(existingColors.text);' +
+'    document.getElementById(customHiddenIdFor("accent", scheme)).value = toByte(existingColors.accent);' +
+'    document.getElementById(customHiddenIdFor("bg", scheme)).value = toByte(existingColors.bg);' +
+'  }' +
+'  document.getElementById(customHiddenIdFor(CURRENT_PICKER_ROLE, scheme)).value = byte;' +
+'  document.getElementById(valueId).value = "custom";' +
+'  closeColorPicker();' +
+'  updateColorRoleButtons(scheme);' +
+'  if (scheme !== "night") updatePreview();' +
+'}' +
+'function onNightToggle() {' +
+'  document.getElementById("nightSchemeSettings").style.display = document.getElementById("nightEnabled").checked ? "block" : "none";' +
+'}' +
+
+'function save() {' +
+'  var mins = parseInt(document.getElementById("updateMins").value, 10);' +
+'  if (isNaN(mins) || mins < 5) mins = 20;' +
+'  var bottomStyle = document.querySelector("input[name=bottomStyle]:checked");' +
+'  var settings = {' +
+'    CONFIG_AUTO_LOC: document.getElementById("autoLoc").checked,' +
+'    CONFIG_LAT: document.getElementById("lat").value,' +
+'    CONFIG_LON: document.getElementById("lon").value,' +
+'    CONFIG_OWM_KEY: document.getElementById("owmKey").value,' +
+'    CONFIG_UPDATE_MINS: mins,' +
+'    CONFIG_CLOCK_FONT: document.getElementById("clockFont").value,' +
+'    CONFIG_TEMP_UNIT: document.getElementById("tempUnit").value,' +
+'    CONFIG_WIND_SPEED_UNIT: document.getElementById("windSpeedUnit").value,' +
+'    CONFIG_CLOUD_RENDER_STYLE: document.getElementById("cloudRenderStyle").value,' +
+'    CONFIG_SHOW_SECONDS: document.getElementById("showSeconds").checked,' +
+'    CONFIG_COLOR_SCHEME: document.getElementById("colorSchemeValue").value,' +
+'    CONFIG_CUSTOM_BG: document.getElementById("customBgValue").value,' +
+'    CONFIG_CUSTOM_TEXT: document.getElementById("customTextValue").value,' +
+'    CONFIG_CUSTOM_ACCENT: document.getElementById("customAccentValue").value,' +
+'    CONFIG_NIGHT_ENABLED: document.getElementById("nightEnabled").checked,' +
+'    CONFIG_NIGHT_SCHEME: document.getElementById("nightSchemeValue").value,' +
+'    CONFIG_NIGHT_CUSTOM_BG: document.getElementById("nightCustomBgValue").value,' +
+'    CONFIG_NIGHT_CUSTOM_TEXT: document.getElementById("nightCustomTextValue").value,' +
+'    CONFIG_NIGHT_CUSTOM_ACCENT: document.getElementById("nightCustomAccentValue").value,' +
+'    CONFIG_BOTTOM_STYLE: bottomStyle ? bottomStyle.value : "digital",' +
+'    CONFIG_ANALOG_STYLE: document.getElementById("analogStyle").value,' +
+'    CONFIG_BIG_ANALOG_HAND_STYLE: document.getElementById("bigAnalogHandStyle").value,' +
+'    CONFIG_BIG_ANALOG_TRANSPARENT: document.getElementById("bigAnalogTransparent").checked,' +
+'    CONFIG_BIG_ANALOG_MARKER_STYLE: document.getElementById("bigAnalogMarkerStyle").value,' +
+'    CONFIG_UPPER_MIDDLE_LINE1_CONTENT: document.getElementById("upperMiddleLine1Content").value,' +
+'    CONFIG_UPPER_MIDDLE_LINE1_COLOR: document.getElementById("upperMiddleLine1Color").value,' +
+'    CONFIG_UPPER_MIDDLE_LINE2_CONTENT: document.getElementById("upperMiddleLine2Content").value,' +
+'    CONFIG_UPPER_MIDDLE_LINE2_COLOR: document.getElementById("upperMiddleLine2Color").value,' +
+'    CONFIG_BOTTOM_MIDDLE_LINE1_CONTENT: document.getElementById("bottomMiddleLine1Content").value,' +
+'    CONFIG_BOTTOM_MIDDLE_LINE1_COLOR: document.getElementById("bottomMiddleLine1Color").value,' +
+'    CONFIG_BOTTOM_MIDDLE_LINE2_CONTENT: document.getElementById("bottomMiddleLine2Content").value,' +
+'    CONFIG_BOTTOM_MIDDLE_LINE2_COLOR: document.getElementById("bottomMiddleLine2Color").value,' +
+'    CONFIG_MIDDLE_LEFT_CONTENT: document.getElementById("middleLeftContent").value,' +
+'    CONFIG_MIDDLE_LEFT_COLOR: document.getElementById("middleLeftColor").value,' +
+'    CONFIG_MIDDLE_RIGHT_CONTENT: document.getElementById("middleRightContent").value,' +
+'    CONFIG_MIDDLE_RIGHT_COLOR: document.getElementById("middleRightColor").value,' +
+'    CONFIG_SHOW_SUN_TIME: document.getElementById("showSunTime").value === "true",' +
+'    CONFIG_SHOW_ISS: document.getElementById("showIss").checked,' +
+'    CONFIG_VIBRATE_ON_PHASE_CHANGE: document.getElementById("vibrateOnPhaseChange").checked,' +
+'    CONFIG_OUTLINE_ENABLED: document.getElementById("outlineEnabled").checked,' +
+'    CONFIG_CORNER_FONT_SIZE: document.getElementById("cornerFontSize").value,' +
+'    CONFIG_CORNER_CUSTOM_FONT: document.getElementById("cornerCustomFont").value,' +
+'    CONFIG_CORNER_TL: document.getElementById("cornerTL").value,' +
+'    CONFIG_CORNER_TR: document.getElementById("cornerTR").value,' +
+'    CONFIG_CORNER_BL: document.getElementById("cornerBL").value,' +
+'    CONFIG_CORNER_BR: document.getElementById("cornerBR").value,' +
+'    CONFIG_CORNER_TL_COLOR: document.getElementById("cornerTLColor").value,' +
+'    CONFIG_CORNER_TR_COLOR: document.getElementById("cornerTRColor").value,' +
+'    CONFIG_CORNER_BL_COLOR: document.getElementById("cornerBLColor").value,' +
+'    CONFIG_CORNER_BR_COLOR: document.getElementById("cornerBRColor").value,' +
+'    CONFIG_STEP_GOAL: document.getElementById("stepGoal").value,' +
+'    CONFIG_SUN_MOON_SIZE: document.getElementById("sunMoonSize").value,' +
+'    CONFIG_SHAKE_LABEL_SECONDS: document.getElementById("shakeLabelSeconds").value,' +
+'    CONFIG_BOTTOM_INFO_BAR_MODE: document.getElementById("bottomInfoBarMode").value,' +
+'    CONFIG_TEST_MODE: document.getElementById("testMode").checked,' +
+'    CONFIG_TEST_DATETIME: document.getElementById("testDateTime").value,' +
+'    CONFIG_DEBUG_OVERRIDE_ENABLED: document.getElementById("debugOverrideEnabled").checked,' +
+'    CONFIG_CUSTOM_HOUR_STYLE: document.getElementById("customHourStyle").value,' +
+'    CONFIG_CUSTOM_HOUR_THICKNESS: document.getElementById("customHourThickness").value,' +
+'    CONFIG_CUSTOM_HOUR_INNER_ECC: document.getElementById("customHourInnerEcc").value,' +
+'    CONFIG_CUSTOM_HOUR_OUTER_ECC: document.getElementById("customHourOuterEcc").value,' +
+'    CONFIG_CUSTOM_HOUR_INNER_BORDER: document.getElementById("customHourInnerBorder").value,' +
+'    CONFIG_CUSTOM_HOUR_OUTER_BORDER: document.getElementById("customHourOuterBorder").value,' +
+'    CONFIG_CUSTOM_SEC_STYLE: document.getElementById("customSecStyle").value,' +
+'    CONFIG_CUSTOM_SEC_THICKNESS: document.getElementById("customSecThickness").value,' +
+'    CONFIG_CUSTOM_SEC_INNER_ECC: document.getElementById("customSecInnerEcc").value,' +
+'    CONFIG_CUSTOM_SEC_OUTER_ECC: document.getElementById("customSecOuterEcc").value,' +
+'    CONFIG_CUSTOM_SEC_INNER_BORDER: document.getElementById("customSecInnerBorder").value,' +
+'    CONFIG_CUSTOM_SEC_OUTER_BORDER: document.getElementById("customSecOuterBorder").value,' +
+'    CONFIG_MARKER_TEXT_TARGET: document.getElementById("markerTextTarget").value,' +
+'    CONFIG_MARKER_TEXT_FONT: document.getElementById("markerTextFont").value,' +
+'    CONFIG_MARKER_TEXT_OFFSET: document.getElementById("markerTextOffset").value,' +
+'    CONFIG_MARKER_TEXT_HOUR_MASK: document.getElementById("markerTextHourMask").value,' +
+'    CONFIG_MARKER_TEXT_SEC_MASK: document.getElementById("markerTextSecMask").value,' +
+'    CONFIG_HAND_HOUR_STYLE: document.getElementById("handHourStyle").value,' +
+'    CONFIG_HAND_HOUR_WIDTH: document.getElementById("handHourWidth").value,' +
+'    CONFIG_HAND_HOUR_LENGTH: document.getElementById("handHourLength").value,' +
+'    CONFIG_HAND_HOUR_BACK_OFFSET: document.getElementById("handHourBackOffset").value,' +
+'    CONFIG_HAND_HOUR_COLOR: document.getElementById("handHourColor").value,' +
+'    CONFIG_HAND_HOUR_OUTLINE_ENABLED: document.getElementById("handHourOutlineEnabled").value,' +
+'    CONFIG_HAND_HOUR_OUTLINE_COLOR: document.getElementById("handHourOutlineColor").value,' +
+'    CONFIG_HAND_MIN_STYLE: document.getElementById("handMinStyle").value,' +
+'    CONFIG_HAND_MIN_WIDTH: document.getElementById("handMinWidth").value,' +
+'    CONFIG_HAND_MIN_LENGTH: document.getElementById("handMinLength").value,' +
+'    CONFIG_HAND_MIN_BACK_OFFSET: document.getElementById("handMinBackOffset").value,' +
+'    CONFIG_HAND_MIN_COLOR: document.getElementById("handMinColor").value,' +
+'    CONFIG_HAND_MIN_OUTLINE_ENABLED: document.getElementById("handMinOutlineEnabled").value,' +
+'    CONFIG_HAND_MIN_OUTLINE_COLOR: document.getElementById("handMinOutlineColor").value,' +
+'    CONFIG_HAND_SEC_STYLE: document.getElementById("handSecStyle").value,' +
+'    CONFIG_HAND_SEC_WIDTH: document.getElementById("handSecWidth").value,' +
+'    CONFIG_HAND_SEC_LENGTH: document.getElementById("handSecLength").value,' +
+'    CONFIG_HAND_SEC_BACK_OFFSET: document.getElementById("handSecBackOffset").value,' +
+'    CONFIG_HAND_SEC_COLOR: document.getElementById("handSecColor").value,' +
+'    CONFIG_HAND_SEC_OUTLINE_ENABLED: document.getElementById("handSecOutlineEnabled").value,' +
+'    CONFIG_HAND_SEC_OUTLINE_COLOR: document.getElementById("handSecOutlineColor").value,' +
+'    CONFIG_CENTER_CIRCLE_RADIUS: document.getElementById("centerCircleRadius").value,' +
+'    CONFIG_CENTER_CIRCLE_COLOR: document.getElementById("centerCircleColor").value,' +
+'    CONFIG_DEBUG_OVERRIDE_DATA: document.getElementById("debugData").value' +
+'  };' +
+'  var returnTo = getQueryParam("return_to", "pebblejs://close#");' +
+'  document.location = returnTo + encodeURIComponent(JSON.stringify(settings));' +
+'}' +
+'function getQueryParam(name, defaultValue) {' +
+'  var query = location.search.substring(1);' +
+'  var vars = query.split("&");' +
+'  for (var i = 0; i < vars.length; i++) {' +
+'    var pair = vars[i].split("=");' +
+'    if (pair[0] === name) return decodeURIComponent(pair[1] || "");' +
+'  }' +
+'  return defaultValue;' +
+'}' +
+
+'updateColorRoleButtons("day");' +
+'updateColorRoleButtons("night");' +
+'onBottomStyleChange();' +
+'adjustTopBarSpacing();' +
+'setInterval(updatePreview, 1000);' +
+'</script>' +
+'</body></html>';
+}
+
+module.exports = { buildConfigHtml: buildConfigHtml };
