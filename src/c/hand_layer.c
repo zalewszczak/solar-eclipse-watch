@@ -63,6 +63,18 @@ static void fill_path(GContext *ctx, GPoint *points, int num_points, GColor colo
   gpath_destroy(path);
 }
 
+// A genuine 1px stroke of the shape's own outline -- distinct from the
+// shifted-copy "outline_enabled" underlay in hand_layer_draw() below,
+// this is what HandConfig.hollow actually draws instead of a fill.
+static void stroke_path(GContext *ctx, GPoint *points, int num_points, GColor color) {
+  GPathInfo info = { .num_points = num_points, .points = points };
+  GPath *path = gpath_create(&info);
+  graphics_context_set_stroke_color(ctx, color);
+  graphics_context_set_stroke_width(ctx, 1);
+  gpath_draw_outline(ctx, path);
+  gpath_destroy(path);
+}
+
 static GColor resolve_scheme_color(uint8_t choice, GColor main_color, GColor accent_color, GColor bg_color) {
   if (choice == 1) return accent_color;
   if (choice == 2) return bg_color;
@@ -102,6 +114,7 @@ static void draw_hand_shape_once(GContext *ctx, GPoint center, int32_t angle, co
                         inner.y + (int32_t)(half_w * sin_v) / TRIG_MAX_RATIO);
     points[2] = outer;
     if (dithered) fill_polygon_dithered(ctx, points, 3, color);
+    else if (cfg->hollow) stroke_path(ctx, points, 3, color);
     else fill_path(ctx, points, 3, color);
     return;
   }
@@ -117,12 +130,18 @@ static void draw_hand_shape_once(GContext *ctx, GPoint center, int32_t angle, co
   points[3] = GPoint(outer.x - (int32_t)(half_w * cos_v) / TRIG_MAX_RATIO,
                       outer.y - (int32_t)(half_w * sin_v) / TRIG_MAX_RATIO);
   if (dithered) fill_polygon_dithered(ctx, points, 4, color);
+  else if (cfg->hollow) stroke_path(ctx, points, 4, color);
   else fill_path(ctx, points, 4, color);
 
   if (cfg->style == 0) { // dot: round off both true ends with filled circles
     if (dithered) {
       fill_circle_dithered(ctx, inner, half_w, color);
       fill_circle_dithered(ctx, outer, half_w, color);
+    } else if (cfg->hollow) {
+      graphics_context_set_stroke_color(ctx, color);
+      graphics_context_set_stroke_width(ctx, 1);
+      graphics_draw_circle(ctx, inner, half_w);
+      graphics_draw_circle(ctx, outer, half_w);
     } else {
       graphics_context_set_fill_color(ctx, color);
       graphics_fill_circle(ctx, inner, half_w);

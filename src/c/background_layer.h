@@ -3,8 +3,17 @@
 #include <pebble.h>
 #include "eclipse_data.h"
 
-// The sun/moon graphic. Owns its own draw state; call
-// eclipse_canvas_set_data() whenever a fresh EclipseData arrives or
+// The sky/sun/moon graphic AND, for big-analog mode, the hour/second
+// markers drawn on top of it -- merged into one module (formerly
+// eclipse_layer.c + marker_layer.c, two separate cached-drawing systems)
+// so there's a single cached bitmap per redraw instead of two. Markers
+// are drawn directly into the same live GContext as the sky, right
+// before the frame gets captured into the cache -- see the design note
+// at the top of background_layer.c for why that's both simpler and
+// cheaper than the marker ring's previous standalone bitmap cache.
+//
+// Owns its own draw state; call eclipse_canvas_set_data() whenever a
+// fresh EclipseData arrives, a marker/text-marker setting changes, or
 // once a minute so the moon's position animates smoothly.
 Layer *eclipse_canvas_create(GRect frame);
 void eclipse_canvas_destroy(Layer *layer);

@@ -1,8 +1,52 @@
 #pragma once
 
 #include <pebble.h>
-#include "marker_layer.h"
 #include "hand_layer.h"
+
+// One ring's procedural shape -- used twice (hour ring, second ring). Each
+// mark is drawn directly BETWEEN its inner and outer border points -- no
+// separate "length": the border points themselves are the mark's start
+// and end, so eccentricity ("bending" the ring from a circle towards the
+// screen-fitted rectangle) directly changes how long each mark is as it
+// goes around, same as it changes the ring's overall shape. Drawing lives
+// in background_layer.c now (merged with the sky canvas -- see the design
+// note at the top of that file); this struct stays here, in the data
+// header both background_layer.h and eclipse_data.h (this file) need,
+// rather than in a leaf header of its own, to avoid a circular include
+// between the two.
+typedef struct {
+  uint8_t style;          // 0=dot (round caps), 1=line (thin stroke), 2=square (sharp caps)
+  uint8_t thickness;      // width of the mark, across the ring, in px.
+                           // Hour: 1-20. Second: 1-10 (clamped by the caller/settings UI).
+  uint8_t inner_eccentricity; // 0-100: 0 = the inner edge follows a circle, 100 = it follows
+                               // the screen-fitted rectangle (see background_layer.c:
+                               // point_on_ring()) at the inner_border_pct "reach".
+  uint8_t outer_eccentricity; // same, for the outer edge, at outer_border_pct.
+  uint8_t inner_border_pct; // 0-100: how far out the inner edge sits. 0% = the largest circle
+                              // guaranteed to stay fully on-screen (min(screen_w,screen_h)/2),
+                              // 100% = the screen-fitted rectangle's own far edge
+                              // (max(screen_w,screen_h)/2, along its dominant axis) -- see
+                              // marker_reach_px() in background_layer.c for the exact mapping.
+  uint8_t outer_border_pct; // ring's outer reach, same 0-100% scale. Never allowed below
+                              // inner_border_pct (enforced defensively again in background_layer.c).
+} MarkerRingConfig;
+
+// Text-numeral overlay -- hour and second markers share ONE of these
+// (mutually exclusive by design), since drawing both at once was
+// explicitly ruled out.
+typedef struct {
+  uint8_t target;       // 0=off, 1=numerals on the hour ring, 2=numerals on the second ring
+                          // (every 5s, drawn at the same 12 angular slots hour numerals use)
+  uint8_t font_choice;   // 0-2: system GOTHIC_14 / GOTHIC_14_BOLD / GOTHIC_18_BOLD (all <25px)
+                          // 3-6: custom Digital/Minecraft/Pixelate/Miso (all <25px) --
+                          // same encoding as corner_custom_font/corner_font_size combined,
+                          // see marker_text_font_resource_id() in background_layer.c
+  int8_t offset_px;      // -50..50 -- radial nudge of the text away from (positive) or
+                          // towards (negative) the line/dot/square marker it's paired with,
+                          // so the two can be visually independent instead of overlapping.
+  uint16_t hour_mask;    // bit h (0-11) set => draw a numeral at that hour position
+  uint16_t second_mask;  // bit i (0-11) set => draw a numeral at second-slot i (= i*5 seconds)
+} MarkerTextConfig;
 
 // How many separation samples we keep for interpolating the sun/moon
 // gap smoothly between contact times. Must match SAMPLE_COUNT sent
@@ -185,19 +229,22 @@ typedef struct {
   uint8_t center_circle_radius; // 0 = off, else px
   uint8_t center_circle_color;  // 0=main, 1=accent, 2=background
 
-  // 0=minimal (thin hour markers only), 1=small (longer thin hour, shorter thin second),
-  // 2=big (thick hour, thin short second) -- all three procedurally drawn, same as before.
+  // 0=minimal, 1=small, 2=big -- all three now drawn by background_layer.c's shared
+  // marker rasterizer too, via a small hardcoded MarkerRingConfig preset per style
+  // (see MARKER_STYLE_PRESETS in that file) rather than their own separate procedural
+  // drawing code -- same code path as style 8 (custom), just with fixed presets instead
+  // of the user's own custom_hour_marker/custom_second_marker.
   // 3=modern, 4=swiss, 5=tally, 6=bell, 7=brown -- each a user-supplied bitmap mask
   // (RESOURCE_ID_xxx_BACKGROUND) tinted with the main color, replacing the procedural
   // markers entirely. See corner_content/upper_middle_content below for how picking a
   // bitmap style also disables the 4 corners in favor of one upper-middle slot.
-  // 8=custom -- user-built hour/second marker system, see marker_layer.h/.c and the
+  // 8=custom -- user-built hour/second marker system, see background_layer.c and the
   // custom_hour_marker/custom_second_marker/marker_text fields below.
   uint8_t big_analog_marker_style;
 
-  // Only meaningful when big_analog_marker_style == 8. See marker_layer.h for field
-  // docs -- these three structs are handed straight to marker_layer_ensure_ring_cache()
-  // / marker_layer_draw_text() each tick.
+  // Only meaningful when big_analog_marker_style == 8. See background_layer.c (the
+  // merged sky-canvas-and-markers layer) for how these get drawn -- as part of its own
+  // once-a-minute cached full redraw, not a separate per-tick pass.
   MarkerRingConfig custom_hour_marker;
   MarkerRingConfig custom_second_marker;
   MarkerTextConfig marker_text;
@@ -296,3 +343,11 @@ typedef struct {
                                   // stale (and doesn't draw it) once too much time has passed, since
                                   // the ISS moves fast enough that an old snapshot would be visibly wrong
 } EclipseData;
+
+// Defined in pebble-eclipse-watch.c, declared here (rather than a new
+// header) since both that file and background_layer.c need it -- resolves
+// the active day/night color scheme into concrete GColors. Takes `d`
+// explicitly rather than reading a global, so background_layer.c can use
+// its own EclipseData pointer (the same one, via eclipse_canvas_set_data())
+// to get marker colors without duplicating the palette tables.
+void get_active_color_scheme(const EclipseData *d, time_t now, GColor *bg, GColor *text, GColor *accent);

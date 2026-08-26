@@ -4,17 +4,20 @@
 
 // ---------------------------------------------------------------------------
 // Custom hour/minute/second hand system (big_analog_hand_style == 4,
-// "custom"). Own file, mirroring marker_layer.{c,h} and eclipse_layer.{c,h}.
+// "custom") -- and, since pebble-eclipse-watch.c now routes ALL 5 hand
+// styles through hand_layer_draw() (styles 0-3 via hardcoded presets, see
+// HAND_STYLE_PRESETS there), the only hand-drawing code left in this
+// project. Own file, mirroring background_layer.{c,h}.
 //
-// Unlike the custom marker ring (marker_layer.c), there's no cached-bitmap
-// trick here -- and deliberately so. A hand's on-screen angle changes on
-// essentially every redraw (the second hand every tick, the minute hand
-// every minute), so there's no fixed set of pixels to precompute once and
-// reuse; the rotation itself IS the per-tick work, same as the original
-// draw_big_hand()/gpath_rotate_to() approach already did. What this file
-// actually separates out is the SHAPE math (dot/triangle/square, from the
-// width/length/back_offset/outline settings) into its own reusable unit,
-// used identically for all three hands, each with independent settings.
+// Unlike the custom marker ring (background_layer.c), there's no cached-
+// bitmap trick here -- and deliberately so. A hand's on-screen angle
+// changes on essentially every redraw (the second hand every tick, the
+// minute hand every minute), so there's no fixed set of pixels to
+// precompute once and reuse; the rotation itself IS the per-tick work.
+// What this file actually separates out is the SHAPE math (dot/triangle/
+// square, from the width/length/back_offset/outline settings) into its
+// own reusable unit, used identically for all three hands and both the
+// custom and (now) procedural-preset paths.
 // ---------------------------------------------------------------------------
 
 typedef struct {
@@ -33,7 +36,15 @@ typedef struct {
   uint8_t outline_color;      // 0=main, 1=accent, 2=background
   bool translucent;           // per-hand ~50% transparency, via the same Bayer-dithered stipple
                                 // fill_polygon_dithered() already uses elsewhere in this project --
-                                // applies to both the fill and the outline (if enabled).
+                                // applies to both the fill and the outline (if enabled). Takes
+                                // priority over hollow below when both are set, same as the original
+                                // procedural hands did (transparent always won over style==2's hollow
+                                // rendering).
+  bool hollow;                 // draw the shape's own 1px stroke outline instead of a filled shape,
+                                 // in `color` -- distinct from outline_enabled's shifted-copy underlay,
+                                 // which still layers normally underneath a hollow shape if both are on.
+                                 // Used by the "modern" procedural hand preset (see pebble-eclipse-watch.c),
+                                 // which always rendered hollow when not transparent.
 } HandConfig;
 
 // Draws one hand.
