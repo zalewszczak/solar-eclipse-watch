@@ -46,6 +46,10 @@ typedef struct {
                           // so the two can be visually independent instead of overlapping.
   uint16_t hour_mask;    // bit h (0-11) set => draw a numeral at that hour position
   uint16_t second_mask;  // bit i (0-11) set => draw a numeral at second-slot i (= i*5 seconds)
+  bool roman_numerals;   // render each label (1-12 for hour, 0/5/10.../55 for second) as a
+                           // Roman numeral (I, II, III, ... ) instead of an Arabic digit string
+                           // -- independent of font_choice, see int_to_roman() in background_layer.c.
+                           // 0 has no traditional Roman numeral, so it's shown as "0" either way.
 } MarkerTextConfig;
 
 // How many separation samples we keep for interpolating the sun/moon
@@ -158,10 +162,14 @@ typedef struct {
   uint8_t bottom_middle_line1_color_mode;
   uint8_t bottom_middle_line2_content;
   uint8_t bottom_middle_line2_color_mode;
-  uint8_t middle_left_content;
-  uint8_t middle_left_color_mode;
-  uint8_t middle_right_content;
-  uint8_t middle_right_color_mode;
+  uint8_t middle_left_line1_content;
+  uint8_t middle_left_line1_color_mode;
+  uint8_t middle_left_line2_content;
+  uint8_t middle_left_line2_color_mode;
+  uint8_t middle_right_line1_content;
+  uint8_t middle_right_line1_color_mode;
+  uint8_t middle_right_line2_content;
+  uint8_t middle_right_line2_color_mode;
 
   // Color scheme: 0-9 are the built-in presets (see get_color_scheme()
   // in pebble-eclipse-watch.c), 10 means "use the custom_* colors
@@ -240,6 +248,10 @@ typedef struct {
   // bitmap style also disables the 4 corners in favor of one upper-middle slot.
   // 8=custom -- user-built hour/second marker system, see background_layer.c and the
   // custom_hour_marker/custom_second_marker/marker_text fields below.
+  // 9=none -- no marker ring at all (hour or second), same corner/edge-slot availability
+  // as the procedural styles (all 4 corners + all 4 edge-middle slots, no bitmap mask
+  // eating into that room). Shown first in the settings-page dropdown despite the high
+  // numeric value, to keep 0-8 backward compatible with already-installed configs.
   uint8_t big_analog_marker_style;
 
   // Only meaningful when big_analog_marker_style == 8. See background_layer.c (the
@@ -278,6 +290,13 @@ typedef struct {
   uint8_t weather_sources;   // how many weather sources were averaged
   uint8_t weather_condition; // 0=clear/cloudy (handled by cloud_cover_pct alone),
                               // 1=fog, 2=rain, 3=snow, 4=thunderstorm
+  uint8_t weather_icon_style; // 0=simple, 1=hollow, 2=filled -- which of the "Weather icon"/
+                                // "Temp + weather icon" corner content styles to draw. Only
+                                // 1=hollow is actually implemented right now (see
+                                // draw_weather_icon_hollow() in pebble-eclipse-watch.c); 0 and 2
+                                // are placeholder stubs. A settings-page-only choice in spirit
+                                // (there's exactly one value, not per-slot), sent like any other
+                                // setting since the watch has no other way to know it.
   int16_t weather_temp_c;    // current temperature, whole degrees Celsius (converted to F on-watch if the user prefers)
   char location_name[32];    // reverse-geocoded place name, e.g. "Innsbruck, Austria"
 
@@ -327,6 +346,9 @@ typedef struct {
   // from the (deliberately compressed) altitude-to-pixel scale.
   time_t sun_rise;
   time_t sun_set;
+  time_t sun_rise_tomorrow; // used once `now` is past both sun_rise and sun_set today,
+                             // so get_next_sun_event() has something to fall back to
+                             // instead of reporting "no event" (which used to show as "--:--").
   time_t moon_rise;
   time_t moon_set;
 

@@ -213,7 +213,13 @@ static void draw_hour_markers(GContext *ctx, GPoint center, int16_t r, GColor co
 // next refresh rolls the data over to a new day -- callers fall back
 // to the week number in that case rather than showing stale or
 // invented data.
-static bool get_next_sun_event(time_t now, time_t sun_rise, time_t sun_set, time_t *event_time, bool *is_sunrise) {
+// Whichever of today's sunrise/sunset is still ahead of `now`, falling
+// back to tomorrow's sunrise once both of today's have passed (rather
+// than reporting "no event" -- which used to show as "--:--" once
+// today's sunset had passed, since only *today's* two contacts used to
+// be sent at all).
+static bool get_next_sun_event(time_t now, time_t sun_rise, time_t sun_set, time_t sun_rise_tomorrow,
+                                time_t *event_time, bool *is_sunrise) {
   if (sun_rise != 0 && now < sun_rise) {
     *event_time = sun_rise;
     *is_sunrise = true;
@@ -222,6 +228,11 @@ static bool get_next_sun_event(time_t now, time_t sun_rise, time_t sun_set, time
   if (sun_set != 0 && now < sun_set) {
     *event_time = sun_set;
     *is_sunrise = false;
+    return true;
+  }
+  if (sun_rise_tomorrow != 0) {
+    *event_time = sun_rise_tomorrow;
+    *is_sunrise = true;
     return true;
   }
   return false;
@@ -545,6 +556,11 @@ static const uint8_t PEBBLE_ICON[62]     = { 0x00, 0x02, 0x04, 0x08, 0x00, 0x00,
 //static const uint8_t CLOUD_ICON[5]   = { 0x30, 0x7A, 0xFF, 0xFF, 0x7E };
 static const uint8_t CLOUD_ICON[24]   = { 0x00, 0x00, 0x00, 0x00, 0x1C, 0x00, 0x22, 0xE0, 0x41, 0x10, 0x82, 0x0C,
   0x82, 0x16, 0x80, 0x01, 0x40, 0x01, 0x20, 0x02, 0x1F, 0xFC, 0x00, 0x00 };
+// A spine + two crossing diagonal wings on the right -- the classic
+// Bluetooth "bind rune" shape, simplified to fit the same 16x12 1bpp
+// grid the other tiny icons use.
+static const uint8_t BLUETOOTH_ICON[24] = { 0x02, 0x00, 0x03, 0x00, 0x02, 0x80, 0x02, 0x44, 0x02, 0x28, 0x02, 0x30,
+  0x02, 0x30, 0x02, 0x28, 0x02, 0x44, 0x02, 0x80, 0x03, 0x00, 0x02, 0x00 };
 
 static void draw_tiny_icon(GContext *ctx, GPoint top_left, const uint8_t *pattern, int rows, int width, GColor color) {
   graphics_context_set_fill_color(ctx, color);
@@ -573,6 +589,125 @@ static void draw_corner_battery_icon(GContext *ctx, GPoint top_left, GColor colo
   graphics_draw_rect(ctx, GRect(top_left.x, top_left.y + 2, 8, 12));
   int16_t charge_pixels = (charge == 0) ? 0 : (8 * charge / 100);
   graphics_fill_rect(ctx, GRect(top_left.x + 2, top_left.y + 4 + (8 - charge_pixels), 4, charge_pixels), 0, GCornerNone); // fill
+}
+
+// ---- weather condition icon ("Weather icon" / "Temp + weather icon" -----
+// corner content, style-selectable via weather_icon_style) -----------------
+
+// Which of the 7 weather icon categories to show, from the same
+// weather_condition + cloud_cover_pct combination short_condition_text()
+// already uses -- kept in sync with those exact thresholds so the icon
+// and the "Sunny"/"P.Cloudy"/etc. text (when both are visible somewhere)
+// never disagree. 0=sunny, 1=partly cloudy, 2=cloudy/overcast, 3=fog,
+// 4=rain, 5=snow, 6=storm.
+static uint8_t weather_icon_category(uint8_t weather_condition, uint8_t cloud_pct) {
+  switch (weather_condition) {
+    case 1: return 3; // fog
+    case 2: return 4; // rain
+    case 3: return 5; // snow
+    case 4: return 6; // storm
+    default:
+      if (cloud_pct < 20) return 0; // sunny
+      if (cloud_pct < 60) return 1; // partly cloudy
+      return 2; // cloudy/overcast
+  }
+}
+
+// A minimal 3-circle-outline cloud (proportioned to roughly match the
+// existing CLOUD_ICON bitmap's silhouette, since the brief asked to
+// reuse/build on that shape) -- drawn as an outline rather than that
+// bitmap's solid fill, since "hollow" specifically means stroke-only.
+// Shared as the base for cloudy/overcast, fog, rain, snow, and storm.
+static void draw_hollow_cloud(GContext *ctx, GPoint center, GColor color) {
+  graphics_context_set_stroke_color(ctx, color);
+  graphics_context_set_stroke_width(ctx, 1);
+  graphics_draw_circle(ctx, GPoint(center.x - 4, center.y + 1), 3);
+  graphics_draw_circle(ctx, GPoint(center.x, center.y - 2), 4);
+  graphics_draw_circle(ctx, GPoint(center.x + 4, center.y + 1), 3);
+  graphics_draw_line(ctx, GPoint(center.x - 7, center.y + 4), GPoint(center.x + 7, center.y + 4));
+}
+
+static void draw_hollow_sun(GContext *ctx, GPoint center, GColor color) {
+  graphics_context_set_stroke_color(ctx, color);
+  graphics_context_set_stroke_width(ctx, 1);
+  graphics_draw_circle(ctx, center, 3);
+  for (int i = 0; i < 8; i++) {
+    int32_t angle = ((int32_t)i * TRIG_MAX_ANGLE) / 8;
+    GPoint p1 = GPoint(center.x + (5 * sin_lookup(angle)) / TRIG_MAX_RATIO, center.y - (5 * cos_lookup(angle)) / TRIG_MAX_RATIO);
+    GPoint p2 = GPoint(center.x + (7 * sin_lookup(angle)) / TRIG_MAX_RATIO, center.y - (7 * cos_lookup(angle)) / TRIG_MAX_RATIO);
+    graphics_draw_line(ctx, p1, p2);
+  }
+}
+
+// The only style actually implemented so far -- outline/stroke-only
+// throughout, no fills. `top_left` is the icon box's top-left corner,
+// sized to roughly match ICON_WIDTH x ICON_ROWS (16x12) like the other
+// tiny corner icons, even though this one is drawn with primitives
+// rather than a bitmap pattern.
+static void draw_weather_icon_hollow(GContext *ctx, GPoint top_left, uint8_t category, GColor color) {
+  GPoint center = GPoint(top_left.x + 8, top_left.y + 6);
+  switch (category) {
+    case 0: // sunny
+      draw_hollow_sun(ctx, center, color);
+      return;
+    case 1: // partly cloudy
+      draw_hollow_sun(ctx, GPoint(center.x + 2, center.y - 3), color);
+      draw_hollow_cloud(ctx, GPoint(center.x - 1, center.y + 2), color);
+      return;
+    case 2: // cloudy / overcast
+      draw_hollow_cloud(ctx, center, color);
+      return;
+    case 3: // fog
+      draw_hollow_cloud(ctx, GPoint(center.x, center.y - 2), color);
+      graphics_context_set_stroke_color(ctx, color);
+      graphics_context_set_stroke_width(ctx, 1);
+      graphics_draw_line(ctx, GPoint(center.x - 7, center.y + 6), GPoint(center.x + 7, center.y + 6));
+      graphics_draw_line(ctx, GPoint(center.x - 5, center.y + 9), GPoint(center.x + 5, center.y + 9));
+      return;
+    case 4: // rain
+      draw_hollow_cloud(ctx, GPoint(center.x, center.y - 2), color);
+      graphics_context_set_stroke_color(ctx, color);
+      graphics_context_set_stroke_width(ctx, 1);
+      graphics_draw_line(ctx, GPoint(center.x - 4, center.y + 5), GPoint(center.x - 6, center.y + 9));
+      graphics_draw_line(ctx, GPoint(center.x, center.y + 5), GPoint(center.x - 2, center.y + 9));
+      graphics_draw_line(ctx, GPoint(center.x + 4, center.y + 5), GPoint(center.x + 2, center.y + 9));
+      return;
+    case 5: // snow
+      draw_hollow_cloud(ctx, GPoint(center.x, center.y - 2), color);
+      graphics_context_set_fill_color(ctx, color);
+      graphics_fill_circle(ctx, GPoint(center.x - 5, center.y + 7), 1);
+      graphics_fill_circle(ctx, GPoint(center.x, center.y + 9), 1);
+      graphics_fill_circle(ctx, GPoint(center.x + 5, center.y + 7), 1);
+      return;
+    case 6: { // storm
+      draw_hollow_cloud(ctx, GPoint(center.x, center.y - 3), color);
+      graphics_context_set_stroke_color(ctx, color);
+      graphics_context_set_stroke_width(ctx, 1);
+      graphics_draw_line(ctx, GPoint(center.x + 1, center.y + 3), GPoint(center.x - 2, center.y + 8));
+      graphics_draw_line(ctx, GPoint(center.x - 2, center.y + 8), GPoint(center.x, center.y + 8));
+      graphics_draw_line(ctx, GPoint(center.x, center.y + 8), GPoint(center.x - 3, center.y + 13));
+      return;
+    }
+  }
+}
+
+// Not implemented yet -- placeholder to fill in later.
+static void draw_weather_icon_simple(GContext *ctx, GPoint top_left, uint8_t category, GColor color) {
+  (void)ctx; (void)top_left; (void)category; (void)color;
+}
+
+// Not implemented yet -- placeholder to fill in later.
+static void draw_weather_icon_filled(GContext *ctx, GPoint top_left, uint8_t category, GColor color) {
+  (void)ctx; (void)top_left; (void)category; (void)color;
+}
+
+static void draw_weather_icon(GContext *ctx, GPoint top_left, uint8_t category, uint8_t style, GColor color) {
+  switch (style) {
+    case 0: draw_weather_icon_simple(ctx, top_left, category, color); return;
+    case 2: draw_weather_icon_filled(ctx, top_left, category, color); return;
+    case 1:
+    default: draw_weather_icon_hollow(ctx, top_left, category, color); return;
+  }
 }
 
 // 7-stop gradient: turquoise (cold/low end) -> light blue -> green ->
@@ -706,12 +841,24 @@ static int16_t convert_wind(int16_t kmh, uint8_t wind_speed_unit) {
 // as a unit for alignment (see draw_corner_item).
 static int16_t icon_plus_gap_width(int icon_kind) { // TODO: This might not be neccessary anymore
   switch (icon_kind) {
-    case 1: case 2: case 5: case 6: case 7: case 8: case 9: case 10:
+    case 1: case 2: case 5: case 6: case 7: case 8: case 9: case 10: case 13:
       return 11; // bitmap icons (7-wide at 140% scale) + gap
     case 3: return 10; // battery + gap
     case 4: return 21; // moon (radius 9, so 2*9+2 diameter box) + gap
     case 11: return 22; // sun-time glyph (fixed 20px, drawn via direct primitives) + gap
+    case 14: return 20; // weather icon (16-wide box, worst case a bit wider for the sun's rays) + gap
     default: return 0; // no icon
+  }
+}
+
+// Renders one corner's chosen content type in one of the four color
+// In-place uppercase -- used by the short weekday/month date formats
+// below, since strftime's %a/%b give "Mon"/"Sep" (title case) and these
+// are deliberately styled ALL CAPS instead (matching the long forms,
+// which stay in strftime's natural title case: "Monday"/"September").
+static void to_upper_str(char *s) {
+  for (; *s; s++) {
+    if (*s >= 'a' && *s <= 'z') *s -= 32;
   }
 }
 
@@ -735,6 +882,7 @@ static void draw_corner_item(GContext *ctx, GRect bounds, uint8_t content, uint8
   int icon_kind = 0; // 0=none, 1=heart, 2=foot, 3=battery, 4=moon phase, 5=umbrella, 6=droplet,
                        // 7=wind, 8=GPS pin, 9=eye, 10=clouds, 11=sunrise/sunset
   bool icon_is_sunrise = false; // only meaningful when icon_kind == 11
+  uint8_t icon_weather_category = 0; // only meaningful when icon_kind == 14 -- see weather_icon_category()
   GColor dynamic_color = main_color;
 
   switch (content) {
@@ -869,7 +1017,7 @@ static void draw_corner_item(GContext *ctx, GRect bounds, uint8_t content, uint8
       icon_kind = 11;
       time_t now = time(NULL);
       time_t sun_event_time = 0;
-      if (get_next_sun_event(now, s_data.sun_rise, s_data.sun_set, &sun_event_time, &icon_is_sunrise)) {
+      if (get_next_sun_event(now, s_data.sun_rise, s_data.sun_set, s_data.sun_rise_tomorrow, &sun_event_time, &icon_is_sunrise)) {
         struct tm *event_t = localtime(&sun_event_time);
         strftime(buf, sizeof(buf), clock_is_24h_style() ? "%H:%M" : "%I:%M", event_t);
       } else {
@@ -898,6 +1046,113 @@ static void draw_corner_item(GContext *ctx, GRect bounds, uint8_t content, uint8
       dynamic_color = seven_stop_gradient((int32_t)(t->tm_yday), 0, 360);
       break;
     }
+    case 20: { // Bluetooth connection status
+      icon_kind = 13;
+      bool connected = connection_service_peek_pebble_app_connection();
+      snprintf(buf, sizeof(buf), "%s", connected ? "Connected" : "No phone");
+      // Bright, saturated colors deliberately outside the muted palettes
+      // used elsewhere (this is a binary connected/not state, not
+      // something to grade smoothly along a gradient).
+      dynamic_color = connected ? GColorFromRGB(64, 224, 208) : GColorFromRGB(255, 0, 0);
+      break;
+    }
+    // ---- date format variants (21-30) -- none of these have a natural
+    // "value" to grade a color on, so they all just take main_color,
+    // same as the original short-date (case 12).
+    case 21: { // month + day, e.g. "SEP 11"
+      time_t now = time(NULL);
+      struct tm *t = localtime(&now);
+      char mon_buf[4];
+      strftime(mon_buf, sizeof(mon_buf), "%b", t);
+      to_upper_str(mon_buf);
+      snprintf(buf, sizeof(buf), "%s %d", mon_buf, t->tm_mday);
+      dynamic_color = main_color;
+      break;
+    }
+    case 22: { // day of month only, e.g. "11"
+      time_t now = time(NULL);
+      struct tm *t = localtime(&now);
+      snprintf(buf, sizeof(buf), "%d", t->tm_mday);
+      dynamic_color = main_color;
+      break;
+    }
+    case 23: { // weekday, short + all caps, e.g. "MON"
+      time_t now = time(NULL);
+      struct tm *t = localtime(&now);
+      strftime(buf, sizeof(buf), "%a", t);
+      to_upper_str(buf);
+      dynamic_color = main_color;
+      break;
+    }
+    case 24: { // weekday, long, e.g. "Monday"
+      time_t now = time(NULL);
+      struct tm *t = localtime(&now);
+      strftime(buf, sizeof(buf), "%A", t);
+      dynamic_color = main_color;
+      break;
+    }
+    case 25: { // month, short + all caps, e.g. "SEP"
+      time_t now = time(NULL);
+      struct tm *t = localtime(&now);
+      strftime(buf, sizeof(buf), "%b", t);
+      to_upper_str(buf);
+      dynamic_color = main_color;
+      break;
+    }
+    case 26: { // month, long, e.g. "September"
+      time_t now = time(NULL);
+      struct tm *t = localtime(&now);
+      strftime(buf, sizeof(buf), "%B", t);
+      dynamic_color = main_color;
+      break;
+    }
+    case 27: { // day/month, e.g. "11/9"
+      time_t now = time(NULL);
+      struct tm *t = localtime(&now);
+      snprintf(buf, sizeof(buf), "%d/%d", t->tm_mday, t->tm_mon + 1);
+      dynamic_color = main_color;
+      break;
+    }
+    case 28: { // month/day, e.g. "9/11"
+      time_t now = time(NULL);
+      struct tm *t = localtime(&now);
+      snprintf(buf, sizeof(buf), "%d/%d", t->tm_mon + 1, t->tm_mday);
+      dynamic_color = main_color;
+      break;
+    }
+    case 29: { // full, day/month/year, e.g. "24/9/2026"
+      time_t now = time(NULL);
+      struct tm *t = localtime(&now);
+      snprintf(buf, sizeof(buf), "%d/%d/%d", t->tm_mday, t->tm_mon + 1, t->tm_year + 1900);
+      dynamic_color = main_color;
+      break;
+    }
+    case 30: { // full imperial, month/day/2-digit year, e.g. "9/24/26"
+      time_t now = time(NULL);
+      struct tm *t = localtime(&now);
+      snprintf(buf, sizeof(buf), "%d/%d/%02d", t->tm_mon + 1, t->tm_mday, (t->tm_year + 1900) % 100);
+      dynamic_color = main_color;
+      break;
+    }
+    case 31: { // weather icon only, no text
+      icon_kind = 14;
+      icon_weather_category = weather_icon_category(s_data.weather_condition, s_data.cloud_cover_pct);
+      buf[0] = '\0';
+      dynamic_color = s_data.valid
+        ? weather_condition_color(s_data.weather_condition, s_data.cloud_cover_pct, s_data.rain_chance_pct)
+        : bg_color;
+      break;
+    }
+    case 32: { // temp + weather icon
+      icon_kind = 14;
+      icon_weather_category = weather_icon_category(s_data.weather_condition, s_data.cloud_cover_pct);
+      int16_t temp = convert_temp(s_data.weather_temp_c, s_data.temp_unit);
+      snprintf(buf, sizeof(buf), "%d%s", temp, temp_unit_suffix(s_data.temp_unit));
+      dynamic_color = s_data.valid
+        ? weather_condition_color(s_data.weather_condition, s_data.cloud_cover_pct, s_data.rain_chance_pct)
+        : bg_color;
+      break;
+    }
     default:
       return;
   }
@@ -916,7 +1171,9 @@ static void draw_corner_item(GContext *ctx, GRect bounds, uint8_t content, uint8
     ? bounds.origin.x + (bounds.size.w - CORNER_BOX_W) / 2
     : (is_left ? bounds.origin.x + 2 : bounds.origin.x + bounds.size.w - 2 - CORNER_BOX_W);
   int16_t box_y = center_vertical
-    ? bounds.origin.y + (bounds.size.h - CORNER_ROW_H) / 2
+    ? bounds.origin.y + (bounds.size.h - CORNER_ROW_H) / 2 + top_offset // top_offset doubles as a
+                                                                          // vertical nudge from center here
+                                                                          // (middle-left/right's 2-line pairs)
     : (is_top ? bounds.origin.y + top_offset
               : bounds.origin.y + bounds.size.h - CORNER_ROW_H - 2 - bottom_shift);
   
@@ -1089,6 +1346,17 @@ static void draw_corner_item(GContext *ctx, GRect bounds, uint8_t content, uint8
       draw_tiny_icon(ctx, pos, CLOUD_ICON, ICON_ROWS, ICON_WIDTH, color);
       break;
     }
+    case 13: {
+      GPoint pos = GPoint(icon_x - ICON_WIDTH+6, box_y + (CORNER_ROW_H - ICON_ROWS) / 2);
+      if (do_icon_outline) {
+        for (int i = 0; i < 4; i++) {
+          draw_tiny_icon(ctx, GPoint(pos.x + OUTLINE_OFFSETS[i].x, pos.y + OUTLINE_OFFSETS[i].y),
+                          BLUETOOTH_ICON, ICON_ROWS, ICON_WIDTH, icon_outline_color);
+        }
+      }
+      draw_tiny_icon(ctx, pos, BLUETOOTH_ICON, ICON_ROWS, ICON_WIDTH, color);
+      break;
+    }
     case 11: {
       GPoint pos = GPoint(icon_x, box_y + (CORNER_ROW_H - 9) / 2);
       if (do_icon_outline) {
@@ -1098,6 +1366,17 @@ static void draw_corner_item(GContext *ctx, GRect bounds, uint8_t content, uint8
         }
       }
       draw_sun_time_icon(ctx, pos, icon_is_sunrise, color, bg_color);
+      break;
+    }
+    case 14: {
+      GPoint pos = GPoint(icon_x, box_y + (CORNER_ROW_H - ICON_ROWS) / 2 - 2);
+      if (do_icon_outline) {
+        for (int i = 0; i < 4; i++) {
+          draw_weather_icon(ctx, GPoint(pos.x + OUTLINE_OFFSETS[i].x, pos.y + OUTLINE_OFFSETS[i].y),
+                             icon_weather_category, s_data.weather_icon_style, icon_outline_color);
+        }
+      }
+      draw_weather_icon(ctx, pos, icon_weather_category, s_data.weather_icon_style, color);
       break;
     }
     case 12: {
@@ -1182,21 +1461,22 @@ static void corners_layer_update_proc(Layer *layer, GContext *ctx) {
 
   bool is_big_analog = s_data.bottom_style == 2;
   uint8_t marker_style = s_data.big_analog_marker_style;
-  bool is_bitmap_style = is_big_analog && marker_style >= 3 && marker_style != 8;
+  bool is_bitmap_style = is_big_analog && marker_style >= 3 && marker_style != 8 && marker_style != 9;
 
   // Which of the 4 edge-middle slots (upper/bottom/left/right-middle)
   // does the current mode/style actually support? Digital/analog
-  // modes use none of them. Big-analogue procedural styles (<3) have
-  // no artwork to work around, so all 4 are available alongside the
-  // corners. Big-analogue bitmap styles (>=3) are limited to
-  // whichever slots that specific mask graphic's design has room for,
-  // and always suppress the 4 corners (the mask already fills most
-  // of the screen either way).
+  // modes use none of them. Big-analogue procedural styles (<3), custom
+  // (8), and none (9, no marker ring drawn at all) have no artwork to
+  // work around, so all 4 are available alongside the corners.
+  // Big-analogue bitmap styles (3-7) are limited to whichever slots
+  // that specific mask graphic's design has room for, and always
+  // suppress the 4 corners (the mask already fills most of the screen
+  // either way).
   bool show_upper = false, show_bottom = false, show_left = false, show_right = false;
   if (is_big_analog) {
-    if (marker_style < 3 || marker_style == 8) {
-      // Procedural styles, including custom (8): no fixed artwork to work
-      // around, so all 4 corners stay available same as styles 0-2.
+    if (marker_style < 3 || marker_style == 8 || marker_style == 9) {
+      // Procedural styles, custom (8), and none (9): no fixed artwork to
+      // work around, so all 4 corners stay available same as styles 0-2.
       show_upper = show_bottom = show_left = show_right = true;
     } else {
       switch (marker_style) {
@@ -1241,12 +1521,24 @@ static void corners_layer_update_proc(Layer *layer, GContext *ctx) {
     }
   }
   if (show_left) {
-    draw_corner_item(ctx, bounds, s_data.middle_left_content, s_data.middle_left_color_mode,
-                      main_color, accent_color, bg, false, true, true, 0, 0, false, true);
+    bool has_line2 = s_data.middle_left_line2_content != 0;
+    int16_t line1_offset = has_line2 ? -(CORNER_ROW_H / 2) : 0;
+    draw_corner_item(ctx, bounds, s_data.middle_left_line1_content, s_data.middle_left_line1_color_mode,
+                      main_color, accent_color, bg, false, true, true, line1_offset, 0, false, true);
+    if (has_line2) {
+      draw_corner_item(ctx, bounds, s_data.middle_left_line2_content, s_data.middle_left_line2_color_mode,
+                        main_color, accent_color, bg, false, true, true, CORNER_ROW_H / 2, 0, false, true);
+    }
   }
   if (show_right) {
-    draw_corner_item(ctx, bounds, s_data.middle_right_content, s_data.middle_right_color_mode,
-                      main_color, accent_color, bg, false, false, true, 0, 0, false, true);
+    bool has_line2 = s_data.middle_right_line2_content != 0;
+    int16_t line1_offset = has_line2 ? -(CORNER_ROW_H / 2) : 0;
+    draw_corner_item(ctx, bounds, s_data.middle_right_line1_content, s_data.middle_right_line1_color_mode,
+                      main_color, accent_color, bg, false, false, true, line1_offset, 0, false, true);
+    if (has_line2) {
+      draw_corner_item(ctx, bounds, s_data.middle_right_line2_content, s_data.middle_right_line2_color_mode,
+                        main_color, accent_color, bg, false, false, true, CORNER_ROW_H / 2, 0, false, true);
+    }
   }
 
   if (is_bitmap_style) return; // corners fully replaced by the slots above
@@ -1371,7 +1663,7 @@ static void bottom_canvas_update_proc(Layer *layer, GContext *ctx) {
     time_t sun_event_time = 0;
     bool sun_event_is_rise = false;
     bool show_sun_row = s_data.show_sun_time &&
-      get_next_sun_event(now, s_data.sun_rise, s_data.sun_set, &sun_event_time, &sun_event_is_rise);
+      get_next_sun_event(now, s_data.sun_rise, s_data.sun_set, s_data.sun_rise_tomorrow, &sun_event_time, &sun_event_is_rise);
     char sun_time_buf[8] = "";
     if (show_sun_row) {
       struct tm *event_t = localtime(&sun_event_time);
@@ -1423,7 +1715,7 @@ static void bottom_canvas_update_proc(Layer *layer, GContext *ctx) {
     time_t sun_event_time = 0;
     bool sun_event_is_rise = false;
     bool show_sun_row = s_data.show_sun_time &&
-      get_next_sun_event(now, s_data.sun_rise, s_data.sun_set, &sun_event_time, &sun_event_is_rise);
+      get_next_sun_event(now, s_data.sun_rise, s_data.sun_set, s_data.sun_rise_tomorrow, &sun_event_time, &sun_event_is_rise);
 
     graphics_context_set_text_color(ctx, text_color);
     if (show_sun_row) {
@@ -1921,6 +2213,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   if ((t = dict_find(iter, MESSAGE_KEY_MARKER_TEXT_OFFSET))) s_data.marker_text.offset_px = (int8_t)t->value->int16;
   if ((t = dict_find(iter, MESSAGE_KEY_MARKER_TEXT_HOUR_MASK))) s_data.marker_text.hour_mask = t->value->uint16;
   if ((t = dict_find(iter, MESSAGE_KEY_MARKER_TEXT_SEC_MASK))) s_data.marker_text.second_mask = t->value->uint16;
+  if ((t = dict_find(iter, MESSAGE_KEY_MARKER_TEXT_ROMAN))) s_data.marker_text.roman_numerals = t->value->uint8 != 0;
   // (no explicit layer_mark_dirty here -- refresh_status_and_maybe_canvas()
   // below already unconditionally marks s_hands_layer dirty every inbox batch)
   if ((t = dict_find(iter, MESSAGE_KEY_UPPER_MIDDLE_LINE1_CONTENT))) {
@@ -1955,20 +2248,36 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
     s_data.bottom_middle_line2_color_mode = t->value->uint8;
     if (s_corners_layer) layer_mark_dirty(s_corners_layer);
   }
-  if ((t = dict_find(iter, MESSAGE_KEY_MIDDLE_LEFT_CONTENT))) {
-    s_data.middle_left_content = t->value->uint8;
+  if ((t = dict_find(iter, MESSAGE_KEY_MIDDLE_LEFT_LINE1_CONTENT))) {
+    s_data.middle_left_line1_content = t->value->uint8;
     if (s_corners_layer) layer_mark_dirty(s_corners_layer);
   }
-  if ((t = dict_find(iter, MESSAGE_KEY_MIDDLE_LEFT_COLOR_MODE))) {
-    s_data.middle_left_color_mode = t->value->uint8;
+  if ((t = dict_find(iter, MESSAGE_KEY_MIDDLE_LEFT_LINE1_COLOR_MODE))) {
+    s_data.middle_left_line1_color_mode = t->value->uint8;
     if (s_corners_layer) layer_mark_dirty(s_corners_layer);
   }
-  if ((t = dict_find(iter, MESSAGE_KEY_MIDDLE_RIGHT_CONTENT))) {
-    s_data.middle_right_content = t->value->uint8;
+  if ((t = dict_find(iter, MESSAGE_KEY_MIDDLE_LEFT_LINE2_CONTENT))) {
+    s_data.middle_left_line2_content = t->value->uint8;
     if (s_corners_layer) layer_mark_dirty(s_corners_layer);
   }
-  if ((t = dict_find(iter, MESSAGE_KEY_MIDDLE_RIGHT_COLOR_MODE))) {
-    s_data.middle_right_color_mode = t->value->uint8;
+  if ((t = dict_find(iter, MESSAGE_KEY_MIDDLE_LEFT_LINE2_COLOR_MODE))) {
+    s_data.middle_left_line2_color_mode = t->value->uint8;
+    if (s_corners_layer) layer_mark_dirty(s_corners_layer);
+  }
+  if ((t = dict_find(iter, MESSAGE_KEY_MIDDLE_RIGHT_LINE1_CONTENT))) {
+    s_data.middle_right_line1_content = t->value->uint8;
+    if (s_corners_layer) layer_mark_dirty(s_corners_layer);
+  }
+  if ((t = dict_find(iter, MESSAGE_KEY_MIDDLE_RIGHT_LINE1_COLOR_MODE))) {
+    s_data.middle_right_line1_color_mode = t->value->uint8;
+    if (s_corners_layer) layer_mark_dirty(s_corners_layer);
+  }
+  if ((t = dict_find(iter, MESSAGE_KEY_MIDDLE_RIGHT_LINE2_CONTENT))) {
+    s_data.middle_right_line2_content = t->value->uint8;
+    if (s_corners_layer) layer_mark_dirty(s_corners_layer);
+  }
+  if ((t = dict_find(iter, MESSAGE_KEY_MIDDLE_RIGHT_LINE2_COLOR_MODE))) {
+    s_data.middle_right_line2_color_mode = t->value->uint8;
     if (s_corners_layer) layer_mark_dirty(s_corners_layer);
   }
   if ((t = dict_find(iter, MESSAGE_KEY_SHOW_SUN_TIME))) {
@@ -2058,6 +2367,10 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   if ((t = dict_find(iter, MESSAGE_KEY_VIS_SCORE))) s_data.vis_score_pct = t->value->uint8;
   if ((t = dict_find(iter, MESSAGE_KEY_WEATHER_SOURCES))) s_data.weather_sources = t->value->uint8;
   if ((t = dict_find(iter, MESSAGE_KEY_WEATHER_CONDITION))) s_data.weather_condition = t->value->uint8;
+  if ((t = dict_find(iter, MESSAGE_KEY_WEATHER_ICON_STYLE))) {
+    s_data.weather_icon_style = t->value->uint8;
+    if (s_corners_layer) layer_mark_dirty(s_corners_layer);
+  }
   if ((t = dict_find(iter, MESSAGE_KEY_WEATHER_TEMP_C))) s_data.weather_temp_c = t->value->int16;
   if ((t = dict_find(iter, MESSAGE_KEY_WEATHER_TEMP_HIGH_C))) s_data.temp_high_c = t->value->int16;
   if ((t = dict_find(iter, MESSAGE_KEY_WEATHER_TEMP_LOW_C))) s_data.temp_low_c = t->value->int16;
@@ -2148,6 +2461,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   if ((t = dict_find(iter, MESSAGE_KEY_MOON_WAXING))) s_data.moon_waxing = t->value->uint8 != 0;
   if ((t = dict_find(iter, MESSAGE_KEY_SUN_RISE))) s_data.sun_rise = (time_t)t->value->int32;
   if ((t = dict_find(iter, MESSAGE_KEY_SUN_SET))) s_data.sun_set = (time_t)t->value->int32;
+  if ((t = dict_find(iter, MESSAGE_KEY_SUN_RISE_TOMORROW))) s_data.sun_rise_tomorrow = (time_t)t->value->int32;
   if ((t = dict_find(iter, MESSAGE_KEY_MOON_RISE))) s_data.moon_rise = (time_t)t->value->int32;
   if ((t = dict_find(iter, MESSAGE_KEY_MOON_SET))) s_data.moon_set = (time_t)t->value->int32;
   if ((t = dict_find(iter, MESSAGE_KEY_METEOR_INTENSITY))) s_data.meteor_intensity = t->value->uint8;

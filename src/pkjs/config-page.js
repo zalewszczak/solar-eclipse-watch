@@ -115,7 +115,20 @@ var CORNER_CONTENT_OPTIONS = [
   { id: 16, label: 'Sunrise / sunset' },
   { id: 17, label: 'Pebble logo /w battery bar' },
   { id: 18, label: 'Time' },
-  { id: 19, label: 'Week number' }
+  { id: 19, label: 'Week number' },
+  { id: 20, label: 'Bluetooth connection' },
+  { id: 21, label: 'Date: Month Day (SEP 11)' },
+  { id: 22, label: 'Date: Day of month (11)' },
+  { id: 23, label: 'Date: Weekday, short (MON)' },
+  { id: 24, label: 'Date: Weekday, long (Monday)' },
+  { id: 25, label: 'Date: Month, short (SEP)' },
+  { id: 26, label: 'Date: Month, long (September)' },
+  { id: 27, label: 'Date: Day/Month (11/9)' },
+  { id: 28, label: 'Date: Month/Day (9/11)' },
+  { id: 29, label: 'Date: Full (24/9/2026)' },
+  { id: 30, label: 'Date: Full, imperial (9/24/26)' },
+  { id: 31, label: 'Weather icon' },
+  { id: 32, label: 'Temp + weather icon' }
 ];
 // Must match draw_corner_item()'s color_mode switch exactly.
 var CORNER_COLOR_MODE_LABELS = ['MONO', 'ACC', 'SEMI', 'COLOR'];
@@ -298,6 +311,12 @@ function textMarkerModalHtml(current) {
 '      <label for="markerTextFont" style="margin-top:10px;">Font</label>' +
 '      <select id="markerTextFont">' + markerTextFontOptionsHtml(current.markerTextFont) + '</select>' +
 
+'      <div class="checkbox-row" style="margin-top:12px;">' +
+'        <input type="checkbox" id="markerTextRoman" ' + (current.markerTextRoman === 'true' ? 'checked' : '') + '>' +
+'        <label for="markerTextRoman" style="margin:0;">Roman numerals</label>' +
+'      </div>' +
+'      <div class="help">Shows I, II, III... instead of 1, 2, 3... -- independent of the font above.</div>' +
+
 '      <div class="slider-row">' +
 '        <label for="markerTextOffset">Offset from marker <span class="val" id="markerTextOffsetVal">' + esc(current.markerTextOffset || '0') + 'px</span></label>' +
 '        <div class="slider-with-buttons">' +
@@ -460,6 +479,13 @@ function buildConfigHtml(current) {
     ? current.debugOverrideData
     : (current.lastSentData || '');
   var bottomStyleVal = current.bottomStyle === 'biganalog' ? 'biganalog' : (current.bottomStyle === 'analog' ? 'analog' : 'digital');
+  // Drives whether the "Weather icon style" dropdown in the Weather
+  // section starts visible -- true if any of the 12 corner/edge slots
+  // is already set to "Weather icon" (31) or "Temp + weather icon" (32).
+  var weatherIconFeatureInUse = ['cornerTL', 'cornerTR', 'cornerBL', 'cornerBR',
+    'upperMiddleLine1Content', 'upperMiddleLine2Content', 'bottomMiddleLine1Content', 'bottomMiddleLine2Content',
+    'middleLeftLine1Content', 'middleLeftLine2Content', 'middleRightLine1Content', 'middleRightLine2Content'
+  ].some(function (key) { return current[key] === '31' || current[key] === '32'; });
   var isAnalog = bottomStyleVal === 'analog';
   var isBigAnalog = bottomStyleVal === 'biganalog';
   var secondsUnsupported = (bottomStyleVal === 'digital') && !!FONTS_WITHOUT_SECONDS[current.clockFont];
@@ -474,7 +500,7 @@ function buildConfigHtml(current) {
   var markerStyleNum = parseInt(current.bigAnalogMarkerStyle || '0', 10);
   var edgeAvail = { upper: false, bottom: false, left: false, right: false, cornersGrayed: false };
   if (isBigAnalog) {
-    if (markerStyleNum < 3 || markerStyleNum === 8) {
+    if (markerStyleNum < 3 || markerStyleNum === 8 || markerStyleNum === 9) {
       edgeAvail = { upper: true, bottom: true, left: true, right: true, cornersGrayed: false };
     } else if (markerStyleNum === 3 || markerStyleNum === 4 || markerStyleNum === 6) {
       edgeAvail = { upper: true, bottom: true, left: false, right: false, cornersGrayed: true };
@@ -622,8 +648,10 @@ function buildConfigHtml(current) {
 '  .slot-upper-l2 { left: 50%; top: 62px; transform: translateX(-50%); }' +
 '  .slot-bottom-l1 { left: 50%; bottom: 62px; transform: translateX(-50%); }' +
 '  .slot-bottom-l2 { left: 50%; bottom: 34px; transform: translateX(-50%); }' +
-'  .slot-middle-left { left: 6px; top: 50%; transform: translateY(-50%); }' +
-'  .slot-middle-right { right: 6px; top: 50%; transform: translateY(-50%); }' +
+'  .slot-middle-left-l1 { left: 6px; top: calc(50% - 15px); transform: translateY(-50%); }' +
+'  .slot-middle-left-l2 { left: 6px; top: calc(50% + 15px); transform: translateY(-50%); }' +
+'  .slot-middle-right-l1 { right: 6px; top: calc(50% - 15px); transform: translateY(-50%); }' +
+'  .slot-middle-right-l2 { right: 6px; top: calc(50% + 15px); transform: translateY(-50%); }' +
 '</style></head>' +
 '<body>' +
 
@@ -739,6 +767,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 
 '      <label for="bigAnalogMarkerStyle" style="margin-top:12px;">Hour/second marker style</label>' +
 '      <select id="bigAnalogMarkerStyle" onchange="onMarkerStyleChange()">' +
+'        <option value="9"' + (current.bigAnalogMarkerStyle === '9' ? ' selected' : '') + '>None</option>' +
 '        <option value="0"' + (current.bigAnalogMarkerStyle === '0' || !current.bigAnalogMarkerStyle ? ' selected' : '') + '>Minimal (thin hour markers only)</option>' +
 '        <option value="1"' + (current.bigAnalogMarkerStyle === '1' ? ' selected' : '') + '>Small markers (hour + second)</option>' +
 '        <option value="2"' + (current.bigAnalogMarkerStyle === '2' ? ' selected' : '') + '>Big markers (thick hour, thin second)</option>' +
@@ -894,8 +923,10 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      <button type="button" class="slot-btn slot-upper-l2" id="slotBtn-upperMiddleLine2" onclick="openSlotEditor(\'upperMiddleLine2\')"></button>' +
 '      <button type="button" class="slot-btn slot-bottom-l1" id="slotBtn-bottomMiddleLine1" onclick="openSlotEditor(\'bottomMiddleLine1\')"></button>' +
 '      <button type="button" class="slot-btn slot-bottom-l2" id="slotBtn-bottomMiddleLine2" onclick="openSlotEditor(\'bottomMiddleLine2\')"></button>' +
-'      <button type="button" class="slot-btn slot-middle-left" id="slotBtn-middleLeft" onclick="openSlotEditor(\'middleLeft\')"></button>' +
-'      <button type="button" class="slot-btn slot-middle-right" id="slotBtn-middleRight" onclick="openSlotEditor(\'middleRight\')"></button>' +
+'      <button type="button" class="slot-btn slot-middle-left-l1" id="slotBtn-middleLeftLine1" onclick="openSlotEditor(\'middleLeftLine1\')"></button>' +
+'      <button type="button" class="slot-btn slot-middle-left-l2" id="slotBtn-middleLeftLine2" onclick="openSlotEditor(\'middleLeftLine2\')"></button>' +
+'      <button type="button" class="slot-btn slot-middle-right-l1" id="slotBtn-middleRightLine1" onclick="openSlotEditor(\'middleRightLine1\')"></button>' +
+'      <button type="button" class="slot-btn slot-middle-right-l2" id="slotBtn-middleRightLine2" onclick="openSlotEditor(\'middleRightLine2\')"></button>' +
 '    </div>' +
 
 '    <div style="display:none;" id="slotDataStore">' +
@@ -915,10 +946,14 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      <input type="hidden" id="bottomMiddleLine1Color" value="' + esc(current.bottomMiddleLine1Color || '0') + '">' +
 '      <select id="bottomMiddleLine2Content">' + cornerContentOptionsHtml(current.bottomMiddleLine2Content) + '</select>' +
 '      <input type="hidden" id="bottomMiddleLine2Color" value="' + esc(current.bottomMiddleLine2Color || '0') + '">' +
-'      <select id="middleLeftContent">' + cornerContentOptionsHtml(current.middleLeftContent) + '</select>' +
-'      <input type="hidden" id="middleLeftColor" value="' + esc(current.middleLeftColor || '0') + '">' +
-'      <select id="middleRightContent">' + cornerContentOptionsHtml(current.middleRightContent) + '</select>' +
-'      <input type="hidden" id="middleRightColor" value="' + esc(current.middleRightColor || '0') + '">' +
+'      <select id="middleLeftLine1Content">' + cornerContentOptionsHtml(current.middleLeftLine1Content) + '</select>' +
+'      <input type="hidden" id="middleLeftLine1Color" value="' + esc(current.middleLeftLine1Color || '0') + '">' +
+'      <select id="middleLeftLine2Content">' + cornerContentOptionsHtml(current.middleLeftLine2Content) + '</select>' +
+'      <input type="hidden" id="middleLeftLine2Color" value="' + esc(current.middleLeftLine2Color || '0') + '">' +
+'      <select id="middleRightLine1Content">' + cornerContentOptionsHtml(current.middleRightLine1Content) + '</select>' +
+'      <input type="hidden" id="middleRightLine1Color" value="' + esc(current.middleRightLine1Color || '0') + '">' +
+'      <select id="middleRightLine2Content">' + cornerContentOptionsHtml(current.middleRightLine2Content) + '</select>' +
+'      <input type="hidden" id="middleRightLine2Color" value="' + esc(current.middleRightLine2Color || '0') + '">' +
 '    </div>' +
 
 '    <div class="subsection">' +
@@ -952,6 +987,16 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      <option value="kn"' + (current.windSpeedUnit === 'kn' ? ' selected' : '') + '>knots</option>' +
 '    </select>' +
 '    <div class="help">Used by the "Wind" corner content.</div>' +
+
+'    <div id="weatherIconStyleRow" style="' + (weatherIconFeatureInUse ? '' : 'display:none;') + '">' +
+'      <label for="weatherIconStyle" style="margin-top:10px;">Weather icon style</label>' +
+'      <select id="weatherIconStyle">' +
+'        <option value="0"' + (current.weatherIconStyle === '0' ? ' selected' : '') + '>Simple</option>' +
+'        <option value="1"' + (current.weatherIconStyle === '1' || !current.weatherIconStyle ? ' selected' : '') + '>Hollow</option>' +
+'        <option value="2"' + (current.weatherIconStyle === '2' ? ' selected' : '') + '>Filled</option>' +
+'      </select>' +
+'      <div class="help">Only "Hollow" is actually drawn on-watch so far -- Simple and Filled are placeholders for now. Shown here because "Weather icon" or "Temp + weather icon" is picked somewhere in Corners &amp; edge slots below.</div>' +
+'    </div>' +
 '    </div>' +
 '    </div>' +
 '  </fieldset>' +
@@ -1178,7 +1223,9 @@ handEditorModalHtml('sec', 'Edit second hand') +
 'var CORNER_PREVIEW_LABELS = {' +
 '  1: "72", 2: "5234", 3: "68%", 4: "H72 L58", 5: "68F Clear",' +
 '  6: "UV5", 7: "R20%", 8: "H45%", 9: "W12", 10: "82%", 11: "Full", 12: "Mon 15",' +
-'  13: "Innsbruck", 14: "80%", 15: "45%", 16: "19:42", 17: "LOGO", 18: "12:34", 19: "WK 34"' +
+'  13: "Innsbruck", 14: "80%", 15: "45%", 16: "19:42", 17: "LOGO", 18: "12:34", 19: "WK 34", 20: "Connected",' +
+'  21: "SEP 11", 22: "11", 23: "MON", 24: "Monday", 25: "SEP", 26: "September", 27: "11/9", 28: "9/11", 29: "24/9/2026", 30: "9/24/26",' +
+'  31: "(cloud)", 32: "20C"' +
 '};' +
 
 'function hasPreviewContent(contentId) {' +
@@ -1239,8 +1286,16 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    drawCornerSlot(ctx, "bottomMiddleLine1Content", "bottomMiddleLine1Color", w / 2, bottomHasLine2 ? bottomY - 24 - lineH : bottomY - 24 - lineH / 2, "center", colors);' +
 '    if (bottomHasLine2) drawCornerSlot(ctx, "bottomMiddleLine2Content", "bottomMiddleLine2Color", w / 2, bottomY - 24, "center", colors);' +
 '  }' +
-'  if (slotAvailable("middleLeftWrap")) drawCornerSlot(ctx, "middleLeftContent", "middleLeftColor", 5, h / 2 - 4, "left", colors);' +
-'  if (slotAvailable("middleRightWrap")) drawCornerSlot(ctx, "middleRightContent", "middleRightColor", w - 5, h / 2 - 4, "right", colors);' +
+'  if (slotAvailable("middleLeftWrap")) {' +
+'    var midLeftHasLine2 = hasPreviewContent("middleLeftLine2Content");' +
+'    drawCornerSlot(ctx, "middleLeftLine1Content", "middleLeftLine1Color", 5, midLeftHasLine2 ? h / 2 - 4 - lineH / 2 : h / 2 - 4, "left", colors);' +
+'    if (midLeftHasLine2) drawCornerSlot(ctx, "middleLeftLine2Content", "middleLeftLine2Color", 5, h / 2 - 4 + lineH / 2, "left", colors);' +
+'  }' +
+'  if (slotAvailable("middleRightWrap")) {' +
+'    var midRightHasLine2 = hasPreviewContent("middleRightLine2Content");' +
+'    drawCornerSlot(ctx, "middleRightLine1Content", "middleRightLine1Color", w - 5, midRightHasLine2 ? h / 2 - 4 - lineH / 2 : h / 2 - 4, "right", colors);' +
+'    if (midRightHasLine2) drawCornerSlot(ctx, "middleRightLine2Content", "middleRightLine2Color", w - 5, h / 2 - 4 + lineH / 2, "right", colors);' +
+'  }' +
 '}' +
 
 'function drawAnalogPreview(ctx, colors, now, showSeconds, w, panelTop, panelBottom) {' +
@@ -1442,6 +1497,8 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '        ctx.stroke();' +
 '      }' +
 '    }' +
+'  } else if (markerStyle === 9) {' +
+'    /* none -- no marker ring, no placeholder text either */' +
 '  } else if (!markerImageDrawn) {' +
 '    ctx.font = "10px sans-serif";' +
 '    ctx.fillStyle = colors.text;' +
@@ -1513,7 +1570,8 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  if (styleVal === "biganalog") {' +
 '    drawSkyLayer(ctx, 0, 0, w, h);' +
 '    var markerStyleVal = document.getElementById("bigAnalogMarkerStyle").value;' +
-'    var markerImageDrawn = (parseInt(markerStyleVal, 10) >= 3) && drawTintedMarkerBitmap(ctx, markerStyleVal, w, h, colors.text);' +
+'    var markerStyleInt = parseInt(markerStyleVal, 10);' +
+'    var markerImageDrawn = (markerStyleInt >= 3 && markerStyleInt !== 8 && markerStyleInt !== 9) && drawTintedMarkerBitmap(ctx, markerStyleVal, w, h, colors.text);' +
 '    drawBigAnalogPreview(ctx, colors, now, showSeconds, w, h, markerImageDrawn);' +
 '    drawCornersAndEdges(ctx, w, h, colors, h);' +
 '  } else {' +
@@ -1560,8 +1618,10 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  upperMiddleLine2: { contentId: "upperMiddleLine2Content", colorId: "upperMiddleLine2Color", btnId: "slotBtn-upperMiddleLine2", label: "Upper-middle, line 2", avail: function (a) { return a.upper; } },' +
 '  bottomMiddleLine1: { contentId: "bottomMiddleLine1Content", colorId: "bottomMiddleLine1Color", btnId: "slotBtn-bottomMiddleLine1", label: "Bottom-middle, line 1", avail: function (a) { return a.bottom; } },' +
 '  bottomMiddleLine2: { contentId: "bottomMiddleLine2Content", colorId: "bottomMiddleLine2Color", btnId: "slotBtn-bottomMiddleLine2", label: "Bottom-middle, line 2", avail: function (a) { return a.bottom; } },' +
-'  middleLeft: { contentId: "middleLeftContent", colorId: "middleLeftColor", btnId: "slotBtn-middleLeft", label: "Middle-left", avail: function (a) { return a.left; } },' +
-'  middleRight: { contentId: "middleRightContent", colorId: "middleRightColor", btnId: "slotBtn-middleRight", label: "Middle-right", avail: function (a) { return a.right; } }' +
+'  middleLeftLine1: { contentId: "middleLeftLine1Content", colorId: "middleLeftLine1Color", btnId: "slotBtn-middleLeftLine1", label: "Middle-left, line 1", avail: function (a) { return a.left; } },' +
+'  middleLeftLine2: { contentId: "middleLeftLine2Content", colorId: "middleLeftLine2Color", btnId: "slotBtn-middleLeftLine2", label: "Middle-left, line 2", avail: function (a) { return a.left; } },' +
+'  middleRightLine1: { contentId: "middleRightLine1Content", colorId: "middleRightLine1Color", btnId: "slotBtn-middleRightLine1", label: "Middle-right, line 1", avail: function (a) { return a.right; } },' +
+'  middleRightLine2: { contentId: "middleRightLine2Content", colorId: "middleRightLine2Color", btnId: "slotBtn-middleRightLine2", label: "Middle-right, line 2", avail: function (a) { return a.right; } }' +
 '};' +
 'var CURRENT_SLOT_KEY = null;' +
 'var SLOT_EDITOR_DRAFT_COLOR = 0;' +
@@ -1575,7 +1635,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  var markerStyle = parseInt(document.getElementById("bigAnalogMarkerStyle").value, 10);' +
 '  var avail = { upper: false, bottom: false, left: false, right: false, cornersGrayed: false };' +
 '  if (isBigAnalog) {' +
-'    if (markerStyle < 3 || markerStyle === 8) {' +
+'    if (markerStyle < 3 || markerStyle === 8 || markerStyle === 9) {' +
 '      avail = { upper: true, bottom: true, left: true, right: true, cornersGrayed: false };' +
 '    } else if (markerStyle === 3 || markerStyle === 4 || markerStyle === 6) {' +
 '      avail = { upper: true, bottom: true, left: false, right: false, cornersGrayed: true };' +
@@ -1656,7 +1716,24 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  document.getElementById(def.colorId).value = String(SLOT_EDITOR_DRAFT_COLOR);' +
 '  closeSlotEditor();' +
 '  renderSlotPicker();' +
+'  updateWeatherIconStyleVisibility();' +
 '  updatePreview();' +
+'}' +
+// Shows the "Weather icon style" dropdown (in the Weather section) only
+// when at least one of the 12 corner/edge slots is currently set to
+// "Weather icon" (31) or "Temp + weather icon" (32) -- hidden otherwise,
+// per the brief. Slot content only actually changes in saveSlotEditor(),
+// so that (plus once at page load) is all that needs to call this.
+'var WEATHER_ICON_SLOT_CONTENT_IDS = ["cornerTL", "cornerTR", "cornerBL", "cornerBR",' +
+'  "upperMiddleLine1Content", "upperMiddleLine2Content", "bottomMiddleLine1Content", "bottomMiddleLine2Content",' +
+'  "middleLeftLine1Content", "middleLeftLine2Content", "middleRightLine1Content", "middleRightLine2Content"];' +
+'function updateWeatherIconStyleVisibility() {' +
+'  var inUse = WEATHER_ICON_SLOT_CONTENT_IDS.some(function (id) {' +
+'    var el = document.getElementById(id);' +
+'    return el && (el.value === "31" || el.value === "32");' +
+'  });' +
+'  var row = document.getElementById("weatherIconStyleRow");' +
+'  if (row) row.style.display = inUse ? "" : "none";' +
 '}' +
 
 // ---- collapsible sections + slider step buttons ------------------------
@@ -2070,6 +2147,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    CONFIG_TEMP_UNIT: document.getElementById("tempUnit").value,' +
 '    CONFIG_WIND_SPEED_UNIT: document.getElementById("windSpeedUnit").value,' +
 '    CONFIG_CLOUD_RENDER_STYLE: document.getElementById("cloudRenderStyle").value,' +
+'    CONFIG_WEATHER_ICON_STYLE: document.getElementById("weatherIconStyle").value,' +
 '    CONFIG_SHOW_SECONDS: document.getElementById("showSeconds").checked,' +
 '    CONFIG_COLOR_SCHEME: document.getElementById("colorSchemeValue").value,' +
 '    CONFIG_CUSTOM_BG: document.getElementById("customBgValue").value,' +
@@ -2093,10 +2171,14 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    CONFIG_BOTTOM_MIDDLE_LINE1_COLOR: document.getElementById("bottomMiddleLine1Color").value,' +
 '    CONFIG_BOTTOM_MIDDLE_LINE2_CONTENT: document.getElementById("bottomMiddleLine2Content").value,' +
 '    CONFIG_BOTTOM_MIDDLE_LINE2_COLOR: document.getElementById("bottomMiddleLine2Color").value,' +
-'    CONFIG_MIDDLE_LEFT_CONTENT: document.getElementById("middleLeftContent").value,' +
-'    CONFIG_MIDDLE_LEFT_COLOR: document.getElementById("middleLeftColor").value,' +
-'    CONFIG_MIDDLE_RIGHT_CONTENT: document.getElementById("middleRightContent").value,' +
-'    CONFIG_MIDDLE_RIGHT_COLOR: document.getElementById("middleRightColor").value,' +
+'    CONFIG_MIDDLE_LEFT_LINE1_CONTENT: document.getElementById("middleLeftLine1Content").value,' +
+'    CONFIG_MIDDLE_LEFT_LINE1_COLOR: document.getElementById("middleLeftLine1Color").value,' +
+'    CONFIG_MIDDLE_LEFT_LINE2_CONTENT: document.getElementById("middleLeftLine2Content").value,' +
+'    CONFIG_MIDDLE_LEFT_LINE2_COLOR: document.getElementById("middleLeftLine2Color").value,' +
+'    CONFIG_MIDDLE_RIGHT_LINE1_CONTENT: document.getElementById("middleRightLine1Content").value,' +
+'    CONFIG_MIDDLE_RIGHT_LINE1_COLOR: document.getElementById("middleRightLine1Color").value,' +
+'    CONFIG_MIDDLE_RIGHT_LINE2_CONTENT: document.getElementById("middleRightLine2Content").value,' +
+'    CONFIG_MIDDLE_RIGHT_LINE2_COLOR: document.getElementById("middleRightLine2Color").value,' +
 '    CONFIG_SHOW_SUN_TIME: document.getElementById("showSunTime").value === "true",' +
 '    CONFIG_SHOW_ISS: document.getElementById("showIss").checked,' +
 '    CONFIG_VIBRATE_ON_PHASE_CHANGE: document.getElementById("vibrateOnPhaseChange").checked,' +
@@ -2135,6 +2217,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    CONFIG_MARKER_TEXT_OFFSET: document.getElementById("markerTextOffset").value,' +
 '    CONFIG_MARKER_TEXT_HOUR_MASK: document.getElementById("markerTextHourMask").value,' +
 '    CONFIG_MARKER_TEXT_SEC_MASK: document.getElementById("markerTextSecMask").value,' +
+'    CONFIG_MARKER_TEXT_ROMAN: document.getElementById("markerTextRoman").checked,' +
 '    CONFIG_HAND_HOUR_STYLE: document.getElementById("handHourStyle").value,' +
 '    CONFIG_HAND_HOUR_WIDTH: document.getElementById("handHourWidth").value,' +
 '    CONFIG_HAND_HOUR_LENGTH: document.getElementById("handHourLength").value,' +
@@ -2176,6 +2259,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 'updateColorRoleButtons("day");' +
 'updateColorRoleButtons("night");' +
 'onBottomStyleChange();' +
+'updateWeatherIconStyleVisibility();' +
 'adjustTopBarSpacing();' +
 'setInterval(updatePreview, 1000);' +
 '</script>' +

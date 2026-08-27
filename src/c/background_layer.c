@@ -1329,6 +1329,28 @@ static GFont get_marker_text_font(CanvasState *state, uint8_t choice) {
   return fonts_get_system_font(FONT_KEY_GOTHIC_14); // 0, and fallback for an unrecognized choice
 }
 
+// Converts 1-59 (our only actual range: hour labels 1-12, second labels
+// 0/5.../55) to a Roman numeral string. 0 has no traditional Roman
+// numeral -- shown as "0" rather than an empty label, since a blank
+// marker would look like a rendering bug rather than a deliberate choice.
+static void int_to_roman(int num, char *buf, size_t buf_size) {
+  if (num <= 0) { snprintf(buf, buf_size, "%d", num); return; }
+  static const int VALUES[] = {50, 40, 10, 9, 5, 4, 1};
+  static const char *SYMBOLS[] = {"L", "XL", "X", "IX", "V", "IV", "I"};
+  size_t pos = 0;
+  buf[0] = '\0';
+  for (int i = 0; i < 7 && num > 0; i++) {
+    while (num >= VALUES[i]) {
+      size_t len = strlen(SYMBOLS[i]);
+      if (pos + len + 1 > buf_size) return; // out of room -- truncate rather than overflow
+      memcpy(buf + pos, SYMBOLS[i], len);
+      pos += len;
+      buf[pos] = '\0';
+      num -= VALUES[i];
+    }
+  }
+}
+
 static void draw_text_markers(GContext *ctx, GPoint center, GRect screen, CanvasState *state,
                                const MarkerTextConfig *text_cfg, const MarkerRingConfig *hour_cfg,
                                const MarkerRingConfig *second_cfg, GColor color) {
@@ -1353,11 +1375,12 @@ static void draw_text_markers(GContext *ctx, GPoint center, GRect screen, Canvas
       base.x + (int32_t)(text_cfg->offset_px * sin_v) / TRIG_MAX_RATIO,
       base.y - (int32_t)(text_cfg->offset_px * cos_v) / TRIG_MAX_RATIO);
 
-    char buf[3];
+    char buf[8]; // enough for the longest label we ever produce: "XXXVIII" (38) + NUL
     int label = is_hour ? (i == 0 ? 12 : i) : (i * 5);
-    snprintf(buf, sizeof(buf), "%d", label);
+    if (text_cfg->roman_numerals) int_to_roman(label, buf, sizeof(buf));
+    else snprintf(buf, sizeof(buf), "%d", label);
 
-    int16_t box_w = 26, box_h = fh + 4;
+    int16_t box_w = 30, box_h = fh + 4;
     GRect box = GRect(pos.x - box_w / 2, pos.y - box_h / 2, box_w, box_h);
     graphics_draw_text(ctx, buf, font, box, GTextOverflowModeFill, GTextAlignmentCenter, NULL);
   }
@@ -1454,6 +1477,12 @@ static void draw_marker_bitmap(GContext *ctx, GBitmap *mask, GRect bounds) {
 static void draw_all_markers(GContext *ctx, CanvasState *state, GPoint center, GRect screen,
                               const EclipseData *d, GColor main_color) {
   uint8_t marker_style = d->big_analog_marker_style;
+
+  if (marker_style == 9) { // none -- no ring, no bitmap, nothing to draw
+    ensure_marker_bitmap_loaded(state, marker_style); // frees any previously-loaded bitmap
+    return;
+  }
+
   bool is_bitmap_style = marker_style >= 3 && marker_style != 8;
 
   ensure_marker_bitmap_loaded(state, marker_style);

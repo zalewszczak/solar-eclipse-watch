@@ -6,7 +6,7 @@ var iss = require('./iss');
 
 var TYPE_CODE = { none: 0, partial: 1, total: 2, annular: 3 };
 
-var MAX_FEATURES = 19;
+var MAX_FEATURES = 32;
 
 var refreshTimer = null;
 
@@ -94,7 +94,7 @@ var PLANET_ORDER = ['mercury', 'venus', 'mars', 'jupiter', 'saturn'];
 // that drives the background sky gradient, every body's rise/set
 // animation, and the dithered cloud puffs. Sent every refresh,
 // eclipse or not, since the sky itself isn't eclipse-specific.
-function skyFieldsDict(sky, cloudGrid, moonPhase, riseSet, meteorShower, cloudAltitudePct) {
+function skyFieldsDict(sky, cloudGrid, moonPhase, riseSet, meteorShower, cloudAltitudePct, sunRiseTomorrow) {
   var cloudBytes = (cloudGrid || sky.sunAltDecideg.map(function () { return 0; }))
     .map(function (v) { return Math.max(0, Math.min(100, Math.round(v))); });
 
@@ -124,6 +124,7 @@ function skyFieldsDict(sky, cloudGrid, moonPhase, riseSet, meteorShower, cloudAl
     'MOON_WAXING': moonPhase.waxing ? 1 : 0,
     'SUN_RISE': toEpoch(riseSet.sun.rise),
     'SUN_SET': toEpoch(riseSet.sun.set),
+    'SUN_RISE_TOMORROW': toEpoch(sunRiseTomorrow),
     'MOON_RISE': toEpoch(riseSet.moon.rise),
     'MOON_SET': toEpoch(riseSet.moon.set),
     'METEOR_INTENSITY': meteorShower ? meteorShower.intensity : 0,
@@ -249,6 +250,14 @@ function cloudRenderStyleCode() {
   if (isNaN(id) || id < 0 || id > 1) id = 1;
   return id;
 }
+// 0=simple, 1=hollow, 2=filled -- only hollow is actually implemented
+// on-watch right now (see draw_weather_icon_hollow() in
+// pebble-eclipse-watch.c); simple/filled are drawing-side stubs.
+function weatherIconStyleCode() {
+  var id = parseInt(getSetting('CONFIG_WEATHER_ICON_STYLE', '1'), 10);
+  if (isNaN(id) || id < 0 || id > 2) id = 1;
+  return id;
+}
 
 function shakeLabelSecondsCode() {
   var secs = parseInt(getSetting('CONFIG_SHAKE_LABEL_SECONDS', '3'), 10);
@@ -270,7 +279,7 @@ function bigAnalogHandsTransparentCode() { return getSetting('CONFIG_BIG_ANALOG_
 
 function bigAnalogMarkerStyleCode() {
   var id = parseInt(getSetting('CONFIG_BIG_ANALOG_MARKER_STYLE', '0'), 10);
-  if (isNaN(id) || id < 0 || id > 8) id = 0;
+  if (isNaN(id) || id < 0 || id > 9) id = 0;
   return id;
 }
 
@@ -316,6 +325,7 @@ function markerTextFontCode() { return clampInt(getSetting('CONFIG_MARKER_TEXT_F
 function markerTextOffsetCode() { return clampInt(getSetting('CONFIG_MARKER_TEXT_OFFSET', '0'), -50, 50, 0); }
 function markerTextHourMaskCode() { return clampInt(getSetting('CONFIG_MARKER_TEXT_HOUR_MASK', '4095'), 0, 4095, 4095); }
 function markerTextSecMaskCode() { return clampInt(getSetting('CONFIG_MARKER_TEXT_SEC_MASK', '4095'), 0, 4095, 4095); }
+function markerTextRomanCode() { return getSetting('CONFIG_MARKER_TEXT_ROMAN', 'false') === 'true' ? 1 : 0; }
 
 // Custom hour/minute/second hand system (bigAnalogHandStyleCode() === 4) --
 // see HandConfig in hand_layer.h for what each field means.
@@ -401,23 +411,43 @@ function bottomMiddleLine2ColorModeCode() {
   if (isNaN(id) || id < 0 || id > 3) id = 0;
   return id;
 }
-function middleLeftContentCode() {
-  var id = parseInt(getSetting('CONFIG_MIDDLE_LEFT_CONTENT', '0'), 10);
+function middleLeftLine1ContentCode() {
+  var id = parseInt(getSetting('CONFIG_MIDDLE_LEFT_LINE1_CONTENT', '0'), 10);
   if (isNaN(id) || id < 0 || id > MAX_FEATURES) id = 0;
   return id;
 }
-function middleLeftColorModeCode() {
-  var id = parseInt(getSetting('CONFIG_MIDDLE_LEFT_COLOR', '0'), 10);
+function middleLeftLine1ColorModeCode() {
+  var id = parseInt(getSetting('CONFIG_MIDDLE_LEFT_LINE1_COLOR', '0'), 10);
   if (isNaN(id) || id < 0 || id > 3) id = 0;
   return id;
 }
-function middleRightContentCode() {
-  var id = parseInt(getSetting('CONFIG_MIDDLE_RIGHT_CONTENT', '0'), 10);
+function middleLeftLine2ContentCode() {
+  var id = parseInt(getSetting('CONFIG_MIDDLE_LEFT_LINE2_CONTENT', '0'), 10);
   if (isNaN(id) || id < 0 || id > MAX_FEATURES) id = 0;
   return id;
 }
-function middleRightColorModeCode() {
-  var id = parseInt(getSetting('CONFIG_MIDDLE_RIGHT_COLOR', '0'), 10);
+function middleLeftLine2ColorModeCode() {
+  var id = parseInt(getSetting('CONFIG_MIDDLE_LEFT_LINE2_COLOR', '0'), 10);
+  if (isNaN(id) || id < 0 || id > 3) id = 0;
+  return id;
+}
+function middleRightLine1ContentCode() {
+  var id = parseInt(getSetting('CONFIG_MIDDLE_RIGHT_LINE1_CONTENT', '0'), 10);
+  if (isNaN(id) || id < 0 || id > MAX_FEATURES) id = 0;
+  return id;
+}
+function middleRightLine1ColorModeCode() {
+  var id = parseInt(getSetting('CONFIG_MIDDLE_RIGHT_LINE1_COLOR', '0'), 10);
+  if (isNaN(id) || id < 0 || id > 3) id = 0;
+  return id;
+}
+function middleRightLine2ContentCode() {
+  var id = parseInt(getSetting('CONFIG_MIDDLE_RIGHT_LINE2_CONTENT', '0'), 10);
+  if (isNaN(id) || id < 0 || id > MAX_FEATURES) id = 0;
+  return id;
+}
+function middleRightLine2ColorModeCode() {
+  var id = parseInt(getSetting('CONFIG_MIDDLE_RIGHT_LINE2_COLOR', '0'), 10);
   if (isNaN(id) || id < 0 || id > 3) id = 0;
   return id;
 }
@@ -482,6 +512,7 @@ function sendDict(dict) {
   dict['ANALOG_STYLE'] = analogStyleCode();
   dict['SUN_MOON_SIZE_PCT'] = sunMoonSizeCode();
   dict['CLOUD_RENDER_STYLE'] = cloudRenderStyleCode();
+  dict['WEATHER_ICON_STYLE'] = weatherIconStyleCode();
   dict['SHAKE_LABEL_SECONDS'] = shakeLabelSecondsCode();
   dict['BOTTOM_INFO_BAR_MODE'] = bottomInfoBarModeCode();
   dict['BIG_ANALOG_HAND_STYLE'] = bigAnalogHandStyleCode();
@@ -504,6 +535,7 @@ function sendDict(dict) {
   dict['MARKER_TEXT_OFFSET'] = markerTextOffsetCode();
   dict['MARKER_TEXT_HOUR_MASK'] = markerTextHourMaskCode();
   dict['MARKER_TEXT_SEC_MASK'] = markerTextSecMaskCode();
+  dict['MARKER_TEXT_ROMAN'] = markerTextRomanCode();
   dict['HAND_HOUR_STYLE'] = handHourStyleCode();
   dict['HAND_HOUR_WIDTH'] = handHourWidthCode();
   dict['HAND_HOUR_LENGTH'] = handHourLengthCode();
@@ -538,10 +570,14 @@ function sendDict(dict) {
   dict['BOTTOM_MIDDLE_LINE1_COLOR_MODE'] = bottomMiddleLine1ColorModeCode();
   dict['BOTTOM_MIDDLE_LINE2_CONTENT'] = bottomMiddleLine2ContentCode();
   dict['BOTTOM_MIDDLE_LINE2_COLOR_MODE'] = bottomMiddleLine2ColorModeCode();
-  dict['MIDDLE_LEFT_CONTENT'] = middleLeftContentCode();
-  dict['MIDDLE_LEFT_COLOR_MODE'] = middleLeftColorModeCode();
-  dict['MIDDLE_RIGHT_CONTENT'] = middleRightContentCode();
-  dict['MIDDLE_RIGHT_COLOR_MODE'] = middleRightColorModeCode();
+  dict['MIDDLE_LEFT_LINE1_CONTENT'] = middleLeftLine1ContentCode();
+  dict['MIDDLE_LEFT_LINE1_COLOR_MODE'] = middleLeftLine1ColorModeCode();
+  dict['MIDDLE_LEFT_LINE2_CONTENT'] = middleLeftLine2ContentCode();
+  dict['MIDDLE_LEFT_LINE2_COLOR_MODE'] = middleLeftLine2ColorModeCode();
+  dict['MIDDLE_RIGHT_LINE1_CONTENT'] = middleRightLine1ContentCode();
+  dict['MIDDLE_RIGHT_LINE1_COLOR_MODE'] = middleRightLine1ColorModeCode();
+  dict['MIDDLE_RIGHT_LINE2_CONTENT'] = middleRightLine2ContentCode();
+  dict['MIDDLE_RIGHT_LINE2_COLOR_MODE'] = middleRightLine2ColorModeCode();
   dict['SHOW_SUN_TIME'] = showSunTimeCode();
   dict['SHOW_ISS'] = showIssCode();
   dict['VIBRATE_ON_PHASE_CHANGE'] = vibrateOnPhaseChangeCode();
@@ -1033,6 +1069,7 @@ function sendDict(dict) {
 '  "MOON_WAXING": 1,'+
 '  "SUN_RISE": 1787545670,'+
 '  "SUN_SET": 1787594692,'+
+'  "SUN_RISE_TOMORROW": 1787632070,'+
 '  "MOON_RISE": 1787589996,'+
 '  "MOON_SET": 0,'+
 '  "METEOR_INTENSITY": 0,'+
@@ -1057,6 +1094,7 @@ function sendDict(dict) {
 '  "ANALOG_STYLE": 3,'+
 '  "SUN_MOON_SIZE_PCT": 50,'+
 '  "CLOUD_RENDER_STYLE": 0,'+
+'  "WEATHER_ICON_STYLE": 1,'+
 '  "SHAKE_LABEL_SECONDS": 8,'+
 '  "BOTTOM_INFO_BAR_MODE": 0,'+
 '  "BIG_ANALOG_HAND_STYLE": 0,'+
@@ -1113,10 +1151,14 @@ function sendDict(dict) {
 '  "BOTTOM_MIDDLE_LINE1_COLOR_MODE": 3,'+
 '  "BOTTOM_MIDDLE_LINE2_CONTENT": 4,'+
 '  "BOTTOM_MIDDLE_LINE2_COLOR_MODE": 3,'+
-'  "MIDDLE_LEFT_CONTENT": 6,'+
-'  "MIDDLE_LEFT_COLOR_MODE": 3,'+
-'  "MIDDLE_RIGHT_CONTENT": 8,'+
-'  "MIDDLE_RIGHT_COLOR_MODE": 3,'+
+'  "MIDDLE_LEFT_LINE1_CONTENT": 6,'+
+'  "MIDDLE_LEFT_LINE1_COLOR_MODE": 3,'+
+'  "MIDDLE_LEFT_LINE2_CONTENT": 0,'+
+'  "MIDDLE_LEFT_LINE2_COLOR_MODE": 0,'+
+'  "MIDDLE_RIGHT_LINE1_CONTENT": 8,'+
+'  "MIDDLE_RIGHT_LINE1_COLOR_MODE": 3,'+
+'  "MIDDLE_RIGHT_LINE2_CONTENT": 0,'+
+'  "MIDDLE_RIGHT_LINE2_COLOR_MODE": 0,'+
 '  "SHOW_SUN_TIME": 1,'+
 '  "SHOW_ISS": 1,'+
 '  "VIBRATE_ON_PHASE_CHANGE": 0,'+
@@ -1179,7 +1221,7 @@ function issFieldsDict(issPos) {
   };
 }
 
-function sendNoEclipseToday(sky, cloudGrid, headlineCloud, headlineSources, locationName, moonPhase, riseSet, weatherCondition, weatherTempC, meteorShower, cloudAltitudePct, tempHighC, tempLowC, issPos, uvIndexMax, rainChancePct, humidityPct, windSpeedKmh, currentCloudPct) {
+function sendNoEclipseToday(sky, cloudGrid, headlineCloud, headlineSources, locationName, moonPhase, riseSet, weatherCondition, weatherTempC, meteorShower, cloudAltitudePct, tempHighC, tempLowC, issPos, uvIndexMax, rainChancePct, humidityPct, windSpeedKmh, currentCloudPct, sunRiseTomorrow) {
   var displayCloudPct = (typeof currentCloudPct === 'number') ? currentCloudPct : (headlineCloud || 0);
   var dict = {
     'DATA_VALID': 1,
@@ -1204,14 +1246,14 @@ function sendNoEclipseToday(sky, cloudGrid, headlineCloud, headlineSources, loca
     'WIND_SPEED_KMH': (typeof windSpeedKmh === 'number') ? Math.round(windSpeedKmh) : 0,
     'LOCATION_NAME': locationName || ''
   };
-  var sky_ = skyFieldsDict(sky, cloudGrid, moonPhase, riseSet, meteorShower, cloudAltitudePct);
+  var sky_ = skyFieldsDict(sky, cloudGrid, moonPhase, riseSet, meteorShower, cloudAltitudePct, sunRiseTomorrow);
   Object.keys(sky_).forEach(function (k) { dict[k] = sky_[k]; });
   var iss_ = issFieldsDict(issPos);
   Object.keys(iss_).forEach(function (k) { dict[k] = iss_[k]; });
   sendDict(dict);
 }
 
-function sendEclipseData(result, sky, cloudGrid, headlineCloud, headlineSources, locationName, moonPhase, riseSet, weatherCondition, weatherTempC, meteorShower, cloudAltitudePct, tempHighC, tempLowC, issPos, uvIndexMax, rainChancePct, humidityPct, windSpeedKmh, currentCloudPct) {
+function sendEclipseData(result, sky, cloudGrid, headlineCloud, headlineSources, locationName, moonPhase, riseSet, weatherCondition, weatherTempC, meteorShower, cloudAltitudePct, tempHighC, tempLowC, issPos, uvIndexMax, rainChancePct, humidityPct, windSpeedKmh, currentCloudPct, sunRiseTomorrow) {
   var displayCloudPct = (typeof currentCloudPct === 'number') ? currentCloudPct : (headlineCloud || 0);
   var dict = {
     'DATA_VALID': 1,
@@ -1243,7 +1285,7 @@ function sendEclipseData(result, sky, cloudGrid, headlineCloud, headlineSources,
     'WIND_SPEED_KMH': (typeof windSpeedKmh === 'number') ? Math.round(windSpeedKmh) : 0,
     'LOCATION_NAME': locationName || ''
   };
-  var sky_ = skyFieldsDict(sky, cloudGrid, moonPhase, riseSet, meteorShower, cloudAltitudePct);
+  var sky_ = skyFieldsDict(sky, cloudGrid, moonPhase, riseSet, meteorShower, cloudAltitudePct, sunRiseTomorrow);
   Object.keys(sky_).forEach(function (k) { dict[k] = sky_[k]; });
   var iss_ = issFieldsDict(issPos);
   Object.keys(iss_).forEach(function (k) { dict[k] = iss_[k]; });
@@ -1431,6 +1473,11 @@ function refreshAndSend(force) {
         jupiter: astro.findRiseSet(dayStart, lat, lon, function (g) { return g.jupiterAlt; }),
         saturn: astro.findRiseSet(dayStart, lat, lon, function (g) { return g.saturnAlt; })
       };
+      // Tomorrow's sunrise too -- once today's sunset has passed, the
+      // watch has nothing left to count down to otherwise (today's
+      // sun_rise is already in the past), and used to just show "--:--".
+      var nextDayStart = new Date(dayStart.getTime() + 86400000);
+      var sunRiseTomorrow = astro.findRiseSet(nextDayStart, lat, lon, function (g) { return g.sunAlt; }).rise;
       meteorShower = astro.activeMeteorShower(now);
     } catch (e) {
       console.log('eclipse-watch: CALC FAILED - ' + e.message);
@@ -1472,9 +1519,9 @@ function refreshAndSend(force) {
 
           fetchIssIfEnabled(lat, lon, function (issPos) {
             if (result.hasEclipse) {
-              sendEclipseData(result, sky, cloudGrid, headlineCloud, headlineSources, locationName, moonPhase, riseSet, extras.condition, extras.tempC, meteorShower, extras.cloudAltitudePct, extras.tempHighC, extras.tempLowC, issPos, extras.uvIndexMax, extras.rainChancePct, extras.humidityPct, extras.windSpeedKmh, extras.currentCloudPct);
+              sendEclipseData(result, sky, cloudGrid, headlineCloud, headlineSources, locationName, moonPhase, riseSet, extras.condition, extras.tempC, meteorShower, extras.cloudAltitudePct, extras.tempHighC, extras.tempLowC, issPos, extras.uvIndexMax, extras.rainChancePct, extras.humidityPct, extras.windSpeedKmh, extras.currentCloudPct, sunRiseTomorrow);
             } else {
-              sendNoEclipseToday(sky, cloudGrid, headlineCloud, headlineSources, locationName, moonPhase, riseSet, extras.condition, extras.tempC, meteorShower, extras.cloudAltitudePct, extras.tempHighC, extras.tempLowC, issPos, extras.uvIndexMax, extras.rainChancePct, extras.humidityPct, extras.windSpeedKmh, extras.currentCloudPct);
+              sendNoEclipseToday(sky, cloudGrid, headlineCloud, headlineSources, locationName, moonPhase, riseSet, extras.condition, extras.tempC, meteorShower, extras.cloudAltitudePct, extras.tempHighC, extras.tempLowC, issPos, extras.uvIndexMax, extras.rainChancePct, extras.humidityPct, extras.windSpeedKmh, extras.currentCloudPct, sunRiseTomorrow);
             }
             markRefreshDone(lat, lon);
           });
@@ -1533,6 +1580,7 @@ Pebble.addEventListener('showConfiguration', function () {
     analogStyle: getSetting('CONFIG_ANALOG_STYLE', '0'),
     sunMoonSize: getSetting('CONFIG_SUN_MOON_SIZE', '75'),
     cloudRenderStyle: getSetting('CONFIG_CLOUD_RENDER_STYLE', '1'),
+    weatherIconStyle: getSetting('CONFIG_WEATHER_ICON_STYLE', '1'),
     shakeLabelSeconds: getSetting('CONFIG_SHAKE_LABEL_SECONDS', '3'),
     bottomInfoBarMode: getSetting('CONFIG_BOTTOM_INFO_BAR_MODE', '1'),
     bigAnalogHandStyle: getSetting('CONFIG_BIG_ANALOG_HAND_STYLE', '0'),
@@ -1555,6 +1603,7 @@ Pebble.addEventListener('showConfiguration', function () {
     markerTextOffset: getSetting('CONFIG_MARKER_TEXT_OFFSET', '0'),
     markerTextHourMask: getSetting('CONFIG_MARKER_TEXT_HOUR_MASK', '4095'),
     markerTextSecMask: getSetting('CONFIG_MARKER_TEXT_SEC_MASK', '4095'),
+    markerTextRoman: getSetting('CONFIG_MARKER_TEXT_ROMAN', 'false'),
     handHourStyle: getSetting('CONFIG_HAND_HOUR_STYLE', '1'),
     handHourWidth: getSetting('CONFIG_HAND_HOUR_WIDTH', '12'),
     handHourLength: getSetting('CONFIG_HAND_HOUR_LENGTH', '51'),
@@ -1589,10 +1638,14 @@ Pebble.addEventListener('showConfiguration', function () {
     bottomMiddleLine1Color: getSetting('CONFIG_BOTTOM_MIDDLE_LINE1_COLOR', '0'),
     bottomMiddleLine2Content: getSetting('CONFIG_BOTTOM_MIDDLE_LINE2_CONTENT', '0'),
     bottomMiddleLine2Color: getSetting('CONFIG_BOTTOM_MIDDLE_LINE2_COLOR', '0'),
-    middleLeftContent: getSetting('CONFIG_MIDDLE_LEFT_CONTENT', '0'),
-    middleLeftColor: getSetting('CONFIG_MIDDLE_LEFT_COLOR', '0'),
-    middleRightContent: getSetting('CONFIG_MIDDLE_RIGHT_CONTENT', '0'),
-    middleRightColor: getSetting('CONFIG_MIDDLE_RIGHT_COLOR', '0'),
+    middleLeftLine1Content: getSetting('CONFIG_MIDDLE_LEFT_LINE1_CONTENT', '0'),
+    middleLeftLine1Color: getSetting('CONFIG_MIDDLE_LEFT_LINE1_COLOR', '0'),
+    middleLeftLine2Content: getSetting('CONFIG_MIDDLE_LEFT_LINE2_CONTENT', '0'),
+    middleLeftLine2Color: getSetting('CONFIG_MIDDLE_LEFT_LINE2_COLOR', '0'),
+    middleRightLine1Content: getSetting('CONFIG_MIDDLE_RIGHT_LINE1_CONTENT', '0'),
+    middleRightLine1Color: getSetting('CONFIG_MIDDLE_RIGHT_LINE1_COLOR', '0'),
+    middleRightLine2Content: getSetting('CONFIG_MIDDLE_RIGHT_LINE2_CONTENT', '0'),
+    middleRightLine2Color: getSetting('CONFIG_MIDDLE_RIGHT_LINE2_COLOR', '0'),
     cornerTL: getSetting('CONFIG_CORNER_TL', '0'),
     cornerTR: getSetting('CONFIG_CORNER_TR', '0'),
     cornerBL: getSetting('CONFIG_CORNER_BL', '0'),
@@ -1671,6 +1724,7 @@ Pebble.addEventListener('webviewclosed', function (e) {
   setSetting('CONFIG_ANALOG_STYLE', settings.CONFIG_ANALOG_STYLE || '0');
   setSetting('CONFIG_SUN_MOON_SIZE', settings.CONFIG_SUN_MOON_SIZE || '100');
   setSetting('CONFIG_CLOUD_RENDER_STYLE', settings.CONFIG_CLOUD_RENDER_STYLE || '1');
+  setSetting('CONFIG_WEATHER_ICON_STYLE', settings.CONFIG_WEATHER_ICON_STYLE || '1');
   setSetting('CONFIG_SHAKE_LABEL_SECONDS', settings.CONFIG_SHAKE_LABEL_SECONDS || '3');
   setSetting('CONFIG_BOTTOM_INFO_BAR_MODE', settings.CONFIG_BOTTOM_INFO_BAR_MODE || '1');
   setSetting('CONFIG_BIG_ANALOG_HAND_STYLE', settings.CONFIG_BIG_ANALOG_HAND_STYLE || '0');
@@ -1693,6 +1747,7 @@ Pebble.addEventListener('webviewclosed', function (e) {
   setSetting('CONFIG_MARKER_TEXT_OFFSET', settings.CONFIG_MARKER_TEXT_OFFSET || '0');
   setSetting('CONFIG_MARKER_TEXT_HOUR_MASK', settings.CONFIG_MARKER_TEXT_HOUR_MASK || '4095');
   setSetting('CONFIG_MARKER_TEXT_SEC_MASK', settings.CONFIG_MARKER_TEXT_SEC_MASK || '4095');
+  setSetting('CONFIG_MARKER_TEXT_ROMAN', settings.CONFIG_MARKER_TEXT_ROMAN ? 'true' : 'false');
   setSetting('CONFIG_HAND_HOUR_STYLE', settings.CONFIG_HAND_HOUR_STYLE || '1');
   setSetting('CONFIG_HAND_HOUR_WIDTH', settings.CONFIG_HAND_HOUR_WIDTH || '12');
   setSetting('CONFIG_HAND_HOUR_LENGTH', settings.CONFIG_HAND_HOUR_LENGTH || '51');
@@ -1727,10 +1782,14 @@ Pebble.addEventListener('webviewclosed', function (e) {
   setSetting('CONFIG_BOTTOM_MIDDLE_LINE1_COLOR', settings.CONFIG_BOTTOM_MIDDLE_LINE1_COLOR || '0');
   setSetting('CONFIG_BOTTOM_MIDDLE_LINE2_CONTENT', settings.CONFIG_BOTTOM_MIDDLE_LINE2_CONTENT || '0');
   setSetting('CONFIG_BOTTOM_MIDDLE_LINE2_COLOR', settings.CONFIG_BOTTOM_MIDDLE_LINE2_COLOR || '0');
-  setSetting('CONFIG_MIDDLE_LEFT_CONTENT', settings.CONFIG_MIDDLE_LEFT_CONTENT || '0');
-  setSetting('CONFIG_MIDDLE_LEFT_COLOR', settings.CONFIG_MIDDLE_LEFT_COLOR || '0');
-  setSetting('CONFIG_MIDDLE_RIGHT_CONTENT', settings.CONFIG_MIDDLE_RIGHT_CONTENT || '0');
-  setSetting('CONFIG_MIDDLE_RIGHT_COLOR', settings.CONFIG_MIDDLE_RIGHT_COLOR || '0');
+  setSetting('CONFIG_MIDDLE_LEFT_LINE1_CONTENT', settings.CONFIG_MIDDLE_LEFT_LINE1_CONTENT || '0');
+  setSetting('CONFIG_MIDDLE_LEFT_LINE1_COLOR', settings.CONFIG_MIDDLE_LEFT_LINE1_COLOR || '0');
+  setSetting('CONFIG_MIDDLE_LEFT_LINE2_CONTENT', settings.CONFIG_MIDDLE_LEFT_LINE2_CONTENT || '0');
+  setSetting('CONFIG_MIDDLE_LEFT_LINE2_COLOR', settings.CONFIG_MIDDLE_LEFT_LINE2_COLOR || '0');
+  setSetting('CONFIG_MIDDLE_RIGHT_LINE1_CONTENT', settings.CONFIG_MIDDLE_RIGHT_LINE1_CONTENT || '0');
+  setSetting('CONFIG_MIDDLE_RIGHT_LINE1_COLOR', settings.CONFIG_MIDDLE_RIGHT_LINE1_COLOR || '0');
+  setSetting('CONFIG_MIDDLE_RIGHT_LINE2_CONTENT', settings.CONFIG_MIDDLE_RIGHT_LINE2_CONTENT || '0');
+  setSetting('CONFIG_MIDDLE_RIGHT_LINE2_COLOR', settings.CONFIG_MIDDLE_RIGHT_LINE2_COLOR || '0');
   setSetting('CONFIG_CORNER_TL', settings.CONFIG_CORNER_TL || '0');
   setSetting('CONFIG_CORNER_TR', settings.CONFIG_CORNER_TR || '0');
   setSetting('CONFIG_CORNER_BL', settings.CONFIG_CORNER_BL || '0');
