@@ -430,8 +430,9 @@ static void hands_layer_update_proc(Layer *layer, GContext *ctx) {
   // always-on-top hands layer runs.
   ensure_corner_custom_font(s_data.corner_custom_font);
 
-  int32_t hour_angle = (((t->tm_hour % 12) * 60 + t->tm_min) * TRIG_MAX_ANGLE) / (12 * 60);
-  int32_t min_angle = (t->tm_min * TRIG_MAX_ANGLE) / 60;
+  int32_t hour_angle = (((t->tm_hour % 12) * 3600 + t->tm_min * 60 + t->tm_sec) * TRIG_MAX_ANGLE) / (12 * 3600);
+
+  int32_t min_angle = ((t->tm_min * 60 + t->tm_sec) * TRIG_MAX_ANGLE) / (60 * 60);
 
   // All 5 hand styles now go through hand_layer_draw() -- custom (4) uses
   // the user's own per-hand settings; 0-3 use one of the hardcoded

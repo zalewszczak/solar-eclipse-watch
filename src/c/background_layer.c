@@ -1336,8 +1336,8 @@ static uint32_t marker_text_font_resource_id(uint8_t choice) {
 // used only to size/vertically-center each numeral's text box.
 static const uint8_t MARKER_FONT_HEIGHTS[7] = {14, 16, 20, 12, 12, 14, 19};
 // Per-font vertical fine-tune, added to MARKER_FONT_HEIGHTS when placing
-// the text box -- left at 0 deliberately, tweak by hand once you can see
-// real numerals on-device; index matches font_choice.
+// the text box
+//TODO: This needs manual tweaking and looks like fonts are not matching the settings page - investigate
 static const int8_t MARKER_FONT_Y_OFFSET[7] = {0, 0, 0, 0, 0, 0, 0};
 
 static GFont get_marker_text_font(CanvasState *state, uint8_t choice) {
