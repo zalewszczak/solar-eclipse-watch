@@ -6,9 +6,20 @@ var iss = require('./iss');
 
 var TYPE_CODE = { none: 0, partial: 1, total: 2, annular: 3 };
 
-var MAX_FEATURES = 32;
+var MAX_FEATURES = 43;
 
 var refreshTimer = null;
+// Guards against a slow, older refresh's response arriving AFTER a
+// newer one and overwriting it with stale data -- e.g. the periodic
+// background timer firing (using the phone's real GPS location) right
+// as the user saves a manual-coordinates override in settings: without
+// this, if that older in-flight request's chain of network calls
+// happens to finish later than the new forced one, it would clobber
+// the correct new location/weather with the old location's data. Each
+// refreshAndSend() call claims the next generation number; only the
+// call that's still the current generation when its data is finally
+// ready is allowed to actually send it.
+var s_refreshGeneration = 0;
 
 // ---- tiny settings helpers, backed directly by localStorage -------------
 
@@ -190,14 +201,6 @@ function showSecondsCode() {
   return (wanted) ? 1 : 0;
 }
 
-function colorSchemeCode() {
-  var v = getSetting('CONFIG_COLOR_SCHEME', '0');
-  if (v === 'custom') return 10;
-  var id = parseInt(v, 10);
-  if (isNaN(id) || id < 0 || id > 11 || id === 10) id = 0;
-  return id;
-}
-
 // Custom colors are stored as raw packed GColor argb bytes (0-255) --
 // the settings page's 64-color picker computes these directly in the
 // browser (0xC0 | (r2<<4) | (g2<<2) | b2, matching Pebble's own 2-bit-
@@ -214,13 +217,6 @@ function customAccentByte() { return customColorByte('CONFIG_CUSTOM_ACCENT', 0xC
 
 function nightSchemeEnabledCode() {
   return getSetting('CONFIG_NIGHT_ENABLED', 'false') === 'true' ? 1 : 0;
-}
-function nightColorSchemeCode() {
-  var v = getSetting('CONFIG_NIGHT_SCHEME', '1');
-  if (v === 'custom') return 10;
-  var id = parseInt(v, 10);
-  if (isNaN(id) || id < 0 || id > 11 || id === 10) id = 1; // default to White on Black for night if unset
-  return id;
 }
 function nightCustomBgByte() { return customColorByte('CONFIG_NIGHT_CUSTOM_BG', 0xC0); }
 function nightCustomTextByte() { return customColorByte('CONFIG_NIGHT_CUSTOM_TEXT', 0xFF); }
@@ -256,6 +252,28 @@ function cloudRenderStyleCode() {
 function weatherIconStyleCode() {
   var id = parseInt(getSetting('CONFIG_WEATHER_ICON_STYLE', '1'), 10);
   if (isNaN(id) || id < 0 || id > 2) id = 1;
+  return id;
+}
+// Must match TIMEZONES[] in pebble-eclipse-watch.c exactly (same order,
+// same indices) -- the watch only gets an index, this list's labels are
+// settings-page-only.
+function timezoneIdCode() {
+  var id = parseInt(getSetting('CONFIG_TIMEZONE_ID', '0'), 10);
+  if (isNaN(id) || id < 0 || id > 18) id = 0;
+  return id;
+}
+// 0=US AQI (EPA scale, 0-500+), 1=European AQI (0-100+) -- which of the
+// two values already fetched (see fetchAirQualityIfEnabled) the "Air
+// quality" corner content displays.
+function aqiUnitCode() {
+  var id = parseInt(getSetting('CONFIG_AQI_UNIT', '0'), 10);
+  if (isNaN(id) || id < 0 || id > 1) id = 0;
+  return id;
+}
+// 0=meters, 1=feet -- used by the "Altitude" corner content.
+function altitudeUnitCode() {
+  var id = parseInt(getSetting('CONFIG_ALTITUDE_UNIT', '0'), 10);
+  if (isNaN(id) || id < 0 || id > 1) id = 0;
   return id;
 }
 
@@ -499,12 +517,10 @@ function sendDict(dict) {
   dict['TEMP_UNIT'] = tempUnitCode();
   dict['WIND_SPEED_UNIT'] = windSpeedUnitCode();
   dict['SHOW_SECONDS'] = showSecondsCode();
-  dict['COLOR_SCHEME'] = colorSchemeCode();
   dict['CUSTOM_BG'] = customBgByte();
   dict['CUSTOM_TEXT'] = customTextByte();
   dict['CUSTOM_ACCENT'] = customAccentByte();
   dict['NIGHT_SCHEME_ENABLED'] = nightSchemeEnabledCode();
-  dict['NIGHT_COLOR_SCHEME'] = nightColorSchemeCode();
   dict['NIGHT_CUSTOM_BG'] = nightCustomBgByte();
   dict['NIGHT_CUSTOM_TEXT'] = nightCustomTextByte();
   dict['NIGHT_CUSTOM_ACCENT'] = nightCustomAccentByte();
@@ -513,6 +529,9 @@ function sendDict(dict) {
   dict['SUN_MOON_SIZE_PCT'] = sunMoonSizeCode();
   dict['CLOUD_RENDER_STYLE'] = cloudRenderStyleCode();
   dict['WEATHER_ICON_STYLE'] = weatherIconStyleCode();
+  dict['TIMEZONE_ID'] = timezoneIdCode();
+  dict['AQI_UNIT'] = aqiUnitCode();
+  dict['ALTITUDE_UNIT'] = altitudeUnitCode();
   dict['SHAKE_LABEL_SECONDS'] = shakeLabelSecondsCode();
   dict['BOTTOM_INFO_BAR_MODE'] = bottomInfoBarModeCode();
   dict['BIG_ANALOG_HAND_STYLE'] = bigAnalogHandStyleCode();
@@ -1081,12 +1100,10 @@ function sendDict(dict) {
 '  "TEMP_UNIT": 0,'+
 '  "WIND_SPEED_UNIT": 0,'+
 '  "SHOW_SECONDS": 1,'+
-'  "COLOR_SCHEME": 6,'+
 '  "CUSTOM_BG": 255,'+
 '  "CUSTOM_TEXT": 192,'+
 '  "CUSTOM_ACCENT": 194,'+
 '  "NIGHT_SCHEME_ENABLED": 1,'+
-'  "NIGHT_COLOR_SCHEME": 10,'+
 '  "NIGHT_CUSTOM_BG": 192,'+
 '  "NIGHT_CUSTOM_TEXT": 255,'+
 '  "NIGHT_CUSTOM_ACCENT": 240,'+
@@ -1095,6 +1112,16 @@ function sendDict(dict) {
 '  "SUN_MOON_SIZE_PCT": 50,'+
 '  "CLOUD_RENDER_STYLE": 0,'+
 '  "WEATHER_ICON_STYLE": 1,'+
+'  "TIMEZONE_ID": 0,'+
+'  "AQI_UNIT": 0,'+
+'  "ALTITUDE_UNIT": 0,'+
+'  "ALTITUDE_M": 380,'+
+'  "WIND_DIR_DEG": 225,'+
+'  "DEW_POINT_C": 12,'+
+'  "PRESSURE_HPA": 1013,'+
+'  "PRESSURE_TREND": 0,'+
+'  "AQI_US": 42,'+
+'  "AQI_EU": 18,'+
 '  "SHAKE_LABEL_SECONDS": 8,'+
 '  "BOTTOM_INFO_BAR_MODE": 0,'+
 '  "BIG_ANALOG_HAND_STYLE": 0,'+
@@ -1221,7 +1248,31 @@ function issFieldsDict(issPos) {
   };
 }
 
-function sendNoEclipseToday(sky, cloudGrid, headlineCloud, headlineSources, locationName, moonPhase, riseSet, weatherCondition, weatherTempC, meteorShower, cloudAltitudePct, tempHighC, tempLowC, issPos, uvIndexMax, rainChancePct, humidityPct, windSpeedKmh, currentCloudPct, sunRiseTomorrow) {
+// Bundles the newer weather-extra fields (pressure/wind direction/dew
+// point/air quality) into one object param on the two send functions
+// below, rather than growing their already-long positional parameter
+// lists by another 6 -- extra = { windDirDeg, dewPointC, pressureHpa,
+// pressureTrend, aqiUs, aqiEu }, any of which may be null/undefined.
+function extraWeatherFieldsDict(extra) {
+  extra = extra || {};
+  return {
+    'WIND_DIR_DEG': (typeof extra.windDirDeg === 'number') ? Math.round(extra.windDirDeg) : 0,
+    'DEW_POINT_C': (typeof extra.dewPointC === 'number') ? Math.round(extra.dewPointC) : 0,
+    'PRESSURE_HPA': (typeof extra.pressureHpa === 'number') ? Math.round(extra.pressureHpa) : 0,
+    'PRESSURE_TREND': extra.pressureTrend || 0,
+    'AQI_US': (typeof extra.aqiUs === 'number') ? extra.aqiUs : 0,
+    'AQI_EU': (typeof extra.aqiEu === 'number') ? extra.aqiEu : 0,
+    // -32000 = sentinel for "no altitude available" (many phones don't
+    // report GPS altitude, and manual-coordinates mode never has it --
+    // see getLocation()). A real altitude can legitimately be negative
+    // (Death Valley, the Dead Sea shore) or exactly 0 (sea level), so
+    // those can't double as the "missing" signal the way they might
+    // elsewhere -- this needs its own out-of-range sentinel instead.
+    'ALTITUDE_M': (typeof extra.altitudeMeters === 'number') ? Math.round(extra.altitudeMeters) : -32000
+  };
+}
+
+function sendNoEclipseToday(sky, cloudGrid, headlineCloud, headlineSources, locationName, moonPhase, riseSet, weatherCondition, weatherTempC, meteorShower, cloudAltitudePct, tempHighC, tempLowC, issPos, uvIndexMax, rainChancePct, humidityPct, windSpeedKmh, currentCloudPct, sunRiseTomorrow, extraWeather) {
   var displayCloudPct = (typeof currentCloudPct === 'number') ? currentCloudPct : (headlineCloud || 0);
   var dict = {
     'DATA_VALID': 1,
@@ -1248,12 +1299,14 @@ function sendNoEclipseToday(sky, cloudGrid, headlineCloud, headlineSources, loca
   };
   var sky_ = skyFieldsDict(sky, cloudGrid, moonPhase, riseSet, meteorShower, cloudAltitudePct, sunRiseTomorrow);
   Object.keys(sky_).forEach(function (k) { dict[k] = sky_[k]; });
+  var extraW_ = extraWeatherFieldsDict(extraWeather);
+  Object.keys(extraW_).forEach(function (k) { dict[k] = extraW_[k]; });
   var iss_ = issFieldsDict(issPos);
   Object.keys(iss_).forEach(function (k) { dict[k] = iss_[k]; });
   sendDict(dict);
 }
 
-function sendEclipseData(result, sky, cloudGrid, headlineCloud, headlineSources, locationName, moonPhase, riseSet, weatherCondition, weatherTempC, meteorShower, cloudAltitudePct, tempHighC, tempLowC, issPos, uvIndexMax, rainChancePct, humidityPct, windSpeedKmh, currentCloudPct, sunRiseTomorrow) {
+function sendEclipseData(result, sky, cloudGrid, headlineCloud, headlineSources, locationName, moonPhase, riseSet, weatherCondition, weatherTempC, meteorShower, cloudAltitudePct, tempHighC, tempLowC, issPos, uvIndexMax, rainChancePct, humidityPct, windSpeedKmh, currentCloudPct, sunRiseTomorrow, extraWeather) {
   var displayCloudPct = (typeof currentCloudPct === 'number') ? currentCloudPct : (headlineCloud || 0);
   var dict = {
     'DATA_VALID': 1,
@@ -1287,6 +1340,8 @@ function sendEclipseData(result, sky, cloudGrid, headlineCloud, headlineSources,
   };
   var sky_ = skyFieldsDict(sky, cloudGrid, moonPhase, riseSet, meteorShower, cloudAltitudePct, sunRiseTomorrow);
   Object.keys(sky_).forEach(function (k) { dict[k] = sky_[k]; });
+  var extraW_ = extraWeatherFieldsDict(extraWeather);
+  Object.keys(extraW_).forEach(function (k) { dict[k] = extraW_[k]; });
   var iss_ = issFieldsDict(issPos);
   Object.keys(iss_).forEach(function (k) { dict[k] = iss_[k]; });
   sendDict(dict);
@@ -1431,11 +1486,41 @@ function fetchIssIfEnabled(lat, lon, cb) {
   });
 }
 
+// Same "only fetch if actually shown somewhere" gate as fetchIssIfEnabled
+// above -- there's no dedicated CONFIG_SHOW_AQI checkbox, so this checks
+// the 12 corner/edge slots directly for content id 36 ("Air quality").
+var AQI_SLOT_CONTENT_KEYS = ['CONFIG_CORNER_TL', 'CONFIG_CORNER_TR',
+  'CONFIG_CORNER_BL', 'CONFIG_CORNER_BR',
+  'CONFIG_UPPER_MIDDLE_LINE1_CONTENT', 'CONFIG_UPPER_MIDDLE_LINE2_CONTENT',
+  'CONFIG_BOTTOM_MIDDLE_LINE1_CONTENT', 'CONFIG_BOTTOM_MIDDLE_LINE2_CONTENT',
+  'CONFIG_MIDDLE_LEFT_LINE1_CONTENT', 'CONFIG_MIDDLE_LEFT_LINE2_CONTENT',
+  'CONFIG_MIDDLE_RIGHT_LINE1_CONTENT', 'CONFIG_MIDDLE_RIGHT_LINE2_CONTENT'];
+function fetchAirQualityIfEnabled(lat, lon, cb) {
+  var inUse = AQI_SLOT_CONTENT_KEYS.some(function (key) { return getSetting(key, '0') === '36'; });
+  if (!inUse) return cb({ aqiUs: null, aqiEu: null });
+  weather.fetchAirQuality(lat, lon, function (err, aqi) {
+    if (err) {
+      console.log('eclipse-watch: air quality fetch failed - ' + err.message);
+      return cb({ aqiUs: null, aqiEu: null });
+    }
+    cb(aqi);
+  });
+}
+
 // ---- main refresh cycle --------------------------------------------------
 
 function refreshAndSend(force) {
   console.log('eclipse-watch: refresh starting' + (force ? ' (forced)' : ''));
+  s_refreshGeneration++;
+  var myGeneration = s_refreshGeneration;
+  // True once a newer refreshAndSend() call has started since this one
+  // did -- checked before every point below that would send data to
+  // the watch, so a slow older request can never clobber a newer one's
+  // result (see the s_refreshGeneration comment above).
+  function isStale() { return myGeneration !== s_refreshGeneration; }
+
   getLocation(function (err, lat, lon, altitudeMeters) {
+    if (isStale()) { console.log('eclipse-watch: refresh superseded, discarding (location step)'); return; }
     if (err) {
       console.log('eclipse-watch: LOCATION FAILED - ' + err.message);
       sendInvalid(1);
@@ -1481,7 +1566,7 @@ function refreshAndSend(force) {
       meteorShower = astro.activeMeteorShower(now);
     } catch (e) {
       console.log('eclipse-watch: CALC FAILED - ' + e.message);
-      sendInvalid(2);
+      if (!isStale()) sendInvalid(2);
       return;
     }
     console.log('eclipse-watch: ' + (result.hasEclipse ? ('eclipse found, type=' + result.type) : 'no eclipse today at this location') +
@@ -1518,12 +1603,20 @@ function refreshAndSend(force) {
           var headlineSources = w.sourceCount;
 
           fetchIssIfEnabled(lat, lon, function (issPos) {
-            if (result.hasEclipse) {
-              sendEclipseData(result, sky, cloudGrid, headlineCloud, headlineSources, locationName, moonPhase, riseSet, extras.condition, extras.tempC, meteorShower, extras.cloudAltitudePct, extras.tempHighC, extras.tempLowC, issPos, extras.uvIndexMax, extras.rainChancePct, extras.humidityPct, extras.windSpeedKmh, extras.currentCloudPct, sunRiseTomorrow);
-            } else {
-              sendNoEclipseToday(sky, cloudGrid, headlineCloud, headlineSources, locationName, moonPhase, riseSet, extras.condition, extras.tempC, meteorShower, extras.cloudAltitudePct, extras.tempHighC, extras.tempLowC, issPos, extras.uvIndexMax, extras.rainChancePct, extras.humidityPct, extras.windSpeedKmh, extras.currentCloudPct, sunRiseTomorrow);
-            }
-            markRefreshDone(lat, lon);
+            fetchAirQualityIfEnabled(lat, lon, function (aqi) {
+              if (isStale()) { console.log('eclipse-watch: refresh superseded, discarding (final step)'); return; }
+              var extraWeather = {
+                windDirDeg: extras.windDirDeg, dewPointC: extras.dewPointC,
+                pressureHpa: extras.pressureHpa, pressureTrend: extras.pressureTrend,
+                aqiUs: aqi.aqiUs, aqiEu: aqi.aqiEu, altitudeMeters: altitudeMeters
+              };
+              if (result.hasEclipse) {
+                sendEclipseData(result, sky, cloudGrid, headlineCloud, headlineSources, locationName, moonPhase, riseSet, extras.condition, extras.tempC, meteorShower, extras.cloudAltitudePct, extras.tempHighC, extras.tempLowC, issPos, extras.uvIndexMax, extras.rainChancePct, extras.humidityPct, extras.windSpeedKmh, extras.currentCloudPct, sunRiseTomorrow, extraWeather);
+              } else {
+                sendNoEclipseToday(sky, cloudGrid, headlineCloud, headlineSources, locationName, moonPhase, riseSet, extras.condition, extras.tempC, meteorShower, extras.cloudAltitudePct, extras.tempHighC, extras.tempLowC, issPos, extras.uvIndexMax, extras.rainChancePct, extras.humidityPct, extras.windSpeedKmh, extras.currentCloudPct, sunRiseTomorrow, extraWeather);
+              }
+              markRefreshDone(lat, lon);
+            });
           });
         });
       });
@@ -1567,12 +1660,10 @@ Pebble.addEventListener('showConfiguration', function () {
     tempUnit: getSetting('CONFIG_TEMP_UNIT', 'C'),
     windSpeedUnit: getSetting('CONFIG_WIND_SPEED_UNIT', 'kmh'),
     showSeconds: getSetting('CONFIG_SHOW_SECONDS', 'false') === 'true',
-    colorScheme: getSetting('CONFIG_COLOR_SCHEME', '0'),
     customBg: getSetting('CONFIG_CUSTOM_BG', '255'),
     customText: getSetting('CONFIG_CUSTOM_TEXT', '192'),
     customAccent: getSetting('CONFIG_CUSTOM_ACCENT', '192'),
     nightEnabled: getSetting('CONFIG_NIGHT_ENABLED', 'false') === 'true',
-    nightScheme: getSetting('CONFIG_NIGHT_SCHEME', '1'),
     nightCustomBg: getSetting('CONFIG_NIGHT_CUSTOM_BG', '192'),
     nightCustomText: getSetting('CONFIG_NIGHT_CUSTOM_TEXT', '255'),
     nightCustomAccent: getSetting('CONFIG_NIGHT_CUSTOM_ACCENT', '255'),
@@ -1581,6 +1672,9 @@ Pebble.addEventListener('showConfiguration', function () {
     sunMoonSize: getSetting('CONFIG_SUN_MOON_SIZE', '75'),
     cloudRenderStyle: getSetting('CONFIG_CLOUD_RENDER_STYLE', '1'),
     weatherIconStyle: getSetting('CONFIG_WEATHER_ICON_STYLE', '1'),
+    timezoneId: getSetting('CONFIG_TIMEZONE_ID', '0'),
+    aqiUnit: getSetting('CONFIG_AQI_UNIT', '0'),
+    altitudeUnit: getSetting('CONFIG_ALTITUDE_UNIT', '0'),
     shakeLabelSeconds: getSetting('CONFIG_SHAKE_LABEL_SECONDS', '3'),
     bottomInfoBarMode: getSetting('CONFIG_BOTTOM_INFO_BAR_MODE', '1'),
     bigAnalogHandStyle: getSetting('CONFIG_BIG_ANALOG_HAND_STYLE', '0'),
@@ -1711,12 +1805,10 @@ Pebble.addEventListener('webviewclosed', function (e) {
   setSetting('CONFIG_TEMP_UNIT', (settings.CONFIG_TEMP_UNIT === 'F' || settings.CONFIG_TEMP_UNIT === 'K') ? settings.CONFIG_TEMP_UNIT : 'C');
   setSetting('CONFIG_WIND_SPEED_UNIT', settings.CONFIG_WIND_SPEED_UNIT || 'kmh');
   setSetting('CONFIG_SHOW_SECONDS', settings.CONFIG_SHOW_SECONDS ? 'true' : 'false');
-  setSetting('CONFIG_COLOR_SCHEME', settings.CONFIG_COLOR_SCHEME || '0');
   setSetting('CONFIG_CUSTOM_BG', settings.CONFIG_CUSTOM_BG || '255');
   setSetting('CONFIG_CUSTOM_TEXT', settings.CONFIG_CUSTOM_TEXT || '192');
   setSetting('CONFIG_CUSTOM_ACCENT', settings.CONFIG_CUSTOM_ACCENT || '192');
   setSetting('CONFIG_NIGHT_ENABLED', settings.CONFIG_NIGHT_ENABLED ? 'true' : 'false');
-  setSetting('CONFIG_NIGHT_SCHEME', settings.CONFIG_NIGHT_SCHEME || '1');
   setSetting('CONFIG_NIGHT_CUSTOM_BG', settings.CONFIG_NIGHT_CUSTOM_BG || '192');
   setSetting('CONFIG_NIGHT_CUSTOM_TEXT', settings.CONFIG_NIGHT_CUSTOM_TEXT || '255');
   setSetting('CONFIG_NIGHT_CUSTOM_ACCENT', settings.CONFIG_NIGHT_CUSTOM_ACCENT || '255');
@@ -1725,6 +1817,9 @@ Pebble.addEventListener('webviewclosed', function (e) {
   setSetting('CONFIG_SUN_MOON_SIZE', settings.CONFIG_SUN_MOON_SIZE || '100');
   setSetting('CONFIG_CLOUD_RENDER_STYLE', settings.CONFIG_CLOUD_RENDER_STYLE || '1');
   setSetting('CONFIG_WEATHER_ICON_STYLE', settings.CONFIG_WEATHER_ICON_STYLE || '1');
+  setSetting('CONFIG_TIMEZONE_ID', settings.CONFIG_TIMEZONE_ID || '0');
+  setSetting('CONFIG_AQI_UNIT', settings.CONFIG_AQI_UNIT || '0');
+  setSetting('CONFIG_ALTITUDE_UNIT', settings.CONFIG_ALTITUDE_UNIT || '0');
   setSetting('CONFIG_SHAKE_LABEL_SECONDS', settings.CONFIG_SHAKE_LABEL_SECONDS || '3');
   setSetting('CONFIG_BOTTOM_INFO_BAR_MODE', settings.CONFIG_BOTTOM_INFO_BAR_MODE || '1');
   setSetting('CONFIG_BIG_ANALOG_HAND_STYLE', settings.CONFIG_BIG_ANALOG_HAND_STYLE || '0');

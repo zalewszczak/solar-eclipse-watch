@@ -128,7 +128,42 @@ var CORNER_CONTENT_OPTIONS = [
   { id: 29, label: 'Date: Full (24/9/2026)' },
   { id: 30, label: 'Date: Full, imperial (9/24/26)' },
   { id: 31, label: 'Weather icon' },
-  { id: 32, label: 'Temp + weather icon' }
+  { id: 32, label: 'Temp + weather icon' },
+  { id: 33, label: 'Timezone' },
+  { id: 34, label: 'Pressure' },
+  { id: 35, label: 'Wind direction' },
+  { id: 36, label: 'Air quality' },
+  { id: 37, label: 'Dew point' },
+  { id: 38, label: 'Altitude' },
+  { id: 39, label: 'Sleep duration' },
+  { id: 40, label: 'Restful sleep duration' },
+  { id: 41, label: 'Sleep quality %' },
+  { id: 42, label: 'Bed time' },
+  { id: 43, label: 'Wake time' }
+];
+// Must match TIMEZONES[] in pebble-eclipse-watch.c exactly (same order,
+// same indices) -- the watch only gets an index (CONFIG_TIMEZONE_ID),
+// these labels are settings-page-only.
+var TIMEZONE_LIST = [
+  { abbr: 'LON', label: 'London' },
+  { abbr: 'PAR', label: 'Paris / Berlin / Madrid' },
+  { abbr: 'CAI', label: 'Cairo' },
+  { abbr: 'MOW', label: 'Moscow' },
+  { abbr: 'DXB', label: 'Dubai' },
+  { abbr: 'DEL', label: 'Delhi / Mumbai' },
+  { abbr: 'DAC', label: 'Dhaka' },
+  { abbr: 'BKK', label: 'Bangkok / Jakarta' },
+  { abbr: 'BJS', label: 'Beijing / Shanghai / Singapore' },
+  { abbr: 'TOK', label: 'Tokyo' },
+  { abbr: 'SYD', label: 'Sydney' },
+  { abbr: 'AKL', label: 'Auckland' },
+  { abbr: 'NYC', label: 'New York' },
+  { abbr: 'CHI', label: 'Chicago' },
+  { abbr: 'DEN', label: 'Denver' },
+  { abbr: 'LAX', label: 'Los Angeles' },
+  { abbr: 'ANC', label: 'Anchorage' },
+  { abbr: 'HNL', label: 'Honolulu' },
+  { abbr: 'SAO', label: 'Sao Paulo' }
 ];
 // Must match draw_corner_item()'s color_mode switch exactly.
 var CORNER_COLOR_MODE_LABELS = ['MONO', 'ACC', 'SEMI', 'COLOR'];
@@ -486,6 +521,12 @@ function buildConfigHtml(current) {
     'upperMiddleLine1Content', 'upperMiddleLine2Content', 'bottomMiddleLine1Content', 'bottomMiddleLine2Content',
     'middleLeftLine1Content', 'middleLeftLine2Content', 'middleRightLine1Content', 'middleRightLine2Content'
   ].some(function (key) { return current[key] === '31' || current[key] === '32'; });
+  // Same idea, for the "Timezone" dropdown -- true if any of the 12
+  // slots is set to "Timezone" (33).
+  var timezoneFeatureInUse = ['cornerTL', 'cornerTR', 'cornerBL', 'cornerBR',
+    'upperMiddleLine1Content', 'upperMiddleLine2Content', 'bottomMiddleLine1Content', 'bottomMiddleLine2Content',
+    'middleLeftLine1Content', 'middleLeftLine2Content', 'middleRightLine1Content', 'middleRightLine2Content'
+  ].some(function (key) { return current[key] === '33'; });
   var isAnalog = bottomStyleVal === 'analog';
   var isBigAnalog = bottomStyleVal === 'biganalog';
   var secondsUnsupported = (bottomStyleVal === 'digital') && !!FONTS_WITHOUT_SECONDS[current.clockFont];
@@ -510,26 +551,17 @@ function buildConfigHtml(current) {
       edgeAvail = { upper: true, bottom: false, left: false, right: false, cornersGrayed: true };
     }
   }
-  var colorSchemeVal = current.colorScheme || '0';
-  var nightSchemeVal = current.nightScheme || '1';
-
   var fontOptions = CLOCK_FONTS.map(function (f) {
     return '<option value="' + f.id + '" data-preview="' + esc(f.preview) + '" data-seconds="' +
       (FONTS_WITHOUT_SECONDS[f.id] ? '0' : '1') + '"' +
       (current.clockFont === f.id ? ' selected' : '') + '>' + esc(f.label) + '</option>';
   }).join('');
 
-  function schemeOptionsHtml(selectedVal, includeCustomOption) {
-    var opts = '';
-    if (!includeCustomOption && selectedVal === 'custom') {
-      opts += '<option value="" disabled selected>(Custom colors)</option>';
-    }
+  function schemeOptionsHtml() {
+    var opts = '<option value="" selected>Choose a preset...</option>';
     opts += COLOR_SCHEMES.map(function (s) {
-      return '<option value="' + s.id + '"' + (String(selectedVal) === String(s.id) ? ' selected' : '') + '>' + esc(s.label) + '</option>';
+      return '<option value="' + s.id + '">' + esc(s.label) + '</option>';
     }).join('');
-    if (includeCustomOption) {
-      opts += '<option value="custom"' + (selectedVal === 'custom' ? ' selected' : '') + '>Custom...</option>';
-    }
     return opts;
   }
 
@@ -540,19 +572,21 @@ function buildConfigHtml(current) {
     function ch(v) { var h = (v * 85).toString(16); return h.length < 2 ? '0' + h : h; }
     return '#' + ch(r2) + ch(g2) + ch(b2);
   }
-  function resolveInitialColors(schemeVal, bgByte, textByte, accentByte) {
-    if (schemeVal === 'custom') {
-      return {
-        bg: hexFromPackedByte(bgByte),
-        text: hexFromPackedByte(textByte),
-        accent: hexFromPackedByte(accentByte)
-      };
-    }
-    var preset = COLOR_SCHEMES.filter(function (s) { return String(s.id) === String(schemeVal); })[0] || COLOR_SCHEMES[0];
-    return { bg: preset.bg, text: preset.text, accent: preset.accent };
+  // Colors are always three concrete packed bytes now -- there's no
+  // "preset vs custom" mode to resolve here. Picking a preset (see
+  // onPresetChange() below) just writes its RGB straight into these
+  // same three hidden fields, same as tapping each swatch individually
+  // would, so the page only ever has one representation of "current
+  // colors" to read back on load.
+  function resolveInitialColors(bgByte, textByte, accentByte) {
+    return {
+      bg: hexFromPackedByte(bgByte),
+      text: hexFromPackedByte(textByte),
+      accent: hexFromPackedByte(accentByte)
+    };
   }
-  var initialColors = resolveInitialColors(colorSchemeVal, current.customBg || '255', current.customText || '192', current.customAccent || '192');
-  var initialNightColors = resolveInitialColors(nightSchemeVal, current.nightCustomBg || '192', current.nightCustomText || '255', current.nightCustomAccent || '255');
+  var initialColors = resolveInitialColors(current.customBg || '255', current.customText || '192', current.customAccent || '192');
+  var initialNightColors = resolveInitialColors(current.nightCustomBg || '192', current.nightCustomText || '255', current.nightCustomAccent || '255');
 
   return '<!DOCTYPE html>' +
 '<html><head><meta charset="utf-8">' +
@@ -841,9 +875,8 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '        </button>' +
 '      </div>' +
 '      <label for="colorSchemePreset" style="margin-top:12px;">Or pick a preset</label>' +
-'      <select id="colorSchemePreset" onchange="onPresetChange()">' + schemeOptionsHtml(colorSchemeVal, false) + '</select>' +
-'      <div class="help">Tapping a color above switches to a custom combination; picking a preset here overwrites it.</div>' +
-'      <input type="hidden" id="colorSchemeValue" value="' + esc(colorSchemeVal) + '">' +
+'      <select id="colorSchemePreset" onchange="onPresetChange()">' + schemeOptionsHtml() + '</select>' +
+'      <div class="help">Applies that preset\'s three colors immediately -- picking one is the same as tapping each swatch above and choosing that exact color.</div>' +
 '      <input type="hidden" id="customBgValue" value="' + esc(current.customBg || '255') + '">' +
 '      <input type="hidden" id="customTextValue" value="' + esc(current.customText || '192') + '">' +
 '      <input type="hidden" id="customAccentValue" value="' + esc(current.customAccent || '192') + '">' +
@@ -878,9 +911,8 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '        </button>' +
 '      </div>' +
 '      <label for="nightSchemePreset" style="margin-top:12px;">Or pick a preset</label>' +
-'      <select id="nightSchemePreset" onchange="onPresetChange(\'night\')">' + schemeOptionsHtml(nightSchemeVal, false) + '</select>' +
-'      <div class="help">Tapping a color above switches to a custom combination; picking a preset here overwrites it.</div>' +
-'      <input type="hidden" id="nightSchemeValue" value="' + esc(nightSchemeVal) + '">' +
+'      <select id="nightSchemePreset" onchange="onPresetChange(\'night\')">' + schemeOptionsHtml() + '</select>' +
+'      <div class="help">Applies that preset\'s three colors immediately -- picking one is the same as tapping each swatch above and choosing that exact color.</div>' +
 '      <input type="hidden" id="nightCustomBgValue" value="' + esc(current.nightCustomBg || '192') + '">' +
 '      <input type="hidden" id="nightCustomTextValue" value="' + esc(current.nightCustomText || '255') + '">' +
 '      <input type="hidden" id="nightCustomAccentValue" value="' + esc(current.nightCustomAccent || '255') + '">' +
@@ -895,6 +927,16 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    <div class="help">Small info readouts around the sky view / big-analogue clock face. These refresh on their own independent schedule, separate from the main display.</div>' +
 '    <div class="help">The 4 corners only apply to procedural (non-bitmap) big-analogue styles, digital, and small analog. The 4 edge-middle slots (top/bottom/left/right) only apply to big-analogue mode, and which ones a bitmap style supports depends on that style\'s own artwork -- unsupported slots are grayed out below.</div>' +
 '    <div class="help">Pick what shows in each corner and edge slot of the big-analog view. Tap a spot on the diagram below to choose its content and color -- procedural styles support all 8 slots, bitmap styles (Modern, Shadow, Tally, Bell, Brown) are each limited to whatever room their artwork actually has, and unavailable slots show as N/A.</div>' +
+
+'    <div id="timezoneRow" style="' + (timezoneFeatureInUse ? '' : 'display:none;') + '">' +
+'      <label for="timezoneId">Timezone</label>' +
+'      <select id="timezoneId">' +
+          TIMEZONE_LIST.map(function (tz, i) {
+            return '<option value="' + i + '"' + (String(current.timezoneId || '0') === String(i) ? ' selected' : '') + '>' + esc(tz.abbr) + ' -- ' + esc(tz.label) + '</option>';
+          }).join('') +
+'      </select>' +
+'      <div class="help">Which city\'s time the "Timezone" corner content shows -- shown here because it\'s picked somewhere below. DST is calculated for current-era US and EU rules; Sydney and Auckland don\'t adjust for DST yet.</div>' +
+'    </div>' +
 
 '    <label for="cornerCustomFont">Font</label>' +
 '    <select id="cornerCustomFont" onchange="onCornerFontChange()">' +
@@ -987,6 +1029,20 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      <option value="kn"' + (current.windSpeedUnit === 'kn' ? ' selected' : '') + '>knots</option>' +
 '    </select>' +
 '    <div class="help">Used by the "Wind" corner content.</div>' +
+
+'    <label for="aqiUnit" style="margin-top:10px;">Air quality index scale</label>' +
+'    <select id="aqiUnit">' +
+'      <option value="0"' + (current.aqiUnit === '0' || !current.aqiUnit ? ' selected' : '') + '>US AQI (EPA, 0-500)</option>' +
+'      <option value="1"' + (current.aqiUnit === '1' ? ' selected' : '') + '>European AQI (0-100+)</option>' +
+'    </select>' +
+'    <div class="help">Used by the "Air quality" corner content.</div>' +
+
+'    <label for="altitudeUnit" style="margin-top:10px;">Altitude unit</label>' +
+'    <select id="altitudeUnit">' +
+'      <option value="0"' + (current.altitudeUnit === '0' || !current.altitudeUnit ? ' selected' : '') + '>Meters</option>' +
+'      <option value="1"' + (current.altitudeUnit === '1' ? ' selected' : '') + '>Feet</option>' +
+'    </select>' +
+'    <div class="help">Used by the "Altitude" corner content. Comes from GPS, so it needs "Use GPS automatically" turned on in Location below, and not every phone reports it -- shows "N/A" when it\'s not available.</div>' +
 
 '    <div id="weatherIconStyleRow" style="' + (weatherIconFeatureInUse ? '' : 'display:none;') + '">' +
 '      <label for="weatherIconStyle" style="margin-top:10px;">Weather icon style</label>' +
@@ -1172,22 +1228,18 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  return presets[0];' +
 '}' +
 
-'function colorsForValue(val, bgId, textId, accentId) {' +
-'  if (val === "custom") {' +
-'    return {' +
-'      bg: hexFromByte(parseInt(document.getElementById(bgId).value, 10)),' +
-'      text: hexFromByte(parseInt(document.getElementById(textId).value, 10)),' +
-'      accent: hexFromByte(parseInt(document.getElementById(accentId).value, 10))' +
-'    };' +
-'  }' +
-'  var preset = findPresetById(val);' +
-'  return { bg: preset.bg, text: preset.text, accent: preset.accent };' +
+'function colorsFor(bgId, textId, accentId) {' +
+'  return {' +
+'    bg: hexFromByte(parseInt(document.getElementById(bgId).value, 10)),' +
+'    text: hexFromByte(parseInt(document.getElementById(textId).value, 10)),' +
+'    accent: hexFromByte(parseInt(document.getElementById(accentId).value, 10))' +
+'  };' +
 '}' +
 'function dayColors() {' +
-'  return colorsForValue(document.getElementById("colorSchemeValue").value, "customBgValue", "customTextValue", "customAccentValue");' +
+'  return colorsFor("customBgValue", "customTextValue", "customAccentValue");' +
 '}' +
 'function nightColors() {' +
-'  return colorsForValue(document.getElementById("nightSchemeValue").value, "nightCustomBgValue", "nightCustomTextValue", "nightCustomAccentValue");' +
+'  return colorsFor("nightCustomBgValue", "nightCustomTextValue", "nightCustomAccentValue");' +
 '}' +
 
 'function canvasFontFor(previewCss, px) {' +
@@ -1225,7 +1277,8 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  6: "UV5", 7: "R20%", 8: "H45%", 9: "W12", 10: "82%", 11: "Full", 12: "Mon 15",' +
 '  13: "Innsbruck", 14: "80%", 15: "45%", 16: "19:42", 17: "LOGO", 18: "12:34", 19: "WK 34", 20: "Connected",' +
 '  21: "SEP 11", 22: "11", 23: "MON", 24: "Monday", 25: "SEP", 26: "September", 27: "11/9", 28: "9/11", 29: "24/9/2026", 30: "9/24/26",' +
-'  31: "(cloud)", 32: "20C"' +
+'  31: "(cloud)", 32: "20C", 33: "LON 12:34", 34: "1013 hPa", 35: "NW", 36: "AQI 42", 37: "12C", 38: "380m",' +
+'  39: "7h 32m", 40: "2h 15m", 41: "42%", 42: "23:45", 43: "07:20"' +
 '};' +
 
 'function hasPreviewContent(contentId) {' +
@@ -1717,6 +1770,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  closeSlotEditor();' +
 '  renderSlotPicker();' +
 '  updateWeatherIconStyleVisibility();' +
+'  updateTimezoneVisibility();' +
 '  updatePreview();' +
 '}' +
 // Shows the "Weather icon style" dropdown (in the Weather section) only
@@ -1733,6 +1787,16 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    return el && (el.value === "31" || el.value === "32");' +
 '  });' +
 '  var row = document.getElementById("weatherIconStyleRow");' +
+'  if (row) row.style.display = inUse ? "" : "none";' +
+'}' +
+// Same idea, for the "Timezone" dropdown (in Corners & edge slots) --
+// visible only when at least one slot is set to "Timezone" (33).
+'function updateTimezoneVisibility() {' +
+'  var inUse = WEATHER_ICON_SLOT_CONTENT_IDS.some(function (id) {' +
+'    var el = document.getElementById(id);' +
+'    return el && el.value === "33";' +
+'  });' +
+'  var row = document.getElementById("timezoneRow");' +
 '  if (row) row.style.display = inUse ? "" : "none";' +
 '}' +
 
@@ -2005,12 +2069,25 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  document.getElementById(prefix + "Bg").style.background = colors.bg;' +
 '}' +
 
+'function hexToByte(hex) {' +
+'  var r = parseInt(hex.substr(1, 2), 16), g = parseInt(hex.substr(3, 2), 16), b = parseInt(hex.substr(5, 2), 16);' +
+'  function to2bit(v) { return Math.round(v / 85); }' +
+'  return packedByteFor(to2bit(r), to2bit(g), to2bit(b));' +
+'}' +
+
 'function onPresetChange(scheme) {' +
 '  var presetSelectId = scheme === "night" ? "nightSchemePreset" : "colorSchemePreset";' +
-'  var valueId = scheme === "night" ? "nightSchemeValue" : "colorSchemeValue";' +
-'  var picked = document.getElementById(presetSelectId).value;' +
+'  var select = document.getElementById(presetSelectId);' +
+'  var picked = select.value;' +
 '  if (!picked) return;' +
-'  document.getElementById(valueId).value = picked;' +
+'  var preset = findPresetById(picked);' +
+'  document.getElementById(customHiddenIdFor("text", scheme)).value = hexToByte(preset.text);' +
+'  document.getElementById(customHiddenIdFor("accent", scheme)).value = hexToByte(preset.accent);' +
+'  document.getElementById(customHiddenIdFor("bg", scheme)).value = hexToByte(preset.bg);' +
+// Reset to the placeholder -- this dropdown never represents "current
+// state", it's a one-shot apply, same as tapping each swatch and
+// picking that color would be.
+'  select.value = "";' +
 '  updateColorRoleButtons(scheme);' +
 '  if (scheme !== "night") updatePreview();' +
 '}' +
@@ -2111,20 +2188,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 'function pickColor(byte) {' +
 '  if (!CURRENT_PICKER_ROLE) return;' +
 '  var scheme = CURRENT_PICKER_SCHEME;' +
-'  var valueId = scheme === "night" ? "nightSchemeValue" : "colorSchemeValue";' +
-'  if (document.getElementById(valueId).value !== "custom") {' +
-'    var existingColors = scheme === "night" ? nightColors() : dayColors();' +
-'    function toByte(hex) {' +
-'      var r = parseInt(hex.substr(1, 2), 16), g = parseInt(hex.substr(3, 2), 16), b = parseInt(hex.substr(5, 2), 16);' +
-'      function to2bit(v) { return Math.round(v / 85); }' +
-'      return packedByteFor(to2bit(r), to2bit(g), to2bit(b));' +
-'    }' +
-'    document.getElementById(customHiddenIdFor("text", scheme)).value = toByte(existingColors.text);' +
-'    document.getElementById(customHiddenIdFor("accent", scheme)).value = toByte(existingColors.accent);' +
-'    document.getElementById(customHiddenIdFor("bg", scheme)).value = toByte(existingColors.bg);' +
-'  }' +
 '  document.getElementById(customHiddenIdFor(CURRENT_PICKER_ROLE, scheme)).value = byte;' +
-'  document.getElementById(valueId).value = "custom";' +
 '  closeColorPicker();' +
 '  updateColorRoleButtons(scheme);' +
 '  if (scheme !== "night") updatePreview();' +
@@ -2146,15 +2210,16 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    CONFIG_CLOCK_FONT: document.getElementById("clockFont").value,' +
 '    CONFIG_TEMP_UNIT: document.getElementById("tempUnit").value,' +
 '    CONFIG_WIND_SPEED_UNIT: document.getElementById("windSpeedUnit").value,' +
+'    CONFIG_AQI_UNIT: document.getElementById("aqiUnit").value,' +
+'    CONFIG_ALTITUDE_UNIT: document.getElementById("altitudeUnit").value,' +
 '    CONFIG_CLOUD_RENDER_STYLE: document.getElementById("cloudRenderStyle").value,' +
 '    CONFIG_WEATHER_ICON_STYLE: document.getElementById("weatherIconStyle").value,' +
+'    CONFIG_TIMEZONE_ID: document.getElementById("timezoneId").value,' +
 '    CONFIG_SHOW_SECONDS: document.getElementById("showSeconds").checked,' +
-'    CONFIG_COLOR_SCHEME: document.getElementById("colorSchemeValue").value,' +
 '    CONFIG_CUSTOM_BG: document.getElementById("customBgValue").value,' +
 '    CONFIG_CUSTOM_TEXT: document.getElementById("customTextValue").value,' +
 '    CONFIG_CUSTOM_ACCENT: document.getElementById("customAccentValue").value,' +
 '    CONFIG_NIGHT_ENABLED: document.getElementById("nightEnabled").checked,' +
-'    CONFIG_NIGHT_SCHEME: document.getElementById("nightSchemeValue").value,' +
 '    CONFIG_NIGHT_CUSTOM_BG: document.getElementById("nightCustomBgValue").value,' +
 '    CONFIG_NIGHT_CUSTOM_TEXT: document.getElementById("nightCustomTextValue").value,' +
 '    CONFIG_NIGHT_CUSTOM_ACCENT: document.getElementById("nightCustomAccentValue").value,' +
@@ -2260,6 +2325,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 'updateColorRoleButtons("night");' +
 'onBottomStyleChange();' +
 'updateWeatherIconStyleVisibility();' +
+'updateTimezoneVisibility();' +
 'adjustTopBarSpacing();' +
 'setInterval(updatePreview, 1000);' +
 '</script>' +

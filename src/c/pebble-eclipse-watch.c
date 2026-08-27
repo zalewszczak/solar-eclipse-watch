@@ -54,45 +54,6 @@ static bool use_small_seconds_for_digital_clock(void);
 // constants -- guaranteed valid regardless of exact Pebble color name
 // availability, same pattern already used safely for the sky
 // gradient in eclipse_layer.c.
-void get_color_scheme(uint8_t id, GColor *bg, GColor *text, GColor *accent) {
-  switch (id) {
-    case 1: // White on Black
-      *bg = GColorBlack; *text = GColorWhite; *accent = GColorWhite;
-      break;
-    case 2: // Red on Black
-      *bg = GColorBlack; *text = GColorFromRGB(255, 0, 0); *accent = GColorFromRGB(255, 0, 0);
-      break;
-    case 3: // White on Dark Blue
-      *bg = GColorFromRGB(0, 0, 60); *text = GColorWhite; *accent = GColorWhite;
-      break;
-    case 4: // Yellow on Dark Blue
-      *bg = GColorFromRGB(0, 0, 60); *text = GColorYellow; *accent = GColorYellow;
-      break;
-    case 5: // White on Black, Red accent
-      *bg = GColorBlack; *text = GColorWhite; *accent = GColorFromRGB(255, 0, 0);
-      break;
-    case 6: // Black on White, Dark Red accent
-      *bg = GColorWhite; *text = GColorBlack; *accent = GColorFromRGB(139, 0, 0);
-      break;
-    case 7: // Black on White, Dark Blue accent
-      *bg = GColorWhite; *text = GColorBlack; *accent = GColorFromRGB(0, 0, 139);
-      break;
-    case 8: // Red on Black, White accent
-      *bg = GColorBlack; *text = GColorFromRGB(255, 0, 0); *accent = GColorWhite;
-      break;
-    case 9: // Red on White, Orange accent
-      *bg = GColorWhite; *text = GColorFromRGB(255, 0, 0); *accent = GColorFromRGB(255, 140, 0);
-      break;
-    case 11: // Brown on Green, Orange accent (10 is reserved for "custom", see resolve_color_scheme)
-      *bg = GColorFromRGB(34, 139, 34); *text = GColorFromRGB(139, 69, 19); *accent = GColorFromRGB(255, 140, 0);
-      break;
-    case 0: // Black on White (default)
-    default:
-      *bg = GColorWhite; *text = GColorBlack; *accent = GColorBlack;
-      break;
-  }
-}
-
 // A GColor is just a packed byte (2 bits each of alpha/r/g/b) under
 // the hood -- reconstructing one from a raw byte the settings page
 // sent is exactly how the "pick any of the 64 real display colors"
@@ -104,41 +65,27 @@ GColor gcolor_from_packed(uint8_t packed) {
   return c;
 }
 
-// scheme_id 10 means "use the three custom_* packed colors instead
-// of a preset"; anything else falls through to get_color_scheme().
-// Used for both the day and (independently) the night scheme, so it
-// takes its inputs explicitly rather than reading s_data directly.
-void resolve_color_scheme(uint8_t scheme_id, uint8_t custom_bg, uint8_t custom_text, uint8_t custom_accent,
-                                   GColor *bg, GColor *text, GColor *accent) {
-  if (scheme_id == 10) {
-    *bg = gcolor_from_packed(custom_bg);
-    *text = gcolor_from_packed(custom_text);
-    *accent = gcolor_from_packed(custom_accent);
-  } else {
-    get_color_scheme(scheme_id, bg, text, accent);
-  }
-}
-
-// Picks the day or night scheme based on the Sun's altitude (reusing
-// eclipse_sky_is_bright()'s existing civil-twilight threshold rather
-// than a second definition of "night") -- falls back to the day
-// scheme entirely if the user hasn't turned on a separate night one.
-// Picks the day or night scheme based on the Sun's altitude (reusing
-// eclipse_sky_is_bright()'s existing civil-twilight threshold rather
-// than a second definition of "night") -- falls back to the day
-// scheme entirely if the user hasn't turned on a separate night one.
+// Picks the day or night set of colors based on the Sun's altitude
+// (reusing eclipse_sky_is_bright()'s existing civil-twilight threshold
+// rather than a second definition of "night") -- falls back to the day
+// colors entirely if the user hasn't turned on separate night ones.
 // Takes `d` explicitly (rather than reading the global s_data) so
 // background_layer.c can call this too, for marker colors, using its
 // own `d` (the same EclipseData, via the pointer eclipse_canvas_set_data()
-// stored) without needing a second copy of the palette tables above.
+// stored). The watch has no notion of a "preset" here -- every color
+// arriving from the phone is already a concrete packed value; picking
+// a named preset in the settings page just fills in these same three
+// fields before sending, same as manually choosing each color would.
 void get_active_color_scheme(const EclipseData *d, time_t now, GColor *bg, GColor *text, GColor *accent) {
   bool night = d->night_scheme_enabled && !eclipse_sky_is_bright(d, now);
   if (night) {
-    resolve_color_scheme(d->night_color_scheme, d->night_custom_bg,
-                          d->night_custom_text, d->night_custom_accent, bg, text, accent);
+    *bg = gcolor_from_packed(d->night_custom_bg);
+    *text = gcolor_from_packed(d->night_custom_text);
+    *accent = gcolor_from_packed(d->night_custom_accent);
   } else {
-    resolve_color_scheme(d->color_scheme, d->custom_bg,
-                          d->custom_text, d->custom_accent, bg, text, accent);
+    *bg = gcolor_from_packed(d->custom_bg);
+    *text = gcolor_from_packed(d->custom_text);
+    *accent = gcolor_from_packed(d->custom_accent);
   }
 }
 
@@ -710,6 +657,216 @@ static void draw_weather_icon(GContext *ctx, GPoint top_left, uint8_t category, 
   }
 }
 
+// ---- timezone feature -----------------------------------------------------
+// A curated list of major cities (not the full IANA database) with a
+// fixed, always-shown 3-letter city code (not "GMT"/"BST"-style, per
+// the brief -- "LON"/"TOK" stay the same year-round even though the
+// underlying UTC offset shifts with DST) plus enough to compute the
+// CURRENT actual offset: a standard-time UTC offset in minutes, and
+// which DST rule (if any) applies. DST is modeled for the two rules
+// covering most of what's likely to be picked -- current-era US
+// (2nd Sunday March - 1st Sunday November) and EU (last Sunday March -
+// last Sunday October) -- both computed exactly from the actual date,
+// not a lookup table, so they stay correct in future years. Southern-
+// hemisphere DST (Sydney, Auckland) is NOT modeled -- those two just
+// use their fixed standard-time offset year-round, a known simplification.
+typedef struct {
+  const char *abbr;         // fixed on-watch label, e.g. "LON"
+  int16_t base_offset_min;  // standard-time UTC offset, in minutes (can be negative)
+  uint8_t dst_rule;         // 0=none, 1=US, 2=EU
+} TimezoneInfo;
+
+static const TimezoneInfo TIMEZONES[] = {
+  { "LON",    0, 2 }, // London
+  { "PAR",   60, 2 }, // Paris/Berlin/Madrid (Central European Time)
+  { "CAI",  120, 0 }, // Cairo
+  { "MOW",  180, 0 }, // Moscow
+  { "DXB",  240, 0 }, // Dubai
+  { "DEL",  330, 0 }, // Delhi/Mumbai (UTC+5:30)
+  { "DAC",  360, 0 }, // Dhaka
+  { "BKK",  420, 0 }, // Bangkok/Jakarta
+  { "BJS",  480, 0 }, // Beijing/Shanghai/Singapore
+  { "TOK",  540, 0 }, // Tokyo
+  { "SYD",  600, 0 }, // Sydney (DST not modeled -- see note above)
+  { "AKL",  720, 0 }, // Auckland (DST not modeled -- see note above)
+  { "NYC", -300, 1 }, // New York
+  { "CHI", -360, 1 }, // Chicago
+  { "DEN", -420, 1 }, // Denver
+  { "LAX", -480, 1 }, // Los Angeles
+  { "ANC", -540, 1 }, // Anchorage
+  { "HNL", -600, 0 }, // Honolulu
+  { "SAO", -180, 0 }, // Sao Paulo
+};
+#define TIMEZONE_COUNT (int)(sizeof(TIMEZONES) / sizeof(TIMEZONES[0]))
+
+// civil_from_days()/days_from_civil() -- the well-known constant-time
+// Gregorian-calendar<->epoch-days conversion (Howard Hinnant's
+// "civil_from_days"/"days_from_civil"), used instead of gmtime() so this
+// doesn't depend on anything beyond plain integer arithmetic. Verified
+// numerically against Python's datetime for round-trips across leap
+// years and the epoch boundary before use.
+static void civil_from_days(int32_t z, int *y, int *m, int *d) {
+  z += 719468;
+  int32_t era = (z >= 0 ? z : z - 146096) / 146097;
+  uint32_t doe = (uint32_t)(z - era * 146097);
+  uint32_t yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
+  int32_t year = (int32_t)yoe + era * 400;
+  uint32_t doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+  uint32_t mp = (5 * doy + 2) / 153;
+  uint32_t day = doy - (153 * mp + 2) / 5 + 1;
+  uint32_t month = mp + (mp < 10 ? 3 : (uint32_t)-9);
+  *y = year + (month <= 2 ? 1 : 0);
+  *m = (int)month;
+  *d = (int)day;
+}
+
+static int32_t days_from_civil(int y, int m, int d) {
+  y -= (m <= 2) ? 1 : 0;
+  int32_t era = (y >= 0 ? y : y - 399) / 400;
+  uint32_t yoe = (uint32_t)(y - era * 400);
+  uint32_t doy = (153 * (m + (m > 2 ? -3 : 9)) + 2) / 5 + d - 1;
+  uint32_t doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+  return era * 146097 + (int32_t)doe - 719468;
+}
+
+// 0=Sunday..6=Saturday -- day 0 (1970-01-01) was a Thursday.
+static int day_of_week_from_days(int32_t days) {
+  int32_t d = (days + 4) % 7;
+  return (int)(d < 0 ? d + 7 : d);
+}
+
+// The Nth Sunday of a month as epoch days (nth=1 => first Sunday,
+// nth=-1 => last Sunday).
+static int32_t nth_sunday_epoch_days(int year, int month, int nth) {
+  if (nth > 0) {
+    int32_t d1 = days_from_civil(year, month, 1);
+    int dow1 = day_of_week_from_days(d1);
+    int first_sunday_day = (dow1 == 0) ? 1 : (8 - dow1);
+    return days_from_civil(year, month, first_sunday_day + (nth - 1) * 7);
+  }
+  static const int DAYS_IN_MONTH[] = { 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
+  int last_day = DAYS_IN_MONTH[month - 1];
+  if (month == 2 && ((year % 4 == 0 && year % 100 != 0) || year % 400 == 0)) last_day = 29;
+  int32_t d_last = days_from_civil(year, month, last_day);
+  return d_last - day_of_week_from_days(d_last);
+}
+
+// Whether US-rule DST is active at this exact UTC instant. Transition
+// hours are approximated with a single fixed UTC hour common to
+// continental US zones (2am local standard time is ~7am UTC for the
+// March start, ~6am UTC for the November end) -- exact for the correct
+// calendar day either way, could be off by up to a couple hours right
+// at the transition instant itself for the westernmost zones.
+static bool is_us_dst(int32_t epoch_days, int32_t secs_of_day, int year) {
+  int32_t start = nth_sunday_epoch_days(year, 3, 2) * 86400 + 7 * 3600;
+  int32_t end = nth_sunday_epoch_days(year, 11, 1) * 86400 + 6 * 3600;
+  int32_t now = epoch_days * 86400 + secs_of_day;
+  return now >= start && now < end;
+}
+
+// EU-rule DST -- exact, since the EU rule is itself defined in UTC
+// terms (01:00 UTC on the last Sunday of March/October).
+static bool is_eu_dst(int32_t epoch_days, int32_t secs_of_day, int year) {
+  int32_t start = nth_sunday_epoch_days(year, 3, -1) * 86400 + 3600;
+  int32_t end = nth_sunday_epoch_days(year, 10, -1) * 86400 + 3600;
+  int32_t now = epoch_days * 86400 + secs_of_day;
+  return now >= start && now < end;
+}
+
+// Resolves a TimezoneInfo's actual current UTC offset in minutes,
+// including DST if applicable right now.
+static int16_t timezone_current_offset_min(const TimezoneInfo *tz, time_t utc_now) {
+  int32_t epoch_days = (int32_t)(utc_now / 86400);
+  int32_t secs_of_day = (int32_t)(utc_now % 86400);
+  int y, m, d;
+  civil_from_days(epoch_days, &y, &m, &d);
+  bool dst = false;
+  if (tz->dst_rule == 1) dst = is_us_dst(epoch_days, secs_of_day, y);
+  else if (tz->dst_rule == 2) dst = is_eu_dst(epoch_days, secs_of_day, y);
+  return tz->base_offset_min + (dst ? 60 : 0);
+}
+
+// Black at local noon, white at local midnight, linear in between --
+// a simple hour-of-day heuristic rather than real sun-altitude
+// astronomy (which isn't available for an arbitrary remote timezone
+// the way it is for the user's own location via eclipse_sky_is_bright()).
+static GColor timezone_daylight_color(int local_hour24) {
+  int dist_from_noon = (local_hour24 <= 12) ? (12 - local_hour24) : (local_hour24 - 12); // 0..12
+  uint8_t v = (uint8_t)((255 * dist_from_noon) / 12);
+  return GColorFromRGB(v, v, v);
+}
+
+// ---- pressure trend / wind direction icons -------------------------------
+
+// A small up/down chevron (rising/falling) or a flat horizontal line
+// (flat), drawn with plain line primitives -- no bitmap needed.
+static void draw_pressure_trend_icon(GContext *ctx, GPoint top_left, uint8_t trend, GColor color) {
+  GPoint center = GPoint(top_left.x + 5, top_left.y + 6);
+  graphics_context_set_stroke_color(ctx, color);
+  graphics_context_set_stroke_width(ctx, 2);
+  if (trend == 1) { // rising
+    graphics_draw_line(ctx, GPoint(center.x, center.y + 5), GPoint(center.x, center.y - 5));
+    graphics_draw_line(ctx, GPoint(center.x, center.y - 5), GPoint(center.x - 3, center.y - 2));
+    graphics_draw_line(ctx, GPoint(center.x, center.y - 5), GPoint(center.x + 3, center.y - 2));
+  } else if (trend == 2) { // falling
+    graphics_draw_line(ctx, GPoint(center.x, center.y - 5), GPoint(center.x, center.y + 5));
+    graphics_draw_line(ctx, GPoint(center.x, center.y + 5), GPoint(center.x - 3, center.y + 2));
+    graphics_draw_line(ctx, GPoint(center.x, center.y + 5), GPoint(center.x + 3, center.y + 2));
+  } else { // flat
+    graphics_draw_line(ctx, GPoint(center.x - 5, center.y), GPoint(center.x + 5, center.y));
+  }
+}
+
+// A small compass arrow, rotated via sin/cos (same technique
+// hand_layer.c uses for the analog hands). `from_deg` is the direction
+// the wind blows FROM (standard meteorological convention, e.g. Open-
+// Meteo's winddirection field) -- the arrow itself points the other
+// way, toward where the wind is actually blowing, since that reads as
+// more immediately useful at a glance than the source bearing would.
+static void draw_wind_direction_icon(GContext *ctx, GPoint top_left, int16_t from_deg, GColor color) {
+  GPoint center = GPoint(top_left.x + 6, top_left.y + 6);
+  int32_t angle = (int32_t)(((from_deg + 180) % 360) * TRIG_MAX_ANGLE) / 360;
+  int16_t len = 6;
+  GPoint tip = GPoint(center.x + (len * sin_lookup(angle)) / TRIG_MAX_RATIO,
+                       center.y - (len * cos_lookup(angle)) / TRIG_MAX_RATIO);
+  GPoint tail = GPoint(center.x - (len * sin_lookup(angle)) / TRIG_MAX_RATIO,
+                        center.y + (len * cos_lookup(angle)) / TRIG_MAX_RATIO);
+  graphics_context_set_stroke_color(ctx, color);
+  graphics_context_set_stroke_width(ctx, 1);
+  graphics_draw_line(ctx, tail, tip);
+  int32_t back_angle1 = angle + (TRIG_MAX_ANGLE * 150) / 360;
+  int32_t back_angle2 = angle - (TRIG_MAX_ANGLE * 150) / 360;
+  GPoint h1 = GPoint(tip.x + (4 * sin_lookup(back_angle1)) / TRIG_MAX_RATIO, tip.y - (4 * cos_lookup(back_angle1)) / TRIG_MAX_RATIO);
+  GPoint h2 = GPoint(tip.x + (4 * sin_lookup(back_angle2)) / TRIG_MAX_RATIO, tip.y - (4 * cos_lookup(back_angle2)) / TRIG_MAX_RATIO);
+  graphics_draw_line(ctx, tip, h1);
+  graphics_draw_line(ctx, tip, h2);
+}
+
+// A simple two-peak mountain silhouette, drawn as two filled triangles
+// -- used by the "Altitude" corner content.
+static void draw_mountain_icon(GContext *ctx, GPoint top_left, GColor color) {
+  graphics_context_set_fill_color(ctx, color);
+  GPoint peak1[3] = {
+    GPoint(top_left.x + 4, top_left.y + 1),
+    GPoint(top_left.x, top_left.y + 11),
+    GPoint(top_left.x + 9, top_left.y + 11),
+  };
+  GPathInfo info1 = { .num_points = 3, .points = peak1 };
+  GPath *path1 = gpath_create(&info1);
+  gpath_draw_filled(ctx, path1);
+  gpath_destroy(path1);
+
+  GPoint peak2[3] = {
+    GPoint(top_left.x + 11, top_left.y + 4),
+    GPoint(top_left.x + 6, top_left.y + 11),
+    GPoint(top_left.x + 15, top_left.y + 11),
+  };
+  GPathInfo info2 = { .num_points = 3, .points = peak2 };
+  GPath *path2 = gpath_create(&info2);
+  gpath_draw_filled(ctx, path2);
+  gpath_destroy(path2);
+}
+
 // 7-stop gradient: turquoise (cold/low end) -> light blue -> green ->
 // yellow -> orange -> red -> violet (hot/high end). Used for both
 // temperature (-10..40C) and UV index (1..13) by passing different
@@ -818,6 +975,50 @@ static int16_t convert_temp(int16_t celsius, uint8_t temp_unit) {
   if (temp_unit == 2) return (int16_t)(celsius + 273);
   return celsius;
 }
+
+// ---- sleep data (Pebble HealthService, entirely on-watch -- no phone
+// involvement, unlike the weather/location features above) ---------------
+
+// "Xh Ym" -- shared by the sleep-duration and restful-sleep-duration
+// corner content types.
+static void format_duration_hm(char *buf, size_t buf_size, int32_t total_seconds) {
+  if (total_seconds < 0) total_seconds = 0;
+  int hours = (int)(total_seconds / 3600);
+  int minutes = (int)((total_seconds % 3600) / 60);
+  snprintf(buf, buf_size, "%dh %dm", hours, minutes);
+}
+
+typedef struct {
+  time_t earliest_start;
+  time_t latest_end;
+  bool found;
+} SleepSpan;
+
+static bool sleep_span_iterator_cb(HealthActivity activity, time_t time_start, time_t time_end, void *context) {
+  SleepSpan *span = (SleepSpan *)context;
+  if (!span->found || time_start < span->earliest_start) span->earliest_start = time_start;
+  if (!span->found || time_end > span->latest_end) span->latest_end = time_end;
+  span->found = true;
+  return true; // keep going -- want the full extent, not just the first segment
+}
+
+// Earliest sleep-activity start and latest end within the last 24
+// hours, used for the "Bed time"/"Wake time" corner content types.
+// Segments (there can be more than one per night, e.g. brief wake-ups)
+// are merged into one overall span rather than tracked individually.
+static SleepSpan get_sleep_span(void) {
+  SleepSpan span = { 0, 0, false };
+  time_t now = time(NULL);
+  time_t day_ago = now - 24 * 3600;
+  // HealthActivitySleep is already a single-bit mask value (see the
+  // HealthActivityMaskAll macro in the SDK docs, and the SDK's own
+  // "if (activities & HealthActivitySleep)" example) -- no extra
+  // shifting needed, unlike some other Pebble bitmask enums.
+  health_service_activities_iterate(HealthActivitySleep, day_ago, now, HealthIterationDirectionPast,
+                                     sleep_span_iterator_cb, &span);
+  return span;
+}
+
 static const char *temp_unit_suffix(uint8_t temp_unit) {
   if (temp_unit == 1) return "F";
   if (temp_unit == 2) return "K";
@@ -847,6 +1048,9 @@ static int16_t icon_plus_gap_width(int icon_kind) { // TODO: This might not be n
     case 4: return 21; // moon (radius 9, so 2*9+2 diameter box) + gap
     case 11: return 22; // sun-time glyph (fixed 20px, drawn via direct primitives) + gap
     case 14: return 20; // weather icon (16-wide box, worst case a bit wider for the sun's rays) + gap
+    case 15: return 12; // pressure trend chevron + gap
+    case 16: return 14; // wind direction arrow + gap
+    case 17: return 20; // mountain icon (16-wide box) + gap
     default: return 0; // no icon
   }
 }
@@ -878,7 +1082,14 @@ static void draw_corner_item(GContext *ctx, GRect bounds, uint8_t content, uint8
                               bool center_horizontal, bool center_vertical) {
   if (content == 0) return;
 
-  char buf[24];
+  // 40, not 24 -- the actual longest real content (e.g. "September",
+  // "Restful sleep") stays well under 24, but GCC's -Wformat-truncation
+  // sizes snprintf's *worst case* off each %d's full possible range (up
+  // to 11 characters, for a very negative 32-bit int), not the small
+  // calendar-sized values (day/month/year) actually passed in -- the
+  // 3-%d date format below is the tightest case, needing up to 36 by
+  // that conservative accounting even though real dates need under 12.
+  char buf[40];
   int icon_kind = 0; // 0=none, 1=heart, 2=foot, 3=battery, 4=moon phase, 5=umbrella, 6=droplet,
                        // 7=wind, 8=GPS pin, 9=eye, 10=clouds, 11=sunrise/sunset
   bool icon_is_sunrise = false; // only meaningful when icon_kind == 11
@@ -1153,6 +1364,140 @@ static void draw_corner_item(GContext *ctx, GRect bounds, uint8_t content, uint8
         : bg_color;
       break;
     }
+    case 33: { // timezone -- "ABBR H:MM" (or "ABBR HH:MM" in 24h style)
+      const TimezoneInfo *tz = &TIMEZONES[s_data.timezone_id < TIMEZONE_COUNT ? s_data.timezone_id : 0];
+      time_t now = time(NULL);
+      int16_t offset_min = timezone_current_offset_min(tz, now);
+      time_t local_time = now + (int32_t)offset_min * 60;
+      int32_t local_secs_of_day = ((local_time % 86400) + 86400) % 86400;
+      int local_hour24 = (int)(local_secs_of_day / 3600);
+      int local_min = (int)((local_secs_of_day % 3600) / 60);
+      if (clock_is_24h_style()) {
+        snprintf(buf, sizeof(buf), "%s %02d:%02d", tz->abbr, local_hour24, local_min);
+      } else {
+        int hour12 = local_hour24 % 12;
+        if (hour12 == 0) hour12 = 12;
+        snprintf(buf, sizeof(buf), "%s %d:%02d%s", tz->abbr, hour12, local_min, local_hour24 < 12 ? "AM" : "PM");
+      }
+      dynamic_color = timezone_daylight_color(local_hour24);
+      break;
+    }
+    case 34: { // pressure, with rising/falling/flat trend arrow
+      icon_kind = 15;
+      snprintf(buf, sizeof(buf), "%d hPa", s_data.pressure_hpa);
+      // Green when in the ordinary ~1000-1025 hPa band, ambering out
+      // toward either extreme -- reuses the same 7-stop gradient as
+      // temperature/UV, just remapped to a pressure-appropriate range.
+      dynamic_color = seven_stop_gradient(s_data.pressure_hpa, 970, 1050);
+      break;
+    }
+    case 35: { // wind direction, with a rotated compass arrow
+      icon_kind = 16;
+      static const char *COMPASS_DIRS[8] = { "N", "NE", "E", "SE", "S", "SW", "W", "NW" };
+      int compass_idx = ((s_data.wind_dir_deg + 22) / 45) % 8;
+      if (compass_idx < 0) compass_idx += 8;
+      snprintf(buf, sizeof(buf), "%s", COMPASS_DIRS[compass_idx]);
+      dynamic_color = main_color; // no natural "value" to grade a color on
+      break;
+    }
+    case 36: { // air quality -- unit picked in the Weather settings section
+      bool use_eu = (s_data.aqi_unit == 1);
+      uint16_t aqi_value = use_eu ? s_data.aqi_eu : s_data.aqi_us;
+      snprintf(buf, sizeof(buf), "AQI %d", aqi_value);
+      // US AQI: good <=50, moderate <=100, unhealthy >150 (0-500 scale).
+      // European AQI: good <=20, moderate <=40, poor >60 (0-100+ scale).
+      // Different thresholds per scale, same green->yellow->red shape.
+      uint16_t good_max = use_eu ? 20 : 50;
+      uint16_t bad_min = use_eu ? 60 : 150;
+      GColor good = GColorFromRGB(0, 200, 0), mid = GColorFromRGB(230, 200, 0), bad = GColorFromRGB(220, 0, 0);
+      if (aqi_value <= good_max) dynamic_color = good;
+      else if (aqi_value >= bad_min) dynamic_color = bad;
+      else dynamic_color = mid;
+      break;
+    }
+    case 37: { // dew point -- reuses the humidity feature's droplet icon
+      icon_kind = 6;
+      int16_t dew = convert_temp(s_data.dew_point_c, s_data.temp_unit);
+      snprintf(buf, sizeof(buf), "%d%s", dew, temp_unit_suffix(s_data.temp_unit));
+      dynamic_color = main_color;
+      break;
+    }
+    case 38: { // altitude
+      icon_kind = 17;
+      if (s_data.altitude_m <= -32000) { // sentinel: not available
+        snprintf(buf, sizeof(buf), "N/A");
+      } else if (s_data.altitude_unit == 1) { // feet
+        int32_t feet = ((int32_t)s_data.altitude_m * 328) / 100; // *3.28084, integer approximation
+        snprintf(buf, sizeof(buf), "%ldft", (long)feet);
+      } else {
+        snprintf(buf, sizeof(buf), "%dm", s_data.altitude_m);
+      }
+      dynamic_color = main_color;
+      break;
+    }
+    case 39: { // sleep duration (total)
+      HealthServiceAccessibilityMask mask = health_service_metric_accessible(HealthMetricSleepSeconds, time(NULL) - 86400, time(NULL));
+      if (mask & HealthServiceAccessibilityMaskAvailable) {
+        HealthValue secs = health_service_sum_today(HealthMetricSleepSeconds);
+        format_duration_hm(buf, sizeof(buf), (int32_t)secs);
+        dynamic_color = main_color;
+      } else {
+        snprintf(buf, sizeof(buf), "N/A");
+        dynamic_color = GColorLightGray;
+      }
+      break;
+    }
+    case 40: { // restful (deep) sleep duration
+      HealthServiceAccessibilityMask mask = health_service_metric_accessible(HealthMetricSleepRestfulSeconds, time(NULL) - 86400, time(NULL));
+      if (mask & HealthServiceAccessibilityMaskAvailable) {
+        HealthValue secs = health_service_sum_today(HealthMetricSleepRestfulSeconds);
+        format_duration_hm(buf, sizeof(buf), (int32_t)secs);
+        dynamic_color = main_color;
+      } else {
+        snprintf(buf, sizeof(buf), "N/A");
+        dynamic_color = GColorLightGray;
+      }
+      break;
+    }
+    case 41: { // sleep quality -- restful / total, as a percentage
+      HealthServiceAccessibilityMask mask = health_service_metric_accessible(HealthMetricSleepSeconds, time(NULL) - 86400, time(NULL));
+      if (mask & HealthServiceAccessibilityMaskAvailable) {
+        HealthValue total = health_service_sum_today(HealthMetricSleepSeconds);
+        HealthValue restful = health_service_sum_today(HealthMetricSleepRestfulSeconds);
+        int pct = (total > 0) ? (int)((restful * 100) / total) : 0;
+        if (pct > 100) pct = 100;
+        snprintf(buf, sizeof(buf), "%d%%", pct);
+        dynamic_color = red_green_gradient((uint8_t)pct);
+      } else {
+        snprintf(buf, sizeof(buf), "N/A");
+        dynamic_color = GColorLightGray;
+      }
+      break;
+    }
+    case 42: { // bed time -- earliest sleep-activity start in the last 24h
+      SleepSpan span = get_sleep_span();
+      if (span.found) {
+        struct tm *t = localtime(&span.earliest_start);
+        strftime(buf, sizeof(buf), clock_is_24h_style() ? "%H:%M" : "%I:%M %p", t);
+        dynamic_color = main_color;
+      } else {
+        snprintf(buf, sizeof(buf), "N/A");
+        dynamic_color = GColorLightGray;
+      }
+      break;
+    }
+    case 43: { // wake time -- latest sleep-activity end in the last 24h
+      SleepSpan span = get_sleep_span();
+      if (span.found) {
+        struct tm *t = localtime(&span.latest_end);
+        strftime(buf, sizeof(buf), clock_is_24h_style() ? "%H:%M" : "%I:%M %p", t);
+        dynamic_color = main_color;
+      } else {
+        snprintf(buf, sizeof(buf), "N/A");
+        dynamic_color = GColorLightGray;
+      }
+      break;
+    }
     default:
       return;
   }
@@ -1379,6 +1724,38 @@ static void draw_corner_item(GContext *ctx, GRect bounds, uint8_t content, uint8
       draw_weather_icon(ctx, pos, icon_weather_category, s_data.weather_icon_style, color);
       break;
     }
+    case 15: {
+      GPoint pos = GPoint(icon_x, box_y + (CORNER_ROW_H - 12) / 2);
+      if (do_icon_outline) {
+        for (int i = 0; i < 4; i++) {
+          draw_pressure_trend_icon(ctx, GPoint(pos.x + OUTLINE_OFFSETS[i].x, pos.y + OUTLINE_OFFSETS[i].y),
+                                    s_data.pressure_trend, icon_outline_color);
+        }
+      }
+      draw_pressure_trend_icon(ctx, pos, s_data.pressure_trend, color);
+      break;
+    }
+    case 16: {
+      GPoint pos = GPoint(icon_x, box_y + (CORNER_ROW_H - 12) / 2);
+      if (do_icon_outline) {
+        for (int i = 0; i < 4; i++) {
+          draw_wind_direction_icon(ctx, GPoint(pos.x + OUTLINE_OFFSETS[i].x, pos.y + OUTLINE_OFFSETS[i].y),
+                                    s_data.wind_dir_deg, icon_outline_color);
+        }
+      }
+      draw_wind_direction_icon(ctx, pos, s_data.wind_dir_deg, color);
+      break;
+    }
+    case 17: {
+      GPoint pos = GPoint(icon_x, box_y + (CORNER_ROW_H - 12) / 2);
+      if (do_icon_outline) {
+        for (int i = 0; i < 4; i++) {
+          draw_mountain_icon(ctx, GPoint(pos.x + OUTLINE_OFFSETS[i].x, pos.y + OUTLINE_OFFSETS[i].y), icon_outline_color);
+        }
+      }
+      draw_mountain_icon(ctx, pos, color);
+      break;
+    }
     case 12: {
       GPoint pos = GPoint(icon_x - 15, box_y + (CORNER_ROW_H - 10) / 2);
       BatteryChargeState bs = battery_state_service_peek();
@@ -1543,11 +1920,23 @@ static void corners_layer_update_proc(Layer *layer, GContext *ctx) {
 
   if (is_bitmap_style) return; // corners fully replaced by the slots above
 
-  // Bottom corners shift up out of the way when the shake-revealed
-  // ground bar is showing -- but that bar is itself suppressed in
-  // analog mode (bottom_style == 1), where it'd be redundant with the
-  // persistent info panel, so there's nothing to shift up for there.
-  int16_t bottom_shift = (s_labels_visible && s_data.bottom_style != 1) ? 18 : 0;
+  // Bottom corners shift up out of the way of the "Clouds/visibility/
+  // location" bar (background_layer.c's canvas_update_proc) whenever
+  // that bar is actually going to be drawn -- which depends on
+  // bottom_info_bar_mode, not just whether a shake is currently
+  // active: Off (0) never draws it (never shift), Permanent (2) always
+  // draws it (always shift), and On shake (1) draws it only while
+  // s_labels_visible is true (shift only then). Checking s_labels_visible
+  // alone, without bottom_info_bar_mode, used to shift the corners on
+  // every shake regardless of this setting -- including when the bar
+  // was set to Off and would never actually be drawn at all -- and
+  // conversely never shifted for it in Permanent mode outside of an
+  // active shake, even though the bar is always there in that mode.
+  // Also itself suppressed in analog mode (bottom_style == 1), where
+  // the bar is redundant with the persistent info panel and never drawn.
+  bool bar_will_draw = (s_data.bottom_info_bar_mode == 2) ||
+                        (s_data.bottom_info_bar_mode == 1 && s_labels_visible);
+  int16_t bottom_shift = (bar_will_draw && s_data.bottom_style != 1) ? 18 : 0;
 
   draw_corner_item(ctx, bounds, s_data.corner_content[0], s_data.corner_color_mode[0],
                     main_color, accent_color, bg, true, true, false, 2, 0, false, false);
@@ -1754,7 +2143,30 @@ static void bottom_canvas_update_proc(Layer *layer, GContext *ctx) {
 // have a fixed signature.
 static void countdown_layer_update_proc(Layer *layer, GContext *ctx) {
   GRect bounds = layer_get_bounds(layer);
-  draw_text_outlined(ctx, s_countdown_buf, fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD), bounds,
+  GFont font = fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD);
+
+  // In big-analog mode this label floats directly over the busy sky
+  // view. Normally draw_text_outlined()'s 4-shifted-copy outline keeps
+  // it legible against any background there, but with that setting
+  // off there's nothing else backing the text, so it can disappear
+  // into a similarly-colored patch of sky. Give it a solid pill
+  // background in that specific case instead (contrasting_outline_color()
+  // picks black or white, whichever contrasts with the text color) --
+  // outline mode already handles legibility fine on its own, and
+  // outside big-analog mode the bottom bar/panel is already a solid
+  // color the text sits on, so neither of those needs this extra
+  // background.
+  if (!s_data.outline_enabled && s_data.bottom_style == 2 && s_countdown_buf[0] != '\0') {
+    GSize text_size = graphics_text_layout_get_content_size(s_countdown_buf, font, bounds,
+                                                              GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter);
+    int16_t pad_x = 6;
+    GRect bg_rect = GRect(bounds.origin.x + (bounds.size.w - text_size.w) / 2 - pad_x,
+                           bounds.origin.y, text_size.w + pad_x * 2, bounds.size.h);
+    graphics_context_set_fill_color(ctx, contrasting_outline_color(s_countdown_text_color));
+    graphics_fill_rect(ctx, bg_rect, 4, GCornersAll);
+  }
+
+  draw_text_outlined(ctx, s_countdown_buf, font, bounds,
                       GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter,
                       s_countdown_text_color, s_data.outline_enabled);
 }
@@ -2110,11 +2522,6 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
     s_data.show_seconds = t->value->uint8 != 0;
     if (s_hands_layer) layer_mark_dirty(s_hands_layer);
   }
-  if ((t = dict_find(iter, MESSAGE_KEY_COLOR_SCHEME))) {
-    s_data.color_scheme = t->value->uint8;
-    if (s_bottom_layer) layer_mark_dirty(s_bottom_layer);
-    if (s_hands_layer) layer_mark_dirty(s_hands_layer);
-  }
   if ((t = dict_find(iter, MESSAGE_KEY_BOTTOM_STYLE))) {
     s_data.bottom_style = t->value->uint8;
     apply_layout(); // may need to tear down/rebuild layers entirely -- see its own comment
@@ -2313,7 +2720,6 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
     s_data.night_scheme_enabled = t->value->uint8 != 0;
     if (s_bottom_layer) layer_mark_dirty(s_bottom_layer);
   }
-  if ((t = dict_find(iter, MESSAGE_KEY_NIGHT_COLOR_SCHEME))) s_data.night_color_scheme = t->value->uint8;
   if ((t = dict_find(iter, MESSAGE_KEY_NIGHT_CUSTOM_BG))) s_data.night_custom_bg = t->value->uint8;
   if ((t = dict_find(iter, MESSAGE_KEY_NIGHT_CUSTOM_TEXT))) s_data.night_custom_text = t->value->uint8;
   if ((t = dict_find(iter, MESSAGE_KEY_NIGHT_CUSTOM_ACCENT))) s_data.night_custom_accent = t->value->uint8;
@@ -2369,6 +2775,25 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   if ((t = dict_find(iter, MESSAGE_KEY_WEATHER_CONDITION))) s_data.weather_condition = t->value->uint8;
   if ((t = dict_find(iter, MESSAGE_KEY_WEATHER_ICON_STYLE))) {
     s_data.weather_icon_style = t->value->uint8;
+    if (s_corners_layer) layer_mark_dirty(s_corners_layer);
+  }
+  if ((t = dict_find(iter, MESSAGE_KEY_TIMEZONE_ID))) {
+    s_data.timezone_id = t->value->uint8;
+    if (s_corners_layer) layer_mark_dirty(s_corners_layer);
+  }
+  if ((t = dict_find(iter, MESSAGE_KEY_WIND_DIR_DEG))) s_data.wind_dir_deg = t->value->int16;
+  if ((t = dict_find(iter, MESSAGE_KEY_DEW_POINT_C))) s_data.dew_point_c = t->value->int16;
+  if ((t = dict_find(iter, MESSAGE_KEY_PRESSURE_HPA))) s_data.pressure_hpa = t->value->int16;
+  if ((t = dict_find(iter, MESSAGE_KEY_PRESSURE_TREND))) s_data.pressure_trend = t->value->uint8;
+  if ((t = dict_find(iter, MESSAGE_KEY_AQI_US))) s_data.aqi_us = t->value->uint16;
+  if ((t = dict_find(iter, MESSAGE_KEY_AQI_EU))) s_data.aqi_eu = t->value->uint16;
+  if ((t = dict_find(iter, MESSAGE_KEY_AQI_UNIT))) {
+    s_data.aqi_unit = t->value->uint8;
+    if (s_corners_layer) layer_mark_dirty(s_corners_layer);
+  }
+  if ((t = dict_find(iter, MESSAGE_KEY_ALTITUDE_M))) s_data.altitude_m = t->value->int16;
+  if ((t = dict_find(iter, MESSAGE_KEY_ALTITUDE_UNIT))) {
+    s_data.altitude_unit = t->value->uint8;
     if (s_corners_layer) layer_mark_dirty(s_corners_layer);
   }
   if ((t = dict_find(iter, MESSAGE_KEY_WEATHER_TEMP_C))) s_data.weather_temp_c = t->value->int16;

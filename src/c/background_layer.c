@@ -63,6 +63,12 @@ typedef struct {
   int last_eclipse_phase;   // see compute_eclipse_phase(): forces an immediate redraw
                               // the moment this changes, rather than waiting for the
                               // normal once-a-minute cadence to happen to catch up
+  time_t last_eclipse_max;   // d->max_t last seen -- lets the "just passed greatest eclipse"
+                               // vibration below tell "still the same eclipse, already
+                               // handled" apart from "a genuinely new eclipse's max time
+                               // just arrived", across the repeated set_data() calls a
+                               // normal refresh cycle causes throughout the same eclipse day
+  bool max_vibrated;          // fired the "at maximum eclipse" vibration yet for last_eclipse_max?
   bool last_iss_visible;     // same idea, for the ISS appearing/disappearing
   GBitmap *sky_cache;       // last full render, captured via graphics_capture_frame_buffer;
                              // blitted back on the seconds in between instead of leaving
@@ -1558,16 +1564,32 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
   bool phase_just_changed = current_phase != state->last_eclipse_phase;
   bool was_first_draw = (state->last_eclipse_phase == -1);
 
+  // Fires once per eclipse at the moment of greatest eclipse itself
+  // (d->max_t, always populated regardless of type), independent of the
+  // phase-boundary vibration below -- that one only ever fires for
+  // total/annular eclipses (crossing C1/C2/C3/C4), so a plain partial
+  // eclipse never had ANY vibration at its actual visual climax before
+  // this. Tracks last_eclipse_max (not just a bool) so repeated
+  // set_data() calls for the same eclipse during a normal refresh
+  // cycle don't re-arm and re-fire this after it's already happened,
+  // while a genuinely new eclipse (different max time) correctly does.
+  if (d->max_t != state->last_eclipse_max) {
+    state->last_eclipse_max = d->max_t;
+    state->max_vibrated = false;
+  }
+  bool just_passed_max = d->has_eclipse && d->max_t != 0 && !state->max_vibrated && now >= d->max_t;
+
   // The sky/sun/moon/clouds/planets barely change within a minute,
   // and this is an e-paper display, so the expensive part of this
   // redraw is self-throttled to once a minute -- tracked here rather
   // than only relying on the caller not to mark us dirty too often,
   // so the guarantee holds regardless of what triggers the redraw.
   // New data (set_data), a label toggle (set_show_labels), crossing
-  // an eclipse phase boundary (C1/C2/C3/C4), or the ISS appearing or
-  // disappearing all force through immediately, since those are
-  // visible state changes that must show up right away rather than
-  // waiting for the next scheduled minute.
+  // an eclipse phase boundary (C1/C2/C3/C4), passing the moment of
+  // greatest eclipse, or the ISS appearing or disappearing all force
+  // through immediately, since those are visible state changes that
+  // must show up right away rather than waiting for the next
+  // scheduled minute.
   //
   // Critically, the seconds *in between* don't just skip drawing --
   // Pebble doesn't guarantee a layer's previous pixels survive until
@@ -1579,6 +1601,7 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
   // which is cheap and always leaves valid pixels on screen.
   bool need_full_draw = state->force_next_draw
     || phase_just_changed
+    || just_passed_max
     || current_iss_visible != state->last_iss_visible;
   if (!need_full_draw) {
     time_t elapsed = now - state->last_full_draw;
@@ -1598,6 +1621,16 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
   if (phase_just_changed && !was_first_draw && current_phase >= 2 && d->vibrate_on_phase_change) {
     vibes_double_pulse();
   }
+  // Same idea, but for the moment of greatest eclipse itself (see
+  // just_passed_max above) -- this is the one that actually fires for
+  // a plain partial eclipse, and for total/annular ones it's a second,
+  // near-simultaneous buzz alongside the C2 phase-boundary one above
+  // (max isn't guaranteed to land exactly at C2), which is a minor,
+  // harmless redundancy rather than a bug.
+  if (just_passed_max && !was_first_draw && d->vibrate_on_phase_change) {
+    vibes_double_pulse();
+  }
+  if (just_passed_max) state->max_vibrated = true; // mark done either way -- was_first_draw just suppresses the buzz itself, not the bookkeeping
 
   state->force_next_draw = false;
   state->last_full_draw = now;
@@ -1955,6 +1988,8 @@ Layer *eclipse_canvas_create(GRect frame) {
   state->last_full_draw = 0;
   state->force_next_draw = true; // always draw the first time
   state->last_eclipse_phase = -1; // sentinel: guaranteed to differ from compute_eclipse_phase()'s 0-5
+  state->last_eclipse_max = 0;
+  state->max_vibrated = false;
   state->last_iss_visible = false;
   // GBitmapFormat8Bit matches the framebuffer's own pixel format on
   // color platforms (emery included), so the row-by-row memcpy in

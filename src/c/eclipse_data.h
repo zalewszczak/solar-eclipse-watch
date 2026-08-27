@@ -171,23 +171,22 @@ typedef struct {
   uint8_t middle_right_line2_content;
   uint8_t middle_right_line2_color_mode;
 
-  // Color scheme: 0-9 are the built-in presets (see get_color_scheme()
-  // in pebble-eclipse-watch.c), 10 means "use the custom_* colors
-  // below instead". Each custom_* value is a raw packed GColor argb
-  // byte (one of the 64 real Pebble display colors), reconstructed
-  // on-watch via a GColor union rather than shipped as separate RGB
-  // components -- guarantees whatever the user picked is one of the
-  // 64 real colors, not an arbitrary (and possibly unsupported) RGB
-  // triple.
-  uint8_t color_scheme;       // 0-9 preset, 10 = custom
+  // Colors: raw packed GColor argb bytes (one of the 64 real Pebble
+  // display colors), reconstructed on-watch via a GColor union rather
+  // than shipped as separate RGB components -- guarantees whatever the
+  // user picked is one of the 64 real colors, not an arbitrary (and
+  // possibly unsupported) RGB triple. The named presets shown in the
+  // settings page are a phone-side-only convenience (see COLOR_SCHEMES
+  // in config-page.js) -- picking one just fills these three fields in
+  // with that preset's colors before sending, so the watch only ever
+  // sees concrete colors and has no concept of "preset" at all.
   uint8_t custom_bg;
   uint8_t custom_text;
   uint8_t custom_accent;
 
-  // Optional separate scheme applied between sunset and sunrise,
-  // same encoding as the day scheme above.
+  // Optional separate colors applied between sunset and sunrise, same
+  // encoding as the day colors above.
   bool night_scheme_enabled;
-  uint8_t night_color_scheme;
   uint8_t night_custom_bg;
   uint8_t night_custom_text;
   uint8_t night_custom_accent;
@@ -299,6 +298,33 @@ typedef struct {
                                 // setting since the watch has no other way to know it.
   int16_t weather_temp_c;    // current temperature, whole degrees Celsius (converted to F on-watch if the user prefers)
   char location_name[32];    // reverse-geocoded place name, e.g. "Innsbruck, Austria"
+
+  uint8_t timezone_id;       // index into the TIMEZONES[] table in pebble-eclipse-watch.c --
+                               // which city's time the "Timezone" corner content shows. A
+                               // settings-page-only choice in spirit (one value, not per-slot),
+                               // same pattern as weather_icon_style above.
+
+  // Weather-extra fields (pressure/wind direction/dew point/air
+  // quality) -- all from the same Open-Meteo source as cloud_cover_pct
+  // etc. above, added for the "Pressure"/"Wind direction"/"Air quality"/
+  // "Dew point" corner content types.
+  int16_t wind_dir_deg;      // 0-359, compass bearing the wind is blowing FROM (meteorological convention)
+  int16_t dew_point_c;       // whole degrees Celsius (converted on-watch like weather_temp_c)
+  int16_t pressure_hpa;      // sea-level-adjusted, hectopascals (~950-1050 in practice)
+  uint8_t pressure_trend;    // 0=flat, 1=rising, 2=falling -- vs. ~3 hours ago
+  uint16_t aqi_us;           // US EPA AQI scale (0-500+), 0 = not available
+  uint16_t aqi_eu;           // European AQI scale (0-100+), 0 = not available
+  uint8_t aqi_unit;          // user setting: 0=show aqi_us, 1=show aqi_eu
+
+  // GPS altitude -- meters above the WGS84 ellipsoid, same source
+  // already used for the horizon-dip correction (see astro.js), just
+  // also exposed as a corner content type here. -32000 = sentinel for
+  // "not available" (many phones don't report GPS altitude, and manual-
+  // coordinates location mode never has it) -- a real altitude can
+  // legitimately be negative or exactly 0, so those can't double as
+  // the "missing" signal.
+  int16_t altitude_m;
+  uint8_t altitude_unit;     // user setting: 0=meters, 1=feet
 
   // Full-day sky background data: sun altitude (drives the sky
   // gradient colour) and cloud cover (drives the dithered cloud

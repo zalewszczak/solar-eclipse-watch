@@ -198,7 +198,7 @@ function getDailyCloudGrid(lat, lon, times, nowDate, cb) {
   var url = 'https://api.open-meteo.com/v1/forecast' +
             '?latitude=' + encodeURIComponent(lat) +
             '&longitude=' + encodeURIComponent(lon) +
-            '&hourly=cloudcover,weathercode,cloudcover_low,cloudcover_mid,cloudcover_high,relativehumidity_2m' +
+            '&hourly=cloudcover,weathercode,cloudcover_low,cloudcover_mid,cloudcover_high,relativehumidity_2m,dewpoint_2m,surface_pressure' +
             '&daily=sunrise,sunset,temperature_2m_max,temperature_2m_min,uv_index_max,precipitation_probability_max' +
             '&current_weather=true' +
             '&timezone=auto' +
@@ -206,7 +206,7 @@ function getDailyCloudGrid(lat, lon, times, nowDate, cb) {
   var emptyExtras = {
     sunrise: null, sunset: null, condition: 0, tempC: null, tempHighC: null, tempLowC: null,
     cloudAltitudePct: 50, uvIndexMax: null, rainChancePct: null, humidityPct: null, windSpeedKmh: null,
-    currentCloudPct: null
+    currentCloudPct: null, windDirDeg: null, dewPointC: null, pressureHpa: null, pressureTrend: 0
   };
   xhrGetJSON(url, 8000, function (err, json) {
     if (err) return cb(err, null, emptyExtras);
@@ -239,15 +239,37 @@ function getDailyCloudGrid(lat, lon, times, nowDate, cb) {
         condition = conditionFromWmoCode(hourlyCodes[nowIdx]);
       }
 
-      var tempC = null, windSpeedKmh = null;
+      var tempC = null, windSpeedKmh = null, windDirDeg = null;
       if (json.current_weather) {
         if (typeof json.current_weather.temperature === 'number') tempC = json.current_weather.temperature;
         if (typeof json.current_weather.windspeed === 'number') windSpeedKmh = json.current_weather.windspeed;
+        if (typeof json.current_weather.winddirection === 'number') windDirDeg = json.current_weather.winddirection;
       }
 
       var humidityPct = null;
       if (json.hourly.relativehumidity_2m && typeof json.hourly.relativehumidity_2m[nowIdx] === 'number') {
         humidityPct = json.hourly.relativehumidity_2m[nowIdx];
+      }
+
+      var dewPointC = null;
+      if (json.hourly.dewpoint_2m && typeof json.hourly.dewpoint_2m[nowIdx] === 'number') {
+        dewPointC = json.hourly.dewpoint_2m[nowIdx];
+      }
+
+      // Pressure trend: compare now vs. 3 hours ago (a standard
+      // meteorological window) -- clamped to the start of the array so
+      // this doesn't go negative in the first few hours of the day.
+      var pressureHpa = null, pressureTrend = 0;
+      if (json.hourly.surface_pressure && typeof json.hourly.surface_pressure[nowIdx] === 'number') {
+        pressureHpa = json.hourly.surface_pressure[nowIdx];
+        var pastIdx = Math.max(0, nowIdx - 3);
+        var pastPressure = json.hourly.surface_pressure[pastIdx];
+        if (typeof pastPressure === 'number') {
+          var delta = pressureHpa - pastPressure;
+          if (delta > 1) pressureTrend = 1; // rising
+          else if (delta < -1) pressureTrend = 2; // falling
+          else pressureTrend = 0; // flat
+        }
       }
 
       var cloudAltitudePct = 50;
@@ -284,7 +306,8 @@ function getDailyCloudGrid(lat, lon, times, nowDate, cb) {
         tempC: tempC, tempHighC: tempHighC, tempLowC: tempLowC,
         cloudAltitudePct: cloudAltitudePct, uvIndexMax: uvIndexMax,
         rainChancePct: rainChancePct, humidityPct: humidityPct, windSpeedKmh: windSpeedKmh,
-        currentCloudPct: currentCloudPct
+        currentCloudPct: currentCloudPct, windDirDeg: windDirDeg, dewPointC: dewPointC,
+        pressureHpa: pressureHpa, pressureTrend: pressureTrend
       });
     } catch (e) {
       cb(e, null, emptyExtras);
@@ -292,7 +315,26 @@ function getDailyCloudGrid(lat, lon, times, nowDate, cb) {
   });
 }
 
+// Separate Open-Meteo service (different subdomain, no signup needed,
+// same as the main forecast call) -- both AQI standards come back in
+// one request, so which one to actually display is purely a
+// settings-page/on-watch choice (CONFIG_AQI_UNIT), not a second fetch.
+function fetchAirQuality(lat, lon, cb) {
+  var url = 'https://air-quality-api.open-meteo.com/v1/air-quality' +
+            '?latitude=' + encodeURIComponent(lat) +
+            '&longitude=' + encodeURIComponent(lon) +
+            '&current=us_aqi,european_aqi' +
+            '&timezone=auto';
+  xhrGetJSON(url, 8000, function (err, json) {
+    if (err || !json || !json.current) return cb(err, { aqiUs: null, aqiEu: null });
+    var aqiUs = (typeof json.current.us_aqi === 'number') ? Math.round(json.current.us_aqi) : null;
+    var aqiEu = (typeof json.current.european_aqi === 'number') ? Math.round(json.current.european_aqi) : null;
+    cb(null, { aqiUs: aqiUs, aqiEu: aqiEu });
+  });
+}
+
 module.exports = {
   getEclipseWeather: getEclipseWeather,
-  getDailyCloudGrid: getDailyCloudGrid
+  getDailyCloudGrid: getDailyCloudGrid,
+  fetchAirQuality: fetchAirQuality
 };
