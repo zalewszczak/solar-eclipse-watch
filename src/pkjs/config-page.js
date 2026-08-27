@@ -1097,9 +1097,9 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      <select id="weatherIconStyle">' +
 '        <option value="0"' + (current.weatherIconStyle === '0' ? ' selected' : '') + '>Simple</option>' +
 '        <option value="1"' + (current.weatherIconStyle === '1' || !current.weatherIconStyle ? ' selected' : '') + '>Hollow</option>' +
-'        <option value="2"' + (current.weatherIconStyle === '2' ? ' selected' : '') + '>Filled</option>' +
+'        <option value="2"' + (current.weatherIconStyle === '2' ? ' selected' : '') + '>Full color</option>' +
 '      </select>' +
-'      <div class="help">Only "Hollow" is actually drawn on-watch so far -- Simple and Filled are placeholders for now. Shown here because "Weather icon" or "Temp + weather icon" is picked somewhere in Corners &amp; edge slots below.</div>' +
+'      <div class="help">"Simple" is a placeholder for now. "Hollow" and "Full color" are both drawn on-watch -- Hollow is a single-color outline that follows whatever color mode the slot itself is set to, same as every other corner/edge icon. Full color is different: each icon is a genuine multi-color image (e.g. a gray cloud with a yellow bolt and blue rain for storms) with its own baked-in colors and transparency, so it ignores the slot\'s color mode entirely -- see README.md for how those icons are built. Shown here because "Weather icon" or "Temp + weather icon" is picked somewhere in Corners &amp; edge slots below.</div>' +
 '    </div>' +
 '    </div>' +
 '    </div>' +

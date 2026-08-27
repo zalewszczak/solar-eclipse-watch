@@ -292,13 +292,17 @@ typedef struct {
   uint8_t weather_sources;   // how many weather sources were averaged
   uint8_t weather_condition; // 0=clear/cloudy (handled by cloud_cover_pct alone),
                               // 1=fog, 2=rain, 3=snow, 4=thunderstorm
-  uint8_t weather_icon_style; // 0=simple, 1=hollow, 2=filled -- which of the "Weather icon"/
-                                // "Temp + weather icon" corner content styles to draw. Only
-                                // 1=hollow is actually implemented right now (see
-                                // draw_weather_icon_hollow() in pebble-eclipse-watch.c); 0 and 2
-                                // are placeholder stubs. A settings-page-only choice in spirit
-                                // (there's exactly one value, not per-slot), sent like any other
-                                // setting since the watch has no other way to know it.
+  uint8_t weather_icon_style; // 0=simple, 1=hollow, 2=full color -- which of the "Weather icon"/
+                                // "Temp + weather icon" corner content styles to draw. 1=hollow
+                                // and 2=full color are both implemented (see draw_weather_icon_hollow()/
+                                // draw_weather_icon_filled() in pebble-eclipse-watch.c); 0=simple is
+                                // still a placeholder stub. Full color is a genuinely different kind of
+                                // icon from the other two -- see the "Full color weather icons" section
+                                // in README.md -- so it ignores whatever corner_color_mode the slot is
+                                // set to; the other two styles are single-color silhouettes tinted by it.
+                                // A settings-page-only choice in spirit (there's exactly one value, not
+                                // per-slot), sent like any other setting since the watch has no other way
+                                // to know it.
   int16_t weather_temp_c;    // current temperature, whole degrees Celsius (converted to F on-watch if the user prefers)
   char location_name[32];    // reverse-geocoded place name, e.g. "Innsbruck, Austria"
 
