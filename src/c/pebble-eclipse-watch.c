@@ -476,12 +476,12 @@ static void hands_layer_update_proc(Layer *layer, GContext *ctx) {
 // ---- corners overlay -------------------------------------------------
 
 // Procedural icon bitmaps (1 bit per pixel, MSB = left column) --
-// ~50% bigger than the original 5-wide versions (now 7 wide), same
-// style as the tiny digit font elsewhere in this app.
+// Most of them are 16 wide by 12 height, exceptions would use
+//    hardcoded values directly in function call for now
+// TODO: Make this system more elegant, use one unified struct for all data related icon and thus simplify draw_tiny_icon function call
 static const uint8_t ICON_WIDTH = 16;
 static const uint8_t ICON_ROWS = 12;
 
-//static const uint8_t HEART_ICON[6] = { 0x36, 0x7F, 0x7F, 0x3E, 0x1C, 0x08 };
 static const uint8_t HEART_ICON[24] = { 0x00, 0x00, 0x1C, 0x38, 0x3E, 0x7C, 0x7F, 0xFE, 0x7F, 0xFE, 0x7F, 0xFE,
   0x3F, 0xFC, 0x1F, 0xF8, 0x0F, 0xF0, 0x07, 0xE0, 0x03, 0xC0, 0x01, 0x80 };
 static const uint8_t FOOT_ICON[13]  = { 0x3C, 0x3C, 0x3C, 0x18, 0x7E, 0xFF, 0xDB, 0xD8, 0x1E, 0x3F, 0x73, 0xE3, 0xC3 };
@@ -500,14 +500,60 @@ static const uint8_t PEBBLE_ICON[62]     = { 0x00, 0x02, 0x04, 0x08, 0x00, 0x00,
   0x08, 0x85, 0xFA, 0x14, 0x29, 0xF8, 0x85, 0x02, 0x14, 0x29, 0x00, 0xFD,
   0xFB, 0xF7, 0xED, 0xF8, 0x80, 0x00, 0x00, 0x00, 0x00, 0x80, 0x00, 0x00,
   0x00, 0x00}; // 40 x 10px
-//static const uint8_t CLOUD_ICON[5]   = { 0x30, 0x7A, 0xFF, 0xFF, 0x7E };
 static const uint8_t CLOUD_ICON[24]   = { 0x00, 0x00, 0x00, 0x00, 0x1C, 0x00, 0x22, 0xE0, 0x41, 0x10, 0x82, 0x0C,
   0x82, 0x16, 0x80, 0x01, 0x40, 0x01, 0x20, 0x02, 0x1F, 0xFC, 0x00, 0x00 };
-// A spine + two crossing diagonal wings on the right -- the classic
-// Bluetooth "bind rune" shape, simplified to fit the same 16x12 1bpp
-// grid the other tiny icons use.
-static const uint8_t BLUETOOTH_ICON[24] = { 0x02, 0x00, 0x03, 0x00, 0x02, 0x80, 0x02, 0x44, 0x02, 0x28, 0x02, 0x30,
-  0x02, 0x30, 0x02, 0x28, 0x02, 0x44, 0x02, 0x80, 0x03, 0x00, 0x02, 0x00 };
+static const uint8_t BLUETOOTH_ICON[24] = { 0x03, 0x00, 0x03, 0x80, 0x12, 0xC0, 0x1A, 0x60, 0x0E, 0xC0, 0x07, 0x80,
+  0x07, 0x80, 0x0E, 0xC0, 0x1A, 0x60, 0x12, 0xC0, 0x03, 0x80, 0x03, 0x00 };
+//static const uint8_t ERROR_ICON[24]   = { 0x01, 0x80, 0x02, 0x40, 0x04, 0x20, 0x05, 0xA0, 0x09, 0x90, 0x09, 0x90,
+//  0x11, 0x88, 0x10, 0x08, 0x21, 0x84, 0x41, 0x82, 0x40, 0x02, 0x3F, 0xFC };
+
+// simple weather icons set:
+static const uint8_t SIMPLE_SUN_ICON[24]   = { 0x01, 0x00, 0x11, 0x08, 0x09, 0x10, 0x05, 0xA0, 0x03, 0xC0, 0x07, 0xFC,
+  0x3F, 0xE0, 0x03, 0xC0, 0x05, 0xA0, 0x08, 0x90, 0x10, 0x88, 0x00, 0x80 };
+static const uint8_t SIMPLE_PARTLY_CLOUDY_ICON[24]   = { 0x01, 0x10, 0x00, 0x92, 0x1F, 0x74, 0x3F, 0xB8, 0x7F, 0xC3, 0xFF, 0xFC,
+  0xFF, 0xFE, 0xFF, 0xFF, 0xFF, 0xFF, 0x7F, 0xFF, 0x3F, 0xFE, 0x1F, 0xFC };
+static const uint8_t SIMPLE_CLOUDY_OVERCAST_ICON[24]   = { 0x00, 0x00, 0x1F, 0x00, 0x3F, 0x80, 0x7F, 0xC0, 0xFF, 0xFC, 0xFF, 0xFE,
+  0xFF, 0xFF, 0xFF, 0xFF, 0x7F, 0xFF, 0x3F, 0xFE, 0x1F, 0xFC, 0x00, 0x00 };
+static const uint8_t SIMPLE_FOG_ICON[24]   = { 0x00, 0x00, 0x00, 0x00, 0x0C, 0xC0, 0x33, 0x30, 0x00, 0x00, 0x03, 0x30,
+  0x0C, 0xCC, 0x00, 0x00, 0x0C, 0xC0, 0x33, 0x30, 0x00, 0x00, 0x00, 0x00 };
+static const uint8_t SIMPLE_RAIN_ICON[24]   = { 0x1E, 0x00, 0x3F, 0x00, 0x7F, 0x80, 0xFF, 0xCC, 0xFF, 0xFE, 0xFF, 0xFF,
+  0x7F, 0xFF, 0x3F, 0xFE, 0x1F, 0xFC, 0x00, 0x00, 0x0C, 0xCC, 0x06, 0x66 };
+static const uint8_t SIMPLE_SNOW_ICON[24]   = { 0x1E, 0x00, 0x3F, 0x00, 0x7F, 0x80, 0xFF, 0xCC, 0xFF, 0xFE, 0xFF, 0xFF,
+  0x7F, 0xFF, 0x3F, 0xFE, 0x00, 0x00, 0x14, 0xA5, 0x08, 0x42, 0x14, 0xA5 };
+static const uint8_t SIMPLE_STORM_ICON[24]   = { 0x1E, 0x00, 0x3F, 0x00, 0x7F, 0x80, 0xFF, 0xCC, 0xFF, 0x3E, 0xFE, 0xBF,
+  0x7D, 0xBF, 0x3B, 0x7E, 0x07, 0x00, 0x61, 0xCC, 0x31, 0x86, 0x03, 0x00 };
+
+// hollow weather icons set:
+static const uint8_t HOLLOW_SUN_ICON[24]   = { 0x11, 0x88, 0x39, 0x9C, 0x1B, 0xD8, 0x07, 0xE0, 0x0E, 0x70, 0x3C, 0x3C,
+  0x3C, 0x3C, 0x0E, 0x70, 0x07, 0xE0, 0x1B, 0xD8, 0x39, 0x9C, 0x11, 0x88 };
+static const uint8_t HOLLOW_PARTLY_CLOUDY_ICON[24]   = { 0x04, 0x62, 0x0E, 0x67, 0x02, 0xF6, 0x1D, 0xF8, 0x3E, 0x9C, 0x63, 0x0F,
+  0xC1, 0xB7, 0xC1, 0xF8, 0xC0, 0xCC, 0x60, 0x0C, 0x3F, 0xFB, 0x1F, 0xF2 };
+static const uint8_t HOLLOW_CLOUDY_OVERCAST_ICON[24]   = { 0x00, 0x00, 0x0E, 0x00, 0x1F, 0x00, 0x31, 0x80, 0x60, 0xD8, 0x60, 0xFC,
+  0x60, 0x66, 0x30, 0x06, 0x1F, 0xFC, 0x0F, 0xF8, 0x00, 0x00, 0x00, 0x00 };
+static const uint8_t HOLLOW_FOG_ICON[24]   = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x1F, 0xF8, 0x1F, 0xF8, 0x00, 0x00,
+  0x1F, 0xF8, 0x1F, 0xF8, 0x00, 0x00, 0x1F, 0xF8, 0x1F, 0xF8, 0x00, 0x00 };
+static const uint8_t HOLLOW_RAIN_ICON[24]   = { 0x0E, 0x00, 0x1F, 0x70, 0x3B, 0xF8, 0x31, 0xDC, 0x38, 0x0C, 0x1F, 0xFC,
+  0x0F, 0xF8, 0x00, 0x00, 0x19, 0x98, 0x33, 0x30, 0x66, 0x60, 0x00, 0x00 };
+static const uint8_t HOLLOW_SNOW_ICON[24]   = { 0x0E, 0x00, 0x1F, 0x70, 0x3B, 0xF8, 0x31, 0xDC, 0x38, 0x0C, 0x1F, 0xFC,
+  0x0F, 0xF8, 0x00, 0x00, 0x03, 0x0C, 0x03, 0x0C, 0x18, 0x60, 0x18, 0x60 };
+static const uint8_t HOLLOW_STORM_ICON[24]   = { 0x0E, 0x00, 0x1F, 0x70, 0x3B, 0xF8, 0x31, 0xDC, 0x38, 0x0C, 0x1E, 0xFC,
+  0x0C, 0x78, 0x01, 0x00, 0x33, 0x06, 0x67, 0xCC, 0xC1, 0x98, 0x01, 0x00 };
+
+// filled weather icons set:
+static const uint8_t FILL_SUN_ICON[24]   = { 0x01, 0x00, 0x11, 0x08, 0x09, 0x10, 0x05, 0xA0, 0x03, 0xC0, 0x07, 0xFC,
+  0x3F, 0xE0, 0x03, 0xC0, 0x05, 0xA0, 0x08, 0x90, 0x10, 0x88, 0x00, 0x80 };
+static const uint8_t FILL_PARTLY_CLOUDY_ICON[24]   = { 0x01, 0x10, 0x00, 0x92, 0x1F, 0x74, 0x3F, 0xB8, 0x7F, 0xC3, 0xFF, 0xFC,
+  0xFF, 0xFE, 0xFF, 0xFF, 0xFF, 0xFF, 0x7F, 0xFF, 0x3F, 0xFE, 0x1F, 0xFC };
+static const uint8_t FILL_CLOUDY_OVERCAST_ICON[24]   = { 0x00, 0x00, 0x1F, 0x00, 0x3F, 0x80, 0x7F, 0xC0, 0xFF, 0xFC, 0xFF, 0xFE,
+  0xFF, 0xFF, 0xFF, 0xFF, 0x7F, 0xFF, 0x3F, 0xFE, 0x1F, 0xFC, 0x00, 0x00 };
+static const uint8_t FILL_FOG_ICON[24]   = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x1F, 0xF8, 0x1F, 0xF8, 0x00, 0x00,
+  0x1F, 0xF8, 0x1F, 0xF8, 0x00, 0x00, 0x1F, 0xF8, 0x1F, 0xF8, 0x00, 0x00 };
+static const uint8_t FILL_RAIN_ICON[24]   = { 0x1E, 0x00, 0x3F, 0x00, 0x7F, 0x80, 0xFF, 0xCC, 0xFF, 0xFE, 0xFF, 0xFF,
+  0x7F, 0xFF, 0x3F, 0xFE, 0x1F, 0xFC, 0x00, 0x00, 0x0C, 0xCC, 0x06, 0x66 };
+static const uint8_t FILL_SNOW_ICON[24]   = { 0x1E, 0x00, 0x3F, 0x00, 0x7F, 0x80, 0xFF, 0xCC, 0xFF, 0xFE, 0xFF, 0xFF,
+  0x7F, 0xFF, 0x3F, 0xFE, 0x00, 0x00, 0x14, 0xA5, 0x08, 0x42, 0x14, 0xA5 };
+static const uint8_t FILL_STORM_ICON[24]   = { 0x1E, 0x00, 0x3F, 0x00, 0x7F, 0x80, 0xFF, 0xCC, 0xFF, 0x3E, 0xFE, 0xBF,
+  0x7D, 0xBF, 0x3B, 0x7E, 0x07, 0x00, 0x61, 0xCC, 0x31, 0x86, 0x03, 0x00 };
 
 static void draw_tiny_icon(GContext *ctx, GPoint top_left, const uint8_t *pattern, int rows, int width, GColor color) {
   graphics_context_set_fill_color(ctx, color);
@@ -560,92 +606,86 @@ static uint8_t weather_icon_category(uint8_t weather_condition, uint8_t cloud_pc
   }
 }
 
-// A minimal 3-circle-outline cloud (proportioned to roughly match the
-// existing CLOUD_ICON bitmap's silhouette, since the brief asked to
-// reuse/build on that shape) -- drawn as an outline rather than that
-// bitmap's solid fill, since "hollow" specifically means stroke-only.
-// Shared as the base for cloudy/overcast, fog, rain, snow, and storm.
-static void draw_hollow_cloud(GContext *ctx, GPoint center, GColor color) {
-  graphics_context_set_stroke_color(ctx, color);
-  graphics_context_set_stroke_width(ctx, 1);
-  graphics_draw_circle(ctx, GPoint(center.x - 4, center.y + 1), 3);
-  graphics_draw_circle(ctx, GPoint(center.x, center.y - 2), 4);
-  graphics_draw_circle(ctx, GPoint(center.x + 4, center.y + 1), 3);
-  graphics_draw_line(ctx, GPoint(center.x - 7, center.y + 4), GPoint(center.x + 7, center.y + 4));
-}
-
-static void draw_hollow_sun(GContext *ctx, GPoint center, GColor color) {
-  graphics_context_set_stroke_color(ctx, color);
-  graphics_context_set_stroke_width(ctx, 1);
-  graphics_draw_circle(ctx, center, 3);
-  for (int i = 0; i < 8; i++) {
-    int32_t angle = ((int32_t)i * TRIG_MAX_ANGLE) / 8;
-    GPoint p1 = GPoint(center.x + (5 * sin_lookup(angle)) / TRIG_MAX_RATIO, center.y - (5 * cos_lookup(angle)) / TRIG_MAX_RATIO);
-    GPoint p2 = GPoint(center.x + (7 * sin_lookup(angle)) / TRIG_MAX_RATIO, center.y - (7 * cos_lookup(angle)) / TRIG_MAX_RATIO);
-    graphics_draw_line(ctx, p1, p2);
-  }
-}
-
-// The only style actually implemented so far -- outline/stroke-only
-// throughout, no fills. `top_left` is the icon box's top-left corner,
-// sized to roughly match ICON_WIDTH x ICON_ROWS (16x12) like the other
-// tiny corner icons, even though this one is drawn with primitives
-// rather than a bitmap pattern.
+// These three are similar to other icon systems wrapped in separate call for clarity
 static void draw_weather_icon_hollow(GContext *ctx, GPoint top_left, uint8_t category, GColor color) {
-  GPoint center = GPoint(top_left.x + 8, top_left.y + 6);
   switch (category) {
     case 0: // sunny
-      draw_hollow_sun(ctx, center, color);
+      draw_tiny_icon(ctx, top_left, HOLLOW_SUN_ICON, ICON_ROWS, ICON_WIDTH, color);
       return;
     case 1: // partly cloudy
-      draw_hollow_sun(ctx, GPoint(center.x + 2, center.y - 3), color);
-      draw_hollow_cloud(ctx, GPoint(center.x - 1, center.y + 2), color);
+      draw_tiny_icon(ctx, top_left, HOLLOW_PARTLY_CLOUDY_ICON, ICON_ROWS, ICON_WIDTH, color);
       return;
     case 2: // cloudy / overcast
-      draw_hollow_cloud(ctx, center, color);
+      draw_tiny_icon(ctx, top_left, HOLLOW_CLOUDY_OVERCAST_ICON, ICON_ROWS, ICON_WIDTH, color);
       return;
     case 3: // fog
-      draw_hollow_cloud(ctx, GPoint(center.x, center.y - 2), color);
-      graphics_context_set_stroke_color(ctx, color);
-      graphics_context_set_stroke_width(ctx, 1);
-      graphics_draw_line(ctx, GPoint(center.x - 7, center.y + 6), GPoint(center.x + 7, center.y + 6));
-      graphics_draw_line(ctx, GPoint(center.x - 5, center.y + 9), GPoint(center.x + 5, center.y + 9));
+      draw_tiny_icon(ctx, top_left, HOLLOW_FOG_ICON, ICON_ROWS, ICON_WIDTH, color);
       return;
     case 4: // rain
-      draw_hollow_cloud(ctx, GPoint(center.x, center.y - 2), color);
-      graphics_context_set_stroke_color(ctx, color);
-      graphics_context_set_stroke_width(ctx, 1);
-      graphics_draw_line(ctx, GPoint(center.x - 4, center.y + 5), GPoint(center.x - 6, center.y + 9));
-      graphics_draw_line(ctx, GPoint(center.x, center.y + 5), GPoint(center.x - 2, center.y + 9));
-      graphics_draw_line(ctx, GPoint(center.x + 4, center.y + 5), GPoint(center.x + 2, center.y + 9));
+      draw_tiny_icon(ctx, top_left, HOLLOW_RAIN_ICON, ICON_ROWS, ICON_WIDTH, color);
       return;
     case 5: // snow
-      draw_hollow_cloud(ctx, GPoint(center.x, center.y - 2), color);
-      graphics_context_set_fill_color(ctx, color);
-      graphics_fill_circle(ctx, GPoint(center.x - 5, center.y + 7), 1);
-      graphics_fill_circle(ctx, GPoint(center.x, center.y + 9), 1);
-      graphics_fill_circle(ctx, GPoint(center.x + 5, center.y + 7), 1);
+      draw_tiny_icon(ctx, top_left, HOLLOW_SNOW_ICON, ICON_ROWS, ICON_WIDTH, color);
       return;
     case 6: { // storm
-      draw_hollow_cloud(ctx, GPoint(center.x, center.y - 3), color);
-      graphics_context_set_stroke_color(ctx, color);
-      graphics_context_set_stroke_width(ctx, 1);
-      graphics_draw_line(ctx, GPoint(center.x + 1, center.y + 3), GPoint(center.x - 2, center.y + 8));
-      graphics_draw_line(ctx, GPoint(center.x - 2, center.y + 8), GPoint(center.x, center.y + 8));
-      graphics_draw_line(ctx, GPoint(center.x, center.y + 8), GPoint(center.x - 3, center.y + 13));
+      draw_tiny_icon(ctx, top_left, HOLLOW_STORM_ICON, ICON_ROWS, ICON_WIDTH, color);
       return;
     }
   }
 }
 
-// Not implemented yet -- placeholder to fill in later.
 static void draw_weather_icon_simple(GContext *ctx, GPoint top_left, uint8_t category, GColor color) {
-  (void)ctx; (void)top_left; (void)category; (void)color;
+  switch (category) {
+    case 0: // sunny
+      draw_tiny_icon(ctx, top_left, SIMPLE_SUN_ICON, ICON_ROWS, ICON_WIDTH, color);
+      return;
+    case 1: // partly cloudy
+      draw_tiny_icon(ctx, top_left, SIMPLE_PARTLY_CLOUDY_ICON, ICON_ROWS, ICON_WIDTH, color);
+      return;
+    case 2: // cloudy / overcast
+      draw_tiny_icon(ctx, top_left, SIMPLE_CLOUDY_OVERCAST_ICON, ICON_ROWS, ICON_WIDTH, color);
+      return;
+    case 3: // fog
+      draw_tiny_icon(ctx, top_left, SIMPLE_FOG_ICON, ICON_ROWS, ICON_WIDTH, color);
+      return;
+    case 4: // rain
+      draw_tiny_icon(ctx, top_left, SIMPLE_RAIN_ICON, ICON_ROWS, ICON_WIDTH, color);
+      return;
+    case 5: // snow
+      draw_tiny_icon(ctx, top_left, SIMPLE_SNOW_ICON, ICON_ROWS, ICON_WIDTH, color);
+      return;
+    case 6: { // storm
+      draw_tiny_icon(ctx, top_left, SIMPLE_STORM_ICON, ICON_ROWS, ICON_WIDTH, color);
+      return;
+    }
+  }
 }
 
-// Not implemented yet -- placeholder to fill in later.
 static void draw_weather_icon_filled(GContext *ctx, GPoint top_left, uint8_t category, GColor color) {
-  (void)ctx; (void)top_left; (void)category; (void)color;
+  switch (category) {
+    case 0: // sunny
+      draw_tiny_icon(ctx, top_left, FILL_SUN_ICON, ICON_ROWS, ICON_WIDTH, color);
+      return;
+    case 1: // partly cloudy
+      draw_tiny_icon(ctx, top_left, FILL_PARTLY_CLOUDY_ICON, ICON_ROWS, ICON_WIDTH, color);
+      return;
+    case 2: // cloudy / overcast
+      draw_tiny_icon(ctx, top_left, FILL_CLOUDY_OVERCAST_ICON, ICON_ROWS, ICON_WIDTH, color);
+      return;
+    case 3: // fog
+      draw_tiny_icon(ctx, top_left, FILL_FOG_ICON, ICON_ROWS, ICON_WIDTH, color);
+      return;
+    case 4: // rain
+      draw_tiny_icon(ctx, top_left, FILL_RAIN_ICON, ICON_ROWS, ICON_WIDTH, color);
+      return;
+    case 5: // snow
+      draw_tiny_icon(ctx, top_left, FILL_SNOW_ICON, ICON_ROWS, ICON_WIDTH, color);
+      return;
+    case 6: { // storm
+      draw_tiny_icon(ctx, top_left, FILL_STORM_ICON, ICON_ROWS, ICON_WIDTH, color);
+      return;
+    }
+  }
 }
 
 static void draw_weather_icon(GContext *ctx, GPoint top_left, uint8_t category, uint8_t style, GColor color) {
