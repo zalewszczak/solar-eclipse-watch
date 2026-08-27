@@ -706,7 +706,9 @@ function buildConfigHtml(current) {
 '<div class="modal-overlay" id="slotEditModal" onclick="if (event.target === this) closeSlotEditor();">' +
 '  <div class="modal-box">' +
 '    <div class="modal-title" id="slotEditTitle">Edit slot</div>' +
-'    <label for="slotEditContent">Content</label>' +
+'    <label for="slotEditCategory">Category</label>' +
+'    <select id="slotEditCategory" onchange="onSlotEditCategoryChange()"></select>' +
+'    <label for="slotEditContent" style="margin-top:10px;">Content</label>' +
 '    <select id="slotEditContent" onchange="onSlotEditContentChange()">' + cornerContentOptionsHtml(0) + '</select>' +
 '    <div class="mode-btn-group" id="slotEditColorGroup" style="margin-top:10px;">' +
 '      <button type="button" class="mode-btn" onclick="slotEditorSelectColor(0)">MONO</button>' +
@@ -1662,6 +1664,66 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  renderSlotPicker();' +
 '  updatePreview();' +
 '}' +
+// Runtime copy of the category groupings + full item labels (the
+// generator-side CORNER_CONTENT_OPTIONS/CORNER_CATEGORIES data can\'t
+// be reused here -- this needs to run in the browser, re-populating
+// the item dropdown live whenever the category changes, same reason
+// CORNER_PREVIEW_LABELS below is its own separate runtime copy rather
+// than reusing the generator-side labels). Keep in sync with
+// CORNER_CONTENT_OPTIONS/CORNER_CATEGORIES above by hand -- every
+// content id 0-43 must appear in exactly one category\'s items list.
+'var CORNER_CATEGORIES = [' +
+'  { id: "none", label: "None", items: [{ id: 0, label: "None" }] },' +
+'  { id: "utilities", label: "Utilities", items: [' +
+'    { id: 10, label: "Battery" }, { id: 13, label: "Location" }, { id: 17, label: "Pebble logo /w battery bar" },' +
+'    { id: 20, label: "Bluetooth connection" }, { id: 38, label: "Altitude" }' +
+'  ] },' +
+'  { id: "health", label: "Health", items: [' +
+'    { id: 1, label: "Heart rate" }, { id: 2, label: "Steps today" }, { id: 3, label: "Step goal %" },' +
+'    { id: 39, label: "Sleep duration" }, { id: 40, label: "Restful sleep duration" }, { id: 41, label: "Sleep quality %" },' +
+'    { id: 42, label: "Bed time" }, { id: 43, label: "Wake time" }' +
+'  ] },' +
+'  { id: "datetime", label: "Date/Time", items: [' +
+'    { id: 12, label: "Short date" }, { id: 18, label: "Time" }, { id: 19, label: "Week number" },' +
+'    { id: 21, label: "Date: Month Day (SEP 11)" }, { id: 22, label: "Date: Day of month (11)" },' +
+'    { id: 23, label: "Date: Weekday, short (MON)" }, { id: 24, label: "Date: Weekday, long (Monday)" },' +
+'    { id: 25, label: "Date: Month, short (SEP)" }, { id: 26, label: "Date: Month, long (September)" },' +
+'    { id: 27, label: "Date: Day/Month (11/9)" }, { id: 28, label: "Date: Month/Day (9/11)" },' +
+'    { id: 29, label: "Date: Full (24/9/2026)" }, { id: 30, label: "Date: Full, imperial (9/24/26)" }' +
+'  ] },' +
+'  { id: "timezone", label: "Timezone", items: [{ id: 33, label: "Timezone" }] },' +
+'  { id: "weather", label: "Weather", items: [' +
+'    { id: 4, label: "High / low temperature" }, { id: 5, label: "Current conditions" }, { id: 6, label: "UV index" },' +
+'    { id: 7, label: "Rain chance today" }, { id: 8, label: "Humidity" }, { id: 9, label: "Wind" },' +
+'    { id: 14, label: "Visibility" }, { id: 15, label: "Cloud cover" }, { id: 31, label: "Weather icon" },' +
+'    { id: 32, label: "Temp + weather icon" }, { id: 34, label: "Pressure" }, { id: 35, label: "Wind direction" },' +
+'    { id: 36, label: "Air quality" }, { id: 37, label: "Dew point" }' +
+'  ] },' +
+'  { id: "astro", label: "Astronomy", items: [{ id: 11, label: "Moon phase" }, { id: 16, label: "Sunrise / sunset" }] }' +
+'];' +
+'function categoryForContentId(contentId) {' +
+'  var idNum = parseInt(contentId, 10);' +
+'  for (var i = 0; i < CORNER_CATEGORIES.length; i++) {' +
+'    for (var j = 0; j < CORNER_CATEGORIES[i].items.length; j++) {' +
+'      if (CORNER_CATEGORIES[i].items[j].id === idNum) return CORNER_CATEGORIES[i].id;' +
+'    }' +
+'  }' +
+'  return "none";' + // unrecognized id -- fall back rather than leave both dropdowns unset
+'}' +
+'function findCategory(categoryId) {' +
+'  for (var i = 0; i < CORNER_CATEGORIES.length; i++) {' +
+'    if (CORNER_CATEGORIES[i].id === categoryId) return CORNER_CATEGORIES[i];' +
+'  }' +
+'  return CORNER_CATEGORIES[0];' +
+'}' +
+'function categoryItemOptionsHtml(categoryId, selectedContentId) {' +
+'  var items = findCategory(categoryId).items;' +
+'  var html = "";' +
+'  for (var i = 0; i < items.length; i++) {' +
+'    html += "<option value=\\"" + items[i].id + "\\"" + (String(selectedContentId) === String(items[i].id) ? " selected" : "") + ">" + items[i].label + "</option>";' +
+'  }' +
+'  return html;' +
+'}' +
 'var SLOT_DEFS = {' +
 '  cornerTL: { contentId: "cornerTL", colorId: "cornerTLColor", btnId: "slotBtn-cornerTL", label: "Top-left", avail: function (a) { return !a.cornersGrayed; } },' +
 '  cornerTR: { contentId: "cornerTR", colorId: "cornerTRColor", btnId: "slotBtn-cornerTR", label: "Top-right", avail: function (a) { return !a.cornersGrayed; } },' +
@@ -1742,6 +1804,16 @@ handEditorModalHtml('sec', 'Edit second hand') +
 'function onSlotEditContentChange() {' +
 '  setSlotEditorColorGroupVisibility(document.getElementById("slotEditContent").value);' +
 '}' +
+// Repopulates the item dropdown to just the newly-chosen category's
+// items whenever the category itself changes -- defaults to that
+// category\'s first item, since the previously-selected content id
+// (from a different category) is never one of the new options.
+'function onSlotEditCategoryChange() {' +
+'  var categoryId = document.getElementById("slotEditCategory").value;' +
+'  var firstItemId = findCategory(categoryId).items[0].id;' +
+'  document.getElementById("slotEditContent").innerHTML = categoryItemOptionsHtml(categoryId, firstItemId);' +
+'  onSlotEditContentChange();' +
+'}' +
 // Opens the popup pre-filled with this slot\'s current (already-saved)
 // content/color -- nothing is written back to the real elements until
 // saveSlotEditor() runs, so closing without saving (Cancel, or a tap
@@ -1753,7 +1825,12 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  document.getElementById("slotEditTitle").textContent = def.label;' +
 '  var contentVal = document.getElementById(def.contentId).value;' +
 '  var colorVal = document.getElementById(def.colorId).value;' +
-'  document.getElementById("slotEditContent").value = contentVal;' +
+'  var categoryId = categoryForContentId(contentVal);' +
+'  var categorySelect = document.getElementById("slotEditCategory");' +
+'  categorySelect.innerHTML = CORNER_CATEGORIES.map(function (c) {' +
+'    return "<option value=\\"" + c.id + "\\"" + (c.id === categoryId ? " selected" : "") + ">" + c.label + "</option>";' +
+'  }).join("");' +
+'  document.getElementById("slotEditContent").innerHTML = categoryItemOptionsHtml(categoryId, contentVal);' +
 '  setSlotEditorColorGroupVisibility(contentVal);' +
 '  setSlotEditorColorButtons(colorVal);' +
 '  document.getElementById("slotEditModal").className = "modal-overlay open";' +
