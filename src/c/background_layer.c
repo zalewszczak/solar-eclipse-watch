@@ -1,4 +1,24 @@
-#include "eclipse_layer.h"
+#include "background_layer.h"
+
+// ---------------------------------------------------------------------------
+// Markers merged in (formerly marker_layer.c): the hour/second marker ring,
+// its optional text numerals, and the tinted bitmap marker styles all now
+// draw directly into canvas_update_proc()'s own live GContext, right before
+// the frame gets captured into sky_cache below -- so they're part of the
+// SAME cached bitmap the sky/sun/moon already use, not a second one.
+//
+// This also means the marker ring no longer needs its own bitmap cache or
+// manual pixel rasterizer: an earlier, standalone version of this code had
+// to rasterize into an offscreen GBitmapFormat8Bit buffer by hand (writing
+// raw bytes) because Pebble's SDK has no way to get a GContext for an
+// arbitrary offscreen bitmap outside a LayerUpdateProc. Now that the ring
+// draws inside THIS layer's own update_proc, that restriction doesn't
+// apply -- it uses plain gpath_draw_filled()/graphics_fill_circle() calls,
+// same as the rest of this file (and hand_layer.c), and rides along on
+// this canvas's existing once-a-minute throttle (see need_full_draw below)
+// instead of maintaining a separate change-detection cache of its own.
+// ---------------------------------------------------------------------------
+
 
 // Height of the black "horizon" strip at the bottom of the canvas --
 // also where altitude 0 lines up, so the sun/moon visibly sink behind
@@ -49,6 +69,23 @@ typedef struct {
                              // the screen untouched (which is what caused flicker -- Pebble
                              // doesn't guarantee framebuffer content persists between
                              // update_proc invocations, so "just don't draw" isn't safe)
+
+  // Bitmap marker styles (big_analog_marker_style 3-7) -- moved in from
+  // pebble-eclipse-watch.c along with the rest of marker drawing, so the
+  // tint+blend happens once per full redraw here rather than being
+  // re-blended into the live framebuffer on every single tick the way it
+  // used to be (hands_layer_update_proc ran it every call).
+  GBitmap *marker_bitmap;
+  uint8_t marker_bitmap_style;         // 255 = none loaded
+  bool marker_bitmap_tinted;            // has tint_marker_bitmap() run since the last (re)load?
+  GColor marker_bitmap_tint_color;
+  bool marker_bitmap_tint_transparent;
+
+  // Custom text-marker numerals' font (big_analog_marker_style == 8) --
+  // same lazy load/unload lifecycle as the corner text font in
+  // pebble-eclipse-watch.c, just scoped to this layer instead of file-static.
+  GFont marker_text_font;
+  uint8_t marker_text_font_loaded_choice; // 255 = none loaded
 } CanvasState;
 
 // ---- generic sample interpolation -----------------------------------------
@@ -809,7 +846,7 @@ static void draw_meteors(GContext *ctx, GRect bounds, uint8_t intensity) {
 
 // Short weather-condition word for the "23C Overcast" style readout
 // (now drawn by the corners overlay in pebble-eclipse-watch.c, which
-// is why this isn't static -- exported via eclipse_layer.h instead of
+// is why this isn't static -- exported via background_layer.h instead of
 // duplicated). Reuses weather_condition for anything with a dedicated
 // visual effect (rain/snow/fog/storm) and falls back to reading it
 // off cloud_cover_pct otherwise, so no extra data is needed beyond
@@ -1119,6 +1156,335 @@ static bool compute_iss_visible(const EclipseData *d, time_t now, bool sky_is_da
 }
 
 // ---- drawing ---------------------------------------------------------------
+
+// ---- hour/second markers (merged from marker_layer.c) --------------------
+
+static int16_t mk_min(int16_t a, int16_t b) { return a < b ? a : b; }
+static int16_t mk_max(int16_t a, int16_t b) { return a > b ? a : b; }
+
+// isqrt32() (integer square root) is already defined above, for the
+// planet-separation math -- reused here for the marker ring's segment
+// length rather than adding a second copy.
+
+// Converts a 0-100% "reach" into an actual px distance from center, using
+// the SAME half-extent units throughout (both circle and rectangle math in
+// point_on_ring() below work in this unit) -- this is what actually keeps
+// everything on-screen: 0% = the largest circle that's guaranteed to stay
+// fully within the screen at every angle (the shorter half-dimension),
+// 100% = the far edge the screen-fitted rectangle reaches along its
+// dominant axis (the longer half-dimension).
+static int16_t marker_reach_px(GRect screen, uint8_t pct) {
+  int16_t screen_hw = screen.size.w / 2, screen_hh = screen.size.h / 2;
+  int16_t reach_min = mk_min(screen_hw, screen_hh);
+  int16_t reach_max = mk_max(screen_hw, screen_hh);
+  return reach_min + (int32_t)(reach_max - reach_min) * pct / 100;
+}
+
+// Blends a point on a circle of radius marker_reach_px(pct) with a point
+// on a screen-proportioned rectangle sized so its longer half-extent
+// equals that same reach, by eccentricity_pct (0=circle, 100=rectangle).
+// See marker_reach_px() above for why this stays on-screen.
+static GPoint point_on_ring(GPoint center, GRect screen, int32_t angle,
+                             uint8_t pct, uint8_t eccentricity_pct) {
+  int16_t screen_hw = screen.size.w / 2, screen_hh = screen.size.h / 2;
+  int16_t reach = marker_reach_px(screen, pct);
+  int32_t sin_v = sin_lookup(angle), cos_v = cos_lookup(angle);
+
+  GPoint circle_pt = GPoint(
+    center.x + (int32_t)(reach * sin_v) / TRIG_MAX_RATIO,
+    center.y - (int32_t)(reach * cos_v) / TRIG_MAX_RATIO);
+
+  if (eccentricity_pct == 0) return circle_pt; // common case, skip the rest
+
+  int16_t reach_max = mk_max(screen_hw, screen_hh); // same constant marker_reach_px() uses
+  int32_t rect_hw = ((int32_t)reach * screen_hw) / reach_max;
+  int32_t rect_hh = ((int32_t)reach * screen_hh) / reach_max;
+
+  int32_t adx = sin_v < 0 ? -sin_v : sin_v;
+  int32_t ady = cos_v < 0 ? -cos_v : cos_v;
+  int32_t t_x = (adx == 0) ? INT32_MAX : (rect_hw * TRIG_MAX_RATIO) / adx;
+  int32_t t_y = (ady == 0) ? INT32_MAX : (rect_hh * TRIG_MAX_RATIO) / ady;
+  int32_t t = t_x < t_y ? t_x : t_y;
+
+  GPoint rect_pt = GPoint(
+    center.x + (int32_t)(t * sin_v) / TRIG_MAX_RATIO,
+    center.y - (int32_t)(t * cos_v) / TRIG_MAX_RATIO);
+
+  GPoint result;
+  result.x = circle_pt.x + ((rect_pt.x - circle_pt.x) * eccentricity_pct) / 100;
+  result.y = circle_pt.y + ((rect_pt.y - circle_pt.y) * eccentricity_pct) / 100;
+  return result;
+}
+
+// Draws one mark as a straight quad from A to B, half_thick wide, with
+// the requested cap style -- plain native gpath/circle calls now that
+// this runs inside a live GContext (see the design note at the top of
+// this file for why that's new). style: 0=dot (round caps, via filled
+// circles at both ends), 1=line (flush/butt ends), 2=square (ends
+// extended outward by half_thick, like SVG's stroke-linecap:square).
+static void draw_ring_mark(GContext *ctx, GPoint A, GPoint B, int16_t half_thick, uint8_t style, GColor color) {
+  if (half_thick < 1) half_thick = 1;
+
+  int32_t dx = B.x - A.x, dy = B.y - A.y;
+  int32_t len_sq = dx * dx + dy * dy;
+  if (len_sq == 0) {
+    graphics_context_set_fill_color(ctx, color);
+    graphics_fill_circle(ctx, A, half_thick);
+    return;
+  }
+  int32_t len = isqrt32(len_sq);
+
+  int32_t offx = (half_thick * -dy) / len, offy = (half_thick * dx) / len; // perpendicular
+  GPoint a = A, b = B;
+  if (style == 2) { // square caps: extend both ends outward along AB by half_thick
+    int32_t ex = (half_thick * dx) / len, ey = (half_thick * dy) / len;
+    a = GPoint(A.x - ex, A.y - ey);
+    b = GPoint(B.x + ex, B.y + ey);
+  }
+
+  GPoint points[4] = {
+    GPoint(a.x + offx, a.y + offy), GPoint(a.x - offx, a.y - offy),
+    GPoint(b.x - offx, b.y - offy), GPoint(b.x + offx, b.y + offy),
+  };
+  GPathInfo info = { .num_points = 4, .points = points };
+  GPath *path = gpath_create(&info);
+  graphics_context_set_fill_color(ctx, color);
+  gpath_draw_filled(ctx, path);
+  gpath_destroy(path);
+
+  if (style == 0) { // dot: round off both true ends
+    graphics_fill_circle(ctx, A, half_thick);
+    graphics_fill_circle(ctx, B, half_thick);
+  }
+}
+
+static void draw_marker_ring(GContext *ctx, GPoint center, GRect screen, const MarkerRingConfig *cfg,
+                              int marks, int skip_step, GColor color) {
+  if (cfg->thickness == 0) return;
+  uint8_t inner_pct = cfg->inner_border_pct, outer_pct = cfg->outer_border_pct;
+  if (outer_pct < inner_pct) outer_pct = inner_pct; // defensive, see MarkerRingConfig
+
+  int16_t half_thick = cfg->thickness / 2;
+
+  for (int i = 0; i < marks; i++) {
+    if (skip_step > 0 && i % skip_step == 0) continue; // that slot belongs to the other ring
+    int32_t angle = ((int32_t)i * TRIG_MAX_ANGLE) / marks;
+
+    // The mark is drawn directly between its inner and outer border
+    // points -- no separate length setting; eccentricity changing how
+    // far apart these two points are is what gives each mark its length.
+    GPoint outer_pt = point_on_ring(center, screen, angle, outer_pct, cfg->outer_eccentricity);
+    GPoint inner_pt = point_on_ring(center, screen, angle, inner_pct, cfg->inner_eccentricity);
+    draw_ring_mark(ctx, outer_pt, inner_pt, half_thick, cfg->style, color);
+  }
+}
+
+// Hardcoded MarkerRingConfig pairs recreating the 3 non-bitmap,
+// non-custom marker styles (big_analog_marker_style 0/1/2 -- minimal/
+// small/big) through this same shared rasterizer, rather than each
+// keeping its own separate procedural-drawing code. Approximated (not
+// pixel-identical to the old formula-driven version, which varied hour
+// mark length every 3rd hour and positioned everything relative to the
+// screen radius directly) -- a deliberate simplification, tuned to look
+// reasonably close within the 0-100% reach range every style now shares.
+static const MarkerRingConfig MARKER_STYLE_HOUR_PRESETS[3] = {
+  { .style = 1, .thickness = 1, .inner_eccentricity = 0, .outer_eccentricity = 0, .inner_border_pct = 70, .outer_border_pct = 100 }, // 0: minimal
+  { .style = 1, .thickness = 1, .inner_eccentricity = 0, .outer_eccentricity = 0, .inner_border_pct = 20, .outer_border_pct = 100 }, // 1: small
+  { .style = 2, .thickness = 3, .inner_eccentricity = 0, .outer_eccentricity = 0, .inner_border_pct = 0,  .outer_border_pct = 100 }, // 2: big
+};
+static const MarkerRingConfig MARKER_STYLE_SECOND_PRESETS[3] = {
+  { .style = 1, .thickness = 0, .inner_eccentricity = 0, .outer_eccentricity = 0, .inner_border_pct = 70, .outer_border_pct = 100 }, // 0: minimal -- thickness 0 = off, matches "hour markers only"
+  { .style = 1, .thickness = 1, .inner_eccentricity = 0, .outer_eccentricity = 0, .inner_border_pct = 70, .outer_border_pct = 100 }, // 1: small
+  { .style = 1, .thickness = 1, .inner_eccentricity = 0, .outer_eccentricity = 0, .inner_border_pct = 70, .outer_border_pct = 100 }, // 2: big
+};
+
+static uint32_t marker_text_font_resource_id(uint8_t choice) {
+  switch (choice) {
+    case 3: return RESOURCE_ID_DIGITALDREAM_FONT_12;
+    case 4: return RESOURCE_ID_MINECRAFTER_FONT_12;
+    case 5: return RESOURCE_ID_SFPIXELATE_FONT_14;
+    case 6: return RESOURCE_ID_MISO_FONT_19;
+    default: return 0;
+  }
+}
+
+// Rough export heights for each font_choice (0-2 system, 3-6 custom),
+// used only to size/vertically-center each numeral's text box.
+static const uint8_t MARKER_FONT_HEIGHTS[7] = {14, 16, 20, 12, 12, 14, 19};
+// Per-font vertical fine-tune, added to MARKER_FONT_HEIGHTS when placing
+// the text box -- left at 0 deliberately, tweak by hand once you can see
+// real numerals on-device; index matches font_choice.
+static const int8_t MARKER_FONT_Y_OFFSET[7] = {0, 0, 0, 0, 0, 0, 0};
+
+static GFont get_marker_text_font(CanvasState *state, uint8_t choice) {
+  if (choice != state->marker_text_font_loaded_choice) {
+    if (state->marker_text_font) { fonts_unload_custom_font(state->marker_text_font); state->marker_text_font = NULL; }
+    uint32_t res_id = marker_text_font_resource_id(choice);
+    if (res_id != 0) state->marker_text_font = fonts_load_custom_font(resource_get_handle(res_id));
+    state->marker_text_font_loaded_choice = choice;
+  }
+  if (state->marker_text_font) return state->marker_text_font;
+  if (choice == 2) return fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD);
+  if (choice == 1) return fonts_get_system_font(FONT_KEY_GOTHIC_14_BOLD);
+  return fonts_get_system_font(FONT_KEY_GOTHIC_14); // 0, and fallback for an unrecognized choice
+}
+
+static void draw_text_markers(GContext *ctx, GPoint center, GRect screen, CanvasState *state,
+                               const MarkerTextConfig *text_cfg, const MarkerRingConfig *hour_cfg,
+                               const MarkerRingConfig *second_cfg, GColor color) {
+  if (text_cfg->target == 0) return;
+  bool is_hour = (text_cfg->target == 1);
+  const MarkerRingConfig *ring = is_hour ? hour_cfg : second_cfg;
+  uint16_t mask = is_hour ? text_cfg->hour_mask : text_cfg->second_mask;
+  if (mask == 0) return;
+
+  GFont font = get_marker_text_font(state, text_cfg->font_choice);
+  int16_t fh = MARKER_FONT_HEIGHTS[text_cfg->font_choice] + MARKER_FONT_Y_OFFSET[text_cfg->font_choice];
+
+  graphics_context_set_text_color(ctx, color);
+
+  for (int i = 0; i < 12; i++) {
+    if (!(mask & (1 << i))) continue;
+    int32_t angle = ((int32_t)i * TRIG_MAX_ANGLE) / 12;
+    GPoint base = point_on_ring(center, screen, angle, ring->outer_border_pct, ring->outer_eccentricity);
+
+    int32_t sin_v = sin_lookup(angle), cos_v = cos_lookup(angle);
+    GPoint pos = GPoint(
+      base.x + (int32_t)(text_cfg->offset_px * sin_v) / TRIG_MAX_RATIO,
+      base.y - (int32_t)(text_cfg->offset_px * cos_v) / TRIG_MAX_RATIO);
+
+    char buf[3];
+    int label = is_hour ? (i == 0 ? 12 : i) : (i * 5);
+    snprintf(buf, sizeof(buf), "%d", label);
+
+    int16_t box_w = 26, box_h = fh + 4;
+    GRect box = GRect(pos.x - box_w / 2, pos.y - box_h / 2, box_w, box_h);
+    graphics_draw_text(ctx, buf, font, box, GTextOverflowModeFill, GTextAlignmentCenter, NULL);
+  }
+}
+
+// ---- bitmap marker styles (moved in from pebble-eclipse-watch.c) --------
+
+static uint32_t marker_style_resource_id(uint8_t style) {
+  switch (style) {
+    case 3: return RESOURCE_ID_MODERN_BACKGROUND;
+    case 4: return RESOURCE_ID_SWISS_BACKGROUND;
+    case 5: return RESOURCE_ID_TALLY_BACKGROUND;
+    case 6: return RESOURCE_ID_BELL_BACKGROUND;
+    case 7: return RESOURCE_ID_BROWN_BACKGROUND;
+    default: return 0;
+  }
+}
+
+static void ensure_marker_bitmap_loaded(CanvasState *state, uint8_t style) {
+  if (style < 3) {
+    if (state->marker_bitmap) { gbitmap_destroy(state->marker_bitmap); state->marker_bitmap = NULL; }
+    state->marker_bitmap_style = 255;
+    state->marker_bitmap_tinted = false;
+    return;
+  }
+  if (state->marker_bitmap_style == style && state->marker_bitmap) return; // already the right one
+  if (state->marker_bitmap) { gbitmap_destroy(state->marker_bitmap); state->marker_bitmap = NULL; }
+  uint32_t res_id = marker_style_resource_id(style);
+  if (res_id != 0) state->marker_bitmap = gbitmap_create_with_resource(res_id);
+  state->marker_bitmap_style = style;
+  state->marker_bitmap_tinted = false; // freshly loaded, still in its original exported colors
+}
+
+// Recolors state->marker_bitmap to tint_color, once, in place -- see the
+// original (now-removed) tint_marker_bitmap() in pebble-eclipse-watch.c
+// for the fuller writeup of the two cases (palettized vs 8-bit) this
+// handles; unchanged other than now living per-canvas-instance instead
+// of file-static, and running once per full redraw (this canvas's own
+// once-a-minute/force-redraw cadence) instead of every tick.
+static void tint_marker_bitmap(CanvasState *state, GColor tint_color, bool transparent) {
+  if (!state->marker_bitmap) return;
+  if (state->marker_bitmap_tinted && state->marker_bitmap_tint_color.argb == tint_color.argb
+      && state->marker_bitmap_tint_transparent == transparent) return;
+
+  uint8_t forced_alpha_bits = transparent ? 0x80 : 0xC0; // alpha 2 (~67%) or 3 (opaque)
+
+  GBitmapFormat format = gbitmap_get_format(state->marker_bitmap);
+  if (format == GBitmapFormat1BitPalette || format == GBitmapFormat2BitPalette || format == GBitmapFormat4BitPalette) {
+    GColor *palette = gbitmap_get_palette(state->marker_bitmap);
+    if (palette) {
+      int count = (format == GBitmapFormat1BitPalette) ? 2 : (format == GBitmapFormat2BitPalette) ? 4 : 16;
+      for (int i = 0; i < count; i++) {
+        if ((palette[i].argb & 0xC0) == 0) continue; // fully transparent entry -- leave it alone
+        GColor new_color;
+        new_color.argb = forced_alpha_bits | (tint_color.argb & 0x3F);
+        palette[i] = new_color;
+      }
+    }
+  } else if (format == GBitmapFormat8Bit) {
+    uint8_t *data = gbitmap_get_data(state->marker_bitmap);
+    uint16_t stride = gbitmap_get_bytes_per_row(state->marker_bitmap);
+    GRect b = gbitmap_get_bounds(state->marker_bitmap);
+    for (int16_t y = 0; y < b.size.h; y++) {
+      uint8_t *row = data + (int32_t)y * stride;
+      for (int16_t x = 0; x < b.size.w; x++) {
+        if ((row[x] & 0xC0) == 0) continue; // fully transparent pixel -- leave it alone
+        row[x] = forced_alpha_bits | (tint_color.argb & 0x3F);
+      }
+    }
+  }
+  // Any other format: left as-is, drawn with its original colors.
+
+  state->marker_bitmap_tinted = true;
+  state->marker_bitmap_tint_transparent = transparent;
+  state->marker_bitmap_tint_color = tint_color;
+}
+
+static void draw_marker_bitmap(GContext *ctx, GBitmap *mask, GRect bounds) {
+  if (!mask) return;
+  GRect bmp_bounds = gbitmap_get_bounds(mask);
+  GRect dest = GRect(bounds.origin.x + (bounds.size.w - bmp_bounds.size.w) / 2,
+                      bounds.origin.y + (bounds.size.h - bmp_bounds.size.h) / 2,
+                      bmp_bounds.size.w, bmp_bounds.size.h);
+  graphics_context_set_compositing_mode(ctx, GCompOpSet);
+  graphics_draw_bitmap_in_rect(ctx, mask, dest);
+}
+
+// Draws whichever marker style is active (procedural preset, custom, or
+// bitmap) into `ctx`, using `screen`/`center` -- called from
+// canvas_update_proc() during a full redraw, before the frame gets
+// captured, so this only actually runs on this canvas's own throttled
+// cadence (once a minute, or immediately on a forced redraw) rather than
+// every tick. big-analog mode only; callers must gate on d->bottom_style.
+static void draw_all_markers(GContext *ctx, CanvasState *state, GPoint center, GRect screen,
+                              const EclipseData *d, GColor main_color) {
+  uint8_t marker_style = d->big_analog_marker_style;
+  bool is_bitmap_style = marker_style >= 3 && marker_style != 8;
+
+  ensure_marker_bitmap_loaded(state, marker_style);
+
+  if (is_bitmap_style) {
+    tint_marker_bitmap(state, main_color, d->big_analog_hands_transparent);
+    draw_marker_bitmap(ctx, state->marker_bitmap, screen);
+    return;
+  }
+
+  const MarkerRingConfig *hour_cfg, *second_cfg;
+  if (marker_style == 8) {
+    hour_cfg = &d->custom_hour_marker;
+    second_cfg = &d->custom_second_marker;
+  } else {
+    uint8_t idx = (marker_style <= 2) ? marker_style : 0;
+    hour_cfg = &MARKER_STYLE_HOUR_PRESETS[idx];
+    second_cfg = &MARKER_STYLE_SECOND_PRESETS[idx];
+  }
+
+  // Second ring first so the hour ring's marks draw on top at shared
+  // 12-o'clock-aligned slots (matches the original procedural markers'
+  // precedent of hour ticks winning at shared positions).
+  draw_marker_ring(ctx, center, screen, second_cfg, 60, 5, main_color);
+  draw_marker_ring(ctx, center, screen, hour_cfg, 12, 0, main_color);
+
+  if (marker_style == 8) {
+    draw_text_markers(ctx, center, screen, state, &d->marker_text, hour_cfg, second_cfg, main_color);
+  }
+}
+
 
 static void canvas_update_proc(Layer *layer, GContext *ctx) {
   CanvasState *state = (CanvasState *)layer_get_data(layer);
@@ -1505,6 +1871,20 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
     if (iss_visible) draw_label(ctx, bounds, iss_center, "ISS");
   }
 
+  // Hour/second markers -- big-analog mode only. Drawn on top of
+  // everything above (sky, sun/moon, clouds, ground, labels) so they
+  // stay visible over any part of the sky, using full_bounds/its own
+  // unshrunk center rather than the (possibly bottom-bar-shrunk) `bounds`
+  // above -- matching hands_layer_update_proc's own positioning, which
+  // always uses the full unobstructed screen regardless of the bottom
+  // info bar, so markers and hands stay aligned with each other.
+  if (d->bottom_style == 2) {
+    GPoint full_center = GPoint(full_bounds.size.w / 2, full_bounds.size.h / 2);
+    GColor bg, main_color, accent_color;
+    get_active_color_scheme(d, now, &bg, &main_color, &accent_color);
+    draw_all_markers(ctx, state, full_center, full_bounds, d, main_color);
+  }
+
   // Cache what was just drawn: capture the real framebuffer (this is
   // only valid to call inside an update_proc, and only reflects
   // drawing already issued against ctx, which is why this comes last)
@@ -1551,6 +1931,11 @@ Layer *eclipse_canvas_create(GRect frame) {
   // color platforms (emery included), so the row-by-row memcpy in
   // canvas_update_proc's capture step needs no per-pixel conversion.
   state->sky_cache = gbitmap_create_blank(frame.size, GBitmapFormat8Bit);
+  state->marker_bitmap = NULL;
+  state->marker_bitmap_style = 255; // sentinel: none loaded yet
+  state->marker_bitmap_tinted = false;
+  state->marker_text_font = NULL;
+  state->marker_text_font_loaded_choice = 255;
   layer_set_update_proc(layer, canvas_update_proc);
   return layer;
 }
@@ -1560,6 +1945,14 @@ void eclipse_canvas_destroy(Layer *layer) {
   if (state->sky_cache) {
     gbitmap_destroy(state->sky_cache);
     state->sky_cache = NULL;
+  }
+  if (state->marker_bitmap) {
+    gbitmap_destroy(state->marker_bitmap);
+    state->marker_bitmap = NULL;
+  }
+  if (state->marker_text_font) {
+    fonts_unload_custom_font(state->marker_text_font);
+    state->marker_text_font = NULL;
   }
   layer_destroy(layer);
 }

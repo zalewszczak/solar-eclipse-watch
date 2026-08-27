@@ -1,6 +1,6 @@
 #include <pebble.h>
 #include "eclipse_data.h"
-#include "eclipse_layer.h"
+#include "background_layer.h"
 
 // EclipseData is well past Pebble's 256-byte-per-key persist limit
 // (PERSIST_DATA_MAX_LENGTH), so it's split across several keys here
@@ -54,7 +54,7 @@ static bool use_small_seconds_for_digital_clock(void);
 // constants -- guaranteed valid regardless of exact Pebble color name
 // availability, same pattern already used safely for the sky
 // gradient in eclipse_layer.c.
-static void get_color_scheme(uint8_t id, GColor *bg, GColor *text, GColor *accent) {
+void get_color_scheme(uint8_t id, GColor *bg, GColor *text, GColor *accent) {
   switch (id) {
     case 1: // White on Black
       *bg = GColorBlack; *text = GColorWhite; *accent = GColorWhite;
@@ -98,7 +98,7 @@ static void get_color_scheme(uint8_t id, GColor *bg, GColor *text, GColor *accen
 // sent is exactly how the "pick any of the 64 real display colors"
 // picker round-trips: the phone sends back whichever of the 64 the
 // user tapped, packed the same way, and this just re-wraps it.
-static GColor gcolor_from_packed(uint8_t packed) {
+GColor gcolor_from_packed(uint8_t packed) {
   GColor c;
   c.argb = packed;
   return c;
@@ -108,7 +108,7 @@ static GColor gcolor_from_packed(uint8_t packed) {
 // of a preset"; anything else falls through to get_color_scheme().
 // Used for both the day and (independently) the night scheme, so it
 // takes its inputs explicitly rather than reading s_data directly.
-static void resolve_color_scheme(uint8_t scheme_id, uint8_t custom_bg, uint8_t custom_text, uint8_t custom_accent,
+void resolve_color_scheme(uint8_t scheme_id, uint8_t custom_bg, uint8_t custom_text, uint8_t custom_accent,
                                    GColor *bg, GColor *text, GColor *accent) {
   if (scheme_id == 10) {
     *bg = gcolor_from_packed(custom_bg);
@@ -123,14 +123,22 @@ static void resolve_color_scheme(uint8_t scheme_id, uint8_t custom_bg, uint8_t c
 // eclipse_sky_is_bright()'s existing civil-twilight threshold rather
 // than a second definition of "night") -- falls back to the day
 // scheme entirely if the user hasn't turned on a separate night one.
-static void get_active_color_scheme(time_t now, GColor *bg, GColor *text, GColor *accent) {
-  bool night = s_data.night_scheme_enabled && !eclipse_sky_is_bright(&s_data, now);
+// Picks the day or night scheme based on the Sun's altitude (reusing
+// eclipse_sky_is_bright()'s existing civil-twilight threshold rather
+// than a second definition of "night") -- falls back to the day
+// scheme entirely if the user hasn't turned on a separate night one.
+// Takes `d` explicitly (rather than reading the global s_data) so
+// background_layer.c can call this too, for marker colors, using its
+// own `d` (the same EclipseData, via the pointer eclipse_canvas_set_data()
+// stored) without needing a second copy of the palette tables above.
+void get_active_color_scheme(const EclipseData *d, time_t now, GColor *bg, GColor *text, GColor *accent) {
+  bool night = d->night_scheme_enabled && !eclipse_sky_is_bright(d, now);
   if (night) {
-    resolve_color_scheme(s_data.night_color_scheme, s_data.night_custom_bg,
-                          s_data.night_custom_text, s_data.night_custom_accent, bg, text, accent);
+    resolve_color_scheme(d->night_color_scheme, d->night_custom_bg,
+                          d->night_custom_text, d->night_custom_accent, bg, text, accent);
   } else {
-    resolve_color_scheme(s_data.color_scheme, s_data.custom_bg,
-                          s_data.custom_text, s_data.custom_accent, bg, text, accent);
+    resolve_color_scheme(d->color_scheme, d->custom_bg,
+                          d->custom_text, d->custom_accent, bg, text, accent);
   }
 }
 
@@ -304,57 +312,6 @@ static void fill_polygon_dithered(GContext *ctx, GPoint *pts, int n, GColor colo
   }
 }
 
-// True if p is within half_width of the line segment a-b -- used for
-// the rounded/classic hand style's dithered-transparency case, since
-// that shape isn't a simple polygon the way the other 3 styles are.
-static bool point_in_capsule(GPoint p, GPoint a, GPoint b, int16_t half_width) {
-  int32_t abx = b.x - a.x, aby = b.y - a.y;
-  int32_t apx = p.x - a.x, apy = p.y - a.y;
-  int32_t ab_len_sq = abx * abx + aby * aby;
-  int32_t t = ab_len_sq > 0 ? ((apx * abx + apy * aby) * 1000) / ab_len_sq : 0;
-  if (t < 0) t = 0;
-  if (t > 1000) t = 1000;
-  int32_t closest_x = a.x + (abx * t) / 1000;
-  int32_t closest_y = a.y + (aby * t) / 1000;
-  int32_t dx = p.x - closest_x, dy = p.y - closest_y;
-  int32_t dist_sq = dx * dx + dy * dy;
-  return dist_sq <= (int32_t)half_width * half_width;
-}
-
-// Same ~50% Bayer stipple as fill_polygon_dithered, but for a
-// rounded-cap line ("capsule") shape instead of a polygon.
-static void fill_capsule_dithered(GContext *ctx, GPoint a, GPoint b, int16_t half_width, GColor color) {
-  int16_t min_x = (a.x < b.x ? a.x : b.x) - half_width;
-  int16_t max_x = (a.x > b.x ? a.x : b.x) + half_width;
-  int16_t min_y = (a.y < b.y ? a.y : b.y) - half_width;
-  int16_t max_y = (a.y > b.y ? a.y : b.y) + half_width;
-  graphics_context_set_fill_color(ctx, color);
-  for (int16_t y = min_y; y <= max_y; y++) {
-    for (int16_t x = min_x; x <= max_x; x++) {
-      if (BAYER4[y & 3][x & 3] >= 8) continue; // ~50% threshold
-      if (!point_in_capsule(GPoint(x, y), a, b, half_width)) continue;
-      graphics_fill_rect(ctx, GRect(x, y, 1, 1), 0, GCornerNone);
-    }
-  }
-}
-
-// Draws one hour/minute hand at `angle` (TRIG_MAX_ANGLE units) and
-// `length` px, in one of four styles. Point arrays are computed
-// fresh each call (rather than a persistent GPath rotated in place,
-// the more common Pebble pattern) since `length` depends on the
-// current screen size -- this keeps the hand correctly proportioned
-// on any display without needing to rebuild a cached path whenever
-// that size is known, which only matters once per launch anyway.
-//
-// The modern style is always hollow (outline-only -- gpath_draw_outline()
-// genuinely leaves the interior untouched) when hands aren't
-// transparent. Transparency, when on, always means a real ~50%
-// dithered blend of the hand's full normal silhouette instead --
-// including for modern, which trades its hollow center for the
-// dithered fill in that case, since piling a 50% stipple on top of
-// an already-hollow 1px outline wouldn't read as "half-transparent"
-// at all.
-
 // Shared by every outline implementation in this file (text, icons,
 // hands): draw once shifted in each cardinal direction with a
 // contrasting color, then once more normally on top. Cheap and
@@ -390,123 +347,40 @@ static void draw_text_outlined(GContext *ctx, const char *text, GFont font, GRec
   graphics_draw_text(ctx, text, font, box, overflow, alignment, NULL);
 }
 
-static void draw_big_hand(GContext *ctx, GPoint center, int32_t angle, int16_t length,
-                           uint8_t style, GColor color, bool transparent) {
-  if (style == 3) {
-    // Rounded/classic: a thick line with rounded caps at both ends,
-    // like the default Pebble watchface's hands -- drawn directly
-    // (line + circle caps) rather than through the polygon/GPath path
-    // the other 3 styles use, since a capsule isn't a simple polygon.
-    int16_t half_width = length / 14;
-    if (half_width < 2) half_width = 2;
-    if (half_width > 6) half_width = 6;
-    GPoint tip = GPoint(center.x + ((int32_t)length * sin_lookup(angle)) / TRIG_MAX_RATIO,
-                         center.y - ((int32_t)length * cos_lookup(angle)) / TRIG_MAX_RATIO);
-    if (transparent) {
-      fill_capsule_dithered(ctx, center, tip, half_width, color);
-    } else {
-      graphics_context_set_stroke_color(ctx, color);
-      graphics_context_set_stroke_width(ctx, half_width * 2);
-      graphics_draw_line(ctx, center, tip);
-      graphics_context_set_fill_color(ctx, color);
-      graphics_fill_circle(ctx, tip, half_width);
-      graphics_fill_circle(ctx, center, half_width);
-    }
-    return;
-  }
-
-  GPoint points[4];
-  int num_points;
-
-  if (style == 1) { // square: constant-width rectangle
-    int16_t hw = length / 12;
-    if (hw < 3) hw = 3;
-    points[0] = GPoint(-hw, 6);
-    points[1] = GPoint(-hw, -length);
-    points[2] = GPoint(hw, -length);
-    points[3] = GPoint(hw, 6);
-    num_points = 4;
-  } else if (style == 2) { // modern: narrow rounded rectangle, hollow unless transparent (see above)
-    int16_t hw = length / 16;
-    if (hw < 2) hw = 2;
-    points[0] = GPoint(-hw, 8);
-    points[1] = GPoint(-hw, -length);
-    points[2] = GPoint(hw, -length);
-    points[3] = GPoint(hw, 8);
-    num_points = 4;
-  } else { // pointy: triangle, wide base narrowing to a tip
-    int16_t hw = length / 8;
-    if (hw < 4) hw = 4;
-    points[0] = GPoint(-hw, 6);
-    points[1] = GPoint(hw, 6);
-    points[2] = GPoint(0, -length);
-    num_points = 3;
-  }
-
-  if (transparent) {
-    // Rotate/translate the shape's points into screen space by hand
-    // (rather than via GPath, which has no dithered-fill option) and
-    // stipple it in place. Matches the same clockwise-from-12
-    // TRIG_MAX_ANGLE rotation convention gpath_rotate_to() uses
-    // internally, so a hand doesn't visually jump when this toggle
-    // flips.
-    GPoint screen_pts[4];
-    for (int i = 0; i < num_points; i++) {
-      int32_t rx = ((int32_t)points[i].x * cos_lookup(angle) - (int32_t)points[i].y * sin_lookup(angle)) / TRIG_MAX_RATIO;
-      int32_t ry = ((int32_t)points[i].x * sin_lookup(angle) + (int32_t)points[i].y * cos_lookup(angle)) / TRIG_MAX_RATIO;
-      screen_pts[i] = GPoint(center.x + rx, center.y + ry);
-    }
-    fill_polygon_dithered(ctx, screen_pts, num_points, color);
-    return;
-  }
-
-  GPathInfo info;
-  info.num_points = num_points;
-  info.points = points;
-  GPath *path = gpath_create(&info);
-  gpath_rotate_to(path, angle);
-  gpath_move_to(path, center);
-
-  if (style == 2) {
-    graphics_context_set_stroke_color(ctx, color);
-    graphics_context_set_stroke_width(ctx, 1);
-    gpath_draw_outline(ctx, path);
-  } else {
-    graphics_context_set_fill_color(ctx, color);
-    gpath_draw_filled(ctx, path);
-  }
-
-  gpath_destroy(path);
-}
-
-// Draws the same hand shape 4x with a 1px-shifted center in a
-// contrasting color first (only when not in transparent-hands mode --
-// an outline under a dithered translucent fill would look wrong),
-// then the real hand on top -- reuses draw_big_hand itself for the
-// outline passes rather than duplicating its per-style rendering.
-static void draw_big_hand_outlined(GContext *ctx, GPoint center, int32_t angle, int16_t length,
-                                    uint8_t style, GColor color, bool transparent,
-                                    bool outline_enabled) {
-  if (outline_enabled && !transparent) {
-    GColor outline_color = contrasting_outline_color(color);
-    for (int i = 0; i < 4; i++) {
-      GPoint shifted = GPoint(center.x + OUTLINE_OFFSETS[i].x, center.y + OUTLINE_OFFSETS[i].y);
-      draw_big_hand(ctx, shifted, angle, length, style, outline_color, false);
-    }
-  }
-  draw_big_hand(ctx, center, angle, length, style, color, transparent);
-}
-
 // ---- big-analogue marker styles (procedural + bitmap) --------------------
+// Moved into background_layer.c -- markers now draw as part of the sky
+// canvas's own cached redraw (see the design note at the top of that
+// file), not from here every tick.
 
-// Loaded on demand and cached (unloaded/reloaded only when the style
-// actually changes) rather than every frame -- gbitmap_create_with_resource
-// isn't something to call every second.
-static GBitmap *s_marker_bitmap = NULL;
-static uint8_t s_marker_bitmap_style = 255; // sentinel: none loaded yet
-static bool s_marker_bitmap_tinted = false;   // has tint_marker_bitmap run since the last (re)load?
-static GColor s_marker_bitmap_tint_color;      // which color it was last tinted to
-static bool s_marker_bitmap_tint_transparent;  // and whether that tint was the transparent variant
+// ---- big-analogue hand-style presets (procedural, styles 0-3) ------------
+// Recreates the 4 non-custom big_analog_hand_style options through
+// hand_layer.c's shared drawing code, rather than a separate procedural
+// drawing function -- same simplification trade-off the recreated
+// procedural marker presets in background_layer.c make: these are static
+// approximations (~92px reference radius, a 200x228 screen) rather than
+// proportional to the actual screen radius the way the original
+// formula-driven draw_big_hand() was. outline_enabled/outline_color/
+// translucent are left at their zero-value defaults here and filled in
+// at the call site instead, from the (still-global, still applicable to
+// these 4 styles) outline_enabled and big_analog_hands_transparent
+// settings -- see hands_layer_update_proc.
+static const HandConfig HAND_STYLE_HOUR_PRESETS[4] = {
+  { .style = 1, .width = 12, .length = 51, .back_offset = 6, .color = 0 },                     // 0: pointy
+  { .style = 2, .width = 8,  .length = 51, .back_offset = 6, .color = 0 },                     // 1: square
+  { .style = 2, .width = 6,  .length = 51, .back_offset = 8, .color = 0, .hollow = true },      // 2: modern
+  { .style = 0, .width = 6,  .length = 51, .back_offset = 0, .color = 1 },                     // 3: rounded/classic (accent hour hand)
+};
+static const HandConfig HAND_STYLE_MIN_PRESETS[4] = {
+  { .style = 1, .width = 18, .length = 78, .back_offset = 6, .color = 0 },
+  { .style = 2, .width = 12, .length = 78, .back_offset = 6, .color = 0 },
+  { .style = 2, .width = 8,  .length = 78, .back_offset = 8, .color = 0, .hollow = true },
+  { .style = 0, .width = 10, .length = 78, .back_offset = 0, .color = 0 },
+};
+// The 4 procedural styles never customized the second hand -- always a
+// plain accent-colored thin line -- so one shared preset covers all of them.
+static const HandConfig HAND_STYLE_SEC_PRESET = {
+  .style = 1, .width = 1, .length = 85, .back_offset = 0, .color = 1,
+};
 
 // Custom font for corner/edge feature text and the big-analog date --
 // a single slot since only one custom font can be selected at a time,
@@ -515,40 +389,6 @@ static bool s_marker_bitmap_tint_transparent;  // and whether that tint was the 
 // for the main clock typeface.
 static GFont s_corner_custom_font = NULL;
 static uint8_t s_corner_custom_font_loaded_choice = 255; // 255 = nothing loaded yet
-
-static uint32_t marker_style_resource_id(uint8_t style) {
-  switch (style) {
-    case 3: return RESOURCE_ID_MODERN_BACKGROUND;
-    case 4: return RESOURCE_ID_SWISS_BACKGROUND;
-    case 5: return RESOURCE_ID_TALLY_BACKGROUND;
-    case 6: return RESOURCE_ID_BELL_BACKGROUND;
-    case 7: return RESOURCE_ID_BROWN_BACKGROUND;
-    default: return 0;
-  }
-}
-
-static void ensure_marker_bitmap_loaded(uint8_t style) {
-  if (style < 3) {
-    if (s_marker_bitmap) {
-      gbitmap_destroy(s_marker_bitmap);
-      s_marker_bitmap = NULL;
-    }
-    s_marker_bitmap_style = 255;
-    s_marker_bitmap_tinted = false;
-    return;
-  }
-  if (s_marker_bitmap_style == style && s_marker_bitmap) return; // already the right one
-  if (s_marker_bitmap) {
-    gbitmap_destroy(s_marker_bitmap);
-    s_marker_bitmap = NULL;
-  }
-  uint32_t res_id = marker_style_resource_id(style);
-  if (res_id != 0) {
-    s_marker_bitmap = gbitmap_create_with_resource(res_id);
-  }
-  s_marker_bitmap_style = style;
-  s_marker_bitmap_tinted = false; // freshly loaded, still in its original exported colors
-}
 
 static uint32_t corner_custom_font_resource_id(uint8_t choice) {
   switch (choice) {
@@ -603,129 +443,6 @@ static int16_t corner_font_height_estimate(void) {
   return 18;
 }
 
-// Recolors s_marker_bitmap to tint_color, once, in place -- not a
-// per-frame operation. Every non-fully-transparent pixel (or palette
-// entry) has its RGB replaced with tint_color's RGB. Its alpha is
-// NOT left as originally exported: this follows the same "hands
-// transparent" setting the procedural hand styles use, forcing full
-// opacity when it's off (regardless of whatever partial alpha the
-// source PNG's antialiased edges happen to carry -- otherwise a
-// source that isn't fully opaque everywhere renders translucent no
-// matter what this setting says) or a consistent partial alpha when
-// it's on. Re-running with a different tint_color and/or transparent
-// setting is safe and correct any number of times, since each run
-// fully replaces both RGB and alpha rather than blending onto
-// whatever's already there.
-//
-// Two cases, matching how Pebble's build tooling can represent a
-// mask PNG like this:
-//   - Palettized (1/2/4-bit palette): gbitmap_get_palette() gives
-//     direct access to the (tiny) color table -- rewrite each entry.
-//     This is the standard, well-documented technique for recoloring
-//     Pebble icons/masks at runtime.
-//   - GBitmapFormat8Bit: each pixel stores its own GColor.argb byte
-//     directly (no palette) -- rewrite every non-transparent pixel's
-//     byte via gbitmap_get_data()/get_bytes_per_row(), the same safe
-//     technique already used for the sky canvas's cache bitmap.
-// Any other format is left untinted (drawn with its own original
-// colors via the plain GCompOpSet path) rather than risking a wrong
-// guess about its layout.
-static void tint_marker_bitmap(GColor tint_color, bool transparent) {
-  if (!s_marker_bitmap) return;
-  if (s_marker_bitmap_tinted && s_marker_bitmap_tint_color.argb == tint_color.argb
-      && s_marker_bitmap_tint_transparent == transparent) return;
-
-  uint8_t forced_alpha_bits = transparent ? 0x80 : 0xC0; // alpha 2 (~67%) or 3 (opaque)
-
-  GBitmapFormat format = gbitmap_get_format(s_marker_bitmap);
-  if (format == GBitmapFormat1BitPalette || format == GBitmapFormat2BitPalette || format == GBitmapFormat4BitPalette) {
-    GColor *palette = gbitmap_get_palette(s_marker_bitmap);
-    if (palette) {
-      int count = (format == GBitmapFormat1BitPalette) ? 2 : (format == GBitmapFormat2BitPalette) ? 4 : 16;
-      for (int i = 0; i < count; i++) {
-        if ((palette[i].argb & 0xC0) == 0) continue; // fully transparent entry -- leave it alone
-        GColor new_color;
-        new_color.argb = forced_alpha_bits | (tint_color.argb & 0x3F);
-        palette[i] = new_color;
-      }
-    }
-  } else if (format == GBitmapFormat8Bit) {
-    uint8_t *data = gbitmap_get_data(s_marker_bitmap);
-    uint16_t stride = gbitmap_get_bytes_per_row(s_marker_bitmap);
-    GRect b = gbitmap_get_bounds(s_marker_bitmap);
-    for (int16_t y = 0; y < b.size.h; y++) {
-      uint8_t *row = data + (int32_t)y * stride;
-      for (int16_t x = 0; x < b.size.w; x++) {
-        if ((row[x] & 0xC0) == 0) continue; // fully transparent pixel -- leave it alone
-        row[x] = forced_alpha_bits | (tint_color.argb & 0x3F);
-      }
-    }
-  }
-  // Any other format: left as-is, drawn with its original colors.
-
-  s_marker_bitmap_tinted = true;
-  s_marker_bitmap_tint_transparent = transparent;
-  s_marker_bitmap_tint_color = tint_color;
-}
-
-// Draws `mask` at its own native size, centered within `bounds`,
-// using Pebble's standard bitmap transparency technique (GCompOpSet).
-// Whatever recoloring is needed happens once beforehand in
-// tint_marker_bitmap(), not here -- this stays the same simple,
-// confirmed-working draw call every frame.
-static void draw_marker_bitmap(GContext *ctx, GBitmap *mask, GRect bounds) {
-  if (!mask) return;
-  GRect bmp_bounds = gbitmap_get_bounds(mask);
-  GRect dest = GRect(bounds.origin.x + (bounds.size.w - bmp_bounds.size.w) / 2,
-                      bounds.origin.y + (bounds.size.h - bmp_bounds.size.h) / 2,
-                      bmp_bounds.size.w, bmp_bounds.size.h);
-  graphics_context_set_compositing_mode(ctx, GCompOpSet);
-  graphics_draw_bitmap_in_rect(ctx, mask, dest);
-}
-
-// Procedural hour/second markers for the 3 non-bitmap styles.
-// style: 0=minimal (hour only, thin), 1=small (hour+second, hour
-// longer), 2=big (hour thick, second thin+short).
-static void draw_procedural_markers(GContext *ctx, GPoint center, int16_t radius, uint8_t style, GColor color) {
-  bool show_second = (style != 0);
-  int16_t hour_outer = radius + 5;
-  int16_t hour_inner_major, hour_inner_minor, hour_width;
-  int16_t sec_outer = radius + 2, sec_inner = radius, sec_width = 1;
-
-  if (style == 1) { // small
-    hour_inner_major = radius - 6; hour_inner_minor = radius - 4; hour_width = 1;
-  } else if (style == 2) { // big
-    hour_outer = radius + 6;
-    hour_inner_major = radius - 9; hour_inner_minor = radius - 6; hour_width = 3;
-  } else { // minimal (style == 0, or any unexpected value)
-    hour_inner_major = radius - 4; hour_inner_minor = radius - 2; hour_width = 1;
-  }
-
-  graphics_context_set_stroke_color(ctx, color);
-  graphics_context_set_stroke_width(ctx, hour_width);
-  for (int h = 0; h < 12; h++) {
-    int32_t angle = (h * TRIG_MAX_ANGLE) / 12;
-    int16_t inner = (h % 3 == 0) ? hour_inner_major : hour_inner_minor;
-    GPoint p1 = GPoint(center.x + (hour_outer * sin_lookup(angle)) / TRIG_MAX_RATIO,
-                        center.y - (hour_outer * cos_lookup(angle)) / TRIG_MAX_RATIO);
-    GPoint p2 = GPoint(center.x + (inner * sin_lookup(angle)) / TRIG_MAX_RATIO,
-                        center.y - (inner * cos_lookup(angle)) / TRIG_MAX_RATIO);
-    graphics_draw_line(ctx, p1, p2);
-  }
-
-  if (show_second) {
-    graphics_context_set_stroke_width(ctx, sec_width);
-    for (int s = 0; s < 60; s++) {
-      if (s % 5 == 0) continue; // an hour marker already covers this position
-      int32_t angle = (s * TRIG_MAX_ANGLE) / 60;
-      GPoint p1 = GPoint(center.x + (sec_outer * sin_lookup(angle)) / TRIG_MAX_RATIO,
-                          center.y - (sec_outer * cos_lookup(angle)) / TRIG_MAX_RATIO);
-      GPoint p2 = GPoint(center.x + (sec_inner * sin_lookup(angle)) / TRIG_MAX_RATIO,
-                          center.y - (sec_inner * cos_lookup(angle)) / TRIG_MAX_RATIO);
-      graphics_draw_line(ctx, p1, p2);
-    }
-  }
-}
 
 // The always-on-top overlay for big-analogue mode: hour/minute/second
 // hands, optional edge tick markers, and an optional date readout
@@ -741,71 +458,58 @@ static void hands_layer_update_proc(Layer *layer, GContext *ctx) {
   // shrinking gracefully when Timeline Quick View is showing.
   GRect bounds = layer_get_unobstructed_bounds(layer);
   GPoint center = GPoint(bounds.origin.x + bounds.size.w / 2, bounds.origin.y + bounds.size.h / 2);
-  int16_t radius = ((bounds.size.w < bounds.size.h ? bounds.size.w : bounds.size.h) / 2) - 8;
 
   time_t now = time(NULL);
   struct tm *t = localtime(&now);
 
   GColor bg, main_color, accent_color;
-  get_active_color_scheme(now, &bg, &main_color, &accent_color);
+  get_active_color_scheme(&s_data, now, &bg, &main_color, &accent_color);
 
-  uint8_t marker_style = s_data.big_analog_marker_style;
-  bool is_bitmap_style = marker_style >= 3 && marker_style != 8;
-  ensure_marker_bitmap_loaded(marker_style);
+  // Markers (procedural presets, custom, and bitmap styles alike) are no
+  // longer drawn here -- they're part of the sky canvas's own cached
+  // redraw now (background_layer.c), composited once per its own
+  // once-a-minute/force-redraw cadence rather than every tick this
+  // always-on-top hands layer runs.
   ensure_corner_custom_font(s_data.corner_custom_font);
-
-  if (is_bitmap_style) {
-    tint_marker_bitmap(main_color, s_data.big_analog_hands_transparent);
-    draw_marker_bitmap(ctx, s_marker_bitmap, bounds);
-  } else if (marker_style == 8) {
-    // Custom marker system -- ring geometry is cached (see marker_layer.c),
-    // only the (cheap) text-numeral pass runs live every tick.
-    marker_layer_ensure_ring_cache(bounds, &s_data.custom_hour_marker,
-                                    &s_data.custom_second_marker, main_color);
-    marker_layer_draw_ring(ctx, bounds);
-    marker_layer_draw_text(ctx, bounds, &s_data.marker_text,
-                            &s_data.custom_hour_marker, &s_data.custom_second_marker, main_color);
-  } else {
-    draw_procedural_markers(ctx, center, radius, marker_style, main_color);
-  }
 
   int32_t hour_angle = (((t->tm_hour % 12) * 60 + t->tm_min) * TRIG_MAX_ANGLE) / (12 * 60);
   int32_t min_angle = (t->tm_min * TRIG_MAX_ANGLE) / 60;
 
+  // All 5 hand styles now go through hand_layer_draw() -- custom (4) uses
+  // the user's own per-hand settings; 0-3 use one of the hardcoded
+  // HAND_STYLE_*_PRESETS above, with the two still-global hand settings
+  // (outline_enabled, big_analog_hands_transparent) applied uniformly to
+  // all 3 hands, matching what draw_big_hand_outlined() used to do.
+  HandConfig hour_cfg, min_cfg, sec_cfg;
   if (s_data.big_analog_hand_style == 4) {
-    // Custom hand system -- each hand fully independent, see hand_layer.h.
-    // Transparency is per-hand now (HandConfig.translucent), not the
-    // global big_analog_hands_transparent checkbox.
-    hand_layer_draw(ctx, center, hour_angle, &s_data.hand_hour, main_color, accent_color, bg);
-    hand_layer_draw(ctx, center, min_angle, &s_data.hand_minute, main_color, accent_color, bg);
-    if (s_data.show_seconds) {
-      int32_t sec_angle = (t->tm_sec * TRIG_MAX_ANGLE) / 60;
-      hand_layer_draw(ctx, center, sec_angle, &s_data.hand_second, main_color, accent_color, bg);
-    }
+    hour_cfg = s_data.hand_hour;
+    min_cfg = s_data.hand_minute;
+    sec_cfg = s_data.hand_second;
+  } else {
+    uint8_t idx = (s_data.big_analog_hand_style <= 3) ? s_data.big_analog_hand_style : 0;
+    hour_cfg = HAND_STYLE_HOUR_PRESETS[idx];
+    min_cfg = HAND_STYLE_MIN_PRESETS[idx];
+    sec_cfg = HAND_STYLE_SEC_PRESET;
+    hour_cfg.translucent = min_cfg.translucent = sec_cfg.translucent = s_data.big_analog_hands_transparent;
+    hour_cfg.outline_enabled = min_cfg.outline_enabled = sec_cfg.outline_enabled = s_data.outline_enabled;
+    // contrasting_outline_color() picked black/white dynamically by luma;
+    // the closest fixed equivalent in HandConfig's 3-option scheme-color
+    // enum is the scheme's own background, which is high-contrast against
+    // its text/accent colors in every built-in scheme.
+    hour_cfg.outline_color = min_cfg.outline_color = sec_cfg.outline_color = 2;
+  }
+
+  hand_layer_draw(ctx, center, hour_angle, &hour_cfg, main_color, accent_color, bg);
+  hand_layer_draw(ctx, center, min_angle, &min_cfg, main_color, accent_color, bg);
+  if (s_data.show_seconds) {
+    int32_t sec_angle = (t->tm_sec * TRIG_MAX_ANGLE) / 60;
+    hand_layer_draw(ctx, center, sec_angle, &sec_cfg, main_color, accent_color, bg);
+  }
+
+  if (s_data.big_analog_hand_style == 4) {
     hand_layer_draw_center_circle(ctx, center, s_data.center_circle_radius, s_data.center_circle_color,
                                    main_color, accent_color, bg);
   } else {
-    // Rounded/classic style: the hour hand takes the accent color
-    // (matching the default Pebble watchface's look), minute hand
-    // stays main color. Every other style uses main color for both.
-    GColor hour_hand_color = (s_data.big_analog_hand_style == 3) ? accent_color : main_color;
-    draw_big_hand_outlined(ctx, center, hour_angle, (radius * 55) / 100,
-                            s_data.big_analog_hand_style, hour_hand_color, s_data.big_analog_hands_transparent,
-                            s_data.outline_enabled);
-    draw_big_hand_outlined(ctx, center, min_angle, (radius * 85) / 100,
-                            s_data.big_analog_hand_style, main_color, s_data.big_analog_hands_transparent,
-                            s_data.outline_enabled);
-
-    if (s_data.show_seconds) {
-      int32_t sec_angle = (t->tm_sec * TRIG_MAX_ANGLE) / 60;
-      int16_t sec_len = (radius * 92) / 100;
-      GPoint sec_end = GPoint(center.x + (sec_len * sin_lookup(sec_angle)) / TRIG_MAX_RATIO,
-                               center.y - (sec_len * cos_lookup(sec_angle)) / TRIG_MAX_RATIO);
-      graphics_context_set_stroke_color(ctx, accent_color);
-      graphics_context_set_stroke_width(ctx, 1);
-      graphics_draw_line(ctx, center, sec_end);
-    }
-
     graphics_context_set_fill_color(ctx, main_color);
     graphics_fill_circle(ctx, center, 3);
   }
@@ -1473,7 +1177,7 @@ static void corners_layer_update_proc(Layer *layer, GContext *ctx) {
   GRect bounds = layer_get_unobstructed_bounds(layer);
   time_t now = time(NULL);
   GColor bg, main_color, accent_color;
-  get_active_color_scheme(now, &bg, &main_color, &accent_color);
+  get_active_color_scheme(&s_data, now, &bg, &main_color, &accent_color);
   ensure_corner_custom_font(s_data.corner_custom_font);
 
   bool is_big_analog = s_data.bottom_style == 2;
@@ -1578,7 +1282,7 @@ static void bottom_canvas_update_proc(Layer *layer, GContext *ctx) {
   struct tm *t = localtime(&now);
 
   GColor bg, text_color, accent_color;
-  get_active_color_scheme(now, &bg, &text_color, &accent_color);
+  get_active_color_scheme(&s_data, now, &bg, &text_color, &accent_color);
 
   graphics_context_set_fill_color(ctx, bg);
   graphics_fill_rect(ctx, bounds, 0, GCornerNone);
@@ -2194,10 +1898,12 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
     if (s_hands_layer) layer_mark_dirty(s_hands_layer);
     if (s_corners_layer) layer_mark_dirty(s_corners_layer); // bitmap styles disable the 4 corners
   }
-  // Custom marker system (big_analog_marker_style == 8) -- see marker_layer.h.
-  // Any of these changing invalidates the cached ring bitmap automatically
-  // next redraw (marker_layer_ensure_ring_cache() compares configs itself),
-  // so all this needs to do is copy the values in and mark the layer dirty.
+  // Custom marker system (big_analog_marker_style == 8) -- see eclipse_data.h
+  // (MarkerRingConfig/MarkerTextConfig) and background_layer.c (where these
+  // now actually get drawn, as part of its own cached redraw). No per-key
+  // dirty-marking needed here beyond copying the values in -- every inbox
+  // message unconditionally forces a full canvas redraw at the end of this
+  // handler (see refresh_status_and_maybe_canvas(true) below).
   if ((t = dict_find(iter, MESSAGE_KEY_CUSTOM_HOUR_STYLE))) s_data.custom_hour_marker.style = t->value->uint8;
   if ((t = dict_find(iter, MESSAGE_KEY_CUSTOM_HOUR_THICKNESS))) s_data.custom_hour_marker.thickness = t->value->uint8;
   if ((t = dict_find(iter, MESSAGE_KEY_CUSTOM_HOUR_INNER_ECC))) s_data.custom_hour_marker.inner_eccentricity = t->value->uint8;
@@ -2664,21 +2370,14 @@ static void window_load(Window *window) {
 
 static void window_unload(Window *window) {
   layer_destroy(s_countdown_layer);
-  if (s_canvas_layer) eclipse_canvas_destroy(s_canvas_layer);
+  if (s_canvas_layer) eclipse_canvas_destroy(s_canvas_layer); // also frees marker_bitmap/marker_text_font now
   if (s_bottom_layer) layer_destroy(s_bottom_layer);
   if (s_hands_layer) layer_destroy(s_hands_layer);
   if (s_corners_layer) layer_destroy(s_corners_layer);
-  if (s_marker_bitmap) {
-    gbitmap_destroy(s_marker_bitmap);
-    s_marker_bitmap = NULL;
-    s_marker_bitmap_style = 255;
-    s_marker_bitmap_tinted = false;
-  }
   if (s_corner_custom_font) {
     fonts_unload_custom_font(s_corner_custom_font);
     s_corner_custom_font = NULL;
   }
-  marker_layer_deinit();
 }
 
 static void init(void) {

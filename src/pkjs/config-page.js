@@ -533,77 +533,81 @@ function buildConfigHtml(current) {
 '<meta name="viewport" content="width=device-width, initial-scale=1">' +
 '<title>Eclipz Settings</title>' +
 '<style>' +
-'  body { font-family: -apple-system, Helvetica, Arial, sans-serif; margin: 0; padding: 16px 20px 90px; background: #f4f4f4; color: #222; }' +
-'  fieldset { border: none; background: #fff; border-radius: 8px; padding: 14px 16px; margin-bottom: 16px; box-shadow: 0 1px 2px rgba(0,0,0,0.08); }' +
-'  legend { font-weight: 600; font-size: 14px; padding: 0; color: #333; }' +
-'  label { display: block; font-size: 14px; margin: 10px 0 4px; color: #333; }' +
-'  input[type=text], input[type=number], select { width: 100%; box-sizing: border-box; padding: 8px; font-size: 15px; border: 1px solid #ccc; border-radius: 5px; background: #fff; }' +
-'  input[disabled], select[disabled] { background: #eee; color: #999; }' +
+'  :root { --page-bg: #f4f4f4; --card-bg: #fff; --text: #222; --text-strong: #333; --text-muted: #666; --text-faint: #888; --text-faint2: #555; --text-disabled: #999; --border: #ccc; --border-light: #eee; --border-lighter: #ddd; --btn-bg: #fafafa; }' +
+'  @media (prefers-color-scheme: dark) {' +
+'    :root { --page-bg: #1c1c1e; --card-bg: #2c2c2e; --text: #f2f2f2; --text-strong: #e5e5e5; --text-muted: #aaa; --text-faint: #999; --text-faint2: #bbb; --text-disabled: #777; --border: #48484a; --border-light: #3a3a3c; --border-lighter: #545456; --btn-bg: #3a3a3c; }' +
+'  }' +
+'  body { font-family: -apple-system, Helvetica, Arial, sans-serif; margin: 0; padding: 16px 20px 90px; background: var(--page-bg); color: var(--text); }' +
+'  fieldset { border: none; background: var(--card-bg); border-radius: 8px; padding: 14px 16px; margin-bottom: 16px; box-shadow: 0 1px 2px rgba(0,0,0,0.08); }' +
+'  legend { font-weight: 600; font-size: 14px; padding: 0; color: var(--text-strong); }' +
+'  label { display: block; font-size: 14px; margin: 10px 0 4px; color: var(--text-strong); }' +
+'  input[type=text], input[type=number], select { width: 100%; box-sizing: border-box; padding: 8px; font-size: 15px; border: 1px solid var(--border); border-radius: 5px; background: var(--card-bg); color: var(--text); }' +
+'  input[disabled], select[disabled] { background: var(--border-light); color: var(--text-disabled); }' +
 '  .checkbox-row { display: flex; align-items: center; gap: 10px; }' +
-'  input[type=checkbox] { appearance: none; -webkit-appearance: none; width: 30px; height: 30px; flex-shrink: 0; margin: 0; padding: 0; box-sizing: border-box; border: 2px solid #ccc; border-radius: 8px; background: #fff; position: relative; }' +
+'  input[type=checkbox] { appearance: none; -webkit-appearance: none; width: 30px; height: 30px; flex-shrink: 0; margin: 0; padding: 0; box-sizing: border-box; border: 2px solid var(--border); border-radius: 8px; background: var(--card-bg); position: relative; }' +
 '  input[type=checkbox]:checked { background: #ff9200; border-color: #ff9200; }' +
 '  input[type=checkbox]:checked::after { content: ""; position: absolute; left: 9px; top: 4px; width: 7px; height: 14px; border: solid #fff; border-width: 0 3px 3px 0; transform: rotate(45deg); }' +
-'  input[type=checkbox][disabled] { background: #eee; border-color: #ddd; }' +
+'  input[type=checkbox][disabled] { background: var(--border-light); border-color: var(--border-lighter); }' +
 '  input[type=checkbox][disabled]:checked { background: #f0c785; border-color: #f0c785; }' +
-'  .help { color: #888; font-size: 12px; margin-top: 4px; }' +
+'  .help { color: var(--text-faint); font-size: 12px; margin-top: 4px; }' +
 '  .radio-row { display: flex; gap: 16px; margin-top: 8px; flex-wrap: wrap; }' +
 '  .radio-row label { display: flex; align-items: center; gap: 6px; margin: 0; font-weight: normal; }' +
 '  .radio-row input { width: auto; }' +
-'  .secondary-btn { width: 100%; padding: 12px; font-size: 14px; font-weight: 600; color: #333; background: #eee; border: 1px solid #ccc; border-radius: 8px; margin-top: 12px; }' +
-'  .secondary-btn:active { background: #ddd; }' +
-'  .save-bar { position: fixed; left: 0; right: 0; bottom: 0; padding: 12px 20px calc(12px + env(safe-area-inset-bottom, 0px)); background: #f4f4f4; box-shadow: 0 -2px 6px rgba(0,0,0,0.1); }' +
+'  .secondary-btn { width: 100%; padding: 12px; font-size: 14px; font-weight: 600; color: var(--text-strong); background: var(--border-light); border: 1px solid var(--border); border-radius: 8px; margin-top: 12px; }' +
+'  .secondary-btn:active { background: var(--border-lighter); }' +
+'  .save-bar { position: fixed; left: 0; right: 0; bottom: 0; padding: 12px 20px calc(12px + env(safe-area-inset-bottom, 0px)); background: var(--page-bg); box-shadow: 0 -2px 6px rgba(0,0,0,0.1); }' +
 '  .save-bar button { width: 100%; padding: 14px; font-size: 16px; font-weight: 600; color: #fff; background: #ff9200; border: none; border-radius: 8px; }' +
 '  .save-bar button:active { background: #e08300; }' +
-'  #topBar { position: fixed; top: 0; left: 0; right: 0; max-height: 25vh; overflow: hidden; background: #f4f4f4; box-shadow: 0 2px 6px rgba(0,0,0,0.12); display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 14px; padding-top: calc(10px + env(safe-area-inset-top, 0px)); box-sizing: border-box; z-index: 50; }' +
+'  #topBar { position: fixed; top: 0; left: 0; right: 0; max-height: 25vh; overflow: hidden; background: var(--page-bg); box-shadow: 0 2px 6px rgba(0,0,0,0.12); display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 14px; padding-top: calc(10px + env(safe-area-inset-top, 0px)); box-sizing: border-box; z-index: 50; }' +
 '  .top-bar-left { display: flex; flex-direction: column; justify-content: center; flex: 0 1 66%; min-width: 0; }' +
 '  .top-bar-actions { display: flex; gap: 6px; align-items: center; }' +
-'  .back-btn { padding: 6px 10px; font-size: 13px; font-weight: 600; color: #333; background: #fff; border: 1px solid #ccc; border-radius: 6px; }' +
-'  .back-btn:active { background: #eee; }' +
+'  .back-btn { padding: 6px 10px; font-size: 13px; font-weight: 600; color: var(--text-strong); background: var(--card-bg); border: 1px solid var(--border); border-radius: 6px; }' +
+'  .back-btn:active { background: var(--border-light); }' +
 '  .donate-btn { padding: 6px 10px; font-size: 13px; font-weight: 700; color: #fff; background: linear-gradient(135deg, #ffb347, #ff8c00); border: none; border-radius: 6px; box-shadow: 0 1px 3px rgba(255,140,0,0.5); }' +
 '  .donate-btn:active { filter: brightness(0.92); }' +
-'  .top-bar-title { font-size: 15px; font-weight: 700; margin-top: 6px; color: #222; white-space: nowrap; }' +
-'  .top-bar-desc { font-size: 10px; line-height: 1.3; color: #666; margin-top: 3px; }' +
+'  .top-bar-title { font-size: 15px; font-weight: 700; margin-top: 6px; color: var(--text); white-space: nowrap; }' +
+'  .top-bar-desc { font-size: 10px; line-height: 1.3; color: var(--text-muted); margin-top: 3px; }' +
 '  .top-bar-preview { flex: 0 1 33%; display: flex; justify-content: center; align-items: center; min-width: 0; height: 100%; max-height: calc(25vh - 20px); padding: 1%; box-sizing: border-box; }' +
 '  #previewCanvas { height: 50%; max-height: 50%; width: auto; max-width: 98%; border-radius: 4px; }' +
-'  .subsection { margin-top: 10px; padding-top: 10px; border-top: 1px solid #eee; }' +
+'  .subsection { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border-light); }' +
 '  .color-role-buttons { display: flex; gap: 8px; margin-top: 6px; }' +
-'  .color-role-btn { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 8px 4px; border: 1px solid #ccc; border-radius: 8px; background: #fafafa; }' +
-'  .color-role-btn:active { background: #eee; }' +
-'  .color-role-swatch { width: 36px; height: 36px; border-radius: 50%; border: 2px solid #ccc; box-sizing: border-box; }' +
-'  .color-role-label { font-size: 11px; color: #555; }' +
+'  .color-role-btn { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 8px 4px; border: 1px solid var(--border); border-radius: 8px; background: var(--btn-bg); }' +
+'  .color-role-btn:active { background: var(--border-light); }' +
+'  .color-role-swatch { width: 36px; height: 36px; border-radius: 50%; border: 2px solid var(--border); box-sizing: border-box; }' +
+'  .color-role-label { font-size: 11px; color: var(--text-faint2); }' +
 '  .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: none; align-items: flex-end; justify-content: center; z-index: 100; }' +
 '  .modal-overlay.open { display: flex; }' +
-'  .modal-box { background: #fff; border-radius: 12px 12px 0 0; padding: 16px; width: 100%; max-width: 400px; max-height: 80vh; overflow-y: auto; box-sizing: border-box; }' +
-'  .modal-title { font-weight: 600; font-size: 15px; margin-bottom: 10px; text-align: center; }' +
+'  .modal-box { background: var(--card-bg); border-radius: 12px 12px 0 0; padding: 16px; width: 100%; max-width: 400px; max-height: 80vh; overflow-y: auto; box-sizing: border-box; }' +
+'  .modal-title { font-weight: 600; font-size: 15px; margin-bottom: 10px; text-align: center; color: var(--text); }' +
 '  .hex-grid { position: relative; width: 260px; height: 255px; margin: 0 auto; }' +
 '  .hex-swatch { position: absolute; width: 26px; height: 30px; margin: -15px 0 0 -13px; clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%); border: 1px solid rgba(0,0,0,0.15); box-sizing: border-box; }' +
 '  .hex-swatch.hollow { border: none; background: transparent !important; pointer-events: none; }' +
 '  .hex-swatch.selected { border: 2px solid #ff9200; }' +
-'  .modal-cancel-btn { width: 100%; padding: 12px; font-size: 14px; font-weight: 600; color: #333; background: #eee; border: none; border-radius: 8px; margin-top: 12px; }' +
-'  .mode-btn-group { display: flex; width: 100%; margin-top: 6px; border-radius: 6px; overflow: hidden; border: 1px solid #ccc; box-sizing: border-box; }' +
-'  .mode-btn { flex: 1; padding: 10px 0; font-size: 12px; font-weight: 700; color: #333; background: #fafafa; border: none; border-right: 1px solid #ccc; }' +
+'  .modal-cancel-btn { width: 100%; padding: 12px; font-size: 14px; font-weight: 600; color: var(--text-strong); background: var(--border-light); border: none; border-radius: 8px; margin-top: 12px; }' +
+'  .mode-btn-group { display: flex; width: 100%; margin-top: 6px; border-radius: 6px; overflow: hidden; border: 1px solid var(--border); box-sizing: border-box; }' +
+'  .mode-btn { flex: 1; padding: 10px 0; font-size: 12px; font-weight: 700; color: var(--text-strong); background: var(--btn-bg); border: none; border-right: 1px solid var(--border); }' +
 '  .mode-btn:last-child { border-right: none; }' +
 '  .mode-btn.active { background: #ff9200; color: #fff; box-shadow: inset 0 2px 4px rgba(0,0,0,0.35); }' +
 '  .slider-row { margin-top: 12px; }' +
-'  .slider-row label { display: flex; justify-content: space-between; font-size: 13px; color: #555; margin-bottom: 2px; }' +
-'  .slider-row label .val { font-weight: 700; color: #333; }' +
+'  .slider-row label { display: flex; justify-content: space-between; font-size: 13px; color: var(--text-faint2); margin-bottom: 2px; }' +
+'  .slider-row label .val { font-weight: 700; color: var(--text-strong); }' +
 '  input[type=range] { width: 100%; -webkit-appearance: none; appearance: none; height: 30px; background: transparent; margin: 0; }' +
-'  input[type=range]::-webkit-slider-runnable-track { height: 6px; border-radius: 3px; background: #ddd; }' +
+'  input[type=range]::-webkit-slider-runnable-track { height: 6px; border-radius: 3px; background: var(--border-lighter); }' +
 '  input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 24px; height: 24px; border-radius: 50%; background: #ff9200; border: 2px solid #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.4); margin-top: -9px; }' +
-'  input[type=range]::-moz-range-track { height: 6px; border-radius: 3px; background: #ddd; }' +
+'  input[type=range]::-moz-range-track { height: 6px; border-radius: 3px; background: var(--border-lighter); }' +
 '  input[type=range]::-moz-range-thumb { width: 20px; height: 20px; border-radius: 50%; background: #ff9200; border: 2px solid #fff; }' +
 '  .mark-btn-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; margin-top: 6px; }' +
-'  .mark-btn { padding: 8px 0; font-size: 12px; font-weight: 700; color: #333; background: #fafafa; border: 1px solid #ccc; border-radius: 6px; }' +
+'  .mark-btn { padding: 8px 0; font-size: 12px; font-weight: 700; color: var(--text-strong); background: var(--btn-bg); border: 1px solid var(--border); border-radius: 6px; }' +
 '  .mark-btn.active { background: #ff9200; color: #fff; border-color: #ff9200; }' +
 '  .preset-btn-row { display: flex; gap: 6px; margin-top: 8px; }' +
-'  .preset-btn-row button { flex: 1; padding: 8px 0; font-size: 11px; font-weight: 700; color: #333; background: #fafafa; border: 1px solid #ccc; border-radius: 6px; }' +
-'  .marker-edit-btn { width: 100%; box-sizing: border-box; padding: 12px; font-size: 14px; font-weight: 600; color: #333; background: #fafafa; border: 1px solid #ccc; border-radius: 8px; margin-top: 8px; text-align: left; }' +
-'  .section-legend { cursor: pointer; display: block; width: 100%; box-sizing: border-box; margin: 0; padding: 6px 0; user-select: none; }' +
+'  .preset-btn-row button { flex: 1; padding: 8px 0; font-size: 11px; font-weight: 700; color: var(--text-strong); background: var(--btn-bg); border: 1px solid var(--border); border-radius: 6px; }' +
+'  .marker-edit-btn { width: 100%; box-sizing: border-box; padding: 12px; font-size: 14px; font-weight: 600; color: var(--text-strong); background: var(--btn-bg); border: 1px solid var(--border); border-radius: 8px; margin-top: 8px; text-align: left; }' +
+'  .section-legend { cursor: pointer; display: block; width: 100%; box-sizing: border-box; margin: 0; padding: 6px 0; user-select: none; color: var(--text-strong); }' +
 '  .chevron { float: right; display: inline-block; font-size: 13px; transition: transform 0.15s; }' +
 '  .chevron.open { transform: rotate(90deg); }' +
 '  .slider-with-buttons { display: flex; align-items: center; gap: 8px; }' +
 '  .slider-with-buttons input[type=range] { flex: 1; }' +
-'  .slider-step-btn { width: 34px; height: 34px; flex-shrink: 0; border-radius: 8px; background: #fafafa; border: 1px solid #ccc; font-size: 20px; font-weight: 700; color: #333; line-height: 1; }' +
+'  .slider-step-btn { width: 34px; height: 34px; flex-shrink: 0; border-radius: 8px; background: var(--btn-bg); border: 1px solid var(--border); font-size: 20px; font-weight: 700; color: var(--text-strong); line-height: 1; }' +
 '  .grayed-out { opacity: 0.4; pointer-events: none; }' +
 '  #slotPickerDiagram { position: relative; width: 240px; height: 274px; margin: 10px auto; background: linear-gradient(to bottom, #4a90d9, #bfe3f5); border-radius: 8px; overflow: hidden; }' +
 '  .slot-btn { position: absolute; min-width: 54px; padding: 5px 8px; font-size: 11px; font-weight: 700; color: #222; background: rgba(255,255,255,0.85); border: 1px solid rgba(0,0,0,0.2); border-radius: 6px; text-align: center; }' +
@@ -677,11 +681,12 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    <div class="section-body" id="section-style" style="display:none;">' +
 
 '    <label>Layout</label>' +
-'    <div class="radio-row">' +
-'      <label><input type="radio" name="bottomStyle" value="digital" ' + (bottomStyleVal === 'digital' ? 'checked' : '') + ' onchange="onBottomStyleChange()"> Digital</label>' +
-'      <label><input type="radio" name="bottomStyle" value="analog" ' + (isAnalog ? 'checked' : '') + ' onchange="onBottomStyleChange()"> Analog + info</label>' +
-'      <label><input type="radio" name="bottomStyle" value="biganalog" ' + (isBigAnalog ? 'checked' : '') + ' onchange="onBottomStyleChange()"> Big analog</label>' +
+'    <div class="mode-btn-group" id="bottomStyleGroup">' +
+'      <button type="button" class="mode-btn' + (bottomStyleVal === 'digital' ? ' active' : '') + '" onclick="selectBottomStyle(\'digital\')">DIGITAL</button>' +
+'      <button type="button" class="mode-btn' + (isAnalog ? ' active' : '') + '" onclick="selectBottomStyle(\'analog\')">ANALOG</button>' +
+'      <button type="button" class="mode-btn' + (isBigAnalog ? ' active' : '') + '" onclick="selectBottomStyle(\'biganalog\')">BIG ANALOG</button>' +
 '    </div>' +
+'    <input type="hidden" id="bottomStyleValue" value="' + esc(bottomStyleVal) + '">' +
 '    <div class="help">Analog shows a clock face on the left and clouds/location/date/week on the right. Big analog fills the whole screen with fullscreen hands over the sky/eclipse view -- no bottom bar.</div>' +
 
 '    <div id="digitalOnlySettings" class="subsection" style="' + (bottomStyleVal === 'digital' ? '' : 'display:none;') + '">' +
@@ -761,6 +766,16 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      <option value="0"' + (current.cloudRenderStyle === '0' ? ' selected' : '') + '>Simple (battery friendly)</option>' +
 '    </select>' +
 '    <div class="help">Realistic clouds are a soft painterly shape shaded by the Sun\'s actual position -- costs more battery per redraw. Simple uses plain circle puffs instead.</div>' +
+
+'    <div class="subsection" id="showSunTimeSection" style="' + (isBigAnalog ? 'display:none;' : '') + '">' +
+'      <label>Week number or sunrise/sunset</label>' +
+'      <div class="mode-btn-group" id="showSunTimeGroup">' +
+'        <button type="button" class="mode-btn' + (!current.showSunTime ? ' active' : '') + '" onclick="selectSunTimeMode(false)">WEEK #</button>' +
+'        <button type="button" class="mode-btn' + (current.showSunTime ? ' active' : '') + '" onclick="selectSunTimeMode(true)">SUN/SET</button>' +
+'      </div>' +
+'      <input type="hidden" id="showSunTime" value="' + (current.showSunTime ? 'true' : 'false') + '">' +
+'      <div class="help">Falls back to the week number once today\'s sunset has passed, until the next refresh rolls over to a new day. Only applies to digital and analog modes.</div>' +
+'    </div>' +
 
 '    <div class="checkbox-row subsection">' +
 '      <input type="checkbox" id="showSeconds" ' + secondsChecked + ' ' + secondsDisabled + ' onchange="updatePreview()">' +
@@ -842,21 +857,6 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      <input type="hidden" id="nightCustomAccentValue" value="' + esc(current.nightCustomAccent || '255') + '">' +
 '    </div>' +
 '    <div class="help">Battery and Moon phase are now pickable as Corners content below, with their own color style.</div>' +
-'    </div>' +
-'  </fieldset>' +
-
-'  <fieldset>' +
-'    <div class="section-legend" onclick="toggleSection(\'misc\')">More display options <span class="chevron" id="chev-misc">&#9656;</span></div>' +
-'    <div class="section-body" id="section-misc" style="display:none;">' +
-'    <div class="subsection" id="showSunTimeSection" style="' + (isBigAnalog ? 'display:none;' : '') + '">' +
-'      <label>Week number or sunrise/sunset</label>' +
-'      <div class="mode-btn-group" id="showSunTimeGroup">' +
-'        <button type="button" class="mode-btn' + (!current.showSunTime ? ' active' : '') + '" onclick="selectSunTimeMode(false)">WEEK #</button>' +
-'        <button type="button" class="mode-btn' + (current.showSunTime ? ' active' : '') + '" onclick="selectSunTimeMode(true)">SUN/SET</button>' +
-'      </div>' +
-'      <input type="hidden" id="showSunTime" value="' + (current.showSunTime ? 'true' : 'false') + '">' +
-'      <div class="help">Falls back to the week number once today\'s sunset has passed, until the next refresh rolls over to a new day. Only applies to digital and analog modes.</div>' +
-'    </div>' +
 '    </div>' +
 '  </fieldset>' +
 
@@ -1505,7 +1505,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  ctx.clearRect(0, 0, w, h);' +
 
 '  var colors = dayColors();' +
-'  var styleVal = document.querySelector("input[name=bottomStyle]:checked").value;' +
+'  var styleVal = document.getElementById("bottomStyleValue").value;' +
 '  var now = new Date();' +
 '  var secondsBox = document.getElementById("showSeconds");' +
 '  var showSeconds = secondsBox.checked && !secondsBox.disabled;' +
@@ -1532,7 +1532,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '}' +
 
 'function onBottomStyleChange() {' +
-'  var styleVal = document.querySelector("input[name=bottomStyle]:checked").value;' +
+'  var styleVal = document.getElementById("bottomStyleValue").value;' +
 '  var isAnalog = styleVal === "analog";' +
 '  var isBigAnalog = styleVal === "biganalog";' +
 '  document.getElementById("digitalOnlySettings").style.display = (styleVal === "digital") ? "block" : "none";' +
@@ -1570,7 +1570,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 // to whatever their own artwork actually has room for and suppress
 // the corners entirely (the mask fills most of the screen).
 'function computeSlotAvailability() {' +
-'  var styleVal = document.querySelector("input[name=bottomStyle]:checked").value;' +
+'  var styleVal = document.getElementById("bottomStyleValue").value;' +
 '  var isBigAnalog = styleVal === "biganalog";' +
 '  var markerStyle = parseInt(document.getElementById("bigAnalogMarkerStyle").value, 10);' +
 '  var avail = { upper: false, bottom: false, left: false, right: false, cornersGrayed: false };' +
@@ -1906,6 +1906,15 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  buttons[0].className = "mode-btn" + (!isSunTime ? " active" : "");' +
 '  buttons[1].className = "mode-btn" + (isSunTime ? " active" : "");' +
 '}' +
+'function selectBottomStyle(val) {' +
+'  document.getElementById("bottomStyleValue").value = val;' +
+'  var buttons = document.getElementById("bottomStyleGroup").getElementsByClassName("mode-btn");' +
+'  var order = ["digital", "analog", "biganalog"];' +
+'  for (var i = 0; i < buttons.length; i++) {' +
+'    buttons[i].className = "mode-btn" + (order[i] === val ? " active" : "");' +
+'  }' +
+'  onBottomStyleChange();' +
+'}' +
 'function onFontChange() {' +
 '  onBottomStyleChange();' +
 '}' +
@@ -2050,7 +2059,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 'function save() {' +
 '  var mins = parseInt(document.getElementById("updateMins").value, 10);' +
 '  if (isNaN(mins) || mins < 5) mins = 20;' +
-'  var bottomStyle = document.querySelector("input[name=bottomStyle]:checked");' +
+'  var bottomStyleVal = document.getElementById("bottomStyleValue").value;' +
 '  var settings = {' +
 '    CONFIG_AUTO_LOC: document.getElementById("autoLoc").checked,' +
 '    CONFIG_LAT: document.getElementById("lat").value,' +
@@ -2071,7 +2080,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    CONFIG_NIGHT_CUSTOM_BG: document.getElementById("nightCustomBgValue").value,' +
 '    CONFIG_NIGHT_CUSTOM_TEXT: document.getElementById("nightCustomTextValue").value,' +
 '    CONFIG_NIGHT_CUSTOM_ACCENT: document.getElementById("nightCustomAccentValue").value,' +
-'    CONFIG_BOTTOM_STYLE: bottomStyle ? bottomStyle.value : "digital",' +
+'    CONFIG_BOTTOM_STYLE: bottomStyleVal || "digital",' +
 '    CONFIG_ANALOG_STYLE: document.getElementById("analogStyle").value,' +
 '    CONFIG_BIG_ANALOG_HAND_STYLE: document.getElementById("bigAnalogHandStyle").value,' +
 '    CONFIG_BIG_ANALOG_TRANSPARENT: document.getElementById("bigAnalogTransparent").checked,' +
