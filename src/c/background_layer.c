@@ -1192,9 +1192,8 @@ static int16_t mk_max(int16_t a, int16_t b) { return a > b ? a : b; }
 // 100% = the far edge the screen-fitted rectangle reaches along its
 // dominant axis (the longer half-dimension).
 static int16_t marker_reach_px(GRect screen, uint8_t pct) {
-  int16_t screen_hw = screen.size.w / 2, screen_hh = screen.size.h / 2;
-  int16_t reach_min = mk_min(screen_hw, screen_hh);
-  int16_t reach_max = mk_max(screen_hw, screen_hh);
+  int16_t reach_min = mk_min(screen.size.w / 4, screen.size.h / 4);
+  int16_t reach_max = mk_max(screen.size.w / 2, screen.size.h / 2);
   return reach_min + div_round((int32_t)(reach_max - reach_min) * pct, 100);
 }
 
@@ -1313,14 +1312,14 @@ static void draw_marker_ring(GContext *ctx, GPoint center, GRect screen, const M
 // screen radius directly) -- a deliberate simplification, tuned to look
 // reasonably close within the 0-100% reach range every style now shares.
 static const MarkerRingConfig MARKER_STYLE_HOUR_PRESETS[3] = {
-  { .style = 1, .thickness = 1, .inner_eccentricity = 0, .outer_eccentricity = 0, .inner_border_pct = 70, .outer_border_pct = 100 }, // 0: minimal
-  { .style = 1, .thickness = 1, .inner_eccentricity = 0, .outer_eccentricity = 0, .inner_border_pct = 20, .outer_border_pct = 100 }, // 1: small
-  { .style = 2, .thickness = 3, .inner_eccentricity = 0, .outer_eccentricity = 0, .inner_border_pct = 0,  .outer_border_pct = 100 }, // 2: big
+  { .style = 1, .thickness = 1, .inner_eccentricity = 0, .outer_eccentricity = 0, .inner_border_pct = 65, .outer_border_pct = 85 }, // 0: minimal
+  { .style = 1, .thickness = 1, .inner_eccentricity = 0, .outer_eccentricity = 0, .inner_border_pct = 60, .outer_border_pct = 85 }, // 1: small
+  { .style = 2, .thickness = 5, .inner_eccentricity = 0, .outer_eccentricity = 0, .inner_border_pct = 60, .outer_border_pct = 85 }, // 2: big
 };
 static const MarkerRingConfig MARKER_STYLE_SECOND_PRESETS[3] = {
-  { .style = 1, .thickness = 0, .inner_eccentricity = 0, .outer_eccentricity = 0, .inner_border_pct = 70, .outer_border_pct = 100 }, // 0: minimal -- thickness 0 = off, matches "hour markers only"
-  { .style = 1, .thickness = 1, .inner_eccentricity = 0, .outer_eccentricity = 0, .inner_border_pct = 70, .outer_border_pct = 100 }, // 1: small
-  { .style = 1, .thickness = 1, .inner_eccentricity = 0, .outer_eccentricity = 0, .inner_border_pct = 70, .outer_border_pct = 100 }, // 2: big
+  { .style = 1, .thickness = 0, .inner_eccentricity = 0, .outer_eccentricity = 0, .inner_border_pct = 65, .outer_border_pct = 85 }, // 0: minimal -- thickness 0 = off, matches "hour markers only"
+  { .style = 1, .thickness = 1, .inner_eccentricity = 0, .outer_eccentricity = 0, .inner_border_pct = 65, .outer_border_pct = 85 }, // 1: small
+  { .style = 1, .thickness = 1, .inner_eccentricity = 0, .outer_eccentricity = 0, .inner_border_pct = 65, .outer_border_pct = 85 }, // 2: big
 };
 
 static uint32_t marker_text_font_resource_id(uint8_t choice) {
@@ -1394,12 +1393,18 @@ static void draw_text_markers(GContext *ctx, GPoint center, GRect screen, Canvas
     if (!(mask & (1 << i))) continue;
     
     int32_t angle = (((int32_t)i * TRIG_MAX_ANGLE) / 12) & 0xFFFF;
-    GPoint base = point_on_ring(center, screen, angle, ring->outer_border_pct, ring->outer_eccentricity);
+    int offset_text_pct = ring->inner_border_pct + text_cfg->offset_px;
+    if(offset_text_pct>100) {
+      offset_text_pct = 100;
+    } else if (offset_text_pct < 0) {
+      offset_text_pct = 0;
+    }
+    GPoint pos = point_on_ring(center, screen, angle, offset_text_pct, ring->inner_eccentricity);
 
-    int32_t sin_v = sin_lookup(angle), cos_v = cos_lookup(angle);
-    GPoint pos = GPoint(
-      base.x + div_round((int32_t)text_cfg->offset_px * sin_v, TRIG_MAX_RATIO),
-      base.y - div_round((int32_t)text_cfg->offset_px * cos_v, TRIG_MAX_RATIO));
+//    int32_t sin_v = sin_lookup(angle), cos_v = cos_lookup(angle);
+//    GPoint pos = GPoint(
+//      base.x + div_round((int32_t)text_cfg->offset_px * sin_v, TRIG_MAX_RATIO),
+//      base.y - div_round((int32_t)text_cfg->offset_px * cos_v, TRIG_MAX_RATIO));
 
     char buf[8];
     int label = is_hour ? (i == 0 ? 12 : i) : (i * 5);
