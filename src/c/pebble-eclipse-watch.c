@@ -329,15 +329,15 @@ static const HandConfig HAND_STYLE_HOUR_PRESETS[4] = {
   { .style = 0, .width = 6,  .length = 51, .back_offset = 0, .color = 1 },                     // 3: rounded/classic (accent hour hand)
 };
 static const HandConfig HAND_STYLE_MIN_PRESETS[4] = {
-  { .style = 1, .width = 18, .length = 78, .back_offset = 6, .color = 0 },
-  { .style = 2, .width = 12, .length = 78, .back_offset = 6, .color = 0 },
-  { .style = 2, .width = 8,  .length = 78, .back_offset = 8, .color = 0, .hollow = true },
-  { .style = 0, .width = 10, .length = 78, .back_offset = 0, .color = 0 },
+  { .style = 1, .width = 12, .length = 78, .back_offset = 6, .color = 0 },
+  { .style = 2, .width = 8, .length = 78, .back_offset = 6, .color = 0 },
+  { .style = 2, .width = 6,  .length = 78, .back_offset = 8, .color = 0, .hollow = true },
+  { .style = 0, .width = 6, .length = 78, .back_offset = 0, .color = 0 },
 };
 // The 4 procedural styles never customized the second hand -- always a
 // plain accent-colored thin line -- so one shared preset covers all of them.
 static const HandConfig HAND_STYLE_SEC_PRESET = {
-  .style = 1, .width = 1, .length = 85, .back_offset = 0, .color = 1,
+  .style = 1, .width = 2, .length = 85, .back_offset = 6, .color = 1,
 };
 
 // Custom font for corner/edge feature text and the big-analog date --
