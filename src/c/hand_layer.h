@@ -18,7 +18,30 @@
 // square, from the width/length/back_offset/outline settings) into its
 // own reusable unit, used identically for all three hands and both the
 // custom and (now) procedural-preset paths.
+// 1-Byte Sub-Pixel Fixed-Point Precision (Q24.8)
 // ---------------------------------------------------------------------------
+#define SUBPIXEL_BITS 8
+#define SUBPIXEL_SCALE (1 << SUBPIXEL_BITS) // 256
+#define SUBPIXEL_MASK  (SUBPIXEL_SCALE - 1)
+#define SUBPIXEL_HALF  (1 << (SUBPIXEL_BITS - 1)) // 128 (0.5 px)
+
+typedef struct {
+  int32_t x; // Fixed-point X coordinate (24.8)
+  int32_t y; // Fixed-point Y coordinate (24.8)
+} FGPoint;
+
+static inline FGPoint fgpoint_new(int32_t x, int32_t y) {
+  return (FGPoint){ .x = x, .y = y };
+}
+
+static inline FGPoint fgpoint_from_gpoint(GPoint p) {
+  return (FGPoint){ .x = ((int32_t)p.x) << SUBPIXEL_BITS, .y = ((int32_t)p.y) << SUBPIXEL_BITS };
+}
+
+static inline GPoint fgpoint_to_gpoint(FGPoint fp) {
+  return GPoint((int16_t)((fp.x + SUBPIXEL_HALF) >> SUBPIXEL_BITS),
+                (int16_t)((fp.y + SUBPIXEL_HALF) >> SUBPIXEL_BITS));
+}
 
 typedef struct {
   uint8_t style;        // 0=dot (round caps), 1=triangle (tapers to a point), 2=square (flat caps)
@@ -47,7 +70,7 @@ typedef struct {
                                  // which always rendered hollow when not transparent.
 } HandConfig;
 
-// Draws one hand.
+// Draws one hand using sub-pixel precision.
 void hand_layer_draw(GContext *ctx, GPoint center, int32_t angle, const HandConfig *cfg,
                       GColor main_color, GColor accent_color, GColor bg_color);
 

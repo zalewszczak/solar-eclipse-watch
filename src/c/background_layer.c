@@ -94,6 +94,18 @@ typedef struct {
   uint8_t marker_text_font_loaded_choice; // 255 = none loaded
 } CanvasState;
 
+// ---- hour/second markers (sub-pixel & rotation fix) --------------------
+
+// Symmetric integer division with rounding to nearest integer for sub-pixel precision
+static inline int32_t div_round(int32_t num, int32_t den) {
+  if (den == 0) return 0;
+  if ((num ^ den) >= 0) {
+    return (num + den / 2) / den;
+  } else {
+    return (num - den / 2) / den;
+  }
+}
+
 // ---- generic sample interpolation -----------------------------------------
 
 // Linearly interpolate the transmitted separation-sample array to get
@@ -1183,7 +1195,7 @@ static int16_t marker_reach_px(GRect screen, uint8_t pct) {
   int16_t screen_hw = screen.size.w / 2, screen_hh = screen.size.h / 2;
   int16_t reach_min = mk_min(screen_hw, screen_hh);
   int16_t reach_max = mk_max(screen_hw, screen_hh);
-  return reach_min + (int32_t)(reach_max - reach_min) * pct / 100;
+  return reach_min + div_round((int32_t)(reach_max - reach_min) * pct, 100);
 }
 
 // Blends a point on a circle of radius marker_reach_px(pct) with a point
@@ -1194,31 +1206,35 @@ static GPoint point_on_ring(GPoint center, GRect screen, int32_t angle,
                              uint8_t pct, uint8_t eccentricity_pct) {
   int16_t screen_hw = screen.size.w / 2, screen_hh = screen.size.h / 2;
   int16_t reach = marker_reach_px(screen, pct);
-  int32_t sin_v = sin_lookup(angle), cos_v = cos_lookup(angle);
+
+  // Mask angle to [0, 65535] to prevent trig table lookup overflow/underflow during rotation
+  int32_t norm_angle = angle & 0xFFFF;
+  int32_t sin_v = sin_lookup(norm_angle);
+  int32_t cos_v = cos_lookup(norm_angle);
 
   GPoint circle_pt = GPoint(
-    center.x + (int32_t)(reach * sin_v) / TRIG_MAX_RATIO,
-    center.y - (int32_t)(reach * cos_v) / TRIG_MAX_RATIO);
+    center.x + div_round(reach * sin_v, TRIG_MAX_RATIO),
+    center.y - div_round(reach * cos_v, TRIG_MAX_RATIO));
 
-  if (eccentricity_pct == 0) return circle_pt; // common case, skip the rest
+  if (eccentricity_pct == 0) return circle_pt;
 
-  int16_t reach_max = mk_max(screen_hw, screen_hh); // same constant marker_reach_px() uses
-  int32_t rect_hw = ((int32_t)reach * screen_hw) / reach_max;
-  int32_t rect_hh = ((int32_t)reach * screen_hh) / reach_max;
+  int16_t reach_max = mk_max(screen_hw, screen_hh);
+  int32_t rect_hw = div_round((int32_t)reach * screen_hw, reach_max);
+  int32_t rect_hh = div_round((int32_t)reach * screen_hh, reach_max);
 
   int32_t adx = sin_v < 0 ? -sin_v : sin_v;
   int32_t ady = cos_v < 0 ? -cos_v : cos_v;
-  int32_t t_x = (adx == 0) ? INT32_MAX : (rect_hw * TRIG_MAX_RATIO) / adx;
-  int32_t t_y = (ady == 0) ? INT32_MAX : (rect_hh * TRIG_MAX_RATIO) / ady;
+  int32_t t_x = (adx == 0) ? INT32_MAX : div_round(rect_hw * TRIG_MAX_RATIO, adx);
+  int32_t t_y = (ady == 0) ? INT32_MAX : div_round(rect_hh * TRIG_MAX_RATIO, ady);
   int32_t t = t_x < t_y ? t_x : t_y;
 
   GPoint rect_pt = GPoint(
-    center.x + (int32_t)(t * sin_v) / TRIG_MAX_RATIO,
-    center.y - (int32_t)(t * cos_v) / TRIG_MAX_RATIO);
+    center.x + div_round(t * sin_v, TRIG_MAX_RATIO),
+    center.y - div_round(t * cos_v, TRIG_MAX_RATIO));
 
   GPoint result;
-  result.x = circle_pt.x + ((rect_pt.x - circle_pt.x) * eccentricity_pct) / 100;
-  result.y = circle_pt.y + ((rect_pt.y - circle_pt.y) * eccentricity_pct) / 100;
+  result.x = circle_pt.x + div_round((rect_pt.x - circle_pt.x) * eccentricity_pct, 100);
+  result.y = circle_pt.y + div_round((rect_pt.y - circle_pt.y) * eccentricity_pct, 100);
   return result;
 }
 
@@ -1239,11 +1255,15 @@ static void draw_ring_mark(GContext *ctx, GPoint A, GPoint B, int16_t half_thick
     return;
   }
   int32_t len = isqrt32(len_sq);
+  if (len == 0) len = 1;
 
-  int32_t offx = (half_thick * -dy) / len, offy = (half_thick * dx) / len; // perpendicular
+  int32_t offx = div_round(half_thick * -dy, len);
+  int32_t offy = div_round(half_thick * dx, len);
+  
   GPoint a = A, b = B;
-  if (style == 2) { // square caps: extend both ends outward along AB by half_thick
-    int32_t ex = (half_thick * dx) / len, ey = (half_thick * dy) / len;
+  if (style == 2) { // square caps
+    int32_t ex = div_round(half_thick * dx, len);
+    int32_t ey = div_round(half_thick * dy, len);
     a = GPoint(A.x - ex, A.y - ey);
     b = GPoint(B.x + ex, B.y + ey);
   }
@@ -1258,7 +1278,7 @@ static void draw_ring_mark(GContext *ctx, GPoint A, GPoint B, int16_t half_thick
   gpath_draw_filled(ctx, path);
   gpath_destroy(path);
 
-  if (style == 0) { // dot: round off both true ends
+  if (style == 0) { // dot caps
     graphics_fill_circle(ctx, A, half_thick);
     graphics_fill_circle(ctx, B, half_thick);
   }
@@ -1268,17 +1288,16 @@ static void draw_marker_ring(GContext *ctx, GPoint center, GRect screen, const M
                               int marks, int skip_step, GColor color) {
   if (cfg->thickness == 0) return;
   uint8_t inner_pct = cfg->inner_border_pct, outer_pct = cfg->outer_border_pct;
-  if (outer_pct < inner_pct) outer_pct = inner_pct; // defensive, see MarkerRingConfig
+  if (outer_pct < inner_pct) outer_pct = inner_pct;
 
   int16_t half_thick = cfg->thickness / 2;
 
   for (int i = 0; i < marks; i++) {
-    if (skip_step > 0 && i % skip_step == 0) continue; // that slot belongs to the other ring
-    int32_t angle = ((int32_t)i * TRIG_MAX_ANGLE) / marks;
+    if (skip_step > 0 && i % skip_step == 0) continue;
+    
+    // Strictly mask with 0xFFFF to fix missing rotated markers
+    int32_t angle = (((int32_t)i * TRIG_MAX_ANGLE) / marks) & 0xFFFF;
 
-    // The mark is drawn directly between its inner and outer border
-    // points -- no separate length setting; eccentricity changing how
-    // far apart these two points are is what gives each mark its length.
     GPoint outer_pt = point_on_ring(center, screen, angle, outer_pct, cfg->outer_eccentricity);
     GPoint inner_pt = point_on_ring(center, screen, angle, inner_pct, cfg->inner_eccentricity);
     draw_ring_mark(ctx, outer_pt, inner_pt, half_thick, cfg->style, color);
@@ -1373,15 +1392,16 @@ static void draw_text_markers(GContext *ctx, GPoint center, GRect screen, Canvas
 
   for (int i = 0; i < 12; i++) {
     if (!(mask & (1 << i))) continue;
-    int32_t angle = ((int32_t)i * TRIG_MAX_ANGLE) / 12;
+    
+    int32_t angle = (((int32_t)i * TRIG_MAX_ANGLE) / 12) & 0xFFFF;
     GPoint base = point_on_ring(center, screen, angle, ring->outer_border_pct, ring->outer_eccentricity);
 
     int32_t sin_v = sin_lookup(angle), cos_v = cos_lookup(angle);
     GPoint pos = GPoint(
-      base.x + (int32_t)(text_cfg->offset_px * sin_v) / TRIG_MAX_RATIO,
-      base.y - (int32_t)(text_cfg->offset_px * cos_v) / TRIG_MAX_RATIO);
+      base.x + div_round((int32_t)text_cfg->offset_px * sin_v, TRIG_MAX_RATIO),
+      base.y - div_round((int32_t)text_cfg->offset_px * cos_v, TRIG_MAX_RATIO));
 
-    char buf[8]; // enough for the longest label we ever produce: "XXXVIII" (38) + NUL
+    char buf[8];
     int label = is_hour ? (i == 0 ? 12 : i) : (i * 5);
     if (text_cfg->roman_numerals) int_to_roman(label, buf, sizeof(buf));
     else snprintf(buf, sizeof(buf), "%d", label);
