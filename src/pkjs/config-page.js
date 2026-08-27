@@ -169,7 +169,23 @@ var CORNER_CONTENT_OPTIONS = [
   { id: 59, label: 'GMT-8 Los Angeles' },
   { id: 60, label: 'GMT-9 Anchorage' },
   { id: 61, label: 'GMT-10 Honolulu' },
-  { id: 62, label: 'GMT-3 Sao Paulo' }
+  { id: 62, label: 'GMT-3 Sao Paulo' },
+  { id: 63, label: 'Time: full (H:M:S)' },
+  { id: 64, label: 'Time: hour, 24h leading zero (07)' },
+  { id: 65, label: 'Time: hour, 24h (7)' },
+  { id: 66, label: 'Time: hour, 12h (7)' },
+  { id: 67, label: 'Time: minute (5)' },
+  { id: 68, label: 'Time: minute, leading zero (05)' },
+  { id: 69, label: 'Time: second (8)' },
+  { id: 70, label: 'Time: second, leading zero (08)' },
+  { id: 71, label: 'Time: seconds, tens digit' },
+  { id: 72, label: 'Time: seconds, ones digit' },
+  { id: 73, label: 'Current temp' },
+  { id: 74, label: 'High temp' },
+  { id: 75, label: 'Low temp' },
+  { id: 76, label: 'Weather icon + all temps' },
+  { id: 77, label: 'Feels like temp' },
+  { id: 78, label: 'Bluetooth status (icon only)' }
 ];
 // Must match draw_corner_item()'s color_mode switch exactly.
 var CORNER_COLOR_MODE_LABELS = ['MONO', 'ACC', 'SEMI', 'COLOR'];
@@ -590,7 +606,7 @@ function buildConfigHtml(current) {
 
   return '<!DOCTYPE html>' +
 '<html><head><meta charset="utf-8">' +
-'<meta name="viewport" content="width=device-width, initial-scale=1">' +
+'<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">' +
 '<title>Eclipz Settings</title>' +
 '<style>' +
 '  :root { --page-bg: #f4f4f4; --card-bg: #fff; --text: #222; --text-strong: #333; --text-muted: #666; --text-faint: #888; --text-faint2: #555; --text-disabled: #999; --border: #ccc; --border-light: #eee; --border-lighter: #ddd; --btn-bg: #fafafa; }' +
@@ -598,6 +614,12 @@ function buildConfigHtml(current) {
 '    :root { --page-bg: #1c1c1e; --card-bg: #2c2c2e; --text: #f2f2f2; --text-strong: #e5e5e5; --text-muted: #aaa; --text-faint: #999; --text-faint2: #bbb; --text-disabled: #777; --border: #48484a; --border-light: #3a3a3c; --border-lighter: #545456; --btn-bg: #3a3a3c; }' +
 '  }' +
 '  body { font-family: -apple-system, Helvetica, Arial, sans-serif; margin: 0; padding: 16px 20px 90px; background: var(--page-bg); color: var(--text); }' +
+'  html, body { touch-action: manipulation; }' + // belt-and-suspenders alongside the viewport meta tag --
+                                                    // some in-app webviews still allow double-tap-to-zoom
+                                                    // on individual elements unless this is set too, and a
+                                                    // double-tap on a fast-repeating button (the settings
+                                                    // and slider buttons below) shouldn't ever zoom the page.
+'  button, .mode-btn, .slot-btn, .slider-step-btn { touch-action: manipulation; }' +
 '  fieldset { border: none; background: var(--card-bg); border-radius: 8px; padding: 14px 16px; margin-bottom: 16px; box-shadow: 0 1px 2px rgba(0,0,0,0.08); }' +
 '  legend { font-weight: 600; font-size: 14px; padding: 0; color: var(--text-strong); }' +
 '  label { display: block; font-size: 14px; margin: 10px 0 4px; color: var(--text-strong); }' +
@@ -662,8 +684,8 @@ function buildConfigHtml(current) {
 '  .preset-btn-row { display: flex; gap: 6px; margin-top: 8px; }' +
 '  .preset-btn-row button { flex: 1; padding: 8px 0; font-size: 11px; font-weight: 700; color: var(--text-strong); background: var(--btn-bg); border: 1px solid var(--border); border-radius: 6px; }' +
 '  .marker-edit-btn { width: 100%; box-sizing: border-box; padding: 12px; font-size: 14px; font-weight: 600; color: var(--text-strong); background: var(--btn-bg); border: 1px solid var(--border); border-radius: 8px; margin-top: 8px; text-align: left; }' +
-'  .section-legend { cursor: pointer; display: block; width: 100%; box-sizing: border-box; margin: 0; padding: 6px 0; user-select: none; color: var(--text-strong); }' +
-'  .chevron { float: right; display: inline-block; font-size: 13px; transition: transform 0.15s; }' +
+'  .section-legend { cursor: pointer; display: flex; align-items: center; justify-content: space-between; width: 100%; box-sizing: border-box; margin: 0; padding: 6px 0; user-select: none; color: var(--text-strong); }' +
+'  .chevron { display: inline-block; font-size: 24px; line-height: 1; transition: transform 0.15s; }' +
 '  .chevron.open { transform: rotate(90deg); }' +
 '  .slider-with-buttons { display: flex; align-items: center; gap: 8px; }' +
 '  .slider-with-buttons input[type=range] { flex: 1; }' +
@@ -686,6 +708,16 @@ function buildConfigHtml(current) {
 '  .slot-middle-left-l2 { left: 6px; top: calc(50% + 15px); transform: translateY(-50%); }' +
 '  .slot-middle-right-l1 { right: 6px; top: calc(50% - 15px); transform: translateY(-50%); }' +
 '  .slot-middle-right-l2 { right: 6px; top: calc(50% + 15px); transform: translateY(-50%); }' +
+'  .analog-feature-panel { width: 240px; margin: 10px auto 0; padding: 12px; box-sizing: border-box; border-radius: 8px; background: var(--btn-bg); border: 1px solid var(--border); }' +
+'  .analog-feature-panel-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; color: var(--text-faint); margin-bottom: 8px; }' +
+'  .analog-feature-panel-row { display: flex; align-items: center; }' +
+'  .slot-fake-clock { position: relative; width: 78px; height: 78px; flex-shrink: 0; border-radius: 50%; border: 2px solid rgba(0,0,0,0.55); background: rgba(255,255,255,0.35); }' +
+'  .slot-fake-clock-hand { position: absolute; left: 50%; top: 50%; background: #222; border-radius: 2px; transform-origin: 50% 100%; }' +
+'  .slot-fake-clock-hour { width: 3px; height: 20px; transform: translate(-50%, -100%) rotate(35deg); }' +
+'  .slot-fake-clock-min { width: 2px; height: 28px; transform: translate(-50%, -100%) rotate(110deg); }' +
+'  .slot-fake-clock-dot { position: absolute; left: 50%; top: 50%; width: 6px; height: 6px; margin: -3px 0 0 -3px; border-radius: 50%; background: #222; }' +
+'  .slot-feature-col { flex: 1; min-width: 0; margin-left: 10px; display: flex; flex-direction: column; gap: 4px; }' +
+'  .slot-feature-col .slot-btn { position: static; width: 100%; box-sizing: border-box; text-align: left; }' +
 '</style></head>' +
 '<body>' +
 
@@ -833,14 +865,14 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    </select>' +
 '    <div class="help">Realistic clouds are a soft painterly shape shaded by the Sun\'s actual position -- costs more battery per redraw. Simple uses plain circle puffs instead.</div>' +
 
-'    <div class="subsection" id="showSunTimeSection" style="' + (isBigAnalog ? 'display:none;' : '') + '">' +
+'    <div class="subsection" id="showSunTimeSection" style="' + (bottomStyleVal === 'digital' ? '' : 'display:none;') + '">' +
 '      <label>Week number or sunrise/sunset</label>' +
 '      <div class="mode-btn-group" id="showSunTimeGroup">' +
 '        <button type="button" class="mode-btn' + (!current.showSunTime ? ' active' : '') + '" onclick="selectSunTimeMode(false)">WEEK #</button>' +
 '        <button type="button" class="mode-btn' + (current.showSunTime ? ' active' : '') + '" onclick="selectSunTimeMode(true)">SUN/SET</button>' +
 '      </div>' +
 '      <input type="hidden" id="showSunTime" value="' + (current.showSunTime ? 'true' : 'false') + '">' +
-'      <div class="help">Falls back to the week number once today\'s sunset has passed, until the next refresh rolls over to a new day. Only applies to digital and analog modes.</div>' +
+'      <div class="help">Falls back to the week number once today\'s sunset has passed, until the next refresh rolls over to a new day. Only applies to digital mode -- analog\'s 4 feature rows below can each independently be set to Week number or Sunrise/sunset instead.</div>' +
 '    </div>' +
 
 '    <div class="checkbox-row subsection">' +
@@ -930,6 +962,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    <div class="help">Small info readouts around the sky view / big-analogue clock face. These refresh on their own independent schedule, separate from the main display.</div>' +
 '    <div class="help">The 4 corners only apply to procedural (non-bitmap) big-analogue styles, digital, and small analog. The 4 edge-middle slots (top/bottom/left/right) only apply to big-analogue mode, and which ones a bitmap style supports depends on that style\'s own artwork -- unsupported slots are grayed out below.</div>' +
 '    <div class="help">Pick what shows in each corner and edge slot of the big-analog view. Tap a spot on the diagram below to choose its content and color -- procedural styles support all 8 slots, bitmap styles (Modern, Shadow, Tally, Bell, Brown) are each limited to whatever room their artwork actually has, and unavailable slots show as N/A.</div>' +
+'    <div class="help">In analog mode, a separate box below the diagram shows a clock icon with 4 "Feature" buttons next to it, for the 4 rows shown beside the actual analog clock face on your watch. These share their storage with the Upper-middle/Bottom-middle slots above (so switching between analog and big-analog keeps the same picks) -- text and icons are always left-aligned there, right next to the clock face, and never get the outline the corner/edge slots do, since that panel already sits on a solid background. Only 3 of the 4 are available with a custom font or a Large/Extra Large font size below; the 4th shows N/A until you pick Small or Medium.</div>' +
 
 '    <label for="cornerCustomFont">Font</label>' +
 '    <select id="cornerCustomFont" onchange="onCornerFontChange()">' +
@@ -941,7 +974,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      <option value="5"' + (current.cornerCustomFont === '5' ? ' selected' : '') + '>Bebas</option>' +
 '    </select>' +
 '    <label for="cornerFontSize">Font size</label>' +
-'    <select id="cornerFontSize" ' + (current.cornerCustomFont && current.cornerCustomFont !== '0' ? 'disabled' : '') + '>' +
+'    <select id="cornerFontSize" onchange="onCornerFontSizeChange()" ' + (current.cornerCustomFont && current.cornerCustomFont !== '0' ? 'disabled' : '') + '>' +
 '      <option value="0"' + (current.cornerFontSize === '0' ? ' selected' : '') + '>Small</option>' +
 '      <option value="1"' + (current.cornerFontSize === '1' || !current.cornerFontSize ? ' selected' : '') + '>Medium</option>' +
 '      <option value="2"' + (current.cornerFontSize === '2' ? ' selected' : '') + '>Large</option>' +
@@ -962,6 +995,28 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      <button type="button" class="slot-btn slot-middle-left-l2" id="slotBtn-middleLeftLine2" onclick="openSlotEditor(\'middleLeftLine2\')"></button>' +
 '      <button type="button" class="slot-btn slot-middle-right-l1" id="slotBtn-middleRightLine1" onclick="openSlotEditor(\'middleRightLine1\')"></button>' +
 '      <button type="button" class="slot-btn slot-middle-right-l2" id="slotBtn-middleRightLine2" onclick="openSlotEditor(\'middleRightLine2\')"></button>' +
+'    </div>' +
+
+// Sits BELOW the sky diagram, as its own box -- not inside/overlaid
+// on it -- representing the watch's separate bottom-third panel
+// (clock + 4 feature rows) rather than anything drawn over the sky
+// view itself. Only ever shown for the small-analog layout (see
+// onBottomStyleChange()); digital and big-analog never render it.
+'    <div class="analog-feature-panel" id="analogFeaturePanel" style="' + (isAnalog ? '' : 'display:none;') + '">' +
+'      <div class="analog-feature-panel-label">Small-analog bottom panel</div>' +
+'      <div class="analog-feature-panel-row">' +
+'        <div class="slot-fake-clock" aria-hidden="true">' +
+'          <div class="slot-fake-clock-hand slot-fake-clock-hour"></div>' +
+'          <div class="slot-fake-clock-hand slot-fake-clock-min"></div>' +
+'          <div class="slot-fake-clock-dot"></div>' +
+'        </div>' +
+'        <div class="slot-feature-col">' +
+'          <button type="button" class="slot-btn slot-feature-btn" id="slotBtn-smallAnalogFeature1" onclick="openSlotEditor(\'smallAnalogFeature1\')"></button>' +
+'          <button type="button" class="slot-btn slot-feature-btn" id="slotBtn-smallAnalogFeature2" onclick="openSlotEditor(\'smallAnalogFeature2\')"></button>' +
+'          <button type="button" class="slot-btn slot-feature-btn" id="slotBtn-smallAnalogFeature3" onclick="openSlotEditor(\'smallAnalogFeature3\')"></button>' +
+'          <button type="button" class="slot-btn slot-feature-btn" id="slotBtn-smallAnalogFeature4" onclick="openSlotEditor(\'smallAnalogFeature4\')"></button>' +
+'        </div>' +
+'      </div>' +
 '    </div>' +
 
 '    <div style="display:none;" id="slotDataStore">' +
@@ -1274,7 +1329,9 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  39: "7h 32m", 40: "2h 15m", 41: "42%", 42: "23:45", 43: "07:20",' +
 '  44: "LON 12:34", 45: "PAR 13:34", 46: "CAI 14:34", 47: "MOW 15:34", 48: "DXB 16:34", 49: "DEL 18:04",' +
 '  50: "DAC 18:34", 51: "BKK 19:34", 52: "BJS 20:34", 53: "TOK 21:34", 54: "SYD 22:34", 55: "AKL 00:34",' +
-'  56: "NYC 07:34", 57: "CHI 06:34", 58: "DEN 05:34", 59: "LAX 04:34", 60: "ANC 03:34", 61: "HNL 02:34", 62: "SAO 09:34"' +
+'  56: "NYC 07:34", 57: "CHI 06:34", 58: "DEN 05:34", 59: "LAX 04:34", 60: "ANC 03:34", 61: "HNL 02:34", 62: "SAO 09:34",' +
+'  63: "14:32:07", 64: "07", 65: "7", 66: "7", 67: "5", 68: "05", 69: "8", 70: "08", 71: "3", 72: "8",' +
+'  73: "22C", 74: "H 28C", 75: "L 11C", 76: "22 H28 L11C", 77: "FL 20C", 78: "(bt)"' +
 '};' +
 
 'function hasPreviewContent(contentId) {' +
@@ -1573,19 +1630,34 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  ctx.beginPath(); ctx.arc(cx, cy, 2, 0, 2 * Math.PI); ctx.fill();' +
 '}' +
 
-'function drawInfoPanelPreview(ctx, colors, now, panelLeft, w, panelTop, panelBottom) {' +
-'  var dayOfYear = Math.floor((now - new Date(now.getFullYear(), 0, 0)) / 86400000);' +
-'  var weekNum = Math.ceil(dayOfYear / 7);' +
-'  var days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];' +
-'  var months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];' +
-'  var dateStr = days[now.getDay()] + " " + months[now.getMonth()] + " " + now.getDate();' +
-'  var lines = ["Clouds 20% Vis 80%", "Innsbruck, Austria", dateStr, "Week " + weekNum];' +
-'  ctx.font = "9px sans-serif";' +
-'  ctx.fillStyle = colors.text;' +
-'  ctx.textAlign = "left"; ctx.textBaseline = "top";' +
-'  var lineH = (panelBottom - panelTop) / (lines.length + 1);' +
-'  for (var i = 0; i < lines.length; i++) {' +
-'    ctx.fillText(lines[i], panelLeft + 8, panelTop + lineH * (i + 0.5));' +
+// Mirrors small_analog_feature_count() in pebble-eclipse-watch.c --
+// keep the two in sync. Also used by computeSlotAvailability() to
+// gray out the 4th "Feature" slot button when it wouldn't fit.
+'function computeSmallAnalogFeatureCount() {' +
+'  var customFontEl = document.getElementById("cornerCustomFont");' +
+'  var fontSizeEl = document.getElementById("cornerFontSize");' +
+'  var customFont = customFontEl ? customFontEl.value : "0";' +
+'  var fontSize = fontSizeEl ? fontSizeEl.value : "1";' +
+'  if (customFont && customFont !== "0") return 3;' +
+'  if (fontSize === "2" || fontSize === "3") return 3;' +
+'  return 4;' +
+'}' +
+
+// The small-analog info panel's rows -- same 4 fields the big-analog
+// upper-middle/bottom-middle 2-line slots use (see SLOT_DEFS/the
+// smallAnalogFeatureN entries below), drawn left-aligned starting
+// just after the clock face, matching the watch.
+'function drawInfoPanelPreview(ctx, colors, panelLeft, w, panelTop, panelBottom) {' +
+'  var count = computeSmallAnalogFeatureCount();' +
+'  var ids = [' +
+'    ["upperMiddleLine1Content", "upperMiddleLine1Color"],' +
+'    ["upperMiddleLine2Content", "upperMiddleLine2Color"],' +
+'    ["bottomMiddleLine1Content", "bottomMiddleLine1Color"],' +
+'    ["bottomMiddleLine2Content", "bottomMiddleLine2Color"]' +
+'  ];' +
+'  var lineH = (panelBottom - panelTop) / count;' +
+'  for (var i = 0; i < count; i++) {' +
+'    drawCornerSlot(ctx, ids[i][0], ids[i][1], panelLeft + 8, panelTop + lineH * i + (lineH - 9) / 2, "left", colors);' +
 '  }' +
 '}' +
 
@@ -1631,7 +1703,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    ctx.fillRect(0, skyH, w, h - skyH);' +
 '    if (styleVal === "analog") {' +
 '      var clockRight = drawAnalogPreview(ctx, colors, now, showSeconds, w, skyH, h);' +
-'      drawInfoPanelPreview(ctx, colors, now, clockRight, w, skyH, h);' +
+'      drawInfoPanelPreview(ctx, colors, clockRight, w, skyH, h);' +
 '    } else {' +
 '      drawDigitalPreview(ctx, colors, now, showSeconds, w, skyH, h);' +
 '    }' +
@@ -1645,7 +1717,9 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  document.getElementById("digitalOnlySettings").style.display = (styleVal === "digital") ? "block" : "none";' +
 '  document.getElementById("analogOnlySettings").style.display = isAnalog ? "block" : "none";' +
 '  document.getElementById("bigAnalogSettings").style.display = isBigAnalog ? "block" : "none";' +
-'  document.getElementById("showSunTimeSection").style.display = isBigAnalog ? "none" : "block";' +
+'  document.getElementById("showSunTimeSection").style.display = (styleVal === "digital") ? "block" : "none";' +
+'  var analogFeaturePanel = document.getElementById("analogFeaturePanel");' +
+'  if (analogFeaturePanel) analogFeaturePanel.style.display = isAnalog ? "block" : "none";' +
 '  var secondsBox = document.getElementById("showSeconds");' +
 '  var fontSel = document.getElementById("clockFont");' +
 '  var opt = fontSel.options[fontSel.selectedIndex];' +
@@ -1665,12 +1739,12 @@ handEditorModalHtml('sec', 'Edit second hand') +
 // CORNER_PREVIEW_LABELS below is its own separate runtime copy rather
 // than reusing the generator-side labels). Keep in sync with
 // CORNER_CONTENT_OPTIONS/CORNER_CATEGORIES above by hand -- every
-// content id 0-43 must appear in exactly one category\'s items list.
+// content id 0-78 must appear in exactly one category\'s items list.
 'var CORNER_CATEGORIES = [' +
 '  { id: "none", label: "None", items: [{ id: 0, label: "None" }] },' +
 '  { id: "utilities", label: "Utilities", items: [' +
 '    { id: 10, label: "Battery" }, { id: 13, label: "Location" }, { id: 17, label: "Pebble logo /w battery bar" },' +
-'    { id: 20, label: "Bluetooth connection" }, { id: 38, label: "Altitude" }' +
+'    { id: 20, label: "Bluetooth connection" }, { id: 78, label: "Bluetooth status (icon only)" }, { id: 38, label: "Altitude" }' +
 '  ] },' +
 '  { id: "health", label: "Health", items: [' +
 '    { id: 1, label: "Heart rate" }, { id: 2, label: "Steps today" }, { id: 3, label: "Step goal %" },' +
@@ -1683,7 +1757,12 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    { id: 23, label: "Date: Weekday, short (MON)" }, { id: 24, label: "Date: Weekday, long (Monday)" },' +
 '    { id: 25, label: "Date: Month, short (SEP)" }, { id: 26, label: "Date: Month, long (September)" },' +
 '    { id: 27, label: "Date: Day/Month (11/9)" }, { id: 28, label: "Date: Month/Day (9/11)" },' +
-'    { id: 29, label: "Date: Full (24/9/2026)" }, { id: 30, label: "Date: Full, imperial (9/24/26)" }' +
+'    { id: 29, label: "Date: Full (24/9/2026)" }, { id: 30, label: "Date: Full, imperial (9/24/26)" },' +
+'    { id: 63, label: "Time: full (H:M:S)" }, { id: 64, label: "Time: hour, 24h leading zero (07)" },' +
+'    { id: 65, label: "Time: hour, 24h (7)" }, { id: 66, label: "Time: hour, 12h (7)" },' +
+'    { id: 67, label: "Time: minute (5)" }, { id: 68, label: "Time: minute, leading zero (05)" },' +
+'    { id: 69, label: "Time: second (8)" }, { id: 70, label: "Time: second, leading zero (08)" },' +
+'    { id: 71, label: "Time: seconds, tens digit" }, { id: 72, label: "Time: seconds, ones digit" }' +
 '  ] },' +
 '  { id: "timezone", label: "Timezone", items: [' +
 '    { id: 44, label: "GMT+0 London" }, { id: 45, label: "GMT+1 Paris / Berlin / Madrid" }, { id: 46, label: "GMT+2 Cairo" },' +
@@ -1699,7 +1778,9 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    { id: 7, label: "Rain chance today" }, { id: 8, label: "Humidity" }, { id: 9, label: "Wind" },' +
 '    { id: 14, label: "Visibility" }, { id: 15, label: "Cloud cover" }, { id: 31, label: "Weather icon" },' +
 '    { id: 32, label: "Temp + weather icon" }, { id: 34, label: "Pressure" }, { id: 35, label: "Wind direction" },' +
-'    { id: 36, label: "Air quality" }, { id: 37, label: "Dew point" }' +
+'    { id: 36, label: "Air quality" }, { id: 37, label: "Dew point" }, { id: 73, label: "Current temp" },' +
+'    { id: 74, label: "High temp" }, { id: 75, label: "Low temp" }, { id: 76, label: "Weather icon + all temps" },' +
+'    { id: 77, label: "Feels like temp" }' +
 '  ] },' +
 '  { id: "astro", label: "Astronomy", items: [{ id: 11, label: "Moon phase" }, { id: 16, label: "Sunrise / sunset" }] }' +
 '];' +
@@ -1738,28 +1819,44 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  middleLeftLine1: { contentId: "middleLeftLine1Content", colorId: "middleLeftLine1Color", btnId: "slotBtn-middleLeftLine1", label: "Middle-left, line 1", avail: function (a) { return a.left; } },' +
 '  middleLeftLine2: { contentId: "middleLeftLine2Content", colorId: "middleLeftLine2Color", btnId: "slotBtn-middleLeftLine2", label: "Middle-left, line 2", avail: function (a) { return a.left; } },' +
 '  middleRightLine1: { contentId: "middleRightLine1Content", colorId: "middleRightLine1Color", btnId: "slotBtn-middleRightLine1", label: "Middle-right, line 1", avail: function (a) { return a.right; } },' +
-'  middleRightLine2: { contentId: "middleRightLine2Content", colorId: "middleRightLine2Color", btnId: "slotBtn-middleRightLine2", label: "Middle-right, line 2", avail: function (a) { return a.right; } }' +
+'  middleRightLine2: { contentId: "middleRightLine2Content", colorId: "middleRightLine2Color", btnId: "slotBtn-middleRightLine2", label: "Middle-right, line 2", avail: function (a) { return a.right; } },' +
+// The small-analog info panel's 4 rows -- deliberately reusing the
+// SAME contentId/colorId as upper/bottom-middle line 1/2 above
+// rather than separate storage (see the matching comment in
+// pebble-eclipse-watch.c's bottom_canvas_update_proc). Both this
+// button and the corresponding "Upper-middle"/"Bottom-middle" button
+// edit the exact same underlying value -- picking a different label
+// for each just makes clear which on-screen row each is standing in
+// for right now.
+'  smallAnalogFeature1: { contentId: "upperMiddleLine1Content", colorId: "upperMiddleLine1Color", btnId: "slotBtn-smallAnalogFeature1", label: "Feature 1", avail: function (a) { return a.analog; } },' +
+'  smallAnalogFeature2: { contentId: "upperMiddleLine2Content", colorId: "upperMiddleLine2Color", btnId: "slotBtn-smallAnalogFeature2", label: "Feature 2", avail: function (a) { return a.analog; } },' +
+'  smallAnalogFeature3: { contentId: "bottomMiddleLine1Content", colorId: "bottomMiddleLine1Color", btnId: "slotBtn-smallAnalogFeature3", label: "Feature 3", avail: function (a) { return a.analog; } },' +
+'  smallAnalogFeature4: { contentId: "bottomMiddleLine2Content", colorId: "bottomMiddleLine2Color", btnId: "slotBtn-smallAnalogFeature4", label: "Feature 4", avail: function (a) { return a.analog && a.smallAnalogFeatureCount >= 4; } }' +
 '};' +
 'var CURRENT_SLOT_KEY = null;' +
 'var SLOT_EDITOR_DRAFT_COLOR = 0;' +
 // Same per-marker-style room rules as before: procedural styles (<3)
 // have all 8 slots and the 4 corners; bitmap styles are each limited
 // to whatever their own artwork actually has room for and suppress
-// the corners entirely (the mask fills most of the screen).
+// the corners entirely (the mask fills most of the screen). analog
+// and smallAnalogFeatureCount drive the small-analog "Feature 1-4"
+// buttons instead -- see computeSmallAnalogFeatureCount() above,
+// which mirrors small_analog_feature_count() in the C code.
 'function computeSlotAvailability() {' +
 '  var styleVal = document.getElementById("bottomStyleValue").value;' +
 '  var isBigAnalog = styleVal === "biganalog";' +
 '  var markerStyle = parseInt(document.getElementById("bigAnalogMarkerStyle").value, 10);' +
-'  var avail = { upper: false, bottom: false, left: false, right: false, cornersGrayed: false };' +
+'  var avail = { upper: false, bottom: false, left: false, right: false, cornersGrayed: false,' +
+'                analog: styleVal === "analog", smallAnalogFeatureCount: computeSmallAnalogFeatureCount() };' +
 '  if (isBigAnalog) {' +
 '    if (markerStyle < 3 || markerStyle === 8 || markerStyle === 9) {' +
-'      avail = { upper: true, bottom: true, left: true, right: true, cornersGrayed: false };' +
+'      avail.upper = avail.bottom = avail.left = avail.right = true;' +
 '    } else if (markerStyle === 3 || markerStyle === 4 || markerStyle === 6) {' +
-'      avail = { upper: true, bottom: true, left: false, right: false, cornersGrayed: true };' +
+'      avail.upper = avail.bottom = true; avail.cornersGrayed = true;' +
 '    } else if (markerStyle === 5 || markerStyle === 7) {' +
-'      avail = { upper: true, bottom: true, left: true, right: true, cornersGrayed: true };' +
+'      avail.upper = avail.bottom = avail.left = avail.right = true; avail.cornersGrayed = true;' +
 '    } else {' +
-'      avail = { upper: true, bottom: false, left: false, right: false, cornersGrayed: true };' +
+'      avail.upper = true; avail.cornersGrayed = true;' +
 '    }' +
 '  }' +
 '  return avail;' +
@@ -1890,6 +1987,45 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  if (el.oninput) el.oninput();' +
 '  else if (el.onchange) el.onchange();' +
 '}' +
+
+// Press-and-hold repeat for the +/- slider step buttons. Reads the
+// button's own onclick="stepSlider(\'id\', delta)" text to find which
+// slider and direction it steps, rather than needing separate
+// data attributes on all 20-odd call sites above -- one generic
+// listener covers all of them, present and future. A single tap is
+// left to the browser's normal click (one call to stepSlider); this
+// only starts repeating after a short delay, so a quick tap never
+// double-steps.
+'var SLIDER_HOLD_TIMER = null;' +
+'var SLIDER_HOLD_INTERVAL = null;' +
+'function parseStepSliderArgs(btn) {' +
+'  var attr = btn.getAttribute("onclick") || "";' +
+'  var m = attr.match(/stepSlider\\(\'([^\']+)\',\\s*(-?\\d+)\\)/);' +
+'  return m ? { id: m[1], delta: parseInt(m[2], 10) } : null;' +
+'}' +
+'function stopSliderHold() {' +
+'  if (SLIDER_HOLD_TIMER) { clearTimeout(SLIDER_HOLD_TIMER); SLIDER_HOLD_TIMER = null; }' +
+'  if (SLIDER_HOLD_INTERVAL) { clearInterval(SLIDER_HOLD_INTERVAL); SLIDER_HOLD_INTERVAL = null; }' +
+'}' +
+'function startSliderHold(btn) {' +
+'  var args = parseStepSliderArgs(btn);' +
+'  if (!args) return;' +
+'  stopSliderHold();' +
+'  SLIDER_HOLD_TIMER = setTimeout(function () {' +
+'    SLIDER_HOLD_INTERVAL = setInterval(function () { stepSlider(args.id, args.delta); }, 90);' +
+'  }, 400);' +
+'}' +
+'document.addEventListener("mousedown", function (e) {' +
+'  var btn = e.target.closest && e.target.closest(".slider-step-btn");' +
+'  if (btn) startSliderHold(btn);' +
+'});' +
+'document.addEventListener("touchstart", function (e) {' +
+'  var btn = e.target.closest && e.target.closest(".slider-step-btn");' +
+'  if (btn) startSliderHold(btn);' +
+'}, { passive: true });' +
+'["mouseup", "mouseleave", "touchend", "touchcancel"].forEach(function (ev) {' +
+'  document.addEventListener(ev, stopSliderHold);' +
+'});' +
 
 'function onMarkerStyleChange() {' +
 '  var val = document.getElementById("bigAnalogMarkerStyle").value;' +
@@ -2110,6 +2246,12 @@ handEditorModalHtml('sec', 'Edit second hand') +
 'function onCornerFontChange() {' +
 '  var custom = document.getElementById("cornerCustomFont").value;' +
 '  document.getElementById("cornerFontSize").disabled = (custom !== "0");' +
+'  renderSlotPicker();' +
+'  updatePreview();' +
+'}' +
+'function onCornerFontSizeChange() {' +
+'  renderSlotPicker();' +
+'  updatePreview();' +
 '}' +
 'function selectSunTimeMode(isSunTime) {' +
 '  document.getElementById("showSunTime").value = isSunTime ? "true" : "false";' +

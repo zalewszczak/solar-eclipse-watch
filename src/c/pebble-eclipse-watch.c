@@ -401,6 +401,20 @@ static int16_t corner_font_height_estimate(void) {
   return 18;
 }
 
+// How many of the small-analog info panel's rows actually fit,
+// given the currently-selected corner/edge font. Any custom font
+// (which carries its own fixed size the user didn't pick for this
+// purpose) or the two larger system sizes only leave room for 3
+// rows before they'd start overlapping; small and medium both stay
+// short enough for the full 4. Mirrors the equivalent check in
+// config-page.js's computeSlotAvailability() (used to gray out the
+// 4th feature button there) -- keep the two in sync.
+static uint8_t small_analog_feature_count(void) {
+  if (s_data.corner_custom_font != 0) return 3;
+  if (s_data.corner_font_size == 2 || s_data.corner_font_size == 3) return 3;
+  return 4;
+}
+
 
 // The always-on-top overlay for big-analogue mode: hour/minute/second
 // hands, optional edge tick markers, and an optional date readout
@@ -505,6 +519,21 @@ static const uint8_t CLOUD_ICON[24]   = { 0x00, 0x00, 0x00, 0x00, 0x1C, 0x00, 0x
   0x82, 0x16, 0x80, 0x01, 0x40, 0x01, 0x20, 0x02, 0x1F, 0xFC, 0x00, 0x00 };
 static const uint8_t BLUETOOTH_ICON[24] = { 0x03, 0x00, 0x03, 0x80, 0x12, 0xC0, 0x1A, 0x60, 0x0E, 0xC0, 0x07, 0x80,
   0x07, 0x80, 0x0E, 0xC0, 0x1A, 0x60, 0x12, 0xC0, 0x03, 0x80, 0x03, 0x00 };
+// Sleep-feature icons: a shared bed silhouette (rows 7-11) topped
+// with a symbol (rows 0-6) that identifies which sleep readout this
+// is -- an in/out arrow for bed/wake time, a checkmark for sleep
+// quality, a clock for total duration, and both combined for restful
+// (deep-sleep) duration. Same 16x12 bitmap format as the icons above.
+static const uint8_t BED_ARROW_IN_ICON[24] = { 0x01, 0x80, 0x01, 0x80, 0x01, 0x80, 0x07, 0xE0, 0x03, 0xC0, 0x01, 0x80,
+  0x00, 0x00, 0x1F, 0xC0, 0x3F, 0xF0, 0x7F, 0xFC, 0xFF, 0xFE, 0xC0, 0x03 };
+static const uint8_t BED_ARROW_OUT_ICON[24] = { 0x01, 0x80, 0x03, 0xC0, 0x07, 0xE0, 0x01, 0x80, 0x01, 0x80, 0x01, 0x80,
+  0x00, 0x00, 0x1F, 0xC0, 0x3F, 0xF0, 0x7F, 0xFC, 0xFF, 0xFE, 0xC0, 0x03 };
+static const uint8_t BED_CHECK_ICON[24] = { 0x00, 0x10, 0x00, 0x20, 0x08, 0x40, 0x08, 0x80, 0x05, 0x00, 0x02, 0x00,
+  0x00, 0x00, 0x1F, 0xC0, 0x3F, 0xF0, 0x7F, 0xFC, 0xFF, 0xFE, 0xC0, 0x03 };
+static const uint8_t BED_CLOCK_ICON[24] = { 0x03, 0xC0, 0x0C, 0x30, 0x08, 0x10, 0x09, 0x10, 0x09, 0x90, 0x0C, 0x30,
+  0x03, 0xC0, 0x1F, 0xC0, 0x3F, 0xF0, 0x7F, 0xFC, 0xFF, 0xFE, 0xC0, 0x03 };
+static const uint8_t BED_CHECK_CLOCK_ICON[24] = { 0x00, 0x1E, 0x00, 0x21, 0x40, 0x20, 0x40, 0x24, 0xA0, 0x20, 0x10, 0x21,
+  0x08, 0x1E, 0x1F, 0xC0, 0x3F, 0xF0, 0x7F, 0xFC, 0xFF, 0xFE, 0xC0, 0x03 };
 //static const uint8_t ERROR_ICON[24]   = { 0x01, 0x80, 0x02, 0x40, 0x04, 0x20, 0x05, 0xA0, 0x09, 0x90, 0x09, 0x90,
 //  0x11, 0x88, 0x10, 0x08, 0x21, 0x84, 0x41, 0x82, 0x40, 0x02, 0x3F, 0xFC };
 
@@ -827,14 +856,17 @@ static int16_t timezone_current_offset_min(const TimezoneInfo *tz, time_t utc_no
   return tz->base_offset_min + (dst ? 60 : 0);
 }
 
-// Black at local noon, white at local midnight, linear in between --
-// a simple hour-of-day heuristic rather than real sun-altitude
-// astronomy (which isn't available for an arbitrary remote timezone
-// the way it is for the user's own location via eclipse_sky_is_bright()).
+// Discrete three-band read of a remote timezone's local hour: white
+// through the day, black overnight, and a light-gray "twilight" band
+// around sunrise/sunset -- deliberately a simple fixed-hour heuristic
+// (06:00-08:00 sunrise, 18:00-20:00 sunset) rather than real sun-
+// altitude astronomy, which isn't available for an arbitrary remote
+// timezone the way it is for the user's own location via
+// eclipse_sky_is_bright().
 static GColor timezone_daylight_color(int local_hour24) {
-  int dist_from_noon = (local_hour24 <= 12) ? (12 - local_hour24) : (local_hour24 - 12); // 0..12
-  uint8_t v = (uint8_t)((255 * dist_from_noon) / 12);
-  return GColorFromRGB(v, v, v);
+  if (local_hour24 >= 8 && local_hour24 < 18) return GColorWhite;  // day
+  if (local_hour24 < 6 || local_hour24 >= 20) return GColorBlack;  // night
+  return GColorLightGray; // 06-08 sunrise, 18-20 sunset -- twilight
 }
 
 // ---- pressure trend / wind direction icons -------------------------------
@@ -948,6 +980,16 @@ static GColor white_to_turquoise_gradient(int32_t value, int32_t min_v, int32_t 
   int16_t g = 255 - (int16_t)(((255 - 224) * frac1000) / 1000);
   int16_t b = 255 - (int16_t)(((255 - 208) * frac1000) / 1000);
   return GColorFromRGB((uint8_t)r, (uint8_t)g, (uint8_t)b);
+}
+
+// Same 7-stop rainbow as seven_stop_gradient(), but reversed: the
+// high end of the value range maps to the gradient's "calm" turquoise/
+// green side instead of its "alarming" red/violet side. Temperature
+// and UV use the gradient the normal way round (more = hotter/worse);
+// the sleep-duration features below want the opposite sense, since
+// more sleep is the good result.
+static GColor seven_stop_gradient_reversed(int32_t value, int32_t min_v, int32_t max_v) {
+  return seven_stop_gradient(min_v + (max_v - value), min_v, max_v);
 }
 
 // Red (0%) -> green (100%+). Shared by "steps today"/"step goal %"
@@ -1066,6 +1108,29 @@ static const char *temp_unit_suffix(uint8_t temp_unit) {
   return "C";
 }
 
+// Simple apparent-temperature ("feels like") estimate, computed
+// entirely on-watch from data already being sent (temperature, wind,
+// humidity) rather than plumbing a whole new field through the
+// phone-side fetch pipeline. Applies a simplified wind-chill
+// adjustment when it's cold and windy, and a simplified humidity
+// adjustment when it's warm and humid -- deliberately approximate
+// integer arithmetic, not an exact NWS/Rothfusz regression. "Feels
+// like" readings are inherently fuzzy even on dedicated weather
+// services.
+static int16_t apparent_temp_c(int16_t temp_c, int16_t wind_kmh, uint8_t humidity_pct) {
+  if (temp_c <= 10 && wind_kmh > 4) {
+    int16_t chill = (int16_t)((wind_kmh - 4) / 5);
+    if (chill > 12) chill = 12;
+    return temp_c - chill;
+  }
+  if (temp_c >= 27 && humidity_pct > 40) {
+    int16_t bump = (int16_t)(((int32_t)(humidity_pct - 40) * 3) / 20);
+    if (bump > 8) bump = 8;
+    return temp_c + bump;
+  }
+  return temp_c;
+}
+
 // wind_speed_unit: 0=km/h (input is already km/h, passed through),
 // 1=mph, 2=m/s, 3=knots.
 static int16_t convert_wind(int16_t kmh, uint8_t wind_speed_unit) {
@@ -1084,6 +1149,7 @@ static int16_t convert_wind(int16_t kmh, uint8_t wind_speed_unit) {
 static int16_t icon_plus_gap_width(int icon_kind) { // TODO: This might not be neccessary anymore
   switch (icon_kind) {
     case 1: case 2: case 5: case 6: case 7: case 8: case 9: case 10: case 13:
+    case 18: case 19: case 20: case 21: case 22:
       return 11; // bitmap icons (7-wide at 140% scale) + gap
     case 3: return 10; // battery + gap
     case 4: return 21; // moon (radius 9, so 2*9+2 diameter box) + gap
@@ -1117,10 +1183,18 @@ static void to_upper_str(char *s) {
 // box. The icon (when present) always precedes the text in reading
 // order regardless of alignment -- only the whole group's position
 // changes, not the icon/text order within it.
+// allow_outline gates s_data.outline_enabled on top of the user
+// setting rather than replacing it -- pass true from every caller
+// that draws over the busy sky/hands canvas (corners, edge-middle
+// slots), where the outline is what keeps text legible against an
+// unpredictable background. The small-analog info panel's rows sit
+// on their own solid-color background instead, so they pass false
+// and never get one regardless of the outline_enabled setting --
+// there's nothing there for it to contrast against.
 static void draw_corner_item(GContext *ctx, GRect bounds, uint8_t content, uint8_t color_mode,
                               GColor main_color, GColor accent_color, GColor bg_color,
                               bool is_top, bool is_left, bool is_middle, int16_t top_offset, int16_t bottom_shift,
-                              bool center_horizontal, bool center_vertical) {
+                              bool center_horizontal, bool center_vertical, bool allow_outline) {
   if (content == 0) return;
 
   // 40, not 24 -- the actual longest real content (e.g. "September",
@@ -1490,11 +1564,12 @@ static void draw_corner_item(GContext *ctx, GRect bounds, uint8_t content, uint8
       break;
     }
     case 39: { // sleep duration (total)
+      icon_kind = 21;
       HealthServiceAccessibilityMask mask = health_service_metric_accessible(HealthMetricSleepSeconds, time(NULL) - 86400, time(NULL));
       if (mask & HealthServiceAccessibilityMaskAvailable) {
         HealthValue secs = health_service_sum_today(HealthMetricSleepSeconds);
         format_duration_hm(buf, sizeof(buf), (int32_t)secs);
-        dynamic_color = main_color;
+        dynamic_color = seven_stop_gradient_reversed((int32_t)secs, 0, 9 * 3600); // 0-9h
       } else {
         snprintf(buf, sizeof(buf), "N/A");
         dynamic_color = GColorLightGray;
@@ -1502,11 +1577,12 @@ static void draw_corner_item(GContext *ctx, GRect bounds, uint8_t content, uint8
       break;
     }
     case 40: { // restful (deep) sleep duration
+      icon_kind = 22;
       HealthServiceAccessibilityMask mask = health_service_metric_accessible(HealthMetricSleepRestfulSeconds, time(NULL) - 86400, time(NULL));
       if (mask & HealthServiceAccessibilityMaskAvailable) {
         HealthValue secs = health_service_sum_today(HealthMetricSleepRestfulSeconds);
         format_duration_hm(buf, sizeof(buf), (int32_t)secs);
-        dynamic_color = main_color;
+        dynamic_color = seven_stop_gradient_reversed((int32_t)secs, 0, 3 * 3600); // 0-3h
       } else {
         snprintf(buf, sizeof(buf), "N/A");
         dynamic_color = GColorLightGray;
@@ -1514,6 +1590,7 @@ static void draw_corner_item(GContext *ctx, GRect bounds, uint8_t content, uint8
       break;
     }
     case 41: { // sleep quality -- restful / total, as a percentage
+      icon_kind = 20;
       HealthServiceAccessibilityMask mask = health_service_metric_accessible(HealthMetricSleepSeconds, time(NULL) - 86400, time(NULL));
       if (mask & HealthServiceAccessibilityMaskAvailable) {
         HealthValue total = health_service_sum_today(HealthMetricSleepSeconds);
@@ -1529,6 +1606,7 @@ static void draw_corner_item(GContext *ctx, GRect bounds, uint8_t content, uint8
       break;
     }
     case 42: { // bed time -- earliest sleep-activity start in the last 24h
+      icon_kind = 18;
       SleepSpan span = get_sleep_span();
       if (span.found) {
         struct tm *t = localtime(&span.earliest_start);
@@ -1541,6 +1619,7 @@ static void draw_corner_item(GContext *ctx, GRect bounds, uint8_t content, uint8
       break;
     }
     case 43: { // wake time -- latest sleep-activity end in the last 24h
+      icon_kind = 19;
       SleepSpan span = get_sleep_span();
       if (span.found) {
         struct tm *t = localtime(&span.latest_end);
@@ -1550,6 +1629,132 @@ static void draw_corner_item(GContext *ctx, GRect bounds, uint8_t content, uint8
         snprintf(buf, sizeof(buf), "N/A");
         dynamic_color = GColorLightGray;
       }
+      break;
+    }
+    // ---- date/time component variants (63-72) -- like the date
+    // formats above, none of these have a natural "value" to grade a
+    // color on, so they all just take main_color.
+    case 63: { // full time, e.g. "14:32:07" / "2:32:07 PM"
+      time_t now = time(NULL);
+      struct tm *t = localtime(&now);
+      strftime(buf, sizeof(buf), clock_is_24h_style() ? "%H:%M:%S" : "%I:%M:%S %p", t);
+      dynamic_color = main_color;
+      break;
+    }
+    case 64: { // hour, always 2 digits (24h), e.g. "07"
+      time_t now = time(NULL);
+      struct tm *t = localtime(&now);
+      snprintf(buf, sizeof(buf), "%02d", t->tm_hour);
+      dynamic_color = main_color;
+      break;
+    }
+    case 65: { // hour, no leading zero (24h), e.g. "7"
+      time_t now = time(NULL);
+      struct tm *t = localtime(&now);
+      snprintf(buf, sizeof(buf), "%d", t->tm_hour);
+      dynamic_color = main_color;
+      break;
+    }
+    case 66: { // hour, 12h mode, no leading zero, e.g. "7"
+      time_t now = time(NULL);
+      struct tm *t = localtime(&now);
+      int hour12 = t->tm_hour % 12;
+      if (hour12 == 0) hour12 = 12;
+      snprintf(buf, sizeof(buf), "%d", hour12);
+      dynamic_color = main_color;
+      break;
+    }
+    case 67: { // minute, no leading zero, e.g. "5"
+      time_t now = time(NULL);
+      struct tm *t = localtime(&now);
+      snprintf(buf, sizeof(buf), "%d", t->tm_min);
+      dynamic_color = main_color;
+      break;
+    }
+    case 68: { // minute, leading zero, e.g. "05"
+      time_t now = time(NULL);
+      struct tm *t = localtime(&now);
+      snprintf(buf, sizeof(buf), "%02d", t->tm_min);
+      dynamic_color = main_color;
+      break;
+    }
+    case 69: { // second, no leading zero, e.g. "8"
+      time_t now = time(NULL);
+      struct tm *t = localtime(&now);
+      snprintf(buf, sizeof(buf), "%d", t->tm_sec);
+      dynamic_color = main_color;
+      break;
+    }
+    case 70: { // second, leading zero, e.g. "08"
+      time_t now = time(NULL);
+      struct tm *t = localtime(&now);
+      snprintf(buf, sizeof(buf), "%02d", t->tm_sec);
+      dynamic_color = main_color;
+      break;
+    }
+    case 71: { // seconds, tens digit only (0-5)
+      time_t now = time(NULL);
+      struct tm *t = localtime(&now);
+      snprintf(buf, sizeof(buf), "%d", t->tm_sec / 10);
+      dynamic_color = main_color;
+      break;
+    }
+    case 72: { // seconds, singles digit only (0-9)
+      time_t now = time(NULL);
+      struct tm *t = localtime(&now);
+      snprintf(buf, sizeof(buf), "%d", t->tm_sec % 10);
+      dynamic_color = main_color;
+      break;
+    }
+    // ---- weather temperature variants (73-77) -- all graded on the
+    // same -10..40C 7-stop gradient the existing temperature content
+    // types use ("color" mode), rather than the condition-driven
+    // palette the weather-icon content types (31/32) use.
+    case 73: { // current temp only, e.g. "22C"
+      int16_t temp = convert_temp(s_data.weather_temp_c, s_data.temp_unit);
+      snprintf(buf, sizeof(buf), "%d%s", temp, temp_unit_suffix(s_data.temp_unit));
+      dynamic_color = seven_stop_gradient(s_data.weather_temp_c, -10, 40);
+      break;
+    }
+    case 74: { // high temp only, e.g. "H 28C"
+      int16_t hi = convert_temp(s_data.temp_high_c, s_data.temp_unit);
+      snprintf(buf, sizeof(buf), "H %d%s", hi, temp_unit_suffix(s_data.temp_unit));
+      dynamic_color = seven_stop_gradient(s_data.temp_high_c, -10, 40);
+      break;
+    }
+    case 75: { // low temp only, e.g. "L 11C"
+      int16_t lo = convert_temp(s_data.temp_low_c, s_data.temp_unit);
+      snprintf(buf, sizeof(buf), "L %d%s", lo, temp_unit_suffix(s_data.temp_unit));
+      dynamic_color = seven_stop_gradient(s_data.temp_low_c, -10, 40);
+      break;
+    }
+    case 76: { // weather icon + current/high/low all in one line
+      icon_kind = 14;
+      icon_weather_category = weather_icon_category(s_data.weather_condition, s_data.cloud_cover_pct);
+      int16_t cur = convert_temp(s_data.weather_temp_c, s_data.temp_unit);
+      int16_t hi = convert_temp(s_data.temp_high_c, s_data.temp_unit);
+      int16_t lo = convert_temp(s_data.temp_low_c, s_data.temp_unit);
+      snprintf(buf, sizeof(buf), "%d H%d L%d%s", cur, hi, lo, temp_unit_suffix(s_data.temp_unit));
+      dynamic_color = seven_stop_gradient(s_data.weather_temp_c, -10, 40);
+      break;
+    }
+    case 77: { // feels-like temp, e.g. "FL 20C"
+      int16_t felt_c = apparent_temp_c(s_data.weather_temp_c, s_data.wind_speed_kmh, s_data.humidity_pct);
+      int16_t felt = convert_temp(felt_c, s_data.temp_unit);
+      snprintf(buf, sizeof(buf), "FL %d%s", felt, temp_unit_suffix(s_data.temp_unit));
+      dynamic_color = seven_stop_gradient(felt_c, -10, 40);
+      break;
+    }
+    // Icon-only Bluetooth status -- unlike content 20 (which always
+    // shows "Connected"/"No phone" text in whatever color mode was
+    // picked), this one only ever draws its dynamic connected/
+    // disconnected color: see the color_mode override right after
+    // this switch, below.
+    case 78: {
+      icon_kind = 13;
+      buf[0] = '\0';
+      bool connected = connection_service_peek_pebble_app_connection();
+      dynamic_color = connected ? GColorFromRGB(64, 224, 208) : GColorFromRGB(255, 0, 0);
       break;
     }
     default:
@@ -1564,6 +1769,14 @@ static void draw_corner_item(GContext *ctx, GRect bounds, uint8_t content, uint8
     case 3: color = dynamic_color; break;
     case 0:
     default: color = main_color; break;
+  }
+  // Bluetooth status (78) only ever means anything as its dynamic
+  // connected/disconnected color -- MONO/ACC/SEMI would just make it
+  // a plain, meaningless-colored icon, so it ignores color_mode
+  // entirely and always draws dynamic_color.
+  if (content == 78) {
+    color = dynamic_color;
+    translucent = false;
   }
 
   int16_t box_x = center_horizontal
@@ -1616,7 +1829,7 @@ static void draw_corner_item(GContext *ctx, GRect bounds, uint8_t content, uint8
   int16_t icon_x = group_x;
   int16_t text_x = group_x + icon_gap_w;
 
-  bool do_icon_outline = s_data.outline_enabled && color_mode != 2;
+  bool do_icon_outline = allow_outline && s_data.outline_enabled && color_mode != 2;
   GColor icon_outline_color = contrasting_outline_color(color);
   switch (icon_kind) {
     case 1: {
@@ -1756,6 +1969,22 @@ static void draw_corner_item(GContext *ctx, GRect bounds, uint8_t content, uint8
       draw_tiny_icon(ctx, pos, BLUETOOTH_ICON, ICON_ROWS, ICON_WIDTH, color);
       break;
     }
+    case 18: case 19: case 20: case 21: case 22: {
+      const uint8_t *bed_pattern = BED_ARROW_IN_ICON;
+      if (icon_kind == 19) bed_pattern = BED_ARROW_OUT_ICON;
+      else if (icon_kind == 20) bed_pattern = BED_CHECK_ICON;
+      else if (icon_kind == 21) bed_pattern = BED_CLOCK_ICON;
+      else if (icon_kind == 22) bed_pattern = BED_CHECK_CLOCK_ICON;
+      GPoint pos = GPoint(icon_x - ICON_WIDTH+6, box_y + (CORNER_ROW_H - ICON_ROWS) / 2);
+      if (do_icon_outline) {
+        for (int i = 0; i < 4; i++) {
+          draw_tiny_icon(ctx, GPoint(pos.x + OUTLINE_OFFSETS[i].x, pos.y + OUTLINE_OFFSETS[i].y),
+                          bed_pattern, ICON_ROWS, ICON_WIDTH, icon_outline_color);
+        }
+      }
+      draw_tiny_icon(ctx, pos, bed_pattern, ICON_ROWS, ICON_WIDTH, color);
+      break;
+    }
     case 11: {
       GPoint pos = GPoint(icon_x, box_y + (CORNER_ROW_H - 9) / 2);
       if (do_icon_outline) {
@@ -1859,11 +2088,11 @@ static void draw_corner_item(GContext *ctx, GRect bounds, uint8_t content, uint8
     draw_text_outlined(ctx, hi_buf, font,
                         GRect(text_x, box_y + (CORNER_ROW_H - font_h) / 2, half_w, font_h + 2),
                         GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft,
-                        hi_color, s_data.outline_enabled);
+                        hi_color, allow_outline && s_data.outline_enabled);
     draw_text_outlined(ctx, lo_buf, font,
                         GRect(text_x + half_w, box_y + (CORNER_ROW_H - font_h) / 2, half_w, font_h + 2),
                         GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft,
-                        lo_color, s_data.outline_enabled);
+                        lo_color, allow_outline && s_data.outline_enabled);
     return;
   }
 
@@ -1871,7 +2100,7 @@ static void draw_corner_item(GContext *ctx, GRect bounds, uint8_t content, uint8
     draw_text_outlined(ctx, buf, font,
                        GRect(text_x, box_y + (CORNER_ROW_H - font_h) / 2, text_size.w + 2, font_h + 2),
                        GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft,
-                       color, s_data.outline_enabled);
+                       color, allow_outline && s_data.outline_enabled);
   }
 }
 
@@ -1935,40 +2164,40 @@ static void corners_layer_update_proc(Layer *layer, GContext *ctx) {
     bool has_line2 = s_data.upper_middle_line2_content != 0;
     int16_t line1_offset = has_line2 ? 44 : 44 + CORNER_ROW_H / 2;
     draw_corner_item(ctx, bounds, s_data.upper_middle_line1_content, s_data.upper_middle_line1_color_mode,
-                      main_color, accent_color, bg, true, true, false, line1_offset, 0, true, false);
+                      main_color, accent_color, bg, true, true, false, line1_offset, 0, true, false, true);
     if (has_line2) {
       draw_corner_item(ctx, bounds, s_data.upper_middle_line2_content, s_data.upper_middle_line2_color_mode,
-                        main_color, accent_color, bg, true, true, false, 44 + CORNER_ROW_H, 0, true, false);
+                        main_color, accent_color, bg, true, true, false, 44 + CORNER_ROW_H, 0, true, false, true);
     }
   }
   if (show_bottom) {
     bool has_line2 = s_data.bottom_middle_line2_content != 0;
     int16_t line1_shift = has_line2 ? 40 + CORNER_ROW_H : 40 + CORNER_ROW_H / 2;
     draw_corner_item(ctx, bounds, s_data.bottom_middle_line1_content, s_data.bottom_middle_line1_color_mode,
-                      main_color, accent_color, bg, false, true, false, 0, line1_shift, true, false);
+                      main_color, accent_color, bg, false, true, false, 0, line1_shift, true, false, true);
     if (has_line2) {
       draw_corner_item(ctx, bounds, s_data.bottom_middle_line2_content, s_data.bottom_middle_line2_color_mode,
-                        main_color, accent_color, bg, false, true, false, 0, 40, true, false);
+                        main_color, accent_color, bg, false, true, false, 0, 40, true, false, true);
     }
   }
   if (show_left) {
     bool has_line2 = s_data.middle_left_line2_content != 0;
     int16_t line1_offset = has_line2 ? -(CORNER_ROW_H / 2) : 0;
     draw_corner_item(ctx, bounds, s_data.middle_left_line1_content, s_data.middle_left_line1_color_mode,
-                      main_color, accent_color, bg, false, true, true, line1_offset, 0, false, true);
+                      main_color, accent_color, bg, false, true, true, line1_offset, 0, false, true, true);
     if (has_line2) {
       draw_corner_item(ctx, bounds, s_data.middle_left_line2_content, s_data.middle_left_line2_color_mode,
-                        main_color, accent_color, bg, false, true, true, CORNER_ROW_H / 2, 0, false, true);
+                        main_color, accent_color, bg, false, true, true, CORNER_ROW_H / 2, 0, false, true, true);
     }
   }
   if (show_right) {
     bool has_line2 = s_data.middle_right_line2_content != 0;
     int16_t line1_offset = has_line2 ? -(CORNER_ROW_H / 2) : 0;
     draw_corner_item(ctx, bounds, s_data.middle_right_line1_content, s_data.middle_right_line1_color_mode,
-                      main_color, accent_color, bg, false, false, true, line1_offset, 0, false, true);
+                      main_color, accent_color, bg, false, false, true, line1_offset, 0, false, true, true);
     if (has_line2) {
       draw_corner_item(ctx, bounds, s_data.middle_right_line2_content, s_data.middle_right_line2_color_mode,
-                        main_color, accent_color, bg, false, false, true, CORNER_ROW_H / 2, 0, false, true);
+                        main_color, accent_color, bg, false, false, true, CORNER_ROW_H / 2, 0, false, true, true);
     }
   }
 
@@ -1993,13 +2222,13 @@ static void corners_layer_update_proc(Layer *layer, GContext *ctx) {
   int16_t bottom_shift = (bar_will_draw && s_data.bottom_style != 1) ? 18 : 0;
 
   draw_corner_item(ctx, bounds, s_data.corner_content[0], s_data.corner_color_mode[0],
-                    main_color, accent_color, bg, true, true, false, 2, 0, false, false);
+                    main_color, accent_color, bg, true, true, false, 2, 0, false, false, true);
   draw_corner_item(ctx, bounds, s_data.corner_content[1], s_data.corner_color_mode[1],
-                    main_color, accent_color, bg, true, false, false, 2, 0, false, false);
+                    main_color, accent_color, bg, true, false, false, 2, 0, false, false, true);
   draw_corner_item(ctx, bounds, s_data.corner_content[2], s_data.corner_color_mode[2],
-                    main_color, accent_color, bg, false, true, false, 0, bottom_shift, false, false);
+                    main_color, accent_color, bg, false, true, false, 0, bottom_shift, false, false, true);
   draw_corner_item(ctx, bounds, s_data.corner_content[3], s_data.corner_color_mode[3],
-                    main_color, accent_color, bg, false, false, false, 0, bottom_shift, false, false);
+                    main_color, accent_color, bg, false, false, false, 0, bottom_shift, false, false, true);
 }
 
 // ---- rendering ---------------------------------------------------------
@@ -2090,47 +2319,54 @@ static void bottom_canvas_update_proc(Layer *layer, GContext *ctx) {
     graphics_context_set_fill_color(ctx, text_color);
     graphics_fill_circle(ctx, clock_center, 3);
 
-    char date_line[24];
-    strftime(date_line, sizeof(date_line), "%a %b %d", t);
-    char week_line[16];
-    strftime(week_line, sizeof(week_line), "Week %V", t);
-    char weather_line[40];
-    snprintf(weather_line, sizeof(weather_line), "Clds %d%% Vis %d%%",
-             s_data.cloud_cover_pct, s_data.vis_score_pct);
-    const char *location_line = s_data.location_name[0] != '\0' ? s_data.location_name : "Unknown location";
-
-    // Computed after the strftime()s above, since localtime() returns
-    // a pointer to a shared static buffer -- calling it again here
-    // for the sun event would otherwise clobber `t` before those
-    // date/week strings got built from it.
-    time_t sun_event_time = 0;
-    bool sun_event_is_rise = false;
-    bool show_sun_row = s_data.show_sun_time &&
-      get_next_sun_event(now, s_data.sun_rise, s_data.sun_set, s_data.sun_rise_tomorrow, &sun_event_time, &sun_event_is_rise);
-    char sun_time_buf[8] = "";
-    if (show_sun_row) {
-      struct tm *event_t = localtime(&sun_event_time);
-      strftime(sun_time_buf, sizeof(sun_time_buf), clock_is_24h_style() ? "%H:%M" : "%I:%M", event_t);
-    }
-
-    const char *lines[4] = { weather_line, location_line, date_line, week_line };
-    int16_t line_h = bounds.size.h / 4;
-    graphics_context_set_text_color(ctx, text_color);
-    for (int i = 0; i < 4; i++) {
-      int16_t row_y = bounds.origin.y + i * line_h;
-      if (i == 3 && show_sun_row) {
-        int16_t icon_x = bounds.origin.x + half_w + 4;
-        int16_t icon_y = row_y + (line_h - 10) / 2;
-        int16_t icon_w = draw_sun_time_icon(ctx, GPoint(icon_x, icon_y), sun_event_is_rise, text_color, bg);
-        graphics_context_set_text_color(ctx, text_color);
-        graphics_draw_text(ctx, sun_time_buf, small_font,
-                            GRect(icon_x + icon_w + 4, row_y + get_small_font_height_offset(), half_w - 8 - icon_w - 4, line_h),
-                            GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft, NULL);
-      } else {
-        graphics_draw_text(ctx, lines[i], small_font,
-                            GRect(bounds.origin.x + half_w + 4, row_y + get_small_font_height_offset(), half_w - 8, line_h),
-                            GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft, NULL);
-      }
+    // ---- 4 user-picked feature rows, right-aligned -------------------
+    // These reuse the same 4 content/color_mode fields (and the same
+    // phone-side message keys) that big-analogue mode's upper-middle
+    // and bottom-middle 2-line slots use -- upper_middle_line1/2 as
+    // rows 1-2, bottom_middle_line1/2 as rows 3-4. That pairing is
+    // deliberate rather than incidental: neither pair ever actually
+    // renders in small-analog mode (corners_layer_update_proc only
+    // shows the edge-middle slots when bottom_style == 2), so they're
+    // sitting completely idle here, and reusing them means no new
+    // persisted fields or message keys were needed for this panel.
+    // One real consequence: since it's the same storage, whatever a
+    // user picks for upper/bottom-middle line 1/2 while in big-analog
+    // mode is exactly what they'll see as rows 1-4 here if they ever
+    // switch to small-analog (and vice versa) -- the settings page's
+    // slot picker makes this explicit rather than hiding it.
+    //
+    // draw_corner_item() draws each row itself (icon + text, left-
+    // aligned via is_left=true, anchored to the right half of the
+    // panel bounds -- matching where the old 4 fixed lines used to
+    // start, just after the clock face) rather than the plain
+    // graphics_draw_text() those 4 fixed lines used to get -- that's
+    // what makes the full corner/edge content list (weather, health,
+    // timezones, date formats, ...) available here instead of just
+    // the 4 old fixed readouts. allow_outline is false: this panel
+    // sits on its own solid background color, not over the busy sky
+    // view, so it never needs the contrasting outline the corners/
+    // edges rely on.
+    ensure_corner_custom_font(s_data.corner_custom_font);
+    uint8_t feature_count = small_analog_feature_count();
+    const uint8_t feature_content[4] = {
+      s_data.upper_middle_line1_content, s_data.upper_middle_line2_content,
+      s_data.bottom_middle_line1_content, s_data.bottom_middle_line2_content
+    };
+    const uint8_t feature_color_mode[4] = {
+      s_data.upper_middle_line1_color_mode, s_data.upper_middle_line2_color_mode,
+      s_data.bottom_middle_line1_color_mode, s_data.bottom_middle_line2_color_mode
+    };
+    // Restricted to the right half of the panel so is_left's "+2 from
+    // the bounds' own left edge" anchors right after the clock face,
+    // not at the screen's actual left edge.
+    GRect feature_bounds = GRect(bounds.origin.x + half_w, bounds.origin.y,
+                                  bounds.size.w - half_w, bounds.size.h);
+    int16_t line_h = bounds.size.h / feature_count;
+    for (int i = 0; i < feature_count; i++) {
+      int16_t row_top = i * line_h + (line_h - CORNER_ROW_H) / 2;
+      draw_corner_item(ctx, feature_bounds, feature_content[i], feature_color_mode[i],
+                        text_color, accent_color, bg,
+                        true, true, false, row_top, 0, false, false, false);
     }
   } else {
     // ---- digital: big time, small date/week below ----

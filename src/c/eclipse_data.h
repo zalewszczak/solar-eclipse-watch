@@ -108,7 +108,10 @@ typedef struct {
   uint8_t wind_speed_unit;    // user setting: 0=km/h, 1=mph, 2=m/s, 3=knots
   bool show_seconds;          // user setting: show seconds (grayed out in settings for wide fonts)
   bool show_sun_time;          // user setting: replace the week number with the upcoming sunrise/sunset
-                                 // time (plus an arrow + horizon-sun icon), in both digital and analog modes
+                                 // time (plus an arrow + horizon-sun icon). Digital mode only -- small-
+                                 // analog mode's own week/sun-time readout is now just one of its 4
+                                 // user-picked feature rows (content 16 = sunrise/sunset, 19 = week
+                                 // number), so this toggle no longer has anything to do there.
   int16_t temp_high_c;        // today's forecast high, whole degrees Celsius
   int16_t temp_low_c;         // today's forecast low, whole degrees Celsius
   uint8_t uv_index_x10;        // today's max UV index, x10 fixed point (e.g. 53 = UV 5.3)

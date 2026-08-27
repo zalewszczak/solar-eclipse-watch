@@ -6,7 +6,7 @@ var iss = require('./iss');
 
 var TYPE_CODE = { none: 0, partial: 1, total: 2, annular: 3 };
 
-var MAX_FEATURES = 62;
+var MAX_FEATURES = 78; // highest corner/edge content id -- see CORNER_CONTENT_OPTIONS in config-page.js
 
 var refreshTimer = null;
 // Guards against a slow, older refresh's response arriving AFTER a
