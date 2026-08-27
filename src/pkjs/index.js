@@ -6,7 +6,7 @@ var iss = require('./iss');
 
 var TYPE_CODE = { none: 0, partial: 1, total: 2, annular: 3 };
 
-var MAX_FEATURES = 43;
+var MAX_FEATURES = 62;
 
 var refreshTimer = null;
 // Guards against a slow, older refresh's response arriving AFTER a
@@ -252,14 +252,6 @@ function cloudRenderStyleCode() {
 function weatherIconStyleCode() {
   var id = parseInt(getSetting('CONFIG_WEATHER_ICON_STYLE', '1'), 10);
   if (isNaN(id) || id < 0 || id > 2) id = 1;
-  return id;
-}
-// Must match TIMEZONES[] in pebble-eclipse-watch.c exactly (same order,
-// same indices) -- the watch only gets an index, this list's labels are
-// settings-page-only.
-function timezoneIdCode() {
-  var id = parseInt(getSetting('CONFIG_TIMEZONE_ID', '0'), 10);
-  if (isNaN(id) || id < 0 || id > 18) id = 0;
   return id;
 }
 // 0=US AQI (EPA scale, 0-500+), 1=European AQI (0-100+) -- which of the
@@ -529,7 +521,6 @@ function sendDict(dict) {
   dict['SUN_MOON_SIZE_PCT'] = sunMoonSizeCode();
   dict['CLOUD_RENDER_STYLE'] = cloudRenderStyleCode();
   dict['WEATHER_ICON_STYLE'] = weatherIconStyleCode();
-  dict['TIMEZONE_ID'] = timezoneIdCode();
   dict['AQI_UNIT'] = aqiUnitCode();
   dict['ALTITUDE_UNIT'] = altitudeUnitCode();
   dict['SHAKE_LABEL_SECONDS'] = shakeLabelSecondsCode();
@@ -1112,7 +1103,6 @@ function sendDict(dict) {
 '  "SUN_MOON_SIZE_PCT": 50,'+
 '  "CLOUD_RENDER_STYLE": 0,'+
 '  "WEATHER_ICON_STYLE": 1,'+
-'  "TIMEZONE_ID": 0,'+
 '  "AQI_UNIT": 0,'+
 '  "ALTITUDE_UNIT": 0,'+
 '  "ALTITUDE_M": 380,'+
@@ -1672,7 +1662,6 @@ Pebble.addEventListener('showConfiguration', function () {
     sunMoonSize: getSetting('CONFIG_SUN_MOON_SIZE', '75'),
     cloudRenderStyle: getSetting('CONFIG_CLOUD_RENDER_STYLE', '1'),
     weatherIconStyle: getSetting('CONFIG_WEATHER_ICON_STYLE', '1'),
-    timezoneId: getSetting('CONFIG_TIMEZONE_ID', '0'),
     aqiUnit: getSetting('CONFIG_AQI_UNIT', '0'),
     altitudeUnit: getSetting('CONFIG_ALTITUDE_UNIT', '0'),
     shakeLabelSeconds: getSetting('CONFIG_SHAKE_LABEL_SECONDS', '3'),
@@ -1817,7 +1806,6 @@ Pebble.addEventListener('webviewclosed', function (e) {
   setSetting('CONFIG_SUN_MOON_SIZE', settings.CONFIG_SUN_MOON_SIZE || '100');
   setSetting('CONFIG_CLOUD_RENDER_STYLE', settings.CONFIG_CLOUD_RENDER_STYLE || '1');
   setSetting('CONFIG_WEATHER_ICON_STYLE', settings.CONFIG_WEATHER_ICON_STYLE || '1');
-  setSetting('CONFIG_TIMEZONE_ID', settings.CONFIG_TIMEZONE_ID || '0');
   setSetting('CONFIG_AQI_UNIT', settings.CONFIG_AQI_UNIT || '0');
   setSetting('CONFIG_ALTITUDE_UNIT', settings.CONFIG_ALTITUDE_UNIT || '0');
   setSetting('CONFIG_SHAKE_LABEL_SECONDS', settings.CONFIG_SHAKE_LABEL_SECONDS || '3');

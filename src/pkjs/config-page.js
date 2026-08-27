@@ -129,7 +129,6 @@ var CORNER_CONTENT_OPTIONS = [
   { id: 30, label: 'Date: Full, imperial (9/24/26)' },
   { id: 31, label: 'Weather icon' },
   { id: 32, label: 'Temp + weather icon' },
-  { id: 33, label: 'Timezone' },
   { id: 34, label: 'Pressure' },
   { id: 35, label: 'Wind direction' },
   { id: 36, label: 'Air quality' },
@@ -139,31 +138,38 @@ var CORNER_CONTENT_OPTIONS = [
   { id: 40, label: 'Restful sleep duration' },
   { id: 41, label: 'Sleep quality %' },
   { id: 42, label: 'Bed time' },
-  { id: 43, label: 'Wake time' }
-];
-// Must match TIMEZONES[] in pebble-eclipse-watch.c exactly (same order,
-// same indices) -- the watch only gets an index (CONFIG_TIMEZONE_ID),
-// these labels are settings-page-only.
-var TIMEZONE_LIST = [
-  { abbr: 'LON', label: 'London' },
-  { abbr: 'PAR', label: 'Paris / Berlin / Madrid' },
-  { abbr: 'CAI', label: 'Cairo' },
-  { abbr: 'MOW', label: 'Moscow' },
-  { abbr: 'DXB', label: 'Dubai' },
-  { abbr: 'DEL', label: 'Delhi / Mumbai' },
-  { abbr: 'DAC', label: 'Dhaka' },
-  { abbr: 'BKK', label: 'Bangkok / Jakarta' },
-  { abbr: 'BJS', label: 'Beijing / Shanghai / Singapore' },
-  { abbr: 'TOK', label: 'Tokyo' },
-  { abbr: 'SYD', label: 'Sydney' },
-  { abbr: 'AKL', label: 'Auckland' },
-  { abbr: 'NYC', label: 'New York' },
-  { abbr: 'CHI', label: 'Chicago' },
-  { abbr: 'DEN', label: 'Denver' },
-  { abbr: 'LAX', label: 'Los Angeles' },
-  { abbr: 'ANC', label: 'Anchorage' },
-  { abbr: 'HNL', label: 'Honolulu' },
-  { abbr: 'SAO', label: 'Sao Paulo' }
+  { id: 43, label: 'Wake time' },
+  // Each city is its own content id (see the id=44-62 case block in
+  // draw_corner_item() in pebble-eclipse-watch.c) rather than one
+  // "Timezone" id plus a separate shared setting -- that's what makes
+  // this genuinely independent per slot: pick "London" in one slot and
+  // "Tokyo" in another and both show at once, each on its own actual
+  // clock, rather than every "Timezone" slot being forced to share
+  // whichever single city a global setting pointed at. The city's
+  // abbreviation (LON, TOK, ...) only appears on the watch, per the
+  // brief -- these labels show the GMT offset (standard time, not
+  // DST-adjusted) and the city's full name instead, matching the
+  // format the case block's own comment describes. Order/offsets must
+  // match TIMEZONES[] in pebble-eclipse-watch.c exactly.
+  { id: 44, label: 'GMT+0 London' },
+  { id: 45, label: 'GMT+1 Paris / Berlin / Madrid' },
+  { id: 46, label: 'GMT+2 Cairo' },
+  { id: 47, label: 'GMT+3 Moscow' },
+  { id: 48, label: 'GMT+4 Dubai' },
+  { id: 49, label: 'GMT+5:30 Delhi / Mumbai' },
+  { id: 50, label: 'GMT+6 Dhaka' },
+  { id: 51, label: 'GMT+7 Bangkok / Jakarta' },
+  { id: 52, label: 'GMT+8 Beijing / Shanghai / Singapore' },
+  { id: 53, label: 'GMT+9 Tokyo' },
+  { id: 54, label: 'GMT+10 Sydney' },
+  { id: 55, label: 'GMT+12 Auckland' },
+  { id: 56, label: 'GMT-5 New York' },
+  { id: 57, label: 'GMT-6 Chicago' },
+  { id: 58, label: 'GMT-7 Denver' },
+  { id: 59, label: 'GMT-8 Los Angeles' },
+  { id: 60, label: 'GMT-9 Anchorage' },
+  { id: 61, label: 'GMT-10 Honolulu' },
+  { id: 62, label: 'GMT-3 Sao Paulo' }
 ];
 // Must match draw_corner_item()'s color_mode switch exactly.
 var CORNER_COLOR_MODE_LABELS = ['MONO', 'ACC', 'SEMI', 'COLOR'];
@@ -521,12 +527,6 @@ function buildConfigHtml(current) {
     'upperMiddleLine1Content', 'upperMiddleLine2Content', 'bottomMiddleLine1Content', 'bottomMiddleLine2Content',
     'middleLeftLine1Content', 'middleLeftLine2Content', 'middleRightLine1Content', 'middleRightLine2Content'
   ].some(function (key) { return current[key] === '31' || current[key] === '32'; });
-  // Same idea, for the "Timezone" dropdown -- true if any of the 12
-  // slots is set to "Timezone" (33).
-  var timezoneFeatureInUse = ['cornerTL', 'cornerTR', 'cornerBL', 'cornerBR',
-    'upperMiddleLine1Content', 'upperMiddleLine2Content', 'bottomMiddleLine1Content', 'bottomMiddleLine2Content',
-    'middleLeftLine1Content', 'middleLeftLine2Content', 'middleRightLine1Content', 'middleRightLine2Content'
-  ].some(function (key) { return current[key] === '33'; });
   var isAnalog = bottomStyleVal === 'analog';
   var isBigAnalog = bottomStyleVal === 'biganalog';
   var secondsUnsupported = (bottomStyleVal === 'digital') && !!FONTS_WITHOUT_SECONDS[current.clockFont];
@@ -710,6 +710,7 @@ function buildConfigHtml(current) {
 '    <select id="slotEditCategory" onchange="onSlotEditCategoryChange()"></select>' +
 '    <label for="slotEditContent" style="margin-top:10px;">Content</label>' +
 '    <select id="slotEditContent" onchange="onSlotEditContentChange()">' + cornerContentOptionsHtml(0) + '</select>' +
+'    <div class="help" id="slotEditCategoryHelp" style="display:none;">DST is calculated for current-era US and EU rules -- Sydney and Auckland don\'t adjust for DST yet.</div>' +
 '    <div class="mode-btn-group" id="slotEditColorGroup" style="margin-top:10px;">' +
 '      <button type="button" class="mode-btn" onclick="slotEditorSelectColor(0)">MONO</button>' +
 '      <button type="button" class="mode-btn" onclick="slotEditorSelectColor(1)">ACC</button>' +
@@ -929,16 +930,6 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    <div class="help">Small info readouts around the sky view / big-analogue clock face. These refresh on their own independent schedule, separate from the main display.</div>' +
 '    <div class="help">The 4 corners only apply to procedural (non-bitmap) big-analogue styles, digital, and small analog. The 4 edge-middle slots (top/bottom/left/right) only apply to big-analogue mode, and which ones a bitmap style supports depends on that style\'s own artwork -- unsupported slots are grayed out below.</div>' +
 '    <div class="help">Pick what shows in each corner and edge slot of the big-analog view. Tap a spot on the diagram below to choose its content and color -- procedural styles support all 8 slots, bitmap styles (Modern, Shadow, Tally, Bell, Brown) are each limited to whatever room their artwork actually has, and unavailable slots show as N/A.</div>' +
-
-'    <div id="timezoneRow" style="' + (timezoneFeatureInUse ? '' : 'display:none;') + '">' +
-'      <label for="timezoneId">Timezone</label>' +
-'      <select id="timezoneId">' +
-          TIMEZONE_LIST.map(function (tz, i) {
-            return '<option value="' + i + '"' + (String(current.timezoneId || '0') === String(i) ? ' selected' : '') + '>' + esc(tz.abbr) + ' -- ' + esc(tz.label) + '</option>';
-          }).join('') +
-'      </select>' +
-'      <div class="help">Which city\'s time the "Timezone" corner content shows -- shown here because it\'s picked somewhere below. DST is calculated for current-era US and EU rules; Sydney and Auckland don\'t adjust for DST yet.</div>' +
-'    </div>' +
 
 '    <label for="cornerCustomFont">Font</label>' +
 '    <select id="cornerCustomFont" onchange="onCornerFontChange()">' +
@@ -1279,8 +1270,11 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  6: "UV5", 7: "R20%", 8: "H45%", 9: "W12", 10: "82%", 11: "Full", 12: "Mon 15",' +
 '  13: "Innsbruck", 14: "80%", 15: "45%", 16: "19:42", 17: "LOGO", 18: "12:34", 19: "WK 34", 20: "Connected",' +
 '  21: "SEP 11", 22: "11", 23: "MON", 24: "Monday", 25: "SEP", 26: "September", 27: "11/9", 28: "9/11", 29: "24/9/2026", 30: "9/24/26",' +
-'  31: "(cloud)", 32: "20C", 33: "LON 12:34", 34: "1013 hPa", 35: "NW", 36: "AQI 42", 37: "12C", 38: "380m",' +
-'  39: "7h 32m", 40: "2h 15m", 41: "42%", 42: "23:45", 43: "07:20"' +
+'  31: "(cloud)", 32: "20C", 34: "1013 hPa", 35: "NW", 36: "AQI 42", 37: "12C", 38: "380m",' +
+'  39: "7h 32m", 40: "2h 15m", 41: "42%", 42: "23:45", 43: "07:20",' +
+'  44: "LON 12:34", 45: "PAR 13:34", 46: "CAI 14:34", 47: "MOW 15:34", 48: "DXB 16:34", 49: "DEL 18:04",' +
+'  50: "DAC 18:34", 51: "BKK 19:34", 52: "BJS 20:34", 53: "TOK 21:34", 54: "SYD 22:34", 55: "AKL 00:34",' +
+'  56: "NYC 07:34", 57: "CHI 06:34", 58: "DEN 05:34", 59: "LAX 04:34", 60: "ANC 03:34", 61: "HNL 02:34", 62: "SAO 09:34"' +
 '};' +
 
 'function hasPreviewContent(contentId) {' +
@@ -1691,7 +1685,15 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    { id: 27, label: "Date: Day/Month (11/9)" }, { id: 28, label: "Date: Month/Day (9/11)" },' +
 '    { id: 29, label: "Date: Full (24/9/2026)" }, { id: 30, label: "Date: Full, imperial (9/24/26)" }' +
 '  ] },' +
-'  { id: "timezone", label: "Timezone", items: [{ id: 33, label: "Timezone" }] },' +
+'  { id: "timezone", label: "Timezone", items: [' +
+'    { id: 44, label: "GMT+0 London" }, { id: 45, label: "GMT+1 Paris / Berlin / Madrid" }, { id: 46, label: "GMT+2 Cairo" },' +
+'    { id: 47, label: "GMT+3 Moscow" }, { id: 48, label: "GMT+4 Dubai" }, { id: 49, label: "GMT+5:30 Delhi / Mumbai" },' +
+'    { id: 50, label: "GMT+6 Dhaka" }, { id: 51, label: "GMT+7 Bangkok / Jakarta" }, { id: 52, label: "GMT+8 Beijing / Shanghai / Singapore" },' +
+'    { id: 53, label: "GMT+9 Tokyo" }, { id: 54, label: "GMT+10 Sydney" }, { id: 55, label: "GMT+12 Auckland" },' +
+'    { id: 56, label: "GMT-5 New York" }, { id: 57, label: "GMT-6 Chicago" }, { id: 58, label: "GMT-7 Denver" },' +
+'    { id: 59, label: "GMT-8 Los Angeles" }, { id: 60, label: "GMT-9 Anchorage" }, { id: 61, label: "GMT-10 Honolulu" },' +
+'    { id: 62, label: "GMT-3 Sao Paulo" }' +
+'  ] },' +
 '  { id: "weather", label: "Weather", items: [' +
 '    { id: 4, label: "High / low temperature" }, { id: 5, label: "Current conditions" }, { id: 6, label: "UV index" },' +
 '    { id: 7, label: "Rain chance today" }, { id: 8, label: "Humidity" }, { id: 9, label: "Wind" },' +
@@ -1812,6 +1814,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  var categoryId = document.getElementById("slotEditCategory").value;' +
 '  var firstItemId = findCategory(categoryId).items[0].id;' +
 '  document.getElementById("slotEditContent").innerHTML = categoryItemOptionsHtml(categoryId, firstItemId);' +
+'  document.getElementById("slotEditCategoryHelp").style.display = (categoryId === "timezone") ? "" : "none";' +
 '  onSlotEditContentChange();' +
 '}' +
 // Opens the popup pre-filled with this slot\'s current (already-saved)
@@ -1831,6 +1834,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    return "<option value=\\"" + c.id + "\\"" + (c.id === categoryId ? " selected" : "") + ">" + c.label + "</option>";' +
 '  }).join("");' +
 '  document.getElementById("slotEditContent").innerHTML = categoryItemOptionsHtml(categoryId, contentVal);' +
+'  document.getElementById("slotEditCategoryHelp").style.display = (categoryId === "timezone") ? "" : "none";' +
 '  setSlotEditorColorGroupVisibility(contentVal);' +
 '  setSlotEditorColorButtons(colorVal);' +
 '  document.getElementById("slotEditModal").className = "modal-overlay open";' +
@@ -1847,7 +1851,6 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  closeSlotEditor();' +
 '  renderSlotPicker();' +
 '  updateWeatherIconStyleVisibility();' +
-'  updateTimezoneVisibility();' +
 '  updatePreview();' +
 '}' +
 // Shows the "Weather icon style" dropdown (in the Weather section) only
@@ -1864,16 +1867,6 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    return el && (el.value === "31" || el.value === "32");' +
 '  });' +
 '  var row = document.getElementById("weatherIconStyleRow");' +
-'  if (row) row.style.display = inUse ? "" : "none";' +
-'}' +
-// Same idea, for the "Timezone" dropdown (in Corners & edge slots) --
-// visible only when at least one slot is set to "Timezone" (33).
-'function updateTimezoneVisibility() {' +
-'  var inUse = WEATHER_ICON_SLOT_CONTENT_IDS.some(function (id) {' +
-'    var el = document.getElementById(id);' +
-'    return el && el.value === "33";' +
-'  });' +
-'  var row = document.getElementById("timezoneRow");' +
 '  if (row) row.style.display = inUse ? "" : "none";' +
 '}' +
 
@@ -2291,7 +2284,6 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    CONFIG_ALTITUDE_UNIT: document.getElementById("altitudeUnit").value,' +
 '    CONFIG_CLOUD_RENDER_STYLE: document.getElementById("cloudRenderStyle").value,' +
 '    CONFIG_WEATHER_ICON_STYLE: document.getElementById("weatherIconStyle").value,' +
-'    CONFIG_TIMEZONE_ID: document.getElementById("timezoneId").value,' +
 '    CONFIG_SHOW_SECONDS: document.getElementById("showSeconds").checked,' +
 '    CONFIG_CUSTOM_BG: document.getElementById("customBgValue").value,' +
 '    CONFIG_CUSTOM_TEXT: document.getElementById("customTextValue").value,' +
@@ -2402,7 +2394,6 @@ handEditorModalHtml('sec', 'Edit second hand') +
 'updateColorRoleButtons("night");' +
 'onBottomStyleChange();' +
 'updateWeatherIconStyleVisibility();' +
-'updateTimezoneVisibility();' +
 'adjustTopBarSpacing();' +
 'setInterval(updatePreview, 1000);' +
 '</script>' +

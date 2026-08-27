@@ -1405,8 +1405,21 @@ static void draw_corner_item(GContext *ctx, GRect bounds, uint8_t content, uint8
         : bg_color;
       break;
     }
-    case 33: { // timezone -- "ABBR H:MM" (or "ABBR HH:MM" in 24h style)
-      const TimezoneInfo *tz = &TIMEZONES[s_data.timezone_id < TIMEZONE_COUNT ? s_data.timezone_id : 0];
+    // Timezone -- "ABBR H:MM" (or "ABBR HH:MM" in 24h style). Each of
+    // the 19 cities is its OWN content id (44-62, right after the
+    // highest id already in use, in the same order as TIMEZONES[]
+    // below) rather than one "Timezone" id plus a shared setting
+    // picking which city -- that's what makes this genuinely
+    // independent per slot: two different slots can each pick a
+    // different city and show both at once, since the city is baked
+    // into which content id was chosen, not a single global choice
+    // every "Timezone" slot would otherwise have to share. (id 33,
+    // the old single "Timezone" placeholder, is simply retired rather
+    // than reused -- ids 34-43 are already taken by other features
+    // added since, so 44 is the first id actually free.)
+    case 44: case 45: case 46: case 47: case 48: case 49: case 50: case 51: case 52: case 53:
+    case 54: case 55: case 56: case 57: case 58: case 59: case 60: case 61: case 62: {
+      const TimezoneInfo *tz = &TIMEZONES[content - 44];
       time_t now = time(NULL);
       int16_t offset_min = timezone_current_offset_min(tz, now);
       time_t local_time = now + (int32_t)offset_min * 60;
@@ -2816,10 +2829,6 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   if ((t = dict_find(iter, MESSAGE_KEY_WEATHER_CONDITION))) s_data.weather_condition = t->value->uint8;
   if ((t = dict_find(iter, MESSAGE_KEY_WEATHER_ICON_STYLE))) {
     s_data.weather_icon_style = t->value->uint8;
-    if (s_corners_layer) layer_mark_dirty(s_corners_layer);
-  }
-  if ((t = dict_find(iter, MESSAGE_KEY_TIMEZONE_ID))) {
-    s_data.timezone_id = t->value->uint8;
     if (s_corners_layer) layer_mark_dirty(s_corners_layer);
   }
   if ((t = dict_find(iter, MESSAGE_KEY_WIND_DIR_DEG))) s_data.wind_dir_deg = t->value->int16;
