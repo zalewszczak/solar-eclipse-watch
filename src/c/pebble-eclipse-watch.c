@@ -440,7 +440,7 @@ static void hands_layer_update_proc(Layer *layer, GContext *ctx) {
   // always-on-top hands layer runs.
   ensure_corner_custom_font(s_data.corner_custom_font);
 
-  int32_t hour_angle = (((t->tm_hour % 12) * 3600 + t->tm_min * 60 + t->tm_sec) * TRIG_MAX_ANGLE) / (12 * 3600);
+  int32_t hour_angle = (int32_t)(((int64_t)((t->tm_hour % 12) * 3600 + t->tm_min * 60 + t->tm_sec) * TRIG_MAX_ANGLE) / (12 * 3600));
 
   int32_t min_angle = ((t->tm_min * 60 + t->tm_sec) * TRIG_MAX_ANGLE) / (60 * 60);
 
