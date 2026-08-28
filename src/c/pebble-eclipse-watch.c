@@ -213,16 +213,12 @@ static int16_t draw_sun_time_icon(GContext *ctx, GPoint top_left, bool is_sunris
 
 // ---- big-analogue mode: fullscreen hands over the sky layer --------------
 
-// Same 4x4 ordered (Bayer) dither matrix as eclipse_layer.c's sky
-// gradient/clouds, duplicated here rather than shared across the two
-// translation units (small, and each file already keeps its own
-// self-contained drawing helpers).
-static const uint8_t BAYER4[4][4] = {
-  { 0,  8,  2, 10},
-  {12,  4, 14,  6},
-  { 3, 11,  1,  9},
-  {15,  7, 13,  5}
-};
+// Same 4x4 ordered (Bayer) dither matrix background_layer.c's sky
+// gradient/clouds use -- shared from subpixel.h now (pulled in
+// transitively via eclipse_data.h -> hand_layer.h), rather than a
+// duplicate copy: this file already includes that chain for HandConfig,
+// and a second `static const BAYER4` in the same translation unit would
+// be a redefinition error, not just redundant.
 
 // True if p is inside the convex polygon defined by pts (any winding
 // direction) -- a point is inside a convex polygon exactly when it's

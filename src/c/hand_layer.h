@@ -1,6 +1,7 @@
 #pragma once
 
 #include <pebble.h>
+#include "subpixel.h"
 
 // ---------------------------------------------------------------------------
 // Custom hour/minute/second hand system (big_analog_hand_style == 4,
@@ -18,30 +19,14 @@
 // square, from the width/length/back_offset/outline settings) into its
 // own reusable unit, used identically for all three hands and both the
 // custom and (now) procedural-preset paths.
-// 1-Byte Sub-Pixel Fixed-Point Precision (Q24.8)
+//
+// The sub-pixel fixed-point coordinate system and generic fill/stroke
+// rasterizers this shape math is built on now live in subpixel.h --
+// shared with background_layer.c's marker ring, which rotates around the
+// dial the same way hands do and used to be drawn with coarser plain-
+// integer math instead.
 // ---------------------------------------------------------------------------
-#define SUBPIXEL_BITS 8
-#define SUBPIXEL_SCALE (1 << SUBPIXEL_BITS) // 256
-#define SUBPIXEL_MASK  (SUBPIXEL_SCALE - 1)
-#define SUBPIXEL_HALF  (1 << (SUBPIXEL_BITS - 1)) // 128 (0.5 px)
 
-typedef struct {
-  int32_t x; // Fixed-point X coordinate (24.8)
-  int32_t y; // Fixed-point Y coordinate (24.8)
-} FGPoint;
-
-static inline FGPoint fgpoint_new(int32_t x, int32_t y) {
-  return (FGPoint){ .x = x, .y = y };
-}
-
-static inline FGPoint fgpoint_from_gpoint(GPoint p) {
-  return (FGPoint){ .x = ((int32_t)p.x) << SUBPIXEL_BITS, .y = ((int32_t)p.y) << SUBPIXEL_BITS };
-}
-
-static inline GPoint fgpoint_to_gpoint(FGPoint fp) {
-  return GPoint((int16_t)((fp.x + SUBPIXEL_HALF) >> SUBPIXEL_BITS),
-                (int16_t)((fp.y + SUBPIXEL_HALF) >> SUBPIXEL_BITS));
-}
 
 typedef struct {
   uint8_t style;        // 0=dot (round caps), 1=triangle (tapers to a point), 2=square (flat caps)
@@ -54,8 +39,8 @@ typedef struct {
                               // 3=none -- skips drawing the hand's fill entirely (the outline, if
                               // enabled, still draws -- a way to get a "hollow" or ghosted look
                               // without needing real alpha blending).
-  bool outline_enabled;      // draws a 1px-shifted 4-direction underlay in outline_color first,
-                               // same "outline" technique the original draw_big_hand_outlined() used
+  bool outline_enabled;      // traces a genuine 1px perimeter stroke in outline_color underneath
+                               // the fill (see draw_hand_outline_once_fp() in hand_layer.c)
   uint8_t outline_color;      // 0=main, 1=accent, 2=background
   bool translucent;           // per-hand ~50% transparency, via the same Bayer-dithered stipple
                                 // fill_polygon_dithered() already uses elsewhere in this project --

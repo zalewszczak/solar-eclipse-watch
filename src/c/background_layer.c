@@ -1,4 +1,5 @@
 #include "background_layer.h"
+#include "subpixel.h"
 
 // ---------------------------------------------------------------------------
 // Markers merged in (formerly marker_layer.c): the hour/second marker ring,
@@ -43,17 +44,13 @@
 #define SUN_R_NORMAL 20
 #define MOON_R_NORMAL 16
 
-// 4x4 ordered (Bayer) dither matrix, values 0-15. Used to stipple the
-// cloud puffs at a density proportional to cloud cover %, rather than
-// drawing them as flat filled shapes -- keeps them looking like
-// e-paper "clouds" rather than solid gray blobs, and lets the sky
+// 4x4 ordered (Bayer) dither matrix, values 0-15 -- shared from subpixel.h
+// now (see that header's own comment on why keeping a duplicate here
+// would actually be a compile error, not just redundant). Used to
+// stipple the cloud puffs at a density proportional to cloud cover %,
+// rather than drawing them as flat filled shapes -- keeps them looking
+// like e-paper "clouds" rather than solid gray blobs, and lets the sky
 // and sun show through underneath.
-static const uint8_t BAYER4[4][4] = {
-  { 0,  8,  2, 10},
-  {12,  4, 14,  6},
-  { 3, 11,  1,  9},
-  {15,  7, 13,  5}
-};
 
 typedef struct {
   EclipseData *data;
@@ -1184,174 +1181,123 @@ static int16_t mk_max(int16_t a, int16_t b) { return a > b ? a : b; }
 // planet-separation math -- reused here for the marker ring's segment
 // length rather than adding a second copy.
 
-// Converts a 0-100% "reach" into an actual px distance from center, using
-// the SAME half-extent units throughout (both circle and rectangle math in
-// point_on_ring() below work in this unit) -- this is what actually keeps
-// everything on-screen: 0% = the largest circle that's guaranteed to stay
-// fully within the screen at every angle (the shorter half-dimension),
-// 100% = the far edge the screen-fitted rectangle reaches along its
-// dominant axis (the longer half-dimension).
-static int16_t marker_reach_px(GRect screen, uint8_t pct) {
+// Converts a 0-100% "reach" into an actual distance from center, in the
+// same Q24.8 fixed-point units point_on_ring_fp() below works in
+// throughout -- this is what actually keeps everything on-screen: 0% =
+// the largest circle that's guaranteed to stay fully within the screen
+// at every angle (the shorter half-dimension), 100% = the far edge the
+// screen-fitted rectangle reaches along its dominant axis (the longer
+// half-dimension). Returns fixed-point directly (rather than rounding
+// to a whole pixel first and re-promoting that) so the sub-pixel
+// precision survives into the rest of point_on_ring_fp()'s math.
+static int32_t marker_reach_fp(GRect screen, uint8_t pct) {
   int16_t reach_min = mk_min(screen.size.w / 4, screen.size.h / 4);
   int16_t reach_max = mk_max(screen.size.w / 2, screen.size.h / 2);
-  return reach_min + div_round((int32_t)(reach_max - reach_min) * pct, 100);
+  int32_t reach_min_fp = (int32_t)reach_min << SUBPIXEL_BITS;
+  int32_t reach_max_fp = (int32_t)reach_max << SUBPIXEL_BITS;
+  return reach_min_fp + div_round((reach_max_fp - reach_min_fp) * pct, 100);
 }
 
-// Blends a point on a circle of radius marker_reach_px(pct) with a point
+// Blends a point on a circle of radius marker_reach_fp(pct) with a point
 // on a screen-proportioned rectangle sized so its longer half-extent
-// equals that same reach, by eccentricity_pct (0=circle, 100=rectangle).
-// See marker_reach_px() above for why this stays on-screen.
-static GPoint point_on_ring(GPoint center, GRect screen, int32_t angle,
-                             uint8_t pct, uint8_t eccentricity_pct) {
+// equals that same reach, by eccentricity_pct (0=circle, 100=rectangle)
+// -- same sub-pixel fixed-point system (subpixel.h) hand_layer.c's
+// compute_hand_geometry_fp() builds hand shapes in, rather than rounding
+// each mark's endpoint to a whole pixel before working out its
+// thickness. Markers rotate around the dial exactly like hands do, so
+// they get the same precision now instead of a coarser plain-integer
+// version of the same math. sin_v/cos_v are passed in (rather than an
+// angle) since draw_marker_ring() below already looks them up once per
+// mark and reuses them for the mark's thickness offset too.
+static FGPoint point_on_ring_fp(FGPoint center, GRect screen, int32_t sin_v, int32_t cos_v,
+                                 uint8_t pct, uint8_t eccentricity_pct) {
   int16_t screen_hw = screen.size.w / 2, screen_hh = screen.size.h / 2;
-  int16_t reach = marker_reach_px(screen, pct);
+  int32_t reach_fp = marker_reach_fp(screen, pct);
 
-  // Mask angle to [0, 65535] to prevent trig table lookup overflow/underflow during rotation
-  int32_t norm_angle = angle & 0xFFFF;
-  int32_t sin_v = sin_lookup(norm_angle);
-  int32_t cos_v = cos_lookup(norm_angle);
-
-  GPoint circle_pt = GPoint(
-    center.x + div_round(reach * sin_v, TRIG_MAX_RATIO),
-    center.y - div_round(reach * cos_v, TRIG_MAX_RATIO));
+  FGPoint circle_pt = fgpoint_new(
+    center.x + (int32_t)(((int64_t)reach_fp * sin_v) / TRIG_MAX_RATIO),
+    center.y - (int32_t)(((int64_t)reach_fp * cos_v) / TRIG_MAX_RATIO));
 
   if (eccentricity_pct == 0) return circle_pt;
 
   int16_t reach_max = mk_max(screen_hw, screen_hh);
-  int32_t rect_hw = div_round((int32_t)reach * screen_hw, reach_max);
-  int32_t rect_hh = div_round((int32_t)reach * screen_hh, reach_max);
+  int32_t rect_hw_fp = (int32_t)(((int64_t)reach_fp * screen_hw) / reach_max);
+  int32_t rect_hh_fp = (int32_t)(((int64_t)reach_fp * screen_hh) / reach_max);
 
   int32_t adx = sin_v < 0 ? -sin_v : sin_v;
   int32_t ady = cos_v < 0 ? -cos_v : cos_v;
-  int32_t t_x = (adx == 0) ? INT32_MAX : div_round(rect_hw * TRIG_MAX_RATIO, adx);
-  int32_t t_y = (ady == 0) ? INT32_MAX : div_round(rect_hh * TRIG_MAX_RATIO, ady);
+  int32_t t_x = (adx == 0) ? INT32_MAX : (int32_t)(((int64_t)rect_hw_fp * TRIG_MAX_RATIO) / adx);
+  int32_t t_y = (ady == 0) ? INT32_MAX : (int32_t)(((int64_t)rect_hh_fp * TRIG_MAX_RATIO) / ady);
   int32_t t = t_x < t_y ? t_x : t_y;
 
-  GPoint rect_pt = GPoint(
-    center.x + div_round(t * sin_v, TRIG_MAX_RATIO),
-    center.y - div_round(t * cos_v, TRIG_MAX_RATIO));
+  FGPoint rect_pt = fgpoint_new(
+    center.x + (int32_t)(((int64_t)t * sin_v) / TRIG_MAX_RATIO),
+    center.y - (int32_t)(((int64_t)t * cos_v) / TRIG_MAX_RATIO));
 
-  GPoint result;
-  result.x = circle_pt.x + div_round((rect_pt.x - circle_pt.x) * eccentricity_pct, 100);
-  result.y = circle_pt.y + div_round((rect_pt.y - circle_pt.y) * eccentricity_pct, 100);
+  FGPoint result;
+  result.x = circle_pt.x + (int32_t)(((int64_t)(rect_pt.x - circle_pt.x) * eccentricity_pct) / 100);
+  result.y = circle_pt.y + (int32_t)(((int64_t)(rect_pt.y - circle_pt.y) * eccentricity_pct) / 100);
   return result;
 }
 
-// Same convex-polygon point test and ~50% Bayer-dithered fill
-// pebble-eclipse-watch.c's fill_polygon_dithered() uses for translucent
-// corner/edge plates -- copied rather than shared so this file stays
-// self-contained (same rationale as hand_layer.c's own copy of
-// BAYER4). Used by draw_ring_mark() below for translucent custom
-// markers: Pebble's basic fills (gpath_draw_filled, graphics_fill_circle)
-// don't alpha-blend arbitrary shapes, so a genuine per-pixel see-
-// through effect needs this rather than just picking a translucent
-// GColor and filling normally.
-static bool point_in_convex_polygon_marker(GPoint *pts, int n, GPoint p) {
-  bool has_pos = false, has_neg = false;
-  for (int i = 0; i < n; i++) {
-    GPoint a = pts[i];
-    GPoint b = pts[(i + 1) % n];
-    int32_t cross = (int32_t)(b.x - a.x) * (p.y - a.y) - (int32_t)(b.y - a.y) * (p.x - a.x);
-    if (cross > 0) has_pos = true;
-    if (cross < 0) has_neg = true;
-    if (has_pos && has_neg) return false;
-  }
-  return true;
+// Thin GPoint-returning wrapper for draw_text_markers() below, which
+// only ever needs a final whole-pixel position for a numeral -- looks
+// up sin/cos from `angle` itself since it doesn't already have them
+// the way draw_marker_ring() does.
+static GPoint point_on_ring(GPoint center, GRect screen, int32_t angle,
+                             uint8_t pct, uint8_t eccentricity_pct) {
+  int32_t norm_angle = angle & 0xFFFF; // mask to prevent trig table lookup overflow/underflow
+  int32_t sin_v = sin_lookup(norm_angle), cos_v = cos_lookup(norm_angle);
+  FGPoint center_fp = fgpoint_from_gpoint(center);
+  return fgpoint_to_gpoint(point_on_ring_fp(center_fp, screen, sin_v, cos_v, pct, eccentricity_pct));
 }
 
-static void fill_polygon_dithered_marker(GContext *ctx, GPoint *pts, int n, GColor color) {
-  int16_t min_x = pts[0].x, max_x = pts[0].x, min_y = pts[0].y, max_y = pts[0].y;
-  for (int i = 1; i < n; i++) {
-    if (pts[i].x < min_x) min_x = pts[i].x;
-    if (pts[i].x > max_x) max_x = pts[i].x;
-    if (pts[i].y < min_y) min_y = pts[i].y;
-    if (pts[i].y > max_y) max_y = pts[i].y;
-  }
-  graphics_context_set_fill_color(ctx, color);
-  for (int16_t y = min_y; y <= max_y; y++) {
-    for (int16_t x = min_x; x <= max_x; x++) {
-      if (BAYER4[y & 3][x & 3] >= 8) continue; // ~50% threshold
-      GPoint p = GPoint(x, y);
-      if (!point_in_convex_polygon_marker(pts, n, p)) continue;
-      graphics_fill_rect(ctx, GRect(x, y, 1, 1), 0, GCornerNone);
-    }
-  }
-}
-
-// Same ~50% Bayer stipple, for the dot-cap style's round ends.
-static void fill_circle_dithered_marker(GContext *ctx, GPoint center, int16_t radius, GColor color) {
-  graphics_context_set_fill_color(ctx, color);
-  int32_t radius_sq = (int32_t)radius * radius;
-  for (int16_t y = center.y - radius; y <= center.y + radius; y++) {
-    for (int16_t x = center.x - radius; x <= center.x + radius; x++) {
-      if (BAYER4[y & 3][x & 3] >= 8) continue;
-      int32_t dx = x - center.x, dy = y - center.y;
-      if (dx * dx + dy * dy > radius_sq) continue;
-      graphics_fill_rect(ctx, GRect(x, y, 1, 1), 0, GCornerNone);
-    }
-  }
-}
-
-// Draws one mark as a straight quad from A to B, half_thick wide, with
-// the requested cap style -- plain native gpath/circle calls now that
-// this runs inside a live GContext (see the design note at the top of
-// this file for why that's new). style: 0=dot (round caps, via filled
-// circles at both ends), 1=line (flush/butt ends), 2=square (ends
-// extended outward by half_thick, like SVG's stroke-linecap:square).
-// translucent switches every fill in here to the dithered variants
-// above instead -- see MarkerRingConfig.translucent's own comment for
-// when this is actually set.
-static void draw_ring_mark(GContext *ctx, GPoint A, GPoint B, int16_t half_thick, uint8_t style, GColor color, bool translucent) {
-  if (half_thick < 1) half_thick = 1;
-
-  int32_t dx = B.x - A.x, dy = B.y - A.y;
-  int32_t len_sq = dx * dx + dy * dy;
-  if (len_sq == 0) {
-    if (translucent) {
-      fill_circle_dithered_marker(ctx, A, half_thick, color);
-    } else {
-      graphics_context_set_fill_color(ctx, color);
-      graphics_fill_circle(ctx, A, half_thick);
-    }
+// Draws one mark as a straight quad from inner to outer, half_thick_fp
+// wide, with the requested cap style -- built directly from sin_v/cos_v
+// (the same radial direction point_on_ring_fp() placed inner/outer
+// along) rather than re-deriving a direction from the two points via
+// vector subtraction, exactly mirroring how compute_hand_geometry_fp()
+// in hand_layer.c builds a hand's own dot/square body from its own
+// angle. style: 0=dot (round caps, via filled circles at both ends),
+// 1=line (flush/butt ends), 2=square (ends extended outward by
+// half_thick_fp, like SVG's stroke-linecap:square). translucent
+// switches every fill/stroke in here to subpixel.h's dithered variants.
+static void draw_ring_mark_fp(GContext *ctx, FGPoint inner, FGPoint outer, int32_t sin_v, int32_t cos_v,
+                               int32_t half_thick_fp, uint8_t style, GColor color, bool translucent) {
+  if (inner.x == outer.x && inner.y == outer.y) {
+    // Degenerate zero-length mark (inner/outer border reach configured
+    // equal) -- no direction to build a quad from, so just draw a dot
+    // at that single point regardless of style, same fallback the
+    // pre-fixed-point version of this code used.
+    fill_circle_fp(ctx, inner, half_thick_fp, color, translucent);
     return;
   }
-  int32_t len = isqrt32(len_sq);
-  if (len == 0) len = 1;
 
-  int32_t offx = div_round(half_thick * -dy, len);
-  int32_t offy = div_round(half_thick * dx, len);
-  
-  GPoint a = A, b = B;
-  if (style == 2) { // square caps
-    int32_t ex = div_round(half_thick * dx, len);
-    int32_t ey = div_round(half_thick * dy, len);
-    a = GPoint(A.x - ex, A.y - ey);
-    b = GPoint(B.x + ex, B.y + ey);
+  int32_t dx_w = (int32_t)(((int64_t)half_thick_fp * cos_v) / TRIG_MAX_RATIO);
+  int32_t dy_w = (int32_t)(((int64_t)half_thick_fp * sin_v) / TRIG_MAX_RATIO);
+
+  FGPoint a = inner, b = outer;
+  if (style == 2) { // square caps -- extend along the same radial direction outer sits on
+    int32_t ex = (int32_t)(((int64_t)half_thick_fp * sin_v) / TRIG_MAX_RATIO);
+    int32_t ey = (int32_t)(((int64_t)half_thick_fp * cos_v) / TRIG_MAX_RATIO);
+    a = fgpoint_new(inner.x - ex, inner.y + ey);
+    b = fgpoint_new(outer.x + ex, outer.y - ey);
   }
 
-  GPoint points[4] = {
-    GPoint(a.x + offx, a.y + offy), GPoint(a.x - offx, a.y - offy),
-    GPoint(b.x - offx, b.y - offy), GPoint(b.x + offx, b.y + offy),
+  FGPoint points[4] = {
+    fgpoint_new(a.x - dx_w, a.y - dy_w), fgpoint_new(a.x + dx_w, a.y + dy_w),
+    fgpoint_new(b.x + dx_w, b.y + dy_w), fgpoint_new(b.x - dx_w, b.y - dy_w),
   };
 
   if (translucent) {
-    fill_polygon_dithered_marker(ctx, points, 4, color);
-    if (style == 0) { // dot caps
-      fill_circle_dithered_marker(ctx, A, half_thick, color);
-      fill_circle_dithered_marker(ctx, B, half_thick, color);
-    }
-    return;
+    fill_polygon_dithered_fp(ctx, points, 4, color);
+  } else {
+    fill_polygon_fp(ctx, points, 4, color);
   }
 
-  GPathInfo info = { .num_points = 4, .points = points };
-  GPath *path = gpath_create(&info);
-  graphics_context_set_fill_color(ctx, color);
-  gpath_draw_filled(ctx, path);
-  gpath_destroy(path);
-
   if (style == 0) { // dot caps
-    graphics_fill_circle(ctx, A, half_thick);
-    graphics_fill_circle(ctx, B, half_thick);
+    fill_circle_fp(ctx, inner, half_thick_fp, color, translucent);
+    fill_circle_fp(ctx, outer, half_thick_fp, color, translucent);
   }
 }
 
@@ -1361,17 +1307,27 @@ static void draw_marker_ring(GContext *ctx, GPoint center, GRect screen, const M
   uint8_t inner_pct = cfg->inner_border_pct, outer_pct = cfg->outer_border_pct;
   if (outer_pct < inner_pct) outer_pct = inner_pct;
 
-  int16_t half_thick = cfg->thickness / 2;
+  // Same 0.5px-minimum floor compute_hand_geometry_fp() uses for a
+  // hand's half-width -- without it, a thickness of 1 (half_thick_fp
+  // rounding down to 0) would collapse the mark's quad to zero area at
+  // every angle except the four cardinal ones, same "second hand only
+  // draws at right angles" bug round_div()'s comment in subpixel.h
+  // describes.
+  int32_t half_thick_fp = ((int32_t)cfg->thickness << SUBPIXEL_BITS) / 2;
+  if (half_thick_fp < SUBPIXEL_HALF) half_thick_fp = SUBPIXEL_HALF;
+
+  FGPoint center_fp = fgpoint_from_gpoint(center);
 
   for (int i = 0; i < marks; i++) {
     if (skip_step > 0 && i % skip_step == 0) continue;
-    
+
     // Strictly mask with 0xFFFF to fix missing rotated markers
     int32_t angle = (((int32_t)i * TRIG_MAX_ANGLE) / marks) & 0xFFFF;
+    int32_t sin_v = sin_lookup(angle), cos_v = cos_lookup(angle);
 
-    GPoint outer_pt = point_on_ring(center, screen, angle, outer_pct, cfg->outer_eccentricity);
-    GPoint inner_pt = point_on_ring(center, screen, angle, inner_pct, cfg->inner_eccentricity);
-    draw_ring_mark(ctx, outer_pt, inner_pt, half_thick, cfg->style, color, cfg->translucent);
+    FGPoint outer_fp = point_on_ring_fp(center_fp, screen, sin_v, cos_v, outer_pct, cfg->outer_eccentricity);
+    FGPoint inner_fp = point_on_ring_fp(center_fp, screen, sin_v, cos_v, inner_pct, cfg->inner_eccentricity);
+    draw_ring_mark_fp(ctx, inner_fp, outer_fp, sin_v, cos_v, half_thick_fp, cfg->style, color, cfg->translucent);
   }
 }
 
