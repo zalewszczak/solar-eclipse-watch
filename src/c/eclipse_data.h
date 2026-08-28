@@ -29,6 +29,15 @@ typedef struct {
                               // marker_reach_px() in background_layer.c for the exact mapping.
   uint8_t outer_border_pct; // ring's outer reach, same 0-100% scale. Never allowed below
                               // inner_border_pct (enforced defensively again in background_layer.c).
+  bool translucent;       // this ring's own ~50% Bayer-dithered stipple (see
+                            // fill_polygon_dithered_marker() in background_layer.c) -- only
+                            // meaningful for the custom marker style (big_analog_marker_style
+                            // == 8), where the hour ring and second ring each get their own
+                            // independent checkbox in their own marker-editor popup. The 3
+                            // procedural presets (minimal/small/big) never set this and stay
+                            // opaque; bitmap marker styles use bitmap_marker_transparent
+                            // instead, a single setting rather than per-ring, since a bitmap
+                            // mask isn't split into a separate hour/second ring to begin with.
 } MarkerRingConfig;
 
 // Text-numeral overlay -- hour and second markers share ONE of these
@@ -255,6 +264,17 @@ typedef struct {
   // eating into that room). Shown first in the settings-page dropdown despite the high
   // numeric value, to keep 0-8 backward compatible with already-installed configs.
   uint8_t big_analog_marker_style;
+
+  // Only meaningful for bitmap marker styles (3-7 above) -- dithers the
+  // mask's tint to ~67% opacity instead of solid, same alpha-forcing
+  // technique tint_marker_bitmap() already used, just driven by its own
+  // setting now rather than reusing big_analog_hands_transparent (that
+  // coupling made bitmap markers dim whenever hands transparency was
+  // toggled, whether or not that's what the user actually wanted for
+  // the markers). Procedural/custom marker rings use MarkerRingConfig's
+  // own per-ring translucent field above instead, since those are two
+  // independent rings (hour, second) rather than one single mask.
+  bool bitmap_marker_transparent;
 
   // Only meaningful when big_analog_marker_style == 8. See background_layer.c (the
   // merged sky-canvas-and-markers layer) for how these get drawn -- as part of its own

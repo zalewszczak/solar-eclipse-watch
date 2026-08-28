@@ -292,6 +292,11 @@ function bigAnalogMarkerStyleCode() {
   if (isNaN(id) || id < 0 || id > 9) id = 0;
   return id;
 }
+// Bitmap marker styles' own transparency -- deliberately separate from
+// bigAnalogHandsTransparentCode() above (that one used to double as
+// this too, which meant toggling hand transparency also silently
+// dimmed the markers whether or not that's what was wanted).
+function bitmapMarkerTransparentCode() { return getSetting('CONFIG_BITMAP_MARKER_TRANSPARENT', 'false') === 'true' ? 1 : 0; }
 
 // Custom hour/second marker system (bigAnalogMarkerStyleCode() === 8) --
 // see MarkerRingConfig/MarkerTextConfig in marker_layer.h for what each
@@ -320,6 +325,7 @@ function customHourOuterBorderCode() {
   var inner = customHourInnerBorderCode();
   return outer < inner ? inner : outer; // outer never below inner -- see MarkerRingConfig
 }
+function customHourTranslucentCode() { return getSetting('CONFIG_CUSTOM_HOUR_TRANSLUCENT', 'false') === 'true' ? 1 : 0; }
 function customSecStyleCode() { return customMarkerStyleCode('CONFIG_CUSTOM_SEC_STYLE', 0); }
 function customSecThicknessCode() { return clampInt(getSetting('CONFIG_CUSTOM_SEC_THICKNESS', '1'), 1, 10, 1); }
 function customSecInnerEccCode() { return clampInt(getSetting('CONFIG_CUSTOM_SEC_INNER_ECC', '0'), 0, 100, 0); }
@@ -330,6 +336,7 @@ function customSecOuterBorderCode() {
   var inner = customSecInnerBorderCode();
   return outer < inner ? inner : outer;
 }
+function customSecTranslucentCode() { return getSetting('CONFIG_CUSTOM_SEC_TRANSLUCENT', 'false') === 'true' ? 1 : 0; }
 function markerTextTargetCode() { return clampInt(getSetting('CONFIG_MARKER_TEXT_TARGET', '0'), 0, 2, 0); }
 function markerTextFontCode() { return clampInt(getSetting('CONFIG_MARKER_TEXT_FONT', '0'), 0, 6, 0); }
 function markerTextOffsetCode() { return clampInt(getSetting('CONFIG_MARKER_TEXT_OFFSET', '0'), -50, 50, 0); }
@@ -528,18 +535,21 @@ function sendDict(dict) {
   dict['BIG_ANALOG_HAND_STYLE'] = bigAnalogHandStyleCode();
   dict['BIG_ANALOG_HANDS_TRANSPARENT'] = bigAnalogHandsTransparentCode();
   dict['BIG_ANALOG_MARKER_STYLE'] = bigAnalogMarkerStyleCode();
+  dict['BITMAP_MARKER_TRANSPARENT'] = bitmapMarkerTransparentCode();
   dict['CUSTOM_HOUR_STYLE'] = customHourStyleCode();
   dict['CUSTOM_HOUR_THICKNESS'] = customHourThicknessCode();
   dict['CUSTOM_HOUR_INNER_ECC'] = customHourInnerEccCode();
   dict['CUSTOM_HOUR_OUTER_ECC'] = customHourOuterEccCode();
   dict['CUSTOM_HOUR_INNER_BORDER'] = customHourInnerBorderCode();
   dict['CUSTOM_HOUR_OUTER_BORDER'] = customHourOuterBorderCode();
+  dict['CUSTOM_HOUR_TRANSLUCENT'] = customHourTranslucentCode();
   dict['CUSTOM_SEC_STYLE'] = customSecStyleCode();
   dict['CUSTOM_SEC_THICKNESS'] = customSecThicknessCode();
   dict['CUSTOM_SEC_INNER_ECC'] = customSecInnerEccCode();
   dict['CUSTOM_SEC_OUTER_ECC'] = customSecOuterEccCode();
   dict['CUSTOM_SEC_INNER_BORDER'] = customSecInnerBorderCode();
   dict['CUSTOM_SEC_OUTER_BORDER'] = customSecOuterBorderCode();
+  dict['CUSTOM_SEC_TRANSLUCENT'] = customSecTranslucentCode();
   dict['MARKER_TEXT_TARGET'] = markerTextTargetCode();
   dict['MARKER_TEXT_FONT'] = markerTextFontCode();
   dict['MARKER_TEXT_OFFSET'] = markerTextOffsetCode();
@@ -1117,18 +1127,21 @@ function sendDict(dict) {
 '  "BIG_ANALOG_HAND_STYLE": 0,'+
 '  "BIG_ANALOG_HANDS_TRANSPARENT": 1,'+
 '  "BIG_ANALOG_MARKER_STYLE": 8,'+
+'  "BITMAP_MARKER_TRANSPARENT": 0,'+
 '  "CUSTOM_HOUR_STYLE": 0,'+
 '  "CUSTOM_HOUR_THICKNESS": 1,'+
 '  "CUSTOM_HOUR_INNER_ECC": 0,'+
 '  "CUSTOM_HOUR_OUTER_ECC": 100,'+
 '  "CUSTOM_HOUR_INNER_BORDER": 0,'+
 '  "CUSTOM_HOUR_OUTER_BORDER": 25,'+
+'  "CUSTOM_HOUR_TRANSLUCENT": 0,'+
 '  "CUSTOM_SEC_STYLE": 0,'+
 '  "CUSTOM_SEC_THICKNESS": 1,'+
 '  "CUSTOM_SEC_INNER_ECC": 0,'+
 '  "CUSTOM_SEC_OUTER_ECC": 0,'+
 '  "CUSTOM_SEC_INNER_BORDER": 21,'+
 '  "CUSTOM_SEC_OUTER_BORDER": 45,'+
+'  "CUSTOM_SEC_TRANSLUCENT": 0,'+
 '  "MARKER_TEXT_TARGET": 1,'+
 '  "MARKER_TEXT_FONT": 4,'+
 '  "MARKER_TEXT_OFFSET": -10,'+
@@ -1669,18 +1682,21 @@ Pebble.addEventListener('showConfiguration', function () {
     bigAnalogHandStyle: getSetting('CONFIG_BIG_ANALOG_HAND_STYLE', '0'),
     bigAnalogTransparent: getSetting('CONFIG_BIG_ANALOG_TRANSPARENT', 'false') === 'true',
     bigAnalogMarkerStyle: getSetting('CONFIG_BIG_ANALOG_MARKER_STYLE', '0'),
+    bitmapMarkerTransparent: getSetting('CONFIG_BITMAP_MARKER_TRANSPARENT', 'false') === 'true',
     customHourStyle: getSetting('CONFIG_CUSTOM_HOUR_STYLE', '0'),
     customHourThickness: getSetting('CONFIG_CUSTOM_HOUR_THICKNESS', '3'),
     customHourInnerEcc: getSetting('CONFIG_CUSTOM_HOUR_INNER_ECC', '0'),
     customHourOuterEcc: getSetting('CONFIG_CUSTOM_HOUR_OUTER_ECC', '0'),
     customHourInnerBorder: getSetting('CONFIG_CUSTOM_HOUR_INNER_BORDER', '20'),
     customHourOuterBorder: getSetting('CONFIG_CUSTOM_HOUR_OUTER_BORDER', '100'),
+    customHourTranslucent: getSetting('CONFIG_CUSTOM_HOUR_TRANSLUCENT', 'false'),
     customSecStyle: getSetting('CONFIG_CUSTOM_SEC_STYLE', '0'),
     customSecThickness: getSetting('CONFIG_CUSTOM_SEC_THICKNESS', '1'),
     customSecInnerEcc: getSetting('CONFIG_CUSTOM_SEC_INNER_ECC', '0'),
     customSecOuterEcc: getSetting('CONFIG_CUSTOM_SEC_OUTER_ECC', '0'),
     customSecInnerBorder: getSetting('CONFIG_CUSTOM_SEC_INNER_BORDER', '70'),
     customSecOuterBorder: getSetting('CONFIG_CUSTOM_SEC_OUTER_BORDER', '100'),
+    customSecTranslucent: getSetting('CONFIG_CUSTOM_SEC_TRANSLUCENT', 'false'),
     markerTextTarget: getSetting('CONFIG_MARKER_TEXT_TARGET', '0'),
     markerTextFont: getSetting('CONFIG_MARKER_TEXT_FONT', '0'),
     markerTextOffset: getSetting('CONFIG_MARKER_TEXT_OFFSET', '0'),
@@ -1813,18 +1829,21 @@ Pebble.addEventListener('webviewclosed', function (e) {
   setSetting('CONFIG_BIG_ANALOG_HAND_STYLE', settings.CONFIG_BIG_ANALOG_HAND_STYLE || '0');
   setSetting('CONFIG_BIG_ANALOG_TRANSPARENT', settings.CONFIG_BIG_ANALOG_TRANSPARENT ? 'true' : 'false');
   setSetting('CONFIG_BIG_ANALOG_MARKER_STYLE', settings.CONFIG_BIG_ANALOG_MARKER_STYLE || '0');
+  setSetting('CONFIG_BITMAP_MARKER_TRANSPARENT', settings.CONFIG_BITMAP_MARKER_TRANSPARENT ? 'true' : 'false');
   setSetting('CONFIG_CUSTOM_HOUR_STYLE', settings.CONFIG_CUSTOM_HOUR_STYLE || '0');
   setSetting('CONFIG_CUSTOM_HOUR_THICKNESS', settings.CONFIG_CUSTOM_HOUR_THICKNESS || '3');
   setSetting('CONFIG_CUSTOM_HOUR_INNER_ECC', settings.CONFIG_CUSTOM_HOUR_INNER_ECC || '0');
   setSetting('CONFIG_CUSTOM_HOUR_OUTER_ECC', settings.CONFIG_CUSTOM_HOUR_OUTER_ECC || '0');
   setSetting('CONFIG_CUSTOM_HOUR_INNER_BORDER', settings.CONFIG_CUSTOM_HOUR_INNER_BORDER || '20');
   setSetting('CONFIG_CUSTOM_HOUR_OUTER_BORDER', settings.CONFIG_CUSTOM_HOUR_OUTER_BORDER || '100');
+  setSetting('CONFIG_CUSTOM_HOUR_TRANSLUCENT', settings.CONFIG_CUSTOM_HOUR_TRANSLUCENT ? 'true' : 'false');
   setSetting('CONFIG_CUSTOM_SEC_STYLE', settings.CONFIG_CUSTOM_SEC_STYLE || '0');
   setSetting('CONFIG_CUSTOM_SEC_THICKNESS', settings.CONFIG_CUSTOM_SEC_THICKNESS || '1');
   setSetting('CONFIG_CUSTOM_SEC_INNER_ECC', settings.CONFIG_CUSTOM_SEC_INNER_ECC || '0');
   setSetting('CONFIG_CUSTOM_SEC_OUTER_ECC', settings.CONFIG_CUSTOM_SEC_OUTER_ECC || '0');
   setSetting('CONFIG_CUSTOM_SEC_INNER_BORDER', settings.CONFIG_CUSTOM_SEC_INNER_BORDER || '70');
   setSetting('CONFIG_CUSTOM_SEC_OUTER_BORDER', settings.CONFIG_CUSTOM_SEC_OUTER_BORDER || '100');
+  setSetting('CONFIG_CUSTOM_SEC_TRANSLUCENT', settings.CONFIG_CUSTOM_SEC_TRANSLUCENT ? 'true' : 'false');
   setSetting('CONFIG_MARKER_TEXT_TARGET', settings.CONFIG_MARKER_TEXT_TARGET || '0');
   setSetting('CONFIG_MARKER_TEXT_FONT', settings.CONFIG_MARKER_TEXT_FONT || '0');
   setSetting('CONFIG_MARKER_TEXT_OFFSET', settings.CONFIG_MARKER_TEXT_OFFSET || '0');

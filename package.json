@@ -1,20 +1,42 @@
- {
+{
   "name": "eclipse-watch",
   "author": "zalew",
   "version": "1.2.0",
-  "keywords": ["pebble-app", "watchface", "eclipse", "sky", "astronomy", "analog", "digital", "zalew", "weather", "planets", "ISS", "moon", "phases", "health", "steps"],
+  "keywords": [
+    "pebble-app",
+    "watchface",
+    "eclipse",
+    "sky",
+    "astronomy",
+    "analog",
+    "digital",
+    "zalew",
+    "weather",
+    "planets",
+    "ISS",
+    "moon",
+    "phases",
+    "health",
+    "steps"
+  ],
   "private": true,
   "pebble": {
     "displayName": "Eclipz",
     "uuid": "48506a10-1d10-42a0-bc0d-a94e56124e0f",
     "sdkVersion": "3",
     "enableMultiJS": true,
-    "targetPlatforms": ["emery"],
+    "targetPlatforms": [
+      "emery"
+    ],
     "watchapp": {
       "watchface": true
     },
     "projectType": "native",
-    "capabilities": ["location", "configurable", "health"],
+    "capabilities": [
+      "location",
+      "configurable",
+      "health"
+    ],
     "messageKeys": [
       "C1_TIME",
       "C2_TIME",
@@ -109,18 +131,21 @@
       "CENTER_CIRCLE_RADIUS",
       "CENTER_CIRCLE_COLOR",
       "BIG_ANALOG_MARKER_STYLE",
+      "BITMAP_MARKER_TRANSPARENT",
       "CUSTOM_HOUR_STYLE",
       "CUSTOM_HOUR_THICKNESS",
       "CUSTOM_HOUR_INNER_ECC",
       "CUSTOM_HOUR_OUTER_ECC",
       "CUSTOM_HOUR_INNER_BORDER",
       "CUSTOM_HOUR_OUTER_BORDER",
+      "CUSTOM_HOUR_TRANSLUCENT",
       "CUSTOM_SEC_STYLE",
       "CUSTOM_SEC_THICKNESS",
       "CUSTOM_SEC_INNER_ECC",
       "CUSTOM_SEC_OUTER_ECC",
       "CUSTOM_SEC_INNER_BORDER",
       "CUSTOM_SEC_OUTER_BORDER",
+      "CUSTOM_SEC_TRANSLUCENT",
       "MARKER_TEXT_TARGET",
       "MARKER_TEXT_FONT",
       "MARKER_TEXT_OFFSET",

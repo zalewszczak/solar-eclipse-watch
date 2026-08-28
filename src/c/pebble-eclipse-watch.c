@@ -3026,12 +3026,15 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   if ((t = dict_find(iter, MESSAGE_KEY_CUSTOM_HOUR_OUTER_ECC))) s_data.custom_hour_marker.outer_eccentricity = t->value->uint8;
   if ((t = dict_find(iter, MESSAGE_KEY_CUSTOM_HOUR_INNER_BORDER))) s_data.custom_hour_marker.inner_border_pct = t->value->uint8;
   if ((t = dict_find(iter, MESSAGE_KEY_CUSTOM_HOUR_OUTER_BORDER))) s_data.custom_hour_marker.outer_border_pct = t->value->uint8;
+  if ((t = dict_find(iter, MESSAGE_KEY_CUSTOM_HOUR_TRANSLUCENT))) s_data.custom_hour_marker.translucent = t->value->uint8 != 0;
   if ((t = dict_find(iter, MESSAGE_KEY_CUSTOM_SEC_STYLE))) s_data.custom_second_marker.style = t->value->uint8;
   if ((t = dict_find(iter, MESSAGE_KEY_CUSTOM_SEC_THICKNESS))) s_data.custom_second_marker.thickness = t->value->uint8;
   if ((t = dict_find(iter, MESSAGE_KEY_CUSTOM_SEC_INNER_ECC))) s_data.custom_second_marker.inner_eccentricity = t->value->uint8;
   if ((t = dict_find(iter, MESSAGE_KEY_CUSTOM_SEC_OUTER_ECC))) s_data.custom_second_marker.outer_eccentricity = t->value->uint8;
   if ((t = dict_find(iter, MESSAGE_KEY_CUSTOM_SEC_INNER_BORDER))) s_data.custom_second_marker.inner_border_pct = t->value->uint8;
   if ((t = dict_find(iter, MESSAGE_KEY_CUSTOM_SEC_OUTER_BORDER))) s_data.custom_second_marker.outer_border_pct = t->value->uint8;
+  if ((t = dict_find(iter, MESSAGE_KEY_CUSTOM_SEC_TRANSLUCENT))) s_data.custom_second_marker.translucent = t->value->uint8 != 0;
+  if ((t = dict_find(iter, MESSAGE_KEY_BITMAP_MARKER_TRANSPARENT))) s_data.bitmap_marker_transparent = t->value->uint8 != 0;
   if ((t = dict_find(iter, MESSAGE_KEY_MARKER_TEXT_TARGET))) s_data.marker_text.target = t->value->uint8;
   if ((t = dict_find(iter, MESSAGE_KEY_MARKER_TEXT_FONT))) s_data.marker_text.font_choice = t->value->uint8;
   if ((t = dict_find(iter, MESSAGE_KEY_MARKER_TEXT_OFFSET))) s_data.marker_text.offset_px = (int8_t)t->value->int16;

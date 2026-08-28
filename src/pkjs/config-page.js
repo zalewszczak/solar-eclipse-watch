@@ -252,8 +252,10 @@ function customMarkerHiddenInputsHtml(current) {
   var d = {
     customHourStyle: '0', customHourThickness: '3',
     customHourInnerEcc: '0', customHourOuterEcc: '0', customHourInnerBorder: '20', customHourOuterBorder: '100',
+    customHourTranslucent: 'false',
     customSecStyle: '0', customSecThickness: '1',
     customSecInnerEcc: '0', customSecOuterEcc: '0', customSecInnerBorder: '70', customSecOuterBorder: '100',
+    customSecTranslucent: 'false',
     markerTextHourMask: '4095', markerTextSecMask: '4095'
   };
   var html = '';
@@ -276,6 +278,7 @@ function customMarkerModalHtml(kind, title, thicknessMax) {
 '<div class="modal-overlay" id="customMarkerModal-' + kind + '" onclick="if (event.target === this) closeCustomMarkerEditor(\'' + kind + '\');">' +
 '  <div class="modal-box">' +
 '    <div class="modal-title">' + esc(title) + '</div>' +
+'    <div class="modal-scroll-body">' +
 
 '    <label for="' + p + 'Style">Shape</label>' +
 '    <select id="' + p + 'Style">' +
@@ -330,6 +333,12 @@ function customMarkerModalHtml(kind, title, thicknessMax) {
 '    </div>' +
 '    <div class="help">Outer can\'t go below inner -- it gets pulled up automatically if you drag inner past it.</div>' +
 
+'    <div class="checkbox-row" style="margin-top:12px;">' +
+'      <input type="checkbox" id="' + p + 'Translucent">' +
+'      <label for="' + p + 'Translucent" style="margin:0;">Semi-transparent</label>' +
+'    </div>' +
+'    <div class="help">Dithers this ring (independent of the hour/second ring\'s own setting, and of Semi-transparent hands) to ~50% so the sky shows through.</div>' +
+
 '    <label style="margin-top:12px;">Presets (translated from the procedural styles)</label>' +
 '    <div class="preset-btn-row">' +
 '      <button type="button" onclick="applyMarkerPreset(\'' + kind + '\', \'minimal\')">Minimal</button>' +
@@ -338,8 +347,11 @@ function customMarkerModalHtml(kind, title, thicknessMax) {
 '    </div>' +
 '    <button type="button" class="marker-edit-btn" style="margin-top:8px;" onclick="copyMarkerConfig(\'' + kind + '\')">Copy from ' + (kind === 'hour' ? 'second' : 'hour') + ' markers</button>' +
 
+'    </div>' +
+'    <div class="modal-footer">' +
 '    <button type="button" onclick="saveCustomMarkerEditor(\'' + kind + '\')" style="width:100%; box-sizing:border-box; padding:14px; font-size:16px; font-weight:600; color:#fff; background:#ff9200; border:none; border-radius:8px; margin-top:14px;">OK</button>' +
 '    <button type="button" class="modal-cancel-btn" onclick="closeCustomMarkerEditor(\'' + kind + '\')">Cancel</button>' +
+'    </div>' +
 '  </div>' +
 '</div>'
   );
@@ -355,6 +367,7 @@ function textMarkerModalHtml(current) {
 '<div class="modal-overlay" id="textMarkerModal" onclick="if (event.target === this) closeTextMarkerEditor();">' +
 '  <div class="modal-box">' +
 '    <div class="modal-title">Edit text markers</div>' +
+'    <div class="modal-scroll-body">' +
 
 '    <label for="markerTextTarget">Numbers</label>' +
 '    <select id="markerTextTarget" onchange="onMarkerTextTargetChange()">' +
@@ -394,7 +407,10 @@ function textMarkerModalHtml(current) {
 '      </div>' +
 '    </div>' +
 
+'    </div>' +
+'    <div class="modal-footer">' +
 '    <button type="button" class="modal-cancel-btn" onclick="closeTextMarkerEditor()" style="margin-top:14px;">Close</button>' +
+'    </div>' +
 '  </div>' +
 '</div>'
   );
@@ -446,6 +462,7 @@ function handEditorModalHtml(kind, title) {
 '<div class="modal-overlay" id="handEditorModal-' + kind + '" onclick="if (event.target === this) closeHandEditor(\'' + kind + '\');">' +
 '  <div class="modal-box">' +
 '    <div class="modal-title">' + esc(title) + '</div>' +
+'    <div class="modal-scroll-body">' +
 
 '    <label for="' + p + 'Style">Shape</label>' +
 '    <select id="' + p + 'Style">' +
@@ -499,8 +516,11 @@ function handEditorModalHtml(kind, title) {
 
 '    <button type="button" class="marker-edit-btn" style="margin-top:8px;" onclick="copyHandConfig(\'' + kind + '\')">Copy ' + HAND_COPY_SOURCE_LABEL[kind] + ' hand settings</button>' +
 
+'    </div>' +
+'    <div class="modal-footer">' +
 '    <button type="button" onclick="saveHandEditor(\'' + kind + '\')" style="width:100%; box-sizing:border-box; padding:14px; font-size:16px; font-weight:600; color:#fff; background:#ff9200; border:none; border-radius:8px; margin-top:14px;">OK</button>' +
 '    <button type="button" class="modal-cancel-btn" onclick="closeHandEditor(\'' + kind + '\')">Cancel</button>' +
+'    </div>' +
 '  </div>' +
 '</div>'
   );
@@ -555,6 +575,7 @@ function buildConfigHtml(current) {
   // pebble-eclipse-watch.c exactly, or the settings page would show
   // slots as available that the watch itself won't actually draw.
   var markerStyleNum = parseInt(current.bigAnalogMarkerStyle || '0', 10);
+  var isBitmapMarkerStyle = markerStyleNum >= 3 && markerStyleNum !== 8 && markerStyleNum !== 9;
   var edgeAvail = { upper: false, bottom: false, left: false, right: false, cornersGrayed: false };
   if (isBigAnalog) {
     if (markerStyleNum < 3 || markerStyleNum === 8 || markerStyleNum === 9) {
@@ -659,8 +680,10 @@ function buildConfigHtml(current) {
 '  .color-role-label { font-size: 11px; color: var(--text-faint2); }' +
 '  .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: none; align-items: flex-end; justify-content: center; z-index: 100; }' +
 '  .modal-overlay.open { display: flex; }' +
-'  .modal-box { background: var(--card-bg); border-radius: 12px 12px 0 0; padding: 16px; width: 100%; max-width: 400px; max-height: 80vh; overflow-y: auto; box-sizing: border-box; }' +
-'  .modal-title { font-weight: 600; font-size: 15px; margin-bottom: 10px; text-align: center; color: var(--text); }' +
+'  .modal-box { background: var(--card-bg); border-radius: 12px 12px 0 0; padding: 16px; width: 100%; max-width: 400px; max-height: 80vh; box-sizing: border-box; display: flex; flex-direction: column; overflow: hidden; }' +
+'  .modal-title { font-weight: 600; font-size: 15px; margin-bottom: 10px; text-align: center; color: var(--text); flex: 0 0 auto; }' +
+'  .modal-scroll-body { overflow-y: auto; flex: 1 1 auto; min-height: 0; }' +
+'  .modal-footer { flex: 0 0 auto; }' +
 '  .hex-grid { position: relative; width: 260px; height: 255px; margin: 0 auto; }' +
 '  .hex-swatch { position: absolute; width: 26px; height: 30px; margin: -15px 0 0 -13px; clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%); border: 1px solid rgba(0,0,0,0.15); box-sizing: border-box; }' +
 '  .hex-swatch.hollow { border: none; background: transparent !important; pointer-events: none; }' +
@@ -814,7 +837,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '        <input type="checkbox" id="bigAnalogTransparent" ' + (current.bigAnalogTransparent ? 'checked' : '') + ' onchange="updatePreview()">' +
 '        <label for="bigAnalogTransparent" style="margin:0;">Semi-transparent hands (see the sky through them)</label>' +
 '      </div>' +
-'      <div class="help">To show the date behind the hands, pick "Short date" as a line in the Corners &amp; edge slots section below (bottom-middle line 1 does this by default).</div>' +
+'      <div class="help">To show the date behind the hands, pick "Short date" as a line in the Features section below (bottom-middle line 1 does this by default).</div>' +
 
 '      <div id="customHandSection" style="' + (current.bigAnalogHandStyle === '4' ? '' : 'display:none;') + '">' +
 '        <button type="button" class="marker-edit-btn" onclick="openHandEditor(\'hour\')">Edit hour hand &rsaquo;</button>' +
@@ -847,7 +870,11 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '        <option value="7"' + (current.bigAnalogMarkerStyle === '7' ? ' selected' : '') + '>Brown</option>' +
 '        <option value="8"' + (current.bigAnalogMarkerStyle === '8' ? ' selected' : '') + '>Custom</option>' +
 '      </select>' +
-'      <div class="help">Bitmap styles are tinted with your main color (see the preview above) and their mask art shows behind the hands there once you\'ve added a resource PNG for that style. Which edge-middle info slots they support (instead of the 4 corners) varies by style -- see the Corners section below.</div>' +
+'      <div class="checkbox-row" id="bitmapMarkerTransparentRow" style="margin-top:12px;' + (isBitmapMarkerStyle ? '' : ' display:none;') + '">' +
+'        <input type="checkbox" id="bitmapMarkerTransparent" ' + (current.bitmapMarkerTransparent ? 'checked' : '') + ' onchange="updatePreview()">' +
+'        <label for="bitmapMarkerTransparent" style="margin:0;">Semi transparent markers (see the sky through them)</label>' +
+'      </div>' +
+'      <div class="help">Bitmap styles are tinted with your main color (see the preview above) and their mask art shows behind the hands there once you\'ve added a resource PNG for that style. Which edge-middle info slots they support (instead of the 4 corners) varies by style -- see the Features section below.</div>' +
 '      <div class="help">When an eclipse is actually happening, the Sun fills the whole screen as a background behind the hands.</div>' +
 
 '      <div id="customMarkerSection" style="' + (current.bigAnalogMarkerStyle === '8' ? '' : 'display:none;') + '">' +
@@ -952,17 +979,14 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      <input type="hidden" id="nightCustomTextValue" value="' + esc(current.nightCustomText || '255') + '">' +
 '      <input type="hidden" id="nightCustomAccentValue" value="' + esc(current.nightCustomAccent || '255') + '">' +
 '    </div>' +
-'    <div class="help">Battery and Moon phase are now pickable as Corners content below, with their own color style.</div>' +
+'    <div class="help">Battery and Moon phase are now pickable as Features content below, with their own color style.</div>' +
 '    </div>' +
 '  </fieldset>' +
 
 '  <fieldset id="cornersFieldset">' +
-'    <div class="section-legend" onclick="toggleSection(\'corners\')">Corners &amp; edge slots <span class="chevron" id="chev-corners">&#9656;</span></div>' +
+'    <div class="section-legend" onclick="toggleSection(\'corners\')">Features <span class="chevron" id="chev-corners">&#9656;</span></div>' +
 '    <div class="section-body" id="section-corners" style="display:none;">' +
-'    <div class="help">Small info readouts around the sky view / big-analogue clock face. These refresh on their own independent schedule, separate from the main display.</div>' +
-'    <div class="help">The 4 corners only apply to procedural (non-bitmap) big-analogue styles, digital, and small analog. The 4 edge-middle slots (top/bottom/left/right) only apply to big-analogue mode, and which ones a bitmap style supports depends on that style\'s own artwork -- unsupported slots are grayed out below.</div>' +
-'    <div class="help">Pick what shows in each corner and edge slot of the big-analog view. Tap a spot on the diagram below to choose its content and color -- procedural styles support all 8 slots, bitmap styles (Modern, Shadow, Tally, Bell, Brown) are each limited to whatever room their artwork actually has, and unavailable slots show as N/A.</div>' +
-'    <div class="help">In analog mode, a separate box below the diagram shows a clock icon with 4 "Feature" buttons next to it, for the 4 rows shown beside the actual analog clock face on your watch. These share their storage with the Upper-middle/Bottom-middle slots above (so switching between analog and big-analog keeps the same picks) -- text and icons are always left-aligned there, right next to the clock face, and never get the outline the corner/edge slots do, since that panel already sits on a solid background. Only 3 of the 4 are available with a custom font or a Large/Extra Large font size below; the 4th shows N/A until you pick Small or Medium.</div>' +
+'    <div class="help">Features are small info readouts (weather, health, date/time, and more) placed around your watch face. Tap a slot on the diagram below to pick what it shows and how it\'s colored -- grayed-out slots aren\'t available for your current style.</div>' +
 
 '    <label for="cornerCustomFont">Font</label>' +
 '    <select id="cornerCustomFont" onchange="onCornerFontChange()">' +
@@ -981,6 +1005,16 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      <option value="3"' + (current.cornerFontSize === '3' ? ' selected' : '') + '>Extra Large</option>' +
 '    </select>' +
 '    <div class="help">Applies to corner/edge feature text and the big-analog date. A custom font has its own fixed size, so the size option above only applies to "Default".</div>' +
+
+'    <div id="weatherIconStyleRow" style="' + (weatherIconFeatureInUse ? '' : 'display:none;') + '">' +
+'      <label for="weatherIconStyle">Weather icon style</label>' +
+'      <select id="weatherIconStyle">' +
+'        <option value="0"' + (current.weatherIconStyle === '0' ? ' selected' : '') + '>Simple</option>' +
+'        <option value="1"' + (current.weatherIconStyle === '1' || !current.weatherIconStyle ? ' selected' : '') + '>Hollow</option>' +
+'        <option value="2"' + (current.weatherIconStyle === '2' ? ' selected' : '') + '>Full color</option>' +
+'      </select>' +
+'      <div class="help">"Simple" is a placeholder for now. Hollow follows the slot\'s own color mode like any other icon; Full color is a genuine multi-color image with its own baked-in colors (see README.md), so it ignores the slot\'s color mode entirely. Shown here because a Weather icon feature is picked below.</div>' +
+'    </div>' +
 
 '    <div id="slotPickerDiagram">' +
 '      <button type="button" class="slot-btn slot-corner-tl" id="slotBtn-cornerTL" onclick="openSlotEditor(\'cornerTL\')"></button>' +
@@ -1067,7 +1101,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      <option value="F"' + (current.tempUnit === 'F' ? ' selected' : '') + '>Fahrenheit</option>' +
 '      <option value="K"' + (current.tempUnit === 'K' ? ' selected' : '') + '>Kelvin</option>' +
 '    </select>' +
-'    <div class="help">Used everywhere temperature is shown, including the Corners section below.</div>' +
+'    <div class="help">Used everywhere temperature is shown, including the Features section below.</div>' +
 
 '    <label for="windSpeedUnit" style="margin-top:10px;">Wind speed unit</label>' +
 '    <select id="windSpeedUnit">' +
@@ -1092,16 +1126,6 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    </select>' +
 '    <div class="help">Used by the "Altitude" corner content. Comes from GPS, so it needs "Use GPS automatically" turned on in Location below, and not every phone reports it -- shows "N/A" when it\'s not available.</div>' +
 
-'    <div id="weatherIconStyleRow" style="' + (weatherIconFeatureInUse ? '' : 'display:none;') + '">' +
-'      <label for="weatherIconStyle" style="margin-top:10px;">Weather icon style</label>' +
-'      <select id="weatherIconStyle">' +
-'        <option value="0"' + (current.weatherIconStyle === '0' ? ' selected' : '') + '>Simple</option>' +
-'        <option value="1"' + (current.weatherIconStyle === '1' || !current.weatherIconStyle ? ' selected' : '') + '>Hollow</option>' +
-'        <option value="2"' + (current.weatherIconStyle === '2' ? ' selected' : '') + '>Full color</option>' +
-'      </select>' +
-'      <div class="help">"Simple" is a placeholder for now. "Hollow" and "Full color" are both drawn on-watch -- Hollow is a single-color outline that follows whatever color mode the slot itself is set to, same as every other corner/edge icon. Full color is different: each icon is a genuine multi-color image (e.g. a gray cloud with a yellow bolt and blue rain for storms) with its own baked-in colors and transparency, so it ignores the slot\'s color mode entirely -- see README.md for how those icons are built. Shown here because "Weather icon" or "Temp + weather icon" is picked somewhere in Corners &amp; edge slots below.</div>' +
-'    </div>' +
-'    </div>' +
 '    </div>' +
 '  </fieldset>' +
 
@@ -2030,12 +2054,15 @@ handEditorModalHtml('sec', 'Edit second hand') +
 'function onMarkerStyleChange() {' +
 '  var val = document.getElementById("bigAnalogMarkerStyle").value;' +
 '  document.getElementById("customMarkerSection").style.display = (val === "8") ? "" : "none";' +
+'  var isBitmap = (val === "3" || val === "4" || val === "5" || val === "6" || val === "7");' +
+'  document.getElementById("bitmapMarkerTransparentRow").style.display = isBitmap ? "" : "none";' +
 '  renderSlotPicker();' +
 '  updatePreview();' +
 '}' +
 
 // ---- custom hour/second marker popups --------------------------------
-'var CM_FIELDS = ["Style", "Thickness", "InnerEcc", "OuterEcc", "InnerBorder", "OuterBorder"];' +
+'var CM_FIELDS = ["Style", "Thickness", "InnerEcc", "OuterEcc", "InnerBorder", "OuterBorder", "Translucent"];' +
+'var CM_CHECKBOX_FIELDS = ["Translucent"];' +
 'function cmHiddenPrefix(kind) { return kind === "hour" ? "customHour" : "customSec"; }' +
 'function cmPopupPrefix(kind) { return kind === "hour" ? "cmHour" : "cmSec"; }' +
 'var MARKER_PRESETS = {' +
@@ -2084,7 +2111,8 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  CM_FIELDS.forEach(function (f) {' +
 '    var hidden = document.getElementById(hp + f);' +
 '    var popupEl = document.getElementById(p + f);' +
-'    if (hidden && popupEl) popupEl.value = hidden.value;' +
+'    if (!hidden || !popupEl) return;' +
+'    if (CM_CHECKBOX_FIELDS.indexOf(f) !== -1) { popupEl.checked = hidden.value === "true"; } else { popupEl.value = hidden.value; }' +
 '  });' +
 '  document.getElementById(p + "OuterBorder").min = document.getElementById(p + "InnerBorder").value;' +
 '  updateCustomMarkerValLabels(kind);' +
@@ -2098,7 +2126,8 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  CM_FIELDS.forEach(function (f) {' +
 '    var hidden = document.getElementById(hp + f);' +
 '    var popupEl = document.getElementById(p + f);' +
-'    if (hidden && popupEl) hidden.value = popupEl.value;' +
+'    if (!hidden || !popupEl) return;' +
+'    hidden.value = (CM_CHECKBOX_FIELDS.indexOf(f) !== -1) ? String(popupEl.checked) : popupEl.value;' +
 '  });' +
 '  closeCustomMarkerEditor(kind);' +
 '  updatePreview();' +
@@ -2109,7 +2138,8 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  if (!preset) return;' +
 '  CM_FIELDS.forEach(function (f) {' +
 '    var el = document.getElementById(p + f);' +
-'    if (el && preset[f] !== undefined) el.value = preset[f];' +
+'    if (!el || preset[f] === undefined) return;' +
+'    if (CM_CHECKBOX_FIELDS.indexOf(f) !== -1) { el.checked = preset[f] === true || preset[f] === "true"; } else { el.value = preset[f]; }' +
 '  });' +
 '  document.getElementById(p + "OuterBorder").min = document.getElementById(p + "InnerBorder").value;' +
 '  updateCustomMarkerValLabels(kind);' +
@@ -2123,7 +2153,8 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  CM_FIELDS.forEach(function (f) {' +
 '    var src = document.getElementById(otherHiddenPrefix + f);' +
 '    var dst = document.getElementById(p + f);' +
-'    if (src && dst) dst.value = src.value;' +
+'    if (!src || !dst) return;' +
+'    if (CM_CHECKBOX_FIELDS.indexOf(f) !== -1) { dst.checked = src.value === "true"; } else { dst.value = src.value; }' +
 '  });' +
 '  document.getElementById(p + "OuterBorder").min = document.getElementById(p + "InnerBorder").value;' +
 '  updateCustomMarkerValLabels(kind);' +
@@ -2439,6 +2470,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    CONFIG_BIG_ANALOG_HAND_STYLE: document.getElementById("bigAnalogHandStyle").value,' +
 '    CONFIG_BIG_ANALOG_TRANSPARENT: document.getElementById("bigAnalogTransparent").checked,' +
 '    CONFIG_BIG_ANALOG_MARKER_STYLE: document.getElementById("bigAnalogMarkerStyle").value,' +
+'    CONFIG_BITMAP_MARKER_TRANSPARENT: document.getElementById("bitmapMarkerTransparent").checked,' +
 '    CONFIG_UPPER_MIDDLE_LINE1_CONTENT: document.getElementById("upperMiddleLine1Content").value,' +
 '    CONFIG_UPPER_MIDDLE_LINE1_COLOR: document.getElementById("upperMiddleLine1Color").value,' +
 '    CONFIG_UPPER_MIDDLE_LINE2_CONTENT: document.getElementById("upperMiddleLine2Content").value,' +
@@ -2482,12 +2514,14 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    CONFIG_CUSTOM_HOUR_OUTER_ECC: document.getElementById("customHourOuterEcc").value,' +
 '    CONFIG_CUSTOM_HOUR_INNER_BORDER: document.getElementById("customHourInnerBorder").value,' +
 '    CONFIG_CUSTOM_HOUR_OUTER_BORDER: document.getElementById("customHourOuterBorder").value,' +
+'    CONFIG_CUSTOM_HOUR_TRANSLUCENT: document.getElementById("customHourTranslucent").value === "true",' +
 '    CONFIG_CUSTOM_SEC_STYLE: document.getElementById("customSecStyle").value,' +
 '    CONFIG_CUSTOM_SEC_THICKNESS: document.getElementById("customSecThickness").value,' +
 '    CONFIG_CUSTOM_SEC_INNER_ECC: document.getElementById("customSecInnerEcc").value,' +
 '    CONFIG_CUSTOM_SEC_OUTER_ECC: document.getElementById("customSecOuterEcc").value,' +
 '    CONFIG_CUSTOM_SEC_INNER_BORDER: document.getElementById("customSecInnerBorder").value,' +
 '    CONFIG_CUSTOM_SEC_OUTER_BORDER: document.getElementById("customSecOuterBorder").value,' +
+'    CONFIG_CUSTOM_SEC_TRANSLUCENT: document.getElementById("customSecTranslucent").value === "true",' +
 '    CONFIG_MARKER_TEXT_TARGET: document.getElementById("markerTextTarget").value,' +
 '    CONFIG_MARKER_TEXT_FONT: document.getElementById("markerTextFont").value,' +
 '    CONFIG_MARKER_TEXT_OFFSET: document.getElementById("markerTextOffset").value,' +

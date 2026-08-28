@@ -1237,20 +1237,82 @@ static GPoint point_on_ring(GPoint center, GRect screen, int32_t angle,
   return result;
 }
 
+// Same convex-polygon point test and ~50% Bayer-dithered fill
+// pebble-eclipse-watch.c's fill_polygon_dithered() uses for translucent
+// corner/edge plates -- copied rather than shared so this file stays
+// self-contained (same rationale as hand_layer.c's own copy of
+// BAYER4). Used by draw_ring_mark() below for translucent custom
+// markers: Pebble's basic fills (gpath_draw_filled, graphics_fill_circle)
+// don't alpha-blend arbitrary shapes, so a genuine per-pixel see-
+// through effect needs this rather than just picking a translucent
+// GColor and filling normally.
+static bool point_in_convex_polygon_marker(GPoint *pts, int n, GPoint p) {
+  bool has_pos = false, has_neg = false;
+  for (int i = 0; i < n; i++) {
+    GPoint a = pts[i];
+    GPoint b = pts[(i + 1) % n];
+    int32_t cross = (int32_t)(b.x - a.x) * (p.y - a.y) - (int32_t)(b.y - a.y) * (p.x - a.x);
+    if (cross > 0) has_pos = true;
+    if (cross < 0) has_neg = true;
+    if (has_pos && has_neg) return false;
+  }
+  return true;
+}
+
+static void fill_polygon_dithered_marker(GContext *ctx, GPoint *pts, int n, GColor color) {
+  int16_t min_x = pts[0].x, max_x = pts[0].x, min_y = pts[0].y, max_y = pts[0].y;
+  for (int i = 1; i < n; i++) {
+    if (pts[i].x < min_x) min_x = pts[i].x;
+    if (pts[i].x > max_x) max_x = pts[i].x;
+    if (pts[i].y < min_y) min_y = pts[i].y;
+    if (pts[i].y > max_y) max_y = pts[i].y;
+  }
+  graphics_context_set_fill_color(ctx, color);
+  for (int16_t y = min_y; y <= max_y; y++) {
+    for (int16_t x = min_x; x <= max_x; x++) {
+      if (BAYER4[y & 3][x & 3] >= 8) continue; // ~50% threshold
+      GPoint p = GPoint(x, y);
+      if (!point_in_convex_polygon_marker(pts, n, p)) continue;
+      graphics_fill_rect(ctx, GRect(x, y, 1, 1), 0, GCornerNone);
+    }
+  }
+}
+
+// Same ~50% Bayer stipple, for the dot-cap style's round ends.
+static void fill_circle_dithered_marker(GContext *ctx, GPoint center, int16_t radius, GColor color) {
+  graphics_context_set_fill_color(ctx, color);
+  int32_t radius_sq = (int32_t)radius * radius;
+  for (int16_t y = center.y - radius; y <= center.y + radius; y++) {
+    for (int16_t x = center.x - radius; x <= center.x + radius; x++) {
+      if (BAYER4[y & 3][x & 3] >= 8) continue;
+      int32_t dx = x - center.x, dy = y - center.y;
+      if (dx * dx + dy * dy > radius_sq) continue;
+      graphics_fill_rect(ctx, GRect(x, y, 1, 1), 0, GCornerNone);
+    }
+  }
+}
+
 // Draws one mark as a straight quad from A to B, half_thick wide, with
 // the requested cap style -- plain native gpath/circle calls now that
 // this runs inside a live GContext (see the design note at the top of
 // this file for why that's new). style: 0=dot (round caps, via filled
 // circles at both ends), 1=line (flush/butt ends), 2=square (ends
 // extended outward by half_thick, like SVG's stroke-linecap:square).
-static void draw_ring_mark(GContext *ctx, GPoint A, GPoint B, int16_t half_thick, uint8_t style, GColor color) {
+// translucent switches every fill in here to the dithered variants
+// above instead -- see MarkerRingConfig.translucent's own comment for
+// when this is actually set.
+static void draw_ring_mark(GContext *ctx, GPoint A, GPoint B, int16_t half_thick, uint8_t style, GColor color, bool translucent) {
   if (half_thick < 1) half_thick = 1;
 
   int32_t dx = B.x - A.x, dy = B.y - A.y;
   int32_t len_sq = dx * dx + dy * dy;
   if (len_sq == 0) {
-    graphics_context_set_fill_color(ctx, color);
-    graphics_fill_circle(ctx, A, half_thick);
+    if (translucent) {
+      fill_circle_dithered_marker(ctx, A, half_thick, color);
+    } else {
+      graphics_context_set_fill_color(ctx, color);
+      graphics_fill_circle(ctx, A, half_thick);
+    }
     return;
   }
   int32_t len = isqrt32(len_sq);
@@ -1271,6 +1333,16 @@ static void draw_ring_mark(GContext *ctx, GPoint A, GPoint B, int16_t half_thick
     GPoint(a.x + offx, a.y + offy), GPoint(a.x - offx, a.y - offy),
     GPoint(b.x - offx, b.y - offy), GPoint(b.x + offx, b.y + offy),
   };
+
+  if (translucent) {
+    fill_polygon_dithered_marker(ctx, points, 4, color);
+    if (style == 0) { // dot caps
+      fill_circle_dithered_marker(ctx, A, half_thick, color);
+      fill_circle_dithered_marker(ctx, B, half_thick, color);
+    }
+    return;
+  }
+
   GPathInfo info = { .num_points = 4, .points = points };
   GPath *path = gpath_create(&info);
   graphics_context_set_fill_color(ctx, color);
@@ -1299,7 +1371,7 @@ static void draw_marker_ring(GContext *ctx, GPoint center, GRect screen, const M
 
     GPoint outer_pt = point_on_ring(center, screen, angle, outer_pct, cfg->outer_eccentricity);
     GPoint inner_pt = point_on_ring(center, screen, angle, inner_pct, cfg->inner_eccentricity);
-    draw_ring_mark(ctx, outer_pt, inner_pt, half_thick, cfg->style, color);
+    draw_ring_mark(ctx, outer_pt, inner_pt, half_thick, cfg->style, color, cfg->translucent);
   }
 }
 
@@ -1519,7 +1591,7 @@ static void draw_all_markers(GContext *ctx, CanvasState *state, GPoint center, G
   ensure_marker_bitmap_loaded(state, marker_style);
 
   if (is_bitmap_style) {
-    tint_marker_bitmap(state, main_color, d->big_analog_hands_transparent);
+    tint_marker_bitmap(state, main_color, d->bitmap_marker_transparent);
     draw_marker_bitmap(ctx, state->marker_bitmap, screen);
     return;
   }
