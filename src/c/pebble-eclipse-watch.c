@@ -1875,6 +1875,69 @@ static void draw_corner_item(GContext *ctx, GRect bounds, uint8_t content, uint8
       dynamic_color = connected ? GColorFromRGB(64, 224, 208) : GColorFromRGB(255, 0, 0);
       break;
     }
+    // ---- astronomy features (79-83) -- all built from data already
+    // being sent every refresh for the sky-view animation itself
+    // (planet altitude samples/rise/set, Saturn's ring angle, the
+    // active meteor shower) except 83, which needed a genuinely new
+    // phone-side computation (see astro.js's findNextIssPass()) since
+    // only a single current-moment ISS snapshot existed before.
+    case 79: { // how many of the 5 tracked planets are above the horizon right now
+      time_t now = time(NULL);
+      uint8_t count = background_count_visible_planets(&s_data, now);
+      snprintf(buf, sizeof(buf), "%d planet%s", count, count == 1 ? "" : "s");
+      dynamic_color = main_color;
+      break;
+    }
+    case 80: { // active meteor shower name, if any -- graded by intensity like a percentage
+      if (s_data.meteor_intensity > 0 && s_data.meteor_shower_name[0] != '\0') {
+        snprintf(buf, sizeof(buf), "%s", s_data.meteor_shower_name);
+        dynamic_color = red_green_gradient(s_data.meteor_intensity);
+      } else {
+        snprintf(buf, sizeof(buf), "None");
+        dynamic_color = GColorLightGray;
+      }
+      break;
+    }
+    case 81: { // Saturn's current ring-opening angle (0% = edge-on, 100% = fully open)
+      snprintf(buf, sizeof(buf), "Rings %d%%", s_data.saturn_ring_open_pct);
+      dynamic_color = main_color;
+      break;
+    }
+    case 82: { // which of the 5 tracked planets rises next today, and when
+      time_t now = time(NULL);
+      static const char *PLANET_ABBR[PLANET_COUNT] = { "MER", "VEN", "MAR", "JUP", "SAT" };
+      int best = -1;
+      time_t best_t = 0;
+      for (int p = 0; p < PLANET_COUNT; p++) {
+        time_t r = s_data.planet_rise[p];
+        if (r > now && (best == -1 || r < best_t)) {
+          best = p;
+          best_t = r;
+        }
+      }
+      if (best >= 0) {
+        struct tm *t = localtime(&best_t);
+        char time_buf[8];
+        strftime(time_buf, sizeof(time_buf), clock_is_24h_style() ? "%H:%M" : "%I:%M", t);
+        snprintf(buf, sizeof(buf), "%s %s", PLANET_ABBR[best], time_buf);
+      } else {
+        snprintf(buf, sizeof(buf), "None");
+      }
+      dynamic_color = main_color;
+      break;
+    }
+    case 83: { // start time of the next visible ISS pass, if astro.js's
+               // findNextIssPass() found one in its search window -- see
+               // eclipse_data.h's iss_next_pass comment for what "visible" means
+      if (s_data.iss_next_pass > 0) {
+        struct tm *t = localtime(&s_data.iss_next_pass);
+        strftime(buf, sizeof(buf), clock_is_24h_style() ? "%H:%M" : "%I:%M %p", t);
+      } else {
+        snprintf(buf, sizeof(buf), "--:--");
+      }
+      dynamic_color = main_color;
+      break;
+    }
     default:
       return;
   }
@@ -3309,6 +3372,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   if ((t = dict_find(iter, MESSAGE_KEY_ISS_ALT))) s_data.iss_alt_deg = t->value->int16;
   if ((t = dict_find(iter, MESSAGE_KEY_ISS_AZ))) s_data.iss_az_deg = t->value->uint16;
   if ((t = dict_find(iter, MESSAGE_KEY_ISS_COMPUTED_AT))) s_data.iss_computed_at = (time_t)t->value->int32;
+  if ((t = dict_find(iter, MESSAGE_KEY_ISS_NEXT_PASS))) s_data.iss_next_pass = (time_t)(int32_t)t->value->int32;
 
   save_data();
   refresh_status_and_maybe_canvas(true);

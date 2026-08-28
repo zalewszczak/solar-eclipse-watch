@@ -61,3 +61,11 @@ void draw_moon_phase(GContext *ctx, GRect bounds, GPoint center, int16_t radius,
 // Compact ("WxGb", "Full", ...) Moon phase name for the corners
 // overlay's tight box width -- see the .c file for the full set.
 const char *moon_phase_short_name(uint8_t pct, bool waxing);
+
+// How many of the 5 tracked naked-eye planets (Mercury/Venus/Mars/
+// Jupiter/Saturn -- see PlanetId) are currently above the horizon,
+// interpolated from the same planet_alt_decideg samples the sky
+// canvas already animates their positions from. Used by the "Planets
+// visible" corner content -- purely a re-read of data already being
+// sent every refresh, no new phone-side computation.
+uint8_t background_count_visible_planets(const EclipseData *d, time_t now);

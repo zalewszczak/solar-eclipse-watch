@@ -53,11 +53,14 @@ function xhrGetJSON(url, timeoutMs, cb) {
 }
 
 /**
- * Fetches fresh ISS elements and computes its current look angle.
+ * Fetches fresh ISS elements and computes both its current look angle
+ * and, from the same element set (no extra network call), the start
+ * time of the next visible pass -- see astro.js's findNextIssPass()
+ * for exactly what "visible" means and the search window it uses.
  *
  * @param {number} lat
  * @param {number} lon
- * @param {function(Error|null, {alt: number, az: number, distanceKm: number, epoch: Date}|null)} cb
+ * @param {function(Error|null, {alt: number, az: number, distanceKm: number, epoch: Date, nextPass: Date|null}|null)} cb
  */
 function getIssPosition(lat, lon, cb) {
   var url = 'https://celestrak.org/NORAD/elements/gp.php?CATNR=' + ISS_CATALOG_NUMBER + '&FORMAT=json';
@@ -77,8 +80,10 @@ function getIssPosition(lat, lon, cb) {
         argPerigeeDeg: rec.ARG_OF_PERICENTER,
         meanAnomalyDeg: rec.MEAN_ANOMALY
       };
-      var look = astro.issLookAngle(omm, new Date(), lat, lon);
-      cb(null, { alt: look.alt, az: look.az, distanceKm: look.distanceKm, epoch: omm.epoch });
+      var now = new Date();
+      var look = astro.issLookAngle(omm, now, lat, lon);
+      var nextPass = astro.findNextIssPass(omm, now, lat, lon);
+      cb(null, { alt: look.alt, az: look.az, distanceKm: look.distanceKm, epoch: omm.epoch, nextPass: nextPass });
     } catch (e) {
       cb(e, null);
     }

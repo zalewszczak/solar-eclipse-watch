@@ -224,6 +224,14 @@ static int16_t interp_planet_alt_decideg(const EclipseData *d, PlanetId planet, 
   return (int16_t)(a + ((b - a) * frac_num) / frac_den);
 }
 
+uint8_t background_count_visible_planets(const EclipseData *d, time_t now) {
+  uint8_t count = 0;
+  for (int p = 0; p < PLANET_COUNT; p++) {
+    if (interp_planet_alt_decideg(d, (PlanetId)p, now) > 0) count++;
+  }
+  return count;
+}
+
 // Same idea again, for the full-day cloud-cover samples (0-100 %).
 static uint8_t interp_cloud_pct(const EclipseData *d, time_t t) {
   if (d->sky_sample_count == 0) return 0;

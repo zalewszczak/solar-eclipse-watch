@@ -185,7 +185,12 @@ var CORNER_CONTENT_OPTIONS = [
   { id: 75, label: 'Low temp' },
   { id: 76, label: 'Weather icon + all temps' },
   { id: 77, label: 'Feels like temp' },
-  { id: 78, label: 'Bluetooth status (icon only)' }
+  { id: 78, label: 'Bluetooth status (icon only)' },
+  { id: 79, label: 'Planets visible now' },
+  { id: 80, label: 'Meteor shower' },
+  { id: 81, label: 'Saturn ring angle' },
+  { id: 82, label: 'Next planet rise' },
+  { id: 83, label: 'Next ISS pass' }
 ];
 // Must match draw_corner_item()'s color_mode switch exactly.
 var CORNER_COLOR_MODE_LABELS = ['MONO', 'ACC', 'SEMI', 'COLOR'];
@@ -1355,7 +1360,8 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  50: "DAC 18:34", 51: "BKK 19:34", 52: "BJS 20:34", 53: "TOK 21:34", 54: "SYD 22:34", 55: "AKL 00:34",' +
 '  56: "NYC 07:34", 57: "CHI 06:34", 58: "DEN 05:34", 59: "LAX 04:34", 60: "ANC 03:34", 61: "HNL 02:34", 62: "SAO 09:34",' +
 '  63: "14:32:07", 64: "07", 65: "7", 66: "7", 67: "5", 68: "05", 69: "8", 70: "08", 71: "3", 72: "8",' +
-'  73: "22C", 74: "H 28C", 75: "L 11C", 76: "22 H28 L11C", 77: "FL 20C", 78: "(bt)"' +
+'  73: "22C", 74: "H 28C", 75: "L 11C", 76: "22 H28 L11C", 77: "FL 20C", 78: "(bt)",' +
+'  79: "3 planets", 80: "Perseids", 81: "Rings 12%", 82: "VEN 18:32", 83: "22:47"' +
 '};' +
 
 'function hasPreviewContent(contentId) {' +
@@ -1763,7 +1769,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 // CORNER_PREVIEW_LABELS below is its own separate runtime copy rather
 // than reusing the generator-side labels). Keep in sync with
 // CORNER_CONTENT_OPTIONS/CORNER_CATEGORIES above by hand -- every
-// content id 0-78 must appear in exactly one category\'s items list.
+// content id 0-83 must appear in exactly one category\'s items list.
 'var CORNER_CATEGORIES = [' +
 '  { id: "none", label: "None", items: [{ id: 0, label: "None" }] },' +
 '  { id: "utilities", label: "Utilities", items: [' +
@@ -1806,7 +1812,12 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    { id: 74, label: "High temp" }, { id: 75, label: "Low temp" }, { id: 76, label: "Weather icon + all temps" },' +
 '    { id: 77, label: "Feels like temp" }' +
 '  ] },' +
-'  { id: "astro", label: "Astronomy", items: [{ id: 11, label: "Moon phase" }, { id: 16, label: "Sunrise / sunset" }] }' +
+'  { id: "astro", label: "Astronomy", items: [' +
+'    { id: 11, label: "Moon phase" }, { id: 16, label: "Sunrise / sunset" },' +
+'    { id: 79, label: "Planets visible now" }, { id: 80, label: "Meteor shower" },' +
+'    { id: 81, label: "Saturn ring angle" }, { id: 82, label: "Next planet rise" },' +
+'    { id: 83, label: "Next ISS pass" }' +
+'  ] }' +
 '];' +
 'function categoryForContentId(contentId) {' +
 '  var idNum = parseInt(contentId, 10);' +
@@ -2535,6 +2546,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    CONFIG_HAND_HOUR_COLOR: document.getElementById("handHourColor").value,' +
 '    CONFIG_HAND_HOUR_OUTLINE_ENABLED: document.getElementById("handHourOutlineEnabled").value,' +
 '    CONFIG_HAND_HOUR_OUTLINE_COLOR: document.getElementById("handHourOutlineColor").value,' +
+'    CONFIG_HAND_HOUR_TRANSLUCENT: document.getElementById("handHourTranslucent").value === "true",' +
 '    CONFIG_HAND_MIN_STYLE: document.getElementById("handMinStyle").value,' +
 '    CONFIG_HAND_MIN_WIDTH: document.getElementById("handMinWidth").value,' +
 '    CONFIG_HAND_MIN_LENGTH: document.getElementById("handMinLength").value,' +
@@ -2542,6 +2554,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    CONFIG_HAND_MIN_COLOR: document.getElementById("handMinColor").value,' +
 '    CONFIG_HAND_MIN_OUTLINE_ENABLED: document.getElementById("handMinOutlineEnabled").value,' +
 '    CONFIG_HAND_MIN_OUTLINE_COLOR: document.getElementById("handMinOutlineColor").value,' +
+'    CONFIG_HAND_MIN_TRANSLUCENT: document.getElementById("handMinTranslucent").value === "true",' +
 '    CONFIG_HAND_SEC_STYLE: document.getElementById("handSecStyle").value,' +
 '    CONFIG_HAND_SEC_WIDTH: document.getElementById("handSecWidth").value,' +
 '    CONFIG_HAND_SEC_LENGTH: document.getElementById("handSecLength").value,' +
@@ -2549,6 +2562,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    CONFIG_HAND_SEC_COLOR: document.getElementById("handSecColor").value,' +
 '    CONFIG_HAND_SEC_OUTLINE_ENABLED: document.getElementById("handSecOutlineEnabled").value,' +
 '    CONFIG_HAND_SEC_OUTLINE_COLOR: document.getElementById("handSecOutlineColor").value,' +
+'    CONFIG_HAND_SEC_TRANSLUCENT: document.getElementById("handSecTranslucent").value === "true",' +
 '    CONFIG_CENTER_CIRCLE_RADIUS: document.getElementById("centerCircleRadius").value,' +
 '    CONFIG_CENTER_CIRCLE_COLOR: document.getElementById("centerCircleColor").value,' +
 '    CONFIG_DEBUG_OVERRIDE_DATA: document.getElementById("debugData").value' +

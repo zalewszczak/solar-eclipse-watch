@@ -417,6 +417,13 @@ typedef struct {
   time_t iss_computed_at;       // when this snapshot was computed phone-side; the watch treats it as
                                   // stale (and doesn't draw it) once too much time has passed, since
                                   // the ISS moves fast enough that an old snapshot would be visibly wrong
+  time_t iss_next_pass;         // start time of the next visible pass (observer dark + ISS above ~10 deg
+                                  // + ISS itself sunlit) found by astro.js's findNextIssPass(), searched
+                                  // forward from "now" at fetch time -- 0 if none found in that window
+                                  // (window and thresholds documented on findNextIssPass() itself). Used
+                                  // by the "Next ISS pass" corner content; independent of iss_alt_deg/
+                                  // iss_az_deg/show_iss above, which are the separate "draw it on the sky
+                                  // view right now" snapshot and its own on/off setting.
 } EclipseData;
 
 // Defined in pebble-eclipse-watch.c, declared here (rather than a new

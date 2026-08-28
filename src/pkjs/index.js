@@ -6,7 +6,7 @@ var iss = require('./iss');
 
 var TYPE_CODE = { none: 0, partial: 1, total: 2, annular: 3 };
 
-var MAX_FEATURES = 78; // highest corner/edge content id -- see CORNER_CONTENT_OPTIONS in config-page.js
+var MAX_FEATURES = 83; // highest corner/edge content id -- see CORNER_CONTENT_OPTIONS in config-page.js
 
 var refreshTimer = null;
 // Guards against a slow, older refresh's response arriving AFTER a
@@ -1097,6 +1097,7 @@ function sendDict(dict) {
 '  "ISS_ALT": 0,'+
 '  "ISS_AZ": 0,'+
 '  "ISS_COMPUTED_AT": 0,'+
+'  "ISS_NEXT_PASS": 0,'+
 '  "CLOCK_FONT": 3,'+
 '  "TEMP_UNIT": 0,'+
 '  "WIND_SPEED_UNIT": 0,'+
@@ -1247,7 +1248,8 @@ function issFieldsDict(issPos) {
   return {
     'ISS_ALT': issPos ? Math.round(issPos.alt) : 0,
     'ISS_AZ': issPos ? Math.round(issPos.az) : 0,
-    'ISS_COMPUTED_AT': issPos ? Math.floor(Date.now() / 1000) : 0
+    'ISS_COMPUTED_AT': issPos ? Math.floor(Date.now() / 1000) : 0,
+    'ISS_NEXT_PASS': (issPos && issPos.nextPass) ? toEpoch(issPos.nextPass) : 0
   };
 }
 
@@ -1475,9 +1477,15 @@ function shouldSkipRefresh(lat, lon) {
 // (per the brief -- this needs a live external data source, unlike
 // the planets, so it's opt-in rather than always-on). Fails open: a
 // fetch error just means no ISS this cycle, not a hard refresh
-// failure -- everything else in the payload is still good.
+// failure -- everything else in the payload is still good. Fires
+// either when the sky-view "Show ISS" toggle is on, or when the
+// separate "Next ISS pass" corner content (id 83, text-only, no sky
+// dot) is picked anywhere -- same "only fetch if actually shown
+// somewhere" reasoning as fetchAirQualityIfEnabled below, since both
+// draw from the exact same Celestrak fetch + astro.js computation.
 function fetchIssIfEnabled(lat, lon, cb) {
-  if (getSetting('CONFIG_SHOW_ISS', 'false') !== 'true') {
+  var nextPassInUse = AQI_SLOT_CONTENT_KEYS.some(function (key) { return getSetting(key, '0') === '83'; });
+  if (getSetting('CONFIG_SHOW_ISS', 'false') !== 'true' && !nextPassInUse) {
     return cb(null);
   }
   iss.getIssPosition(lat, lon, function (err, pos) {

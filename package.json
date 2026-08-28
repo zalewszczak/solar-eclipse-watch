@@ -82,6 +82,7 @@
       "ISS_ALT",
       "ISS_AZ",
       "ISS_COMPUTED_AT",
+      "ISS_NEXT_PASS",
       "CORNER_CONTENT",
       "CORNER_COLOR_MODE",
       "DAILY_STEP_GOAL",
