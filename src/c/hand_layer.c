@@ -112,9 +112,111 @@ static void draw_hand_outline_once_fp(GContext *ctx, FGPoint center, int32_t ang
   }
 }
 
+// Bayer-dithered polygon/circle fills at an arbitrary density, not just
+// fill_polygon_dithered_fp()/fill_circle_fp()'s fixed ~50% -- shadows need
+// a second, lighter ~25% density (see draw_hand_shadow_once_fp() below),
+// and duplicating the scan logic here (rather than changing the shared
+// subpixel.h versions or their callers) matches this project's own
+// stated convention for small self-contained helpers like this -- see
+// subpixel.h's top-of-file comment. `threshold` is compared directly
+// against BAYER4's 0-15 values (skip when >= threshold): 8 reproduces
+// the original ~50%, 4 gives ~25%.
+static void fill_polygon_dithered_level_fp(GContext *ctx, const FGPoint *pts, int n, GColor color, uint8_t threshold) {
+  int32_t min_x_fp = pts[0].x, max_x_fp = pts[0].x;
+  int32_t min_y_fp = pts[0].y, max_y_fp = pts[0].y;
+  for (int i = 1; i < n; i++) {
+    if (pts[i].x < min_x_fp) min_x_fp = pts[i].x;
+    if (pts[i].x > max_x_fp) max_x_fp = pts[i].x;
+    if (pts[i].y < min_y_fp) min_y_fp = pts[i].y;
+    if (pts[i].y > max_y_fp) max_y_fp = pts[i].y;
+  }
+
+  int16_t min_x = (int16_t)(min_x_fp >> SUBPIXEL_BITS);
+  int16_t max_x = (int16_t)((max_x_fp + SUBPIXEL_MASK) >> SUBPIXEL_BITS);
+  int16_t min_y = (int16_t)(min_y_fp >> SUBPIXEL_BITS);
+  int16_t max_y = (int16_t)((max_y_fp + SUBPIXEL_MASK) >> SUBPIXEL_BITS);
+
+  graphics_context_set_fill_color(ctx, color);
+
+  for (int16_t y = min_y; y <= max_y; y++) {
+    int32_t sample_y = ((int32_t)y << SUBPIXEL_BITS) + SUBPIXEL_HALF;
+    for (int16_t x = min_x; x <= max_x; x++) {
+      if (BAYER4[y & 3][x & 3] >= threshold) continue;
+      int32_t sample_x = ((int32_t)x << SUBPIXEL_BITS) + SUBPIXEL_HALF;
+      if (point_in_convex_polygon_fp(pts, n, fgpoint_new(sample_x, sample_y))) {
+        graphics_fill_rect(ctx, GRect(x, y, 1, 1), 0, GCornerNone);
+      }
+    }
+  }
+}
+
+static void fill_circle_dithered_level_fp(GContext *ctx, FGPoint center, int32_t radius_fp, GColor color, uint8_t threshold) {
+  int16_t min_x = (int16_t)((center.x - radius_fp) >> SUBPIXEL_BITS);
+  int16_t max_x = (int16_t)((center.x + radius_fp + SUBPIXEL_MASK) >> SUBPIXEL_BITS);
+  int16_t min_y = (int16_t)((center.y - radius_fp) >> SUBPIXEL_BITS);
+  int16_t max_y = (int16_t)((center.y + radius_fp + SUBPIXEL_MASK) >> SUBPIXEL_BITS);
+
+  int64_t r_sq = (int64_t)radius_fp * radius_fp;
+  graphics_context_set_fill_color(ctx, color);
+
+  for (int16_t y = min_y; y <= max_y; y++) {
+    int64_t dy = (((int32_t)y << SUBPIXEL_BITS) + SUBPIXEL_HALF) - center.y;
+    int64_t dy_sq = dy * dy;
+    for (int16_t x = min_x; x <= max_x; x++) {
+      if (BAYER4[y & 3][x & 3] >= threshold) continue;
+      int64_t dx = (((int32_t)x << SUBPIXEL_BITS) + SUBPIXEL_HALF) - center.x;
+      if (dx * dx + dy_sq <= r_sq) {
+        graphics_fill_rect(ctx, GRect(x, y, 1, 1), 0, GCornerNone);
+      }
+    }
+  }
+}
+
+// A drop shadow of the hand's own shape, translated (never rotated
+// relative to the hand -- a real shadow's direction is fixed by the
+// light source, not by whatever the hand itself currently points at) by
+// shadow_distance_px in shadow_angle_deg's direction, then filled in
+// black -- solid if shadow_translucent_style is off, otherwise dithered
+// at ~50%, or ~25% when the hand itself (cfg->translucent) is also
+// translucent. Drawn before the outline/fill in hand_layer_draw() below,
+// so it always sits underneath both.
+static void draw_hand_shadow_once_fp(GContext *ctx, FGPoint center, int32_t angle, const HandConfig *cfg,
+                                      bool shadow_translucent_style) {
+  if (!cfg->shadow_enabled) return;
+
+  int32_t shadow_native_angle = (int32_t)(((int64_t)cfg->shadow_angle_deg * TRIG_MAX_ANGLE) / 360);
+  int32_t dist_fp = (int32_t)cfg->shadow_distance_px << SUBPIXEL_BITS;
+  int32_t dx = (int32_t)(((int64_t)dist_fp * sin_lookup(shadow_native_angle)) / TRIG_MAX_RATIO);
+  int32_t dy = -(int32_t)(((int64_t)dist_fp * cos_lookup(shadow_native_angle)) / TRIG_MAX_RATIO);
+  FGPoint shadow_center = fgpoint_new(center.x + dx, center.y + dy);
+
+  FGPoint points[4], inner, outer;
+  int32_t half_w;
+  int n = compute_hand_geometry_fp(shadow_center, angle, cfg, points, &inner, &outer, &half_w);
+
+  if (!shadow_translucent_style) {
+    fill_polygon_fp(ctx, points, n, GColorBlack);
+    if (n == 4 && cfg->style == 0) {
+      fill_circle_fp(ctx, inner, half_w, GColorBlack, false);
+      fill_circle_fp(ctx, outer, half_w, GColorBlack, false);
+    }
+    return;
+  }
+
+  uint8_t threshold = cfg->translucent ? 4 : 8; // ~25% vs ~50% Bayer density
+  fill_polygon_dithered_level_fp(ctx, points, n, GColorBlack, threshold);
+  if (n == 4 && cfg->style == 0) {
+    fill_circle_dithered_level_fp(ctx, inner, half_w, GColorBlack, threshold);
+    fill_circle_dithered_level_fp(ctx, outer, half_w, GColorBlack, threshold);
+  }
+}
+
 void hand_layer_draw(GContext *ctx, GPoint center, int32_t angle, const HandConfig *cfg,
-                      GColor main_color, GColor accent_color, GColor bg_color) {
+                      GColor main_color, GColor accent_color, GColor bg_color,
+                      bool shadow_translucent_style) {
   FGPoint center_fp = fgpoint_from_gpoint(center);
+
+  draw_hand_shadow_once_fp(ctx, center_fp, angle, cfg, shadow_translucent_style);
 
   if (cfg->outline_enabled) {
     // A real perimeter trace now (see draw_hand_outline_once above),

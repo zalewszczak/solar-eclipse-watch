@@ -439,10 +439,13 @@ function handHiddenInputsHtml(current) {
   var d = {
     handHourStyle: '1', handHourWidth: '12', handHourLength: '51', handHourBackOffset: '0',
     handHourColor: '0', handHourOutlineEnabled: 'false', handHourOutlineColor: '0', handHourTranslucent: 'false',
+    handHourShadowEnabled: 'false', handHourShadowAngle: '120', handHourShadowDistance: '2',
     handMinStyle: '1', handMinWidth: '18', handMinLength: '78', handMinBackOffset: '0',
     handMinColor: '0', handMinOutlineEnabled: 'false', handMinOutlineColor: '0', handMinTranslucent: 'false',
+    handMinShadowEnabled: 'false', handMinShadowAngle: '120', handMinShadowDistance: '2',
     handSecStyle: '0', handSecWidth: '2', handSecLength: '85', handSecBackOffset: '0',
-    handSecColor: '1', handSecOutlineEnabled: 'false', handSecOutlineColor: '0', handSecTranslucent: 'false'
+    handSecColor: '1', handSecOutlineEnabled: 'false', handSecOutlineColor: '0', handSecTranslucent: 'false',
+    handSecShadowEnabled: 'false', handSecShadowAngle: '120', handSecShadowDistance: '2'
   };
   var html = '';
   for (var key in d) {
@@ -518,6 +521,28 @@ function handEditorModalHtml(kind, title) {
 '    </div>' +
 '    <label for="' + p + 'OutlineColor">Outline color</label>' +
 '    <select id="' + p + 'OutlineColor">' + schemeColorOptionsHtml('0') + '</select>' +
+
+'    <div class="checkbox-row" style="margin-top:12px;">' +
+'      <input type="checkbox" id="' + p + 'ShadowEnabled" onchange="onHandSliderInput(\'' + kind + '\')">' +
+'      <label for="' + p + 'ShadowEnabled" style="margin:0;">Shadow</label>' +
+'    </div>' +
+'    <div class="help">A drop shadow of the hand\'s own shape, offset a fixed distance in a fixed direction (not rotated with the hand). Solid or translucent is set once for every hand in the Style section.</div>' +
+'    <div class="slider-row">' +
+'      <label for="' + p + 'ShadowAngle">Shadow angle <span class="val" id="' + p + 'ShadowAngleVal"></span></label>' +
+'      <div class="slider-with-buttons">' +
+'      <button type="button" class="slider-step-btn" onclick="stepSlider(\'' + p + 'ShadowAngle\', -1)">&minus;</button>' +
+'      <input type="range" id="' + p + 'ShadowAngle" min="0" max="359" step="1" oninput="onHandSliderInput(\'' + kind + '\')">' +
+'      <button type="button" class="slider-step-btn" onclick="stepSlider(\'' + p + 'ShadowAngle\', 1)">+</button>' +
+'      </div>' +
+'    </div>' +
+'    <div class="slider-row">' +
+'      <label for="' + p + 'ShadowDistance">Shadow distance <span class="val" id="' + p + 'ShadowDistanceVal"></span></label>' +
+'      <div class="slider-with-buttons">' +
+'      <button type="button" class="slider-step-btn" onclick="stepSlider(\'' + p + 'ShadowDistance\', -1)">&minus;</button>' +
+'      <input type="range" id="' + p + 'ShadowDistance" min="1" max="5" step="1" oninput="onHandSliderInput(\'' + kind + '\')">' +
+'      <button type="button" class="slider-step-btn" onclick="stepSlider(\'' + p + 'ShadowDistance\', 1)">+</button>' +
+'      </div>' +
+'    </div>' +
 
 '    <button type="button" class="marker-edit-btn" style="margin-top:8px;" onclick="copyHandConfig(\'' + kind + '\')">Copy ' + HAND_COPY_SOURCE_LABEL[kind] + ' hand settings</button>' +
 
@@ -843,6 +868,19 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '        <label for="bigAnalogTransparent" style="margin:0;">Semi-transparent hands (see the sky through them)</label>' +
 '      </div>' +
 '      <div class="help">To show the date behind the hands, pick "Short date" as a line in the Features section below (bottom-middle line 1 does this by default).</div>' +
+'      <div class="checkbox-row" id="bigAnalogHandsShadowRow" style="margin-top:12px;' + (current.bigAnalogHandStyle === '4' ? ' display:none;' : '') + '">' +
+'        <input type="checkbox" id="bigAnalogHandsShadow" ' + (current.bigAnalogHandsShadow ? 'checked' : '') + ' onchange="updatePreview()">' +
+'        <label for="bigAnalogHandsShadow" style="margin:0;">Shadow</label>' +
+'      </div>' +
+'      <div class="help">Drop shadow behind all 3 hands, offset 2px at a fixed 120\u00b0 -- pick your own angle/distance per hand instead with the Custom hand style below.</div>' +
+
+'      <label for="shadowTranslucent" style="margin-top:12px;">Shadow style</label>' +
+'      <select id="shadowTranslucent" onchange="updatePreview()">' +
+'        <option value="true"' + (current.shadowTranslucent !== 'false' ? ' selected' : '') + '>Translucent</option>' +
+'        <option value="false"' + (current.shadowTranslucent === 'false' ? ' selected' : '') + '>Solid</option>' +
+'      </select>' +
+'      <div class="help">Applies to every hand\'s shadow, preset or custom -- translucent dithers to ~50% (~25% for a hand that\'s itself semi-transparent), solid is fully opaque black.</div>' +
+
 
 '      <div id="customHandSection" style="' + (current.bigAnalogHandStyle === '4' ? '' : 'display:none;') + '">' +
 '        <button type="button" class="marker-edit-btn" onclick="openHandEditor(\'hour\')">Edit hour hand &rsaquo;</button>' +
@@ -2200,8 +2238,8 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '}' +
 
 // ---- custom hour/minute/second hand popups ----------------------------
-'var HE_FIELDS = ["Style", "Width", "Length", "BackOffset", "Color", "OutlineEnabled", "OutlineColor", "Translucent"];' +
-'var HE_CHECKBOX_FIELDS = ["OutlineEnabled", "Translucent"];' +
+'var HE_FIELDS = ["Style", "Width", "Length", "BackOffset", "Color", "OutlineEnabled", "OutlineColor", "Translucent", "ShadowEnabled", "ShadowAngle", "ShadowDistance"];' +
+'var HE_CHECKBOX_FIELDS = ["OutlineEnabled", "Translucent", "ShadowEnabled"];' +
 'var HAND_COPY_SOURCE = { hour: "min", min: "hour", sec: "min" };' +
 'function heHiddenPrefix(kind) { return kind === "hour" ? "handHour" : (kind === "min" ? "handMin" : "handSec"); }' +
 'function hePopupPrefix(kind) { return "he" + kind.charAt(0).toUpperCase() + kind.slice(1); }' +
@@ -2229,6 +2267,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  var val = document.getElementById("bigAnalogHandStyle").value;' +
 '  document.getElementById("customHandSection").style.display = (val === "4") ? "" : "none";' +
 '  document.getElementById("bigAnalogTransparentRow").style.display = (val === "4") ? "none" : "";' +
+'  document.getElementById("bigAnalogHandsShadowRow").style.display = (val === "4") ? "none" : "";' +
 '  var preset = HAND_PRESETS[val];' +
 '  if (preset) {' +
 '    applyHandPresetToKind("hour", preset.hour);' +
@@ -2239,11 +2278,14 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '}' +
 'function updateHandValLabels(kind) {' +
 '  var p = hePopupPrefix(kind);' +
-'  ["Width", "Length", "BackOffset"].forEach(function (f) {' +
+'  ["Width", "Length", "BackOffset", "ShadowDistance"].forEach(function (f) {' +
 '    var el = document.getElementById(p + f);' +
 '    var out = document.getElementById(p + f + "Val");' +
 '    if (el && out) out.textContent = el.value + "px";' +
 '  });' +
+'  var angleEl = document.getElementById(p + "ShadowAngle");' +
+'  var angleOut = document.getElementById(p + "ShadowAngleVal");' +
+'  if (angleEl && angleOut) angleOut.textContent = angleEl.value + "\u00b0";' +
 '}' +
 'function onHandSliderInput(kind) {' +
 '  updateHandValLabels(kind);' +
@@ -2486,6 +2528,8 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    CONFIG_ANALOG_STYLE: document.getElementById("analogStyle").value,' +
 '    CONFIG_BIG_ANALOG_HAND_STYLE: document.getElementById("bigAnalogHandStyle").value,' +
 '    CONFIG_BIG_ANALOG_TRANSPARENT: document.getElementById("bigAnalogTransparent").checked,' +
+'    CONFIG_BIG_ANALOG_HANDS_SHADOW: document.getElementById("bigAnalogHandsShadow").checked,' +
+'    CONFIG_SHADOW_TRANSLUCENT: document.getElementById("shadowTranslucent").value,' +
 '    CONFIG_BIG_ANALOG_MARKER_STYLE: document.getElementById("bigAnalogMarkerStyle").value,' +
 '    CONFIG_BITMAP_MARKER_TRANSPARENT: document.getElementById("bitmapMarkerTransparent").checked,' +
 '    CONFIG_DRAW_FEATURES_BENEATH_HANDS: document.getElementById("drawFeaturesBeneathHands").checked,' +
@@ -2554,6 +2598,9 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    CONFIG_HAND_HOUR_OUTLINE_ENABLED: document.getElementById("handHourOutlineEnabled").value,' +
 '    CONFIG_HAND_HOUR_OUTLINE_COLOR: document.getElementById("handHourOutlineColor").value,' +
 '    CONFIG_HAND_HOUR_TRANSLUCENT: document.getElementById("handHourTranslucent").value === "true",' +
+'    CONFIG_HAND_HOUR_SHADOW_ENABLED: document.getElementById("handHourShadowEnabled").value === "true",' +
+'    CONFIG_HAND_HOUR_SHADOW_ANGLE: document.getElementById("handHourShadowAngle").value,' +
+'    CONFIG_HAND_HOUR_SHADOW_DISTANCE: document.getElementById("handHourShadowDistance").value,' +
 '    CONFIG_HAND_MIN_STYLE: document.getElementById("handMinStyle").value,' +
 '    CONFIG_HAND_MIN_WIDTH: document.getElementById("handMinWidth").value,' +
 '    CONFIG_HAND_MIN_LENGTH: document.getElementById("handMinLength").value,' +
@@ -2562,6 +2609,9 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    CONFIG_HAND_MIN_OUTLINE_ENABLED: document.getElementById("handMinOutlineEnabled").value,' +
 '    CONFIG_HAND_MIN_OUTLINE_COLOR: document.getElementById("handMinOutlineColor").value,' +
 '    CONFIG_HAND_MIN_TRANSLUCENT: document.getElementById("handMinTranslucent").value === "true",' +
+'    CONFIG_HAND_MIN_SHADOW_ENABLED: document.getElementById("handMinShadowEnabled").value === "true",' +
+'    CONFIG_HAND_MIN_SHADOW_ANGLE: document.getElementById("handMinShadowAngle").value,' +
+'    CONFIG_HAND_MIN_SHADOW_DISTANCE: document.getElementById("handMinShadowDistance").value,' +
 '    CONFIG_HAND_SEC_STYLE: document.getElementById("handSecStyle").value,' +
 '    CONFIG_HAND_SEC_WIDTH: document.getElementById("handSecWidth").value,' +
 '    CONFIG_HAND_SEC_LENGTH: document.getElementById("handSecLength").value,' +
@@ -2570,6 +2620,9 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    CONFIG_HAND_SEC_OUTLINE_ENABLED: document.getElementById("handSecOutlineEnabled").value,' +
 '    CONFIG_HAND_SEC_OUTLINE_COLOR: document.getElementById("handSecOutlineColor").value,' +
 '    CONFIG_HAND_SEC_TRANSLUCENT: document.getElementById("handSecTranslucent").value === "true",' +
+'    CONFIG_HAND_SEC_SHADOW_ENABLED: document.getElementById("handSecShadowEnabled").value === "true",' +
+'    CONFIG_HAND_SEC_SHADOW_ANGLE: document.getElementById("handSecShadowAngle").value,' +
+'    CONFIG_HAND_SEC_SHADOW_DISTANCE: document.getElementById("handSecShadowDistance").value,' +
 '    CONFIG_CENTER_CIRCLE_RADIUS: document.getElementById("centerCircleRadius").value,' +
 '    CONFIG_CENTER_CIRCLE_COLOR: document.getElementById("centerCircleColor").value,' +
 '    CONFIG_DEBUG_OVERRIDE_DATA: document.getElementById("debugData").value' +

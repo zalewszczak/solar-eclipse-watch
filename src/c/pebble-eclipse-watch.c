@@ -298,9 +298,10 @@ static void hands_layer_update_proc(Layer *layer, GContext *ctx) {
 
   // All 5 hand styles now go through hand_layer_draw() -- custom (4) uses
   // the user's own per-hand settings; 0-3 use one of the hardcoded
-  // HAND_STYLE_*_PRESETS above, with the two still-global hand settings
-  // (outline_enabled, big_analog_hands_transparent) applied uniformly to
-  // all 3 hands, matching what draw_big_hand_outlined() used to do.
+  // HAND_STYLE_*_PRESETS above, with the still-global hand settings
+  // (outline_enabled, big_analog_hands_transparent, big_analog_hands_shadow)
+  // applied uniformly to all 3 hands, matching what draw_big_hand_outlined()
+  // used to do.
   HandConfig hour_cfg, min_cfg, sec_cfg;
   if (s_data.big_analog_hand_style == 4) {
     hour_cfg = s_data.hand_hour;
@@ -318,13 +319,20 @@ static void hands_layer_update_proc(Layer *layer, GContext *ctx) {
     // enum is the scheme's own background, which is high-contrast against
     // its text/accent colors in every built-in scheme.
     hour_cfg.outline_color = min_cfg.outline_color = sec_cfg.outline_color = 2;
+    // Shadow: one shared on/off toggle like outline_enabled above, but
+    // angle/distance are hardcoded rather than user-adjustable for the
+    // procedural presets -- only the custom hand system (hand_hour/
+    // hand_minute/hand_second above) exposes those as sliders.
+    hour_cfg.shadow_enabled = min_cfg.shadow_enabled = sec_cfg.shadow_enabled = s_data.big_analog_hands_shadow;
+    hour_cfg.shadow_angle_deg = min_cfg.shadow_angle_deg = sec_cfg.shadow_angle_deg = 120;
+    hour_cfg.shadow_distance_px = min_cfg.shadow_distance_px = sec_cfg.shadow_distance_px = 2;
   }
 
-  hand_layer_draw(ctx, center, hour_angle, &hour_cfg, main_color, accent_color, bg);
-  hand_layer_draw(ctx, center, min_angle, &min_cfg, main_color, accent_color, bg);
+  hand_layer_draw(ctx, center, hour_angle, &hour_cfg, main_color, accent_color, bg, s_data.shadow_translucent);
+  hand_layer_draw(ctx, center, min_angle, &min_cfg, main_color, accent_color, bg, s_data.shadow_translucent);
   if (s_data.show_seconds) {
     int32_t sec_angle = (t->tm_sec * TRIG_MAX_ANGLE) / 60;
-    hand_layer_draw(ctx, center, sec_angle, &sec_cfg, main_color, accent_color, bg);
+    hand_layer_draw(ctx, center, sec_angle, &sec_cfg, main_color, accent_color, bg, s_data.shadow_translucent);
   }
 
   if (s_data.big_analog_hand_style == 4) {
@@ -971,6 +979,14 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
     s_data.big_analog_hands_transparent = t->value->uint8 != 0;
     if (s_hands_layer) layer_mark_dirty(s_hands_layer);
   }
+  if ((t = dict_find(iter, MESSAGE_KEY_BIG_ANALOG_HANDS_SHADOW))) {
+    s_data.big_analog_hands_shadow = t->value->uint8 != 0;
+    if (s_hands_layer) layer_mark_dirty(s_hands_layer);
+  }
+  if ((t = dict_find(iter, MESSAGE_KEY_SHADOW_TRANSLUCENT))) {
+    s_data.shadow_translucent = t->value->uint8 != 0;
+    if (s_hands_layer) layer_mark_dirty(s_hands_layer);
+  }
   if ((t = dict_find(iter, MESSAGE_KEY_DRAW_FEATURES_BENEATH_HANDS))) {
     s_data.draw_features_beneath_hands = t->value->uint8 != 0;
     apply_layout(); // re-orders the hands/features layers if this actually changed -- see its own comment
@@ -984,6 +1000,9 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   if ((t = dict_find(iter, MESSAGE_KEY_HAND_HOUR_OUTLINE_ENABLED))) s_data.hand_hour.outline_enabled = t->value->uint8 != 0;
   if ((t = dict_find(iter, MESSAGE_KEY_HAND_HOUR_OUTLINE_COLOR))) s_data.hand_hour.outline_color = t->value->uint8;
   if ((t = dict_find(iter, MESSAGE_KEY_HAND_HOUR_TRANSLUCENT))) s_data.hand_hour.translucent = t->value->uint8 != 0;
+  if ((t = dict_find(iter, MESSAGE_KEY_HAND_HOUR_SHADOW_ENABLED))) s_data.hand_hour.shadow_enabled = t->value->uint8 != 0;
+  if ((t = dict_find(iter, MESSAGE_KEY_HAND_HOUR_SHADOW_ANGLE))) s_data.hand_hour.shadow_angle_deg = t->value->uint16;
+  if ((t = dict_find(iter, MESSAGE_KEY_HAND_HOUR_SHADOW_DISTANCE))) s_data.hand_hour.shadow_distance_px = t->value->uint8;
   if ((t = dict_find(iter, MESSAGE_KEY_HAND_MIN_STYLE))) s_data.hand_minute.style = t->value->uint8;
   if ((t = dict_find(iter, MESSAGE_KEY_HAND_MIN_WIDTH))) s_data.hand_minute.width = t->value->uint8;
   if ((t = dict_find(iter, MESSAGE_KEY_HAND_MIN_LENGTH))) s_data.hand_minute.length = t->value->uint8;
@@ -992,6 +1011,9 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   if ((t = dict_find(iter, MESSAGE_KEY_HAND_MIN_OUTLINE_ENABLED))) s_data.hand_minute.outline_enabled = t->value->uint8 != 0;
   if ((t = dict_find(iter, MESSAGE_KEY_HAND_MIN_OUTLINE_COLOR))) s_data.hand_minute.outline_color = t->value->uint8;
   if ((t = dict_find(iter, MESSAGE_KEY_HAND_MIN_TRANSLUCENT))) s_data.hand_minute.translucent = t->value->uint8 != 0;
+  if ((t = dict_find(iter, MESSAGE_KEY_HAND_MIN_SHADOW_ENABLED))) s_data.hand_minute.shadow_enabled = t->value->uint8 != 0;
+  if ((t = dict_find(iter, MESSAGE_KEY_HAND_MIN_SHADOW_ANGLE))) s_data.hand_minute.shadow_angle_deg = t->value->uint16;
+  if ((t = dict_find(iter, MESSAGE_KEY_HAND_MIN_SHADOW_DISTANCE))) s_data.hand_minute.shadow_distance_px = t->value->uint8;
   if ((t = dict_find(iter, MESSAGE_KEY_HAND_SEC_STYLE))) s_data.hand_second.style = t->value->uint8;
   if ((t = dict_find(iter, MESSAGE_KEY_HAND_SEC_WIDTH))) s_data.hand_second.width = t->value->uint8;
   if ((t = dict_find(iter, MESSAGE_KEY_HAND_SEC_LENGTH))) s_data.hand_second.length = t->value->uint8;
@@ -1000,6 +1022,9 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   if ((t = dict_find(iter, MESSAGE_KEY_HAND_SEC_OUTLINE_ENABLED))) s_data.hand_second.outline_enabled = t->value->uint8 != 0;
   if ((t = dict_find(iter, MESSAGE_KEY_HAND_SEC_OUTLINE_COLOR))) s_data.hand_second.outline_color = t->value->uint8;
   if ((t = dict_find(iter, MESSAGE_KEY_HAND_SEC_TRANSLUCENT))) s_data.hand_second.translucent = t->value->uint8 != 0;
+  if ((t = dict_find(iter, MESSAGE_KEY_HAND_SEC_SHADOW_ENABLED))) s_data.hand_second.shadow_enabled = t->value->uint8 != 0;
+  if ((t = dict_find(iter, MESSAGE_KEY_HAND_SEC_SHADOW_ANGLE))) s_data.hand_second.shadow_angle_deg = t->value->uint16;
+  if ((t = dict_find(iter, MESSAGE_KEY_HAND_SEC_SHADOW_DISTANCE))) s_data.hand_second.shadow_distance_px = t->value->uint8;
   if ((t = dict_find(iter, MESSAGE_KEY_CENTER_CIRCLE_RADIUS))) s_data.center_circle_radius = t->value->uint8;
   if ((t = dict_find(iter, MESSAGE_KEY_CENTER_CIRCLE_COLOR))) s_data.center_circle_color = t->value->uint8;
   if ((t = dict_find(iter, MESSAGE_KEY_BIG_ANALOG_MARKER_STYLE))) {

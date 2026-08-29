@@ -240,6 +240,21 @@ typedef struct {
                                        // sky/eclipse drawing underneath still shows through --
                                        // for the custom hand style (4), this instead means "draw
                                        // hands (and their outline, if any) as a 1px stroke only"
+  bool big_analog_hands_shadow; // user setting: turns on the drop-shadow HandConfig.shadow_enabled
+                                  // field for all 3 procedural hand presets (styles 0-3) at once,
+                                  // same "one global toggle applied uniformly" pattern
+                                  // outline_enabled/big_analog_hands_transparent already use --
+                                  // meaningless for the custom hand style (4), which has its own
+                                  // per-hand hand_hour/hand_minute/hand_second.shadow_enabled
+                                  // instead. Procedural presets always use a hardcoded 120deg/2px
+                                  // shadow_angle_deg/shadow_distance_px when this is on.
+  bool shadow_translucent; // user setting ("Style" section): whether EVERY hand's shadow (both
+                             // procedural presets and the custom hand system) draws solid black
+                             // or a dithered translucent black -- ~50% normally, ~25% when that
+                             // particular hand is itself translucent too. A single global style
+                             // choice, unlike shadow_enabled/angle/distance which are per-hand
+                             // (or, for presets, one shared toggle) -- see hand_layer.h. Defaults
+                             // to true (translucent).
   bool draw_features_beneath_hands; // user setting ("Style" section, big-analog only): when
                                       // true, apply_layout() adds the features overlay layer
                                       // BEFORE the hands layer instead of after, so hands draw
