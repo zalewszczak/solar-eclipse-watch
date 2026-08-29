@@ -298,6 +298,11 @@ function bigAnalogMarkerStyleCode() {
 // dimmed the markers whether or not that's what was wanted).
 function bitmapMarkerTransparentCode() { return getSetting('CONFIG_BITMAP_MARKER_TRANSPARENT', 'false') === 'true' ? 1 : 0; }
 
+// Whether the corners/edges feature overlay draws underneath the big-
+// analog hands instead of on top of them -- only meaningful (and only
+// shown on the settings page) when bottomStyle is 'biganalog'.
+function drawFeaturesBeneathHandsCode() { return getSetting('CONFIG_DRAW_FEATURES_BENEATH_HANDS', 'false') === 'true' ? 1 : 0; }
+
 // Custom hour/second marker system (bigAnalogMarkerStyleCode() === 8) --
 // see MarkerRingConfig/MarkerTextConfig in marker_layer.h for what each
 // field means and its valid range. Border values are 0-100% "reach"
@@ -536,6 +541,7 @@ function sendDict(dict) {
   dict['BIG_ANALOG_HANDS_TRANSPARENT'] = bigAnalogHandsTransparentCode();
   dict['BIG_ANALOG_MARKER_STYLE'] = bigAnalogMarkerStyleCode();
   dict['BITMAP_MARKER_TRANSPARENT'] = bitmapMarkerTransparentCode();
+  dict['DRAW_FEATURES_BENEATH_HANDS'] = drawFeaturesBeneathHandsCode();
   dict['CUSTOM_HOUR_STYLE'] = customHourStyleCode();
   dict['CUSTOM_HOUR_THICKNESS'] = customHourThicknessCode();
   dict['CUSTOM_HOUR_INNER_ECC'] = customHourInnerEccCode();
@@ -1129,6 +1135,7 @@ function sendDict(dict) {
 '  "BIG_ANALOG_HANDS_TRANSPARENT": 1,'+
 '  "BIG_ANALOG_MARKER_STYLE": 8,'+
 '  "BITMAP_MARKER_TRANSPARENT": 0,'+
+'  "DRAW_FEATURES_BENEATH_HANDS": 0,'+
 '  "CUSTOM_HOUR_STYLE": 0,'+
 '  "CUSTOM_HOUR_THICKNESS": 1,'+
 '  "CUSTOM_HOUR_INNER_ECC": 0,'+
@@ -1691,6 +1698,7 @@ Pebble.addEventListener('showConfiguration', function () {
     bigAnalogTransparent: getSetting('CONFIG_BIG_ANALOG_TRANSPARENT', 'false') === 'true',
     bigAnalogMarkerStyle: getSetting('CONFIG_BIG_ANALOG_MARKER_STYLE', '0'),
     bitmapMarkerTransparent: getSetting('CONFIG_BITMAP_MARKER_TRANSPARENT', 'false') === 'true',
+    drawFeaturesBeneathHands: getSetting('CONFIG_DRAW_FEATURES_BENEATH_HANDS', 'false') === 'true',
     customHourStyle: getSetting('CONFIG_CUSTOM_HOUR_STYLE', '0'),
     customHourThickness: getSetting('CONFIG_CUSTOM_HOUR_THICKNESS', '3'),
     customHourInnerEcc: getSetting('CONFIG_CUSTOM_HOUR_INNER_ECC', '0'),
@@ -1838,6 +1846,7 @@ Pebble.addEventListener('webviewclosed', function (e) {
   setSetting('CONFIG_BIG_ANALOG_TRANSPARENT', settings.CONFIG_BIG_ANALOG_TRANSPARENT ? 'true' : 'false');
   setSetting('CONFIG_BIG_ANALOG_MARKER_STYLE', settings.CONFIG_BIG_ANALOG_MARKER_STYLE || '0');
   setSetting('CONFIG_BITMAP_MARKER_TRANSPARENT', settings.CONFIG_BITMAP_MARKER_TRANSPARENT ? 'true' : 'false');
+  setSetting('CONFIG_DRAW_FEATURES_BENEATH_HANDS', settings.CONFIG_DRAW_FEATURES_BENEATH_HANDS ? 'true' : 'false');
   setSetting('CONFIG_CUSTOM_HOUR_STYLE', settings.CONFIG_CUSTOM_HOUR_STYLE || '0');
   setSetting('CONFIG_CUSTOM_HOUR_THICKNESS', settings.CONFIG_CUSTOM_HOUR_THICKNESS || '3');
   setSetting('CONFIG_CUSTOM_HOUR_INNER_ECC', settings.CONFIG_CUSTOM_HOUR_INNER_ECC || '0');

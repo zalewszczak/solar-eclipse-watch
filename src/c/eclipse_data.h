@@ -240,6 +240,12 @@ typedef struct {
                                        // sky/eclipse drawing underneath still shows through --
                                        // for the custom hand style (4), this instead means "draw
                                        // hands (and their outline, if any) as a 1px stroke only"
+  bool draw_features_beneath_hands; // user setting ("Style" section, big-analog only): when
+                                      // true, apply_layout() adds the features overlay layer
+                                      // BEFORE the hands layer instead of after, so hands draw
+                                      // on top of corners/edges info instead of under it.
+                                      // Meaningless (and hidden on the settings page) outside
+                                      // bottom_style == 2.
 
   // Only meaningful when big_analog_hand_style == 4. See hand_layer.h for field docs.
   HandConfig hand_hour;
@@ -433,3 +439,28 @@ typedef struct {
 // its own EclipseData pointer (the same one, via eclipse_canvas_set_data())
 // to get marker colors without duplicating the palette tables.
 void get_active_color_scheme(const EclipseData *d, time_t now, GColor *bg, GColor *text, GColor *accent);
+
+// Also defined in pebble-eclipse-watch.c, declared here for the same reason:
+// unpacks one of the 64 real display colors from the single raw byte the
+// phone/settings page sends for a custom scheme/hand/marker/etc. color --
+// shared with features_layer.c's full-color weather icon rendering and
+// get_active_color_scheme() above, both of which need to do the same
+// unpacking.
+GColor gcolor_from_packed(uint8_t packed);
+
+// Also defined in pebble-eclipse-watch.c, declared here for the same reason:
+// features_layer.c's "current conditions" and sunrise/sunset corner content
+// reuse the digital bottom panel's own sunrise/sunset row logic rather than
+// duplicating it.
+//
+// Finds whichever of sun_rise/sun_set/sun_rise_tomorrow is the next one to
+// occur after `now`, writing it to *event_time and whether it's a rise
+// (true) or a set (false) to *is_sunrise. Returns false if none of the
+// three are set yet (no data received).
+bool get_next_sun_event(time_t now, time_t sun_rise, time_t sun_set, time_t sun_rise_tomorrow,
+                         time_t *event_time, bool *is_sunrise);
+
+// A compact "sunrise/sunset" glyph (arrow + horizon-sun), built from plain
+// fill primitives. Returns the total width drawn, so the caller can place
+// the time text right after it.
+int16_t draw_sun_time_icon(GContext *ctx, GPoint top_left, bool is_sunrise, GColor color, GColor bg);

@@ -882,6 +882,12 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      <div class="help">Bitmap styles are tinted with your main color (see the preview above) and their mask art shows behind the hands there once you\'ve added a resource PNG for that style. Which edge-middle info slots they support (instead of the 4 corners) varies by style -- see the Features section below.</div>' +
 '      <div class="help">When an eclipse is actually happening, the Sun fills the whole screen as a background behind the hands.</div>' +
 
+'      <div class="checkbox-row" id="drawFeaturesBeneathHandsRow" style="margin-top:12px;">' +
+'        <input type="checkbox" id="drawFeaturesBeneathHands" ' + (current.drawFeaturesBeneathHands ? 'checked' : '') + ' onchange="updatePreview()">' +
+'        <label for="drawFeaturesBeneathHands" style="margin:0;">Draw features beneath hands</label>' +
+'      </div>' +
+'      <div class="help">Corners/edges info (see the Features section below) normally draws on top of the hands -- enable this to tuck it underneath instead.</div>' +
+
 '      <div id="customMarkerSection" style="' + (current.bigAnalogMarkerStyle === '8' ? '' : 'display:none;') + '">' +
 '        <button type="button" class="marker-edit-btn" onclick="openCustomMarkerEditor(\'hour\')">Edit hour markers &rsaquo;</button>' +
 '        <button type="button" class="marker-edit-btn" onclick="openCustomMarkerEditor(\'sec\')">Edit second markers &rsaquo;</button>' +
@@ -2482,6 +2488,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    CONFIG_BIG_ANALOG_TRANSPARENT: document.getElementById("bigAnalogTransparent").checked,' +
 '    CONFIG_BIG_ANALOG_MARKER_STYLE: document.getElementById("bigAnalogMarkerStyle").value,' +
 '    CONFIG_BITMAP_MARKER_TRANSPARENT: document.getElementById("bitmapMarkerTransparent").checked,' +
+'    CONFIG_DRAW_FEATURES_BENEATH_HANDS: document.getElementById("drawFeaturesBeneathHands").checked,' +
 '    CONFIG_UPPER_MIDDLE_LINE1_CONTENT: document.getElementById("upperMiddleLine1Content").value,' +
 '    CONFIG_UPPER_MIDDLE_LINE1_COLOR: document.getElementById("upperMiddleLine1Color").value,' +
 '    CONFIG_UPPER_MIDDLE_LINE2_CONTENT: document.getElementById("upperMiddleLine2Content").value,' +
