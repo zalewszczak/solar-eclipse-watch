@@ -38,6 +38,12 @@ typedef struct {
                             // opaque; bitmap marker styles use bitmap_marker_transparent
                             // instead, a single setting rather than per-ring, since a bitmap
                             // mask isn't split into a separate hour/second ring to begin with.
+  uint8_t color;           // 0=main, 1=accent, 2=background -- which of the active color
+                            // scheme's 3 colors this ring draws in. Independently selectable
+                            // per ring (hour vs second), same "each gets its own popup
+                            // control" pattern as translucent above. The 3 procedural presets
+                            // leave this at its default (0/main), matching how they always
+                            // drew before this field existed.
 } MarkerRingConfig;
 
 // Text-numeral overlay -- hour and second markers share ONE of these
@@ -253,15 +259,23 @@ typedef struct {
                                   // outline_enabled/big_analog_hands_transparent already use --
                                   // meaningless for the custom hand style (4), which has its own
                                   // per-hand hand_hour/hand_minute/hand_second.shadow_enabled
-                                  // instead. Procedural presets always use a hardcoded 120deg/2px
-                                  // shadow_angle_deg/shadow_distance_px when this is on.
+                                  // instead. Procedural presets always use a hardcoded 2px
+                                  // shadow_distance_px when this is on (the angle is always
+                                  // shadow_angle_deg below, shared with every other hand).
   bool shadow_translucent; // user setting ("Style" section): whether EVERY hand's shadow (both
                              // procedural presets and the custom hand system) draws solid black
                              // or a dithered translucent black -- ~50% normally, ~25% when that
                              // particular hand is itself translucent too. A single global style
-                             // choice, unlike shadow_enabled/angle/distance which are per-hand
+                             // choice, unlike shadow_enabled/distance which are per-hand
                              // (or, for presets, one shared toggle) -- see hand_layer.h. Defaults
                              // to true (translucent).
+  uint16_t shadow_angle_deg; // user setting ("Style" section, right below shadow_translucent):
+                              // single shared light-source direction for every hand's shadow, 0-359,
+                              // same "0 = 12 o'clock, clockwise" convention as every other angle in
+                              // this project. All 3 hands share one physical light source, so a
+                              // separately-adjustable angle per hand (as this briefly was) made no
+                              // real sense -- only shadow_enabled/distance stayed per-hand. Defaults
+                              // to 120, matching the procedural presets' own hardcoded angle.
   bool draw_features_beneath_hands; // user setting ("Style" section, big-analog only): when
                                       // true, apply_layout() adds the features overlay layer
                                       // BEFORE the hands layer instead of after, so hands draw

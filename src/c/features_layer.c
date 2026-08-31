@@ -203,6 +203,15 @@ static const uint8_t CLOUD_ICON[24]   = { 0x00, 0x00, 0x00, 0x00, 0x1C, 0x00, 0x
   0x82, 0x16, 0x80, 0x01, 0x40, 0x01, 0x20, 0x02, 0x1F, 0xFC, 0x00, 0x00 };
 static const uint8_t BLUETOOTH_ICON[24] = { 0x03, 0x00, 0x03, 0x80, 0x12, 0xC0, 0x1A, 0x60, 0x0E, 0xC0, 0x07, 0x80,
   0x07, 0x80, 0x0E, 0xC0, 0x1A, 0x60, 0x12, 0xC0, 0x03, 0x80, 0x03, 0x00 };
+// Astronomy-feature icons, one per case-79/81/83 content type below --
+// a satellite (ISS pass), a ringed planet (Saturn ring angle), and 3
+// differently-sized dots (how many of the 5 tracked planets are up).
+static const uint8_t ISS_ICON[24] = { 0x3C, 0x3C, 0x24, 0x24, 0x3C, 0x3C, 0x0B, 0xD0, 0x0A, 0x50, 0x0B, 0xD0,
+  0x0A, 0x50, 0x3C, 0x3C, 0x24, 0x24, 0x3C, 0x3C, 0x00, 0x00, 0x00, 0x00 };
+static const uint8_t SATURN_RING_ICON[24] = { 0x00, 0x00, 0x01, 0x80, 0x07, 0xE0, 0xCF, 0xF3, 0xFF, 0xFF, 0xFF, 0xFF,
+  0xCF, 0xF3, 0x07, 0xE0, 0x01, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
+static const uint8_t PLANETS_ICON[24] = { 0x00, 0x00, 0x00, 0x00, 0x30, 0x00, 0x30, 0x00, 0x00, 0xE0, 0x01, 0xF0,
+  0x01, 0xF0, 0x00, 0xE0, 0x00, 0x02, 0x00, 0x07, 0x00, 0x02, 0x00, 0x00 };
 // Sleep-feature icons: a shared bed silhouette (rows 7-11) topped
 // with a symbol (rows 0-6) that identifies which sleep readout this
 // is -- an in/out arrow for bed/wake time, a checkmark for sleep
@@ -952,7 +961,7 @@ static int16_t convert_wind(int16_t kmh, uint8_t wind_speed_unit) {
 static int16_t icon_plus_gap_width(int icon_kind) { // TODO: This might not be neccessary anymore
   switch (icon_kind) {
     case 1: case 2: case 5: case 6: case 7: case 8: case 9: case 10: case 13:
-    case 18: case 19: case 20: case 21: case 22:
+    case 18: case 19: case 20: case 21: case 22: case 23: case 24: case 25:
       return 11; // bitmap icons (7-wide at 140% scale) + gap
     case 3: return 10; // battery + gap
     case 4: return 21; // moon (radius 9, so 2*9+2 diameter box) + gap
@@ -1569,6 +1578,7 @@ void features_draw_item(GContext *ctx, GRect bounds, const EclipseData *data,
     // phone-side computation (see astro.js's findNextIssPass()) since
     // only a single current-moment ISS snapshot existed before.
     case 79: { // how many of the 5 tracked planets are above the horizon right now
+      icon_kind = 23;
       time_t now = time(NULL);
       uint8_t count = background_count_visible_planets(data, now);
       snprintf(buf, sizeof(buf), "%d planet%s", count, count == 1 ? "" : "s");
@@ -1586,6 +1596,7 @@ void features_draw_item(GContext *ctx, GRect bounds, const EclipseData *data,
       break;
     }
     case 81: { // Saturn's current ring-opening angle (0% = edge-on, 100% = fully open)
+      icon_kind = 24;
       snprintf(buf, sizeof(buf), "Rings %d%%", data->saturn_ring_open_pct);
       dynamic_color = main_color;
       break;
@@ -1616,6 +1627,7 @@ void features_draw_item(GContext *ctx, GRect bounds, const EclipseData *data,
     case 83: { // start time of the next visible ISS pass, if astro.js's
                // findNextIssPass() found one in its search window -- see
                // eclipse_data.h's iss_next_pass comment for what "visible" means
+      icon_kind = 25;
       if (data->iss_next_pass > 0) {
         struct tm *t = localtime(&data->iss_next_pass);
         strftime(buf, sizeof(buf), clock_is_24h_style() ? "%H:%M" : "%I:%M %p", t);
@@ -1851,6 +1863,20 @@ void features_draw_item(GContext *ctx, GRect bounds, const EclipseData *data,
         }
       }
       draw_tiny_icon(ctx, pos, bed_pattern, ICON_ROWS, ICON_WIDTH, color);
+      break;
+    }
+    case 23: case 24: case 25: {
+      const uint8_t *astro_pattern = PLANETS_ICON;
+      if (icon_kind == 24) astro_pattern = SATURN_RING_ICON;
+      else if (icon_kind == 25) astro_pattern = ISS_ICON;
+      GPoint pos = GPoint(icon_x - ICON_WIDTH+6, box_y + (CORNER_ROW_H - ICON_ROWS) / 2);
+      if (do_icon_outline) {
+        for (int i = 0; i < 4; i++) {
+          draw_tiny_icon(ctx, GPoint(pos.x + OUTLINE_OFFSETS[i].x, pos.y + OUTLINE_OFFSETS[i].y),
+                          astro_pattern, ICON_ROWS, ICON_WIDTH, icon_outline_color);
+        }
+      }
+      draw_tiny_icon(ctx, pos, astro_pattern, ICON_ROWS, ICON_WIDTH, color);
       break;
     }
     case 11: {

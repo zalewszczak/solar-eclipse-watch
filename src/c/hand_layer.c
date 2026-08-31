@@ -175,16 +175,17 @@ static void fill_circle_dithered_level_fp(GContext *ctx, FGPoint center, int32_t
 // A drop shadow of the hand's own shape, translated (never rotated
 // relative to the hand -- a real shadow's direction is fixed by the
 // light source, not by whatever the hand itself currently points at) by
-// shadow_distance_px in shadow_angle_deg's direction, then filled in
-// black -- solid if shadow_translucent_style is off, otherwise dithered
-// at ~50%, or ~25% when the hand itself (cfg->translucent) is also
-// translucent. Drawn before the outline/fill in hand_layer_draw() below,
-// so it always sits underneath both.
+// shadow_distance_px in shadow_angle_deg's direction (a single shared
+// angle for all 3 hands -- see hand_layer_draw()'s own comment for why),
+// then filled in black -- solid if shadow_translucent_style is off,
+// otherwise dithered at ~50%, or ~25% when the hand itself
+// (cfg->translucent) is also translucent. Drawn before the outline/fill
+// in hand_layer_draw() below, so it always sits underneath both.
 static void draw_hand_shadow_once_fp(GContext *ctx, FGPoint center, int32_t angle, const HandConfig *cfg,
-                                      bool shadow_translucent_style) {
+                                      bool shadow_translucent_style, uint16_t shadow_angle_deg) {
   if (!cfg->shadow_enabled) return;
 
-  int32_t shadow_native_angle = (int32_t)(((int64_t)cfg->shadow_angle_deg * TRIG_MAX_ANGLE) / 360);
+  int32_t shadow_native_angle = (int32_t)(((int64_t)shadow_angle_deg * TRIG_MAX_ANGLE) / 360);
   int32_t dist_fp = (int32_t)cfg->shadow_distance_px << SUBPIXEL_BITS;
   int32_t dx = (int32_t)(((int64_t)dist_fp * sin_lookup(shadow_native_angle)) / TRIG_MAX_RATIO);
   int32_t dy = -(int32_t)(((int64_t)dist_fp * cos_lookup(shadow_native_angle)) / TRIG_MAX_RATIO);
@@ -213,10 +214,10 @@ static void draw_hand_shadow_once_fp(GContext *ctx, FGPoint center, int32_t angl
 
 void hand_layer_draw(GContext *ctx, GPoint center, int32_t angle, const HandConfig *cfg,
                       GColor main_color, GColor accent_color, GColor bg_color,
-                      bool shadow_translucent_style) {
+                      bool shadow_translucent_style, uint16_t shadow_angle_deg) {
   FGPoint center_fp = fgpoint_from_gpoint(center);
 
-  draw_hand_shadow_once_fp(ctx, center_fp, angle, cfg, shadow_translucent_style);
+  draw_hand_shadow_once_fp(ctx, center_fp, angle, cfg, shadow_translucent_style, shadow_angle_deg);
 
   if (cfg->outline_enabled) {
     // A real perimeter trace now (see draw_hand_outline_once above),

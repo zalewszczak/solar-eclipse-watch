@@ -54,28 +54,28 @@ typedef struct {
                                  // Used by the "modern" procedural hand preset (see pebble-eclipse-watch.c),
                                  // which always rendered hollow when not transparent.
   bool shadow_enabled;          // draws a drop shadow of the hand's own shape (translated, not rotated,
-                                  // by shadow_distance_px in shadow_angle_deg's direction) UNDERNEATH
-                                  // everything else this hand draws -- outline and fill both layer on
-                                  // top of it, same z-order a real shadow would have.
-  uint16_t shadow_angle_deg;    // 0-359, same "0 = 12 o'clock, clockwise" convention as every other
-                                  // angle in this project -- a fixed on-screen direction, independent of
-                                  // the hand's own current rotation. Editable in custom mode; the 4
-                                  // procedural presets (see pebble-eclipse-watch.c) hardcode 120.
+                                  // by shadow_distance_px in a single global direction shared by every
+                                  // hand -- see EclipseData's shadow_angle_deg, not this struct)
+                                  // UNDERNEATH everything else this hand draws -- outline and fill both
+                                  // layer on top of it, same z-order a real shadow would have.
   uint8_t shadow_distance_px;   // 1-5 px. Editable in custom mode; procedural presets hardcode 2.
 } HandConfig;
 
-// Draws one hand using sub-pixel precision. shadow_translucent_style is
-// the single global "solid vs translucent shadows" setting (see
-// s_data.shadow_translucent) -- not per-hand, unlike everything else in
-// `cfg`, so it's a separate parameter rather than another HandConfig
-// field. Translucent shadows draw at ~50% density, or ~25% when the hand
-// itself (cfg->translucent) is also translucent, so a see-through hand's
-// shadow doesn't end up reading darker/more solid than the hand it
-// belongs to. Solid style always draws a fully opaque shadow regardless
-// of cfg->translucent.
+// Draws one hand using sub-pixel precision. shadow_translucent_style
+// and shadow_angle_deg are both single global "Style" section settings
+// (see s_data.shadow_translucent/shadow_angle_deg) -- not per-hand,
+// unlike everything else in `cfg` -- so they're separate parameters
+// rather than HandConfig fields. A shared angle makes sense (all 3
+// hands' shadows come from the same one light source); a shared
+// on/off + distance would not, hence those two staying in HandConfig
+// itself. Translucent shadows draw at ~50% density, or ~25% when the
+// hand itself (cfg->translucent) is also translucent, so a see-through
+// hand's shadow doesn't end up reading darker/more solid than the hand
+// it belongs to. Solid style always draws a fully opaque shadow
+// regardless of cfg->translucent.
 void hand_layer_draw(GContext *ctx, GPoint center, int32_t angle, const HandConfig *cfg,
                       GColor main_color, GColor accent_color, GColor bg_color,
-                      bool shadow_translucent_style);
+                      bool shadow_translucent_style, uint16_t shadow_angle_deg);
 
 // Shared (not per-hand) center decoration -- radius 0 means off.
 void hand_layer_draw_center_circle(GContext *ctx, GPoint center, uint8_t radius, uint8_t color_choice,

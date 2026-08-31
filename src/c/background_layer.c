@@ -233,10 +233,45 @@ static int16_t interp_planet_alt_decideg(const EclipseData *d, PlanetId planet, 
   return (int16_t)(a + ((b - a) * frac_num) / frac_den);
 }
 
+// How long before/after the actual rise or set moment to animate the
+// body sinking behind (or rising out of) the horizon strip. Time-based
+// rather than derived from the altitude-to-pixel scale above: that
+// scale is deliberately compressed (a whole day's arc has to fit in
+// ~120px), which makes a fixed-radius disc correspond to a much
+// bigger apparent angular size than reality -- so clipping it purely
+// by "disc edge crosses the horizon line in pixel-space" made it
+// start disappearing tens of degrees too early. A short, fixed
+// real-time window sidesteps that mismatch entirely.
+#define RISE_SET_TRANSITION_S 180
+
+// Mirrors the actual on-screen gating (canvas_update_proc's sky_is_dark
+// check, plus body_screen_y()'s own rise/set window below) exactly --
+// a planet being geometrically above the horizon isn't enough on its
+// own; several are routinely "up" in raw altitude terms in broad
+// daylight (that's just where their orbit puts them), completely
+// washed out and invisible until the sky is actually dark. Previously
+// this only checked raw altitude, so it could report several
+// "visible" planets in full daylight with nothing actually on screen,
+// and disagree with what's drawn at night too (that also depends on
+// each planet's own today's rise/set window, which raw altitude alone
+// doesn't capture -- interpolated samples can dip positive outside it,
+// or negative just inside it, especially right around rise/set).
 uint8_t background_count_visible_planets(const EclipseData *d, time_t now) {
+  if (interp_sun_alt_decideg(d, now) > -60) return 0; // sky not dark enough for any planet to read
+
   uint8_t count = 0;
   for (int p = 0; p < PLANET_COUNT; p++) {
-    if (interp_planet_alt_decideg(d, (PlanetId)p, now) > 0) count++;
+    time_t rise = d->planet_rise[p];
+    time_t set = d->planet_set[p];
+    bool up;
+    if (rise != 0 && set != 0) {
+      up = now >= rise - RISE_SET_TRANSITION_S && now <= set + RISE_SET_TRANSITION_S;
+    } else {
+      // Rare fallback (e.g. rises today but doesn't set until
+      // tomorrow) -- same fallback body_screen_y() itself uses.
+      up = interp_planet_alt_decideg(d, (PlanetId)p, now) > 0;
+    }
+    if (up) count++;
   }
   return count;
 }
@@ -984,17 +1019,6 @@ static int16_t alt_to_y(int16_t alt_decideg, int16_t scale_max_decideg, int16_t 
   return (int16_t)y;
 }
 
-// How long before/after the actual rise or set moment to animate the
-// body sinking behind (or rising out of) the horizon strip. Time-based
-// rather than derived from the altitude-to-pixel scale above: that
-// scale is deliberately compressed (a whole day's arc has to fit in
-// ~120px), which makes a fixed-radius disc correspond to a much
-// bigger apparent angular size than reality -- so clipping it purely
-// by "disc edge crosses the horizon line in pixel-space" made it
-// start disappearing tens of degrees too early. A short, fixed
-// real-time window sidesteps that mismatch entirely.
-#define RISE_SET_TRANSITION_S 180
-
 // Resolves whether (and where) to draw a body given its normal
 // altitude-based Y position and today's rise/set times: fully hidden
 // well outside [rise, set], animating linearly between "just behind
@@ -1374,9 +1398,23 @@ static void draw_ring_mark_fp(GContext *ctx, FGPoint inner, FGPoint outer, int32
   }
 }
 
+// Resolves a MarkerRingConfig's own color choice against the active
+// scheme -- same 3-way (main/accent/background) selection used all
+// over this app, just not through hand_layer.c's own private
+// resolve_scheme_color() (file-local there, and this is the only
+// place background_layer.c needs the same lookup).
+static GColor marker_ring_color(uint8_t choice, GColor main_color, GColor accent_color, GColor bg_color) {
+  switch (choice) {
+    case 1: return accent_color;
+    case 2: return bg_color;
+    case 0: default: return main_color;
+  }
+}
+
 static void draw_marker_ring(GContext *ctx, GPoint center, GRect screen, const MarkerRingConfig *cfg,
-                              int marks, int skip_step, GColor color) {
+                              int marks, int skip_step, GColor main_color, GColor accent_color, GColor bg_color) {
   if (cfg->thickness == 0) return;
+  GColor color = marker_ring_color(cfg->color, main_color, accent_color, bg_color);
   uint8_t inner_pct = cfg->inner_border_pct, outer_pct = cfg->outer_border_pct;
   if (outer_pct < inner_pct) outer_pct = inner_pct;
 
@@ -1607,7 +1645,7 @@ static void draw_marker_bitmap(GContext *ctx, GBitmap *mask, GRect bounds) {
 // cadence (once a minute, or immediately on a forced redraw) rather than
 // every tick. big-analog mode only; callers must gate on d->bottom_style.
 static void draw_all_markers(GContext *ctx, CanvasState *state, GPoint center, GRect screen,
-                              const EclipseData *d, GColor main_color) {
+                              const EclipseData *d, GColor main_color, GColor accent_color, GColor bg_color) {
   uint8_t marker_style = d->big_analog_marker_style;
 
   if (marker_style == 9) { // none -- no ring, no bitmap, nothing to draw
@@ -1638,8 +1676,8 @@ static void draw_all_markers(GContext *ctx, CanvasState *state, GPoint center, G
   // Second ring first so the hour ring's marks draw on top at shared
   // 12-o'clock-aligned slots (matches the original procedural markers'
   // precedent of hour ticks winning at shared positions).
-  draw_marker_ring(ctx, center, screen, second_cfg, 60, 5, main_color);
-  draw_marker_ring(ctx, center, screen, hour_cfg, 12, 0, main_color);
+  draw_marker_ring(ctx, center, screen, second_cfg, 60, 5, main_color, accent_color, bg_color);
+  draw_marker_ring(ctx, center, screen, hour_cfg, 12, 0, main_color, accent_color, bg_color);
 
   if (marker_style == 8) {
     draw_text_markers(ctx, center, screen, state, &d->marker_text, hour_cfg, second_cfg, main_color);
@@ -2157,7 +2195,7 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
     GPoint full_center = GPoint(full_bounds.size.w / 2, full_bounds.size.h / 2);
     GColor bg, main_color, accent_color;
     get_active_color_scheme(d, now, &bg, &main_color, &accent_color);
-    draw_all_markers(ctx, state, full_center, full_bounds, d, main_color);
+    draw_all_markers(ctx, state, full_center, full_bounds, d, main_color, accent_color, bg);
   }
 
   // Cache what was just drawn: capture the real framebuffer (this is

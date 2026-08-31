@@ -312,6 +312,10 @@ function bigAnalogHandsShadowCode() { return getSetting('CONFIG_BIG_ANALOG_HANDS
 // whether it's a procedural preset or the custom hand system. Defaults
 // to translucent.
 function shadowTranslucentCode() { return getSetting('CONFIG_SHADOW_TRANSLUCENT', 'true') === 'true' ? 1 : 0; }
+// Single shared light-source direction for every hand's shadow --
+// see hand_layer.h's own comment for why a separate angle per hand
+// made no sense.
+function shadowAngleCode() { return clampInt(getSetting('CONFIG_SHADOW_ANGLE', '120'), 0, 359, 120); }
 
 function bigAnalogMarkerStyleCode() {
   var id = parseInt(getSetting('CONFIG_BIG_ANALOG_MARKER_STYLE', '0'), 10);
@@ -357,6 +361,9 @@ function customHourOuterBorderCode() {
   return outer < inner ? inner : outer; // outer never below inner -- see MarkerRingConfig
 }
 function customHourTranslucentCode() { return getSetting('CONFIG_CUSTOM_HOUR_TRANSLUCENT', 'false') === 'true' ? 1 : 0; }
+// 0=main, 1=accent, 2=background -- see MarkerRingConfig's own color
+// comment in eclipse_data.h.
+function customHourColorCode() { return clampInt(getSetting('CONFIG_CUSTOM_HOUR_COLOR', '0'), 0, 2, 0); }
 function customSecStyleCode() { return customMarkerStyleCode('CONFIG_CUSTOM_SEC_STYLE', 0); }
 function customSecThicknessCode() { return clampInt(getSetting('CONFIG_CUSTOM_SEC_THICKNESS', '1'), 1, 10, 1); }
 function customSecInnerEccCode() { return clampInt(getSetting('CONFIG_CUSTOM_SEC_INNER_ECC', '0'), 0, 100, 0); }
@@ -368,6 +375,7 @@ function customSecOuterBorderCode() {
   return outer < inner ? inner : outer;
 }
 function customSecTranslucentCode() { return getSetting('CONFIG_CUSTOM_SEC_TRANSLUCENT', 'false') === 'true' ? 1 : 0; }
+function customSecColorCode() { return clampInt(getSetting('CONFIG_CUSTOM_SEC_COLOR', '0'), 0, 2, 0); }
 function markerTextTargetCode() { return clampInt(getSetting('CONFIG_MARKER_TEXT_TARGET', '0'), 0, 2, 0); }
 function markerTextFontCode() { return clampInt(getSetting('CONFIG_MARKER_TEXT_FONT', '0'), 0, 6, 0); }
 function markerTextOffsetCode() { return clampInt(getSetting('CONFIG_MARKER_TEXT_OFFSET', '0'), -50, 50, 0); }
@@ -387,7 +395,6 @@ function handTranslucentCode(key) { return getSetting(key, 'false') === 'true' ?
 function handShadowEnabledCode(key) { return getSetting(key, 'false') === 'true' ? 1 : 0; }
 // 0-359 degrees, same "0 = 12 o'clock, clockwise" convention as every
 // other angle sent to the watch.
-function handShadowAngleCode(key) { return clampInt(getSetting(key, '120'), 0, 359, 120); }
 function handShadowDistanceCode(key) { return clampInt(getSetting(key, '2'), 1, 5, 2); }
 
 function handHourStyleCode() { return handStyleFieldCode('CONFIG_HAND_HOUR_STYLE', 1); }
@@ -399,7 +406,6 @@ function handHourOutlineEnabledCode() { return handOutlineEnabledCode('CONFIG_HA
 function handHourOutlineColorCode() { return handColorFieldCode('CONFIG_HAND_HOUR_OUTLINE_COLOR', 0); }
 function handHourTranslucentCode() { return handTranslucentCode('CONFIG_HAND_HOUR_TRANSLUCENT'); }
 function handHourShadowEnabledCode() { return handShadowEnabledCode('CONFIG_HAND_HOUR_SHADOW_ENABLED'); }
-function handHourShadowAngleCode() { return handShadowAngleCode('CONFIG_HAND_HOUR_SHADOW_ANGLE'); }
 function handHourShadowDistanceCode() { return handShadowDistanceCode('CONFIG_HAND_HOUR_SHADOW_DISTANCE'); }
 
 function handMinStyleCode() { return handStyleFieldCode('CONFIG_HAND_MIN_STYLE', 1); }
@@ -411,7 +417,6 @@ function handMinOutlineEnabledCode() { return handOutlineEnabledCode('CONFIG_HAN
 function handMinOutlineColorCode() { return handColorFieldCode('CONFIG_HAND_MIN_OUTLINE_COLOR', 0); }
 function handMinTranslucentCode() { return handTranslucentCode('CONFIG_HAND_MIN_TRANSLUCENT'); }
 function handMinShadowEnabledCode() { return handShadowEnabledCode('CONFIG_HAND_MIN_SHADOW_ENABLED'); }
-function handMinShadowAngleCode() { return handShadowAngleCode('CONFIG_HAND_MIN_SHADOW_ANGLE'); }
 function handMinShadowDistanceCode() { return handShadowDistanceCode('CONFIG_HAND_MIN_SHADOW_DISTANCE'); }
 
 function handSecStyleCode() { return handStyleFieldCode('CONFIG_HAND_SEC_STYLE', 0); }
@@ -423,7 +428,6 @@ function handSecOutlineEnabledCode() { return handOutlineEnabledCode('CONFIG_HAN
 function handSecOutlineColorCode() { return handColorFieldCode('CONFIG_HAND_SEC_OUTLINE_COLOR', 0); }
 function handSecTranslucentCode() { return handTranslucentCode('CONFIG_HAND_SEC_TRANSLUCENT'); }
 function handSecShadowEnabledCode() { return handShadowEnabledCode('CONFIG_HAND_SEC_SHADOW_ENABLED'); }
-function handSecShadowAngleCode() { return handShadowAngleCode('CONFIG_HAND_SEC_SHADOW_ANGLE'); }
 function handSecShadowDistanceCode() { return handShadowDistanceCode('CONFIG_HAND_SEC_SHADOW_DISTANCE'); }
 
 function centerCircleRadiusCode() { return clampInt(getSetting('CONFIG_CENTER_CIRCLE_RADIUS', '3'), 0, 30, 3); }
@@ -582,6 +586,7 @@ function sendDict(dict) {
   dict['BIG_ANALOG_HANDS_TRANSPARENT'] = bigAnalogHandsTransparentCode();
   dict['BIG_ANALOG_HANDS_SHADOW'] = bigAnalogHandsShadowCode();
   dict['SHADOW_TRANSLUCENT'] = shadowTranslucentCode();
+  dict['SHADOW_ANGLE'] = shadowAngleCode();
   dict['BIG_ANALOG_MARKER_STYLE'] = bigAnalogMarkerStyleCode();
   dict['BITMAP_MARKER_TRANSPARENT'] = bitmapMarkerTransparentCode();
   dict['DRAW_FEATURES_BENEATH_HANDS'] = drawFeaturesBeneathHandsCode();
@@ -592,6 +597,7 @@ function sendDict(dict) {
   dict['CUSTOM_HOUR_INNER_BORDER'] = customHourInnerBorderCode();
   dict['CUSTOM_HOUR_OUTER_BORDER'] = customHourOuterBorderCode();
   dict['CUSTOM_HOUR_TRANSLUCENT'] = customHourTranslucentCode();
+  dict['CUSTOM_HOUR_COLOR'] = customHourColorCode();
   dict['CUSTOM_SEC_STYLE'] = customSecStyleCode();
   dict['CUSTOM_SEC_THICKNESS'] = customSecThicknessCode();
   dict['CUSTOM_SEC_INNER_ECC'] = customSecInnerEccCode();
@@ -599,6 +605,7 @@ function sendDict(dict) {
   dict['CUSTOM_SEC_INNER_BORDER'] = customSecInnerBorderCode();
   dict['CUSTOM_SEC_OUTER_BORDER'] = customSecOuterBorderCode();
   dict['CUSTOM_SEC_TRANSLUCENT'] = customSecTranslucentCode();
+  dict['CUSTOM_SEC_COLOR'] = customSecColorCode();
   dict['MARKER_TEXT_TARGET'] = markerTextTargetCode();
   dict['MARKER_TEXT_FONT'] = markerTextFontCode();
   dict['MARKER_TEXT_OFFSET'] = markerTextOffsetCode();
@@ -614,7 +621,6 @@ function sendDict(dict) {
   dict['HAND_HOUR_OUTLINE_COLOR'] = handHourOutlineColorCode();
   dict['HAND_HOUR_TRANSLUCENT'] = handHourTranslucentCode();
   dict['HAND_HOUR_SHADOW_ENABLED'] = handHourShadowEnabledCode();
-  dict['HAND_HOUR_SHADOW_ANGLE'] = handHourShadowAngleCode();
   dict['HAND_HOUR_SHADOW_DISTANCE'] = handHourShadowDistanceCode();
   dict['HAND_MIN_STYLE'] = handMinStyleCode();
   dict['HAND_MIN_WIDTH'] = handMinWidthCode();
@@ -625,7 +631,6 @@ function sendDict(dict) {
   dict['HAND_MIN_OUTLINE_COLOR'] = handMinOutlineColorCode();
   dict['HAND_MIN_TRANSLUCENT'] = handMinTranslucentCode();
   dict['HAND_MIN_SHADOW_ENABLED'] = handMinShadowEnabledCode();
-  dict['HAND_MIN_SHADOW_ANGLE'] = handMinShadowAngleCode();
   dict['HAND_MIN_SHADOW_DISTANCE'] = handMinShadowDistanceCode();
   dict['HAND_SEC_STYLE'] = handSecStyleCode();
   dict['HAND_SEC_WIDTH'] = handSecWidthCode();
@@ -636,7 +641,6 @@ function sendDict(dict) {
   dict['HAND_SEC_OUTLINE_COLOR'] = handSecOutlineColorCode();
   dict['HAND_SEC_TRANSLUCENT'] = handSecTranslucentCode();
   dict['HAND_SEC_SHADOW_ENABLED'] = handSecShadowEnabledCode();
-  dict['HAND_SEC_SHADOW_ANGLE'] = handSecShadowAngleCode();
   dict['HAND_SEC_SHADOW_DISTANCE'] = handSecShadowDistanceCode();
   dict['CENTER_CIRCLE_RADIUS'] = centerCircleRadiusCode();
   dict['CENTER_CIRCLE_COLOR'] = centerCircleColorCode();
@@ -1256,6 +1260,7 @@ function sendDict(dict) {
 '  "BIG_ANALOG_HANDS_TRANSPARENT": 1,'+
 '  "BIG_ANALOG_HANDS_SHADOW": 0,'+
 '  "SHADOW_TRANSLUCENT": 1,'+
+'  "SHADOW_ANGLE": 120,'+
 '  "BIG_ANALOG_MARKER_STYLE": 8,'+
 '  "BITMAP_MARKER_TRANSPARENT": 0,'+
 '  "DRAW_FEATURES_BENEATH_HANDS": 0,'+
@@ -1266,6 +1271,7 @@ function sendDict(dict) {
 '  "CUSTOM_HOUR_INNER_BORDER": 0,'+
 '  "CUSTOM_HOUR_OUTER_BORDER": 25,'+
 '  "CUSTOM_HOUR_TRANSLUCENT": 0,'+
+'  "CUSTOM_HOUR_COLOR": 0,'+
 '  "CUSTOM_SEC_STYLE": 0,'+
 '  "CUSTOM_SEC_THICKNESS": 1,'+
 '  "CUSTOM_SEC_INNER_ECC": 0,'+
@@ -1273,6 +1279,7 @@ function sendDict(dict) {
 '  "CUSTOM_SEC_INNER_BORDER": 21,'+
 '  "CUSTOM_SEC_OUTER_BORDER": 45,'+
 '  "CUSTOM_SEC_TRANSLUCENT": 0,'+
+'  "CUSTOM_SEC_COLOR": 0,'+
 '  "MARKER_TEXT_TARGET": 1,'+
 '  "MARKER_TEXT_FONT": 4,'+
 '  "MARKER_TEXT_OFFSET": -10,'+
@@ -1287,7 +1294,6 @@ function sendDict(dict) {
 '  "HAND_HOUR_OUTLINE_COLOR": 1,'+
 '  "HAND_HOUR_TRANSLUCENT": 0,'+
 '  "HAND_HOUR_SHADOW_ENABLED": 0,'+
-'  "HAND_HOUR_SHADOW_ANGLE": 120,'+
 '  "HAND_HOUR_SHADOW_DISTANCE": 2,'+
 '  "HAND_MIN_STYLE": 1,'+
 '  "HAND_MIN_WIDTH": 18,'+
@@ -1298,7 +1304,6 @@ function sendDict(dict) {
 '  "HAND_MIN_OUTLINE_COLOR": 1,'+
 '  "HAND_MIN_TRANSLUCENT": 0,'+
 '  "HAND_MIN_SHADOW_ENABLED": 0,'+
-'  "HAND_MIN_SHADOW_ANGLE": 120,'+
 '  "HAND_MIN_SHADOW_DISTANCE": 2,'+
 '  "HAND_SEC_STYLE": 0,'+
 '  "HAND_SEC_WIDTH": 2,'+
@@ -1309,7 +1314,6 @@ function sendDict(dict) {
 '  "HAND_SEC_OUTLINE_COLOR": 0,'+
 '  "HAND_SEC_TRANSLUCENT": 0,'+
 '  "HAND_SEC_SHADOW_ENABLED": 0,'+
-'  "HAND_SEC_SHADOW_ANGLE": 120,'+
 '  "HAND_SEC_SHADOW_DISTANCE": 2,'+
 '  "CENTER_CIRCLE_RADIUS": 0,'+
 '  "CENTER_CIRCLE_COLOR": 0,'+
@@ -1832,6 +1836,7 @@ Pebble.addEventListener('showConfiguration', function () {
     bigAnalogTransparent: getSetting('CONFIG_BIG_ANALOG_TRANSPARENT', 'false') === 'true',
     bigAnalogHandsShadow: getSetting('CONFIG_BIG_ANALOG_HANDS_SHADOW', 'false') === 'true',
     shadowTranslucent: getSetting('CONFIG_SHADOW_TRANSLUCENT', 'true'),
+    shadowAngle: getSetting('CONFIG_SHADOW_ANGLE', '120'),
     bigAnalogMarkerStyle: getSetting('CONFIG_BIG_ANALOG_MARKER_STYLE', '0'),
     bitmapMarkerTransparent: getSetting('CONFIG_BITMAP_MARKER_TRANSPARENT', 'false') === 'true',
     drawFeaturesBeneathHands: getSetting('CONFIG_DRAW_FEATURES_BENEATH_HANDS', 'false') === 'true',
@@ -1842,6 +1847,7 @@ Pebble.addEventListener('showConfiguration', function () {
     customHourInnerBorder: getSetting('CONFIG_CUSTOM_HOUR_INNER_BORDER', '20'),
     customHourOuterBorder: getSetting('CONFIG_CUSTOM_HOUR_OUTER_BORDER', '100'),
     customHourTranslucent: getSetting('CONFIG_CUSTOM_HOUR_TRANSLUCENT', 'false'),
+    customHourColor: getSetting('CONFIG_CUSTOM_HOUR_COLOR', '0'),
     customSecStyle: getSetting('CONFIG_CUSTOM_SEC_STYLE', '0'),
     customSecThickness: getSetting('CONFIG_CUSTOM_SEC_THICKNESS', '1'),
     customSecInnerEcc: getSetting('CONFIG_CUSTOM_SEC_INNER_ECC', '0'),
@@ -1849,6 +1855,7 @@ Pebble.addEventListener('showConfiguration', function () {
     customSecInnerBorder: getSetting('CONFIG_CUSTOM_SEC_INNER_BORDER', '70'),
     customSecOuterBorder: getSetting('CONFIG_CUSTOM_SEC_OUTER_BORDER', '100'),
     customSecTranslucent: getSetting('CONFIG_CUSTOM_SEC_TRANSLUCENT', 'false'),
+    customSecColor: getSetting('CONFIG_CUSTOM_SEC_COLOR', '0'),
     markerTextTarget: getSetting('CONFIG_MARKER_TEXT_TARGET', '0'),
     markerTextFont: getSetting('CONFIG_MARKER_TEXT_FONT', '0'),
     markerTextOffset: getSetting('CONFIG_MARKER_TEXT_OFFSET', '0'),
@@ -1864,7 +1871,6 @@ Pebble.addEventListener('showConfiguration', function () {
     handHourOutlineColor: getSetting('CONFIG_HAND_HOUR_OUTLINE_COLOR', '0'),
     handHourTranslucent: getSetting('CONFIG_HAND_HOUR_TRANSLUCENT', 'false'),
     handHourShadowEnabled: getSetting('CONFIG_HAND_HOUR_SHADOW_ENABLED', 'false'),
-    handHourShadowAngle: getSetting('CONFIG_HAND_HOUR_SHADOW_ANGLE', '120'),
     handHourShadowDistance: getSetting('CONFIG_HAND_HOUR_SHADOW_DISTANCE', '2'),
     handMinStyle: getSetting('CONFIG_HAND_MIN_STYLE', '1'),
     handMinWidth: getSetting('CONFIG_HAND_MIN_WIDTH', '18'),
@@ -1875,7 +1881,6 @@ Pebble.addEventListener('showConfiguration', function () {
     handMinOutlineColor: getSetting('CONFIG_HAND_MIN_OUTLINE_COLOR', '0'),
     handMinTranslucent: getSetting('CONFIG_HAND_MIN_TRANSLUCENT', 'false'),
     handMinShadowEnabled: getSetting('CONFIG_HAND_MIN_SHADOW_ENABLED', 'false'),
-    handMinShadowAngle: getSetting('CONFIG_HAND_MIN_SHADOW_ANGLE', '120'),
     handMinShadowDistance: getSetting('CONFIG_HAND_MIN_SHADOW_DISTANCE', '2'),
     handSecStyle: getSetting('CONFIG_HAND_SEC_STYLE', '0'),
     handSecWidth: getSetting('CONFIG_HAND_SEC_WIDTH', '2'),
@@ -1886,7 +1891,6 @@ Pebble.addEventListener('showConfiguration', function () {
     handSecOutlineColor: getSetting('CONFIG_HAND_SEC_OUTLINE_COLOR', '0'),
     handSecTranslucent: getSetting('CONFIG_HAND_SEC_TRANSLUCENT', 'false'),
     handSecShadowEnabled: getSetting('CONFIG_HAND_SEC_SHADOW_ENABLED', 'false'),
-    handSecShadowAngle: getSetting('CONFIG_HAND_SEC_SHADOW_ANGLE', '120'),
     handSecShadowDistance: getSetting('CONFIG_HAND_SEC_SHADOW_DISTANCE', '2'),
     centerCircleRadius: getSetting('CONFIG_CENTER_CIRCLE_RADIUS', '3'),
     centerCircleColor: getSetting('CONFIG_CENTER_CIRCLE_COLOR', '0'),
@@ -1992,6 +1996,7 @@ Pebble.addEventListener('webviewclosed', function (e) {
   setSetting('CONFIG_BIG_ANALOG_TRANSPARENT', settings.CONFIG_BIG_ANALOG_TRANSPARENT ? 'true' : 'false');
   setSetting('CONFIG_BIG_ANALOG_HANDS_SHADOW', settings.CONFIG_BIG_ANALOG_HANDS_SHADOW ? 'true' : 'false');
   setSetting('CONFIG_SHADOW_TRANSLUCENT', settings.CONFIG_SHADOW_TRANSLUCENT || 'true');
+  setSetting('CONFIG_SHADOW_ANGLE', settings.CONFIG_SHADOW_ANGLE || '120');
   setSetting('CONFIG_BIG_ANALOG_MARKER_STYLE', settings.CONFIG_BIG_ANALOG_MARKER_STYLE || '0');
   setSetting('CONFIG_BITMAP_MARKER_TRANSPARENT', settings.CONFIG_BITMAP_MARKER_TRANSPARENT ? 'true' : 'false');
   setSetting('CONFIG_DRAW_FEATURES_BENEATH_HANDS', settings.CONFIG_DRAW_FEATURES_BENEATH_HANDS ? 'true' : 'false');
@@ -2002,6 +2007,7 @@ Pebble.addEventListener('webviewclosed', function (e) {
   setSetting('CONFIG_CUSTOM_HOUR_INNER_BORDER', settings.CONFIG_CUSTOM_HOUR_INNER_BORDER || '20');
   setSetting('CONFIG_CUSTOM_HOUR_OUTER_BORDER', settings.CONFIG_CUSTOM_HOUR_OUTER_BORDER || '100');
   setSetting('CONFIG_CUSTOM_HOUR_TRANSLUCENT', settings.CONFIG_CUSTOM_HOUR_TRANSLUCENT ? 'true' : 'false');
+  setSetting('CONFIG_CUSTOM_HOUR_COLOR', settings.CONFIG_CUSTOM_HOUR_COLOR || '0');
   setSetting('CONFIG_CUSTOM_SEC_STYLE', settings.CONFIG_CUSTOM_SEC_STYLE || '0');
   setSetting('CONFIG_CUSTOM_SEC_THICKNESS', settings.CONFIG_CUSTOM_SEC_THICKNESS || '1');
   setSetting('CONFIG_CUSTOM_SEC_INNER_ECC', settings.CONFIG_CUSTOM_SEC_INNER_ECC || '0');
@@ -2009,6 +2015,7 @@ Pebble.addEventListener('webviewclosed', function (e) {
   setSetting('CONFIG_CUSTOM_SEC_INNER_BORDER', settings.CONFIG_CUSTOM_SEC_INNER_BORDER || '70');
   setSetting('CONFIG_CUSTOM_SEC_OUTER_BORDER', settings.CONFIG_CUSTOM_SEC_OUTER_BORDER || '100');
   setSetting('CONFIG_CUSTOM_SEC_TRANSLUCENT', settings.CONFIG_CUSTOM_SEC_TRANSLUCENT ? 'true' : 'false');
+  setSetting('CONFIG_CUSTOM_SEC_COLOR', settings.CONFIG_CUSTOM_SEC_COLOR || '0');
   setSetting('CONFIG_MARKER_TEXT_TARGET', settings.CONFIG_MARKER_TEXT_TARGET || '0');
   setSetting('CONFIG_MARKER_TEXT_FONT', settings.CONFIG_MARKER_TEXT_FONT || '0');
   setSetting('CONFIG_MARKER_TEXT_OFFSET', settings.CONFIG_MARKER_TEXT_OFFSET || '0');
@@ -2024,7 +2031,6 @@ Pebble.addEventListener('webviewclosed', function (e) {
   setSetting('CONFIG_HAND_HOUR_OUTLINE_COLOR', settings.CONFIG_HAND_HOUR_OUTLINE_COLOR || '0');
   setSetting('CONFIG_HAND_HOUR_TRANSLUCENT', settings.CONFIG_HAND_HOUR_TRANSLUCENT || 'false');
   setSetting('CONFIG_HAND_HOUR_SHADOW_ENABLED', settings.CONFIG_HAND_HOUR_SHADOW_ENABLED || 'false');
-  setSetting('CONFIG_HAND_HOUR_SHADOW_ANGLE', settings.CONFIG_HAND_HOUR_SHADOW_ANGLE || '120');
   setSetting('CONFIG_HAND_HOUR_SHADOW_DISTANCE', settings.CONFIG_HAND_HOUR_SHADOW_DISTANCE || '2');
   setSetting('CONFIG_HAND_MIN_STYLE', settings.CONFIG_HAND_MIN_STYLE || '1');
   setSetting('CONFIG_HAND_MIN_WIDTH', settings.CONFIG_HAND_MIN_WIDTH || '18');
@@ -2035,7 +2041,6 @@ Pebble.addEventListener('webviewclosed', function (e) {
   setSetting('CONFIG_HAND_MIN_OUTLINE_COLOR', settings.CONFIG_HAND_MIN_OUTLINE_COLOR || '0');
   setSetting('CONFIG_HAND_MIN_TRANSLUCENT', settings.CONFIG_HAND_MIN_TRANSLUCENT || 'false');
   setSetting('CONFIG_HAND_MIN_SHADOW_ENABLED', settings.CONFIG_HAND_MIN_SHADOW_ENABLED || 'false');
-  setSetting('CONFIG_HAND_MIN_SHADOW_ANGLE', settings.CONFIG_HAND_MIN_SHADOW_ANGLE || '120');
   setSetting('CONFIG_HAND_MIN_SHADOW_DISTANCE', settings.CONFIG_HAND_MIN_SHADOW_DISTANCE || '2');
   setSetting('CONFIG_HAND_SEC_STYLE', settings.CONFIG_HAND_SEC_STYLE || '0');
   setSetting('CONFIG_HAND_SEC_WIDTH', settings.CONFIG_HAND_SEC_WIDTH || '2');
@@ -2046,7 +2051,6 @@ Pebble.addEventListener('webviewclosed', function (e) {
   setSetting('CONFIG_HAND_SEC_OUTLINE_COLOR', settings.CONFIG_HAND_SEC_OUTLINE_COLOR || '0');
   setSetting('CONFIG_HAND_SEC_TRANSLUCENT', settings.CONFIG_HAND_SEC_TRANSLUCENT || 'false');
   setSetting('CONFIG_HAND_SEC_SHADOW_ENABLED', settings.CONFIG_HAND_SEC_SHADOW_ENABLED || 'false');
-  setSetting('CONFIG_HAND_SEC_SHADOW_ANGLE', settings.CONFIG_HAND_SEC_SHADOW_ANGLE || '120');
   setSetting('CONFIG_HAND_SEC_SHADOW_DISTANCE', settings.CONFIG_HAND_SEC_SHADOW_DISTANCE || '2');
   setSetting('CONFIG_CENTER_CIRCLE_RADIUS', settings.CONFIG_CENTER_CIRCLE_RADIUS || '3');
   setSetting('CONFIG_CENTER_CIRCLE_COLOR', settings.CONFIG_CENTER_CIRCLE_COLOR || '0');
