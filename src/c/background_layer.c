@@ -569,7 +569,18 @@ static int cloud_cluster_count(uint8_t cloud_pct, bool stormy) {
 // own shadow. Thin cloud stays close to white either way; heavier
 // cover and storms push both ends darker and more saturated toward
 // gray, per the same coverage/storminess logic as before.
-static void cloud_shading_colors(uint8_t cloud_pct, bool stormy, RGB8 *warm, RGB8 *cool) {
+// 0 (full daylight brightness) .. 100 (fully night-darkened) -- ramps
+// linearly as the Sun sinks from the horizon (alt 0) to -10deg, well
+// past the -6deg (-60 decideg) civil-twilight threshold used
+// elsewhere for "sky_is_dark", so clouds visibly dim through sunset/
+// sunrise rather than popping instantly dark/bright at a threshold.
+static uint8_t cloud_night_factor(int16_t sun_alt_decideg) {
+  if (sun_alt_decideg >= 0) return 0;
+  if (sun_alt_decideg <= -100) return 100;
+  return (uint8_t)(((int32_t)(-sun_alt_decideg) * 100) / 100);
+}
+
+static void cloud_shading_colors(uint8_t cloud_pct, bool stormy, int16_t sun_alt_decideg, RGB8 *warm, RGB8 *cool) {
   if (stormy) {
     warm->r = 130; warm->g = 122; warm->b = 128;
     cool->r =  42; cool->g =  44; cool->b =  54;
@@ -582,6 +593,23 @@ static void cloud_shading_colors(uint8_t cloud_pct, bool stormy, RGB8 *warm, RGB
   } else {
     warm->r = 255; warm->g = 250; warm->b = 244;
     cool->r = 222; cool->g = 226; cool->b = 232;
+  }
+
+  // These bright/pale colors were the same at any hour, so clouds at
+  // night looked identical to a bright overcast afternoon -- clearly
+  // wrong against a near-black night sky. Darken both warm and cool
+  // toward a dark near-black gray as the Sun sinks, same idea (and
+  // same lerp8-toward-a-target-color trick) as the overcast horizon
+  // darkening above.
+  uint8_t night = cloud_night_factor(sun_alt_decideg);
+  if (night > 0) {
+    RGB8 night_dark = { 28, 29, 36 };
+    warm->r = lerp8(warm->r, night_dark.r, night, 100);
+    warm->g = lerp8(warm->g, night_dark.g, night, 100);
+    warm->b = lerp8(warm->b, night_dark.b, night, 100);
+    cool->r = lerp8(cool->r, night_dark.r, night, 100);
+    cool->g = lerp8(cool->g, night_dark.g, night, 100);
+    cool->b = lerp8(cool->b, night_dark.b, night, 100);
   }
 }
 
@@ -611,11 +639,12 @@ static void cloud_shading_colors(uint8_t cloud_pct, bool stormy, RGB8 *warm, RGB
 // exactly like a real strike briefly overexposing the clouds around
 // it while a thin bright channel reaches the ground.
 static void draw_clouds_realistic(GContext *ctx, GRect bounds, uint8_t cloud_pct, uint8_t cloud_altitude_pct,
-                         uint8_t visibility_pct, bool stormy, GPoint sun_center, bool sun_up, bool flash_active) {
+                         uint8_t visibility_pct, bool stormy, GPoint sun_center, bool sun_up, bool flash_active,
+                         int16_t sun_alt_decideg) {
   if (cloud_pct == 0 && !stormy) return;
 
   RGB8 warm_rgb, cool_rgb;
-  cloud_shading_colors(cloud_pct, stormy, &warm_rgb, &cool_rgb);
+  cloud_shading_colors(cloud_pct, stormy, sun_alt_decideg, &warm_rgb, &cool_rgb);
 
   int16_t band_y = compute_cloud_band_y(bounds, cloud_altitude_pct);
   int cluster_count = cloud_cluster_count(cloud_pct, stormy);
@@ -760,20 +789,38 @@ static const CloudPuffSpec CLOUD_TEMPLATE[11] = {
 #define CLOUD_TEMPLATE_COUNT 11
 
 // Bright-crown / shadow-base colors for the puffs above.
-static void simple_cloud_colors(uint8_t cloud_pct, bool stormy, GColor *lit, GColor *shadow) {
+static void simple_cloud_colors(uint8_t cloud_pct, bool stormy, int16_t sun_alt_decideg, GColor *lit, GColor *shadow) {
+  RGB8 lit_rgb, shadow_rgb;
   if (stormy) {
-    *lit = GColorFromRGB(140, 140, 148);
-    *shadow = GColorFromRGB(45, 45, 52);
+    lit_rgb = (RGB8){ 140, 140, 148 };
+    shadow_rgb = (RGB8){ 45, 45, 52 };
   } else if (cloud_pct > 70) {
-    *lit = GColorWhite;
-    *shadow = GColorFromRGB(120, 120, 126);
+    lit_rgb = (RGB8){ 255, 255, 255 };
+    shadow_rgb = (RGB8){ 120, 120, 126 };
   } else if (cloud_pct > 35) {
-    *lit = GColorWhite;
-    *shadow = GColorFromRGB(172, 172, 178);
+    lit_rgb = (RGB8){ 255, 255, 255 };
+    shadow_rgb = (RGB8){ 172, 172, 178 };
   } else {
-    *lit = GColorWhite;
-    *shadow = GColorFromRGB(216, 216, 220);
+    lit_rgb = (RGB8){ 255, 255, 255 };
+    shadow_rgb = (RGB8){ 216, 216, 220 };
   }
+
+  // Same night-darkening as the Realistic style's cloud_shading_colors()
+  // -- these puffs were a flat white/light-gray at any hour otherwise,
+  // glaringly bright against a near-black night sky.
+  uint8_t night = cloud_night_factor(sun_alt_decideg);
+  if (night > 0) {
+    RGB8 night_dark = { 28, 29, 36 };
+    lit_rgb.r = lerp8(lit_rgb.r, night_dark.r, night, 100);
+    lit_rgb.g = lerp8(lit_rgb.g, night_dark.g, night, 100);
+    lit_rgb.b = lerp8(lit_rgb.b, night_dark.b, night, 100);
+    shadow_rgb.r = lerp8(shadow_rgb.r, night_dark.r, night, 100);
+    shadow_rgb.g = lerp8(shadow_rgb.g, night_dark.g, night, 100);
+    shadow_rgb.b = lerp8(shadow_rgb.b, night_dark.b, night, 100);
+  }
+
+  *lit = GColorFromRGB(lit_rgb.r, lit_rgb.g, lit_rgb.b);
+  *shadow = GColorFromRGB(shadow_rgb.r, shadow_rgb.g, shadow_rgb.b);
 }
 
 // Stipples a dithered disc of `color` at `density_pct` (0-100)
@@ -803,11 +850,11 @@ static void dither_fill_circle(GContext *ctx, GRect bounds, GPoint center, int16
 }
 
 static void draw_clouds_simple(GContext *ctx, GRect bounds, uint8_t cloud_pct, uint8_t cloud_altitude_pct,
-                                uint8_t visibility_pct, bool stormy) {
+                                uint8_t visibility_pct, bool stormy, int16_t sun_alt_decideg) {
   if (cloud_pct == 0 && !stormy) return;
 
   GColor lit_color, shadow_color;
-  simple_cloud_colors(cloud_pct, stormy, &lit_color, &shadow_color);
+  simple_cloud_colors(cloud_pct, stormy, sun_alt_decideg, &lit_color, &shadow_color);
 
   int16_t band_y = compute_cloud_band_y(bounds, cloud_altitude_pct);
   int cluster_count = cloud_cluster_count(cloud_pct, stormy);
@@ -839,11 +886,11 @@ static void draw_clouds_simple(GContext *ctx, GRect bounds, uint8_t cloud_pct, u
 // "Cloud style" setting (0=Simple/battery-friendly, 1=Realistic).
 static void draw_clouds(GContext *ctx, GRect bounds, uint8_t cloud_pct, uint8_t cloud_altitude_pct,
                          uint8_t visibility_pct, bool stormy, GPoint sun_center, bool sun_up,
-                         uint8_t render_style, bool flash_active) {
+                         uint8_t render_style, bool flash_active, int16_t sun_alt_decideg) {
   if (render_style == 0) {
-    draw_clouds_simple(ctx, bounds, cloud_pct, cloud_altitude_pct, visibility_pct, stormy);
+    draw_clouds_simple(ctx, bounds, cloud_pct, cloud_altitude_pct, visibility_pct, stormy, sun_alt_decideg);
   } else {
-    draw_clouds_realistic(ctx, bounds, cloud_pct, cloud_altitude_pct, visibility_pct, stormy, sun_center, sun_up, flash_active);
+    draw_clouds_realistic(ctx, bounds, cloud_pct, cloud_altitude_pct, visibility_pct, stormy, sun_center, sun_up, flash_active, sun_alt_decideg);
   }
 }
 
@@ -1870,16 +1917,31 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
     }
 
     RGB8 band_rgb = sky_hz_rgb;
+    RGB8 hz_rgb = sky_hz_rgb; // what actually reaches fill_sky_gradient's horizon row
     int16_t band_y_screen = bounds.origin.y + bounds.size.h; // off-canvas: no visible band by default
     if (gray_amount > 0) {
+      // The gradient used to fade back UP to the raw (often bright/
+      // warm, especially at sunset/sunrise) horizon color right at
+      // the bottom row, undoing the graying effect exactly where a
+      // heavy deck should block the most light -- straight down,
+      // near the ground. Now the horizon row darkens too, toward a
+      // much darker target than the band itself (which sits right at
+      // the cloud deck's own height, not blocked by anything above
+      // it yet) -- so a heavy storm reads as "darkening further the
+      // lower/closer to the ground you look" rather than just a flat
+      // gray band that un-grays again beneath it.
       RGB8 neutral_gray = { 115, 117, 120 };
+      RGB8 dark_gray = { 40, 41, 46 };
       band_rgb.r = lerp8(sky_hz_rgb.r, neutral_gray.r, gray_amount, 100);
       band_rgb.g = lerp8(sky_hz_rgb.g, neutral_gray.g, gray_amount, 100);
       band_rgb.b = lerp8(sky_hz_rgb.b, neutral_gray.b, gray_amount, 100);
+      hz_rgb.r = lerp8(sky_hz_rgb.r, dark_gray.r, gray_amount, 100);
+      hz_rgb.g = lerp8(sky_hz_rgb.g, dark_gray.g, gray_amount, 100);
+      hz_rgb.b = lerp8(sky_hz_rgb.b, dark_gray.b, gray_amount, 100);
       band_y_screen = compute_cloud_band_y(bounds, d->cloud_altitude_pct);
     }
 
-    fill_sky_gradient(ctx, bounds, sky_top_rgb, band_rgb, band_y_screen, sky_hz_rgb);
+    fill_sky_gradient(ctx, bounds, sky_top_rgb, band_rgb, band_y_screen, hz_rgb);
   }
 
   // Space-view sky mode's bright-star field: real azimuth-to-x /
@@ -2124,7 +2186,7 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
   // both represent weather-free skies by definition.
   if (weather_enabled) {
     draw_clouds(ctx, bounds, cloud_pct, d->cloud_altitude_pct, d->vis_score_pct, stormy, sun_center, sun_up, d->cloud_render_style,
-                flash_currently_active);
+                flash_currently_active, alt);
     draw_weather_effect(ctx, bounds, d->weather_condition, cloud_pct, d->cloud_altitude_pct);
   }
 
