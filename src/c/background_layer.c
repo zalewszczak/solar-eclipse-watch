@@ -363,6 +363,55 @@ static uint8_t lerp8(uint8_t a, uint8_t b, int32_t num, int32_t den) {
   return (uint8_t)(a + ((int32_t)(b - a) * num) / den);
 }
 
+// The Sun's own disc color, white near the zenith and shifting through
+// yellow/orange to a deep red right at the horizon -- real sunlight
+// reddens as it travels through more atmosphere at low altitude
+// (Rayleigh scattering strips out blue/green wavelengths first, the
+// same physical effect SKY_ANCHORS above already models for the sky
+// itself). Same anchor-lerp technique as sky_colors_for_altitude()
+// below, just a much shorter table covering only the Sun's own
+// visible range (alt_decideg > 0, thanks to sun_up's own gating at
+// the call site) rather than the whole day/night cycle.
+typedef struct {
+  int16_t alt_decideg;
+  uint8_t r, g, b;
+} SunColorAnchor;
+
+static const SunColorAnchor SUN_COLOR_ANCHORS[] = {
+  { 300, 255, 255, 245 }, // high in the sky: near-white, faint warm tint
+  { 100, 255, 220, 140 }, // mid altitude: warm yellow
+  {  30, 255, 150,  60 }, // getting low: orange
+  {   0, 220,  60,  30 }, // right on the horizon: deep red
+};
+#define SUN_COLOR_ANCHOR_COUNT (int)(sizeof(SUN_COLOR_ANCHORS) / sizeof(SUN_COLOR_ANCHORS[0]))
+
+static RGB8 sun_color_for_altitude(int16_t alt_decideg) {
+  RGB8 out;
+  if (alt_decideg >= SUN_COLOR_ANCHORS[0].alt_decideg) {
+    out.r = SUN_COLOR_ANCHORS[0].r; out.g = SUN_COLOR_ANCHORS[0].g; out.b = SUN_COLOR_ANCHORS[0].b;
+    return out;
+  }
+  const SunColorAnchor *last = &SUN_COLOR_ANCHORS[SUN_COLOR_ANCHOR_COUNT - 1];
+  if (alt_decideg <= last->alt_decideg) {
+    out.r = last->r; out.g = last->g; out.b = last->b;
+    return out;
+  }
+  for (int i = 0; i < SUN_COLOR_ANCHOR_COUNT - 1; i++) {
+    const SunColorAnchor *hi = &SUN_COLOR_ANCHORS[i];
+    const SunColorAnchor *lo = &SUN_COLOR_ANCHORS[i + 1];
+    if (alt_decideg <= hi->alt_decideg && alt_decideg >= lo->alt_decideg) {
+      int32_t num = hi->alt_decideg - alt_decideg;
+      int32_t den = hi->alt_decideg - lo->alt_decideg;
+      out.r = lerp8(hi->r, lo->r, num, den);
+      out.g = lerp8(hi->g, lo->g, num, den);
+      out.b = lerp8(hi->b, lo->b, num, den);
+      return out;
+    }
+  }
+  out.r = last->r; out.g = last->g; out.b = last->b; // shouldn't reach here given the bracketing above
+  return out;
+}
+
 static void sky_colors_for_altitude(int16_t alt_decideg, RGB8 *top_out, RGB8 *hz_out) {
   if (alt_decideg >= SKY_ANCHORS[0].alt_decideg) {
     top_out->r = SKY_ANCHORS[0].top_r; top_out->g = SKY_ANCHORS[0].top_g; top_out->b = SKY_ANCHORS[0].top_b;
@@ -594,6 +643,26 @@ static void cloud_shading_colors(uint8_t cloud_pct, bool stormy, int16_t sun_alt
   } else {
     warm->r = 255; warm->g = 250; warm->b = 244;
     cool->r = 222; cool->g = 226; cool->b = 232;
+  }
+
+  // The sunlit side of the cloud should actually look lit BY the Sun's
+  // own current color (see sun_color_for_altitude() above) -- washed-
+  // out white-yellow at midday, deepening through orange to red right
+  // at the horizon, the same real sunset/sunrise glow that colors the
+  // undersides of real clouds. Blended in rather than replacing warm
+  // outright, and tapered to nothing by 30deg up (past that the Sun's
+  // own color is close enough to white that blending toward it
+  // wouldn't visibly change anything anyway) so this only actually
+  // does anything through the low-sun/golden-hour range. The cool
+  // (shadowed) side is deliberately left alone -- a cloud's shadowed
+  // face doesn't take on the Sun's direct color the way its lit face
+  // does.
+  if (sun_alt_decideg > 0 && sun_alt_decideg < 300) {
+    RGB8 sun_rgb = sun_color_for_altitude(sun_alt_decideg);
+    int32_t tint_pct = 100 - ((int32_t)sun_alt_decideg * 100) / 300;
+    warm->r = lerp8(warm->r, sun_rgb.r, tint_pct, 100);
+    warm->g = lerp8(warm->g, sun_rgb.g, tint_pct, 100);
+    warm->b = lerp8(warm->b, sun_rgb.b, tint_pct, 100);
   }
 
   // These bright/pale colors were the same at any hour, so clouds at
@@ -2254,9 +2323,19 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
     sun_center = GPoint(bounds.size.w / 2, sun_y);
   }
   if (sun_up) {
-    graphics_context_set_fill_color(ctx, GColorOrange);
+    RGB8 sun_rgb = sun_color_for_altitude(alt);
+    GColor sun_fill = GColorFromRGB(sun_rgb.r, sun_rgb.g, sun_rgb.b);
+    // A darker rim in the same hue, rather than a fixed color -- keeps
+    // the disc readable against the sky at every altitude without
+    // fighting the fill's own white-to-red shift the way a single
+    // fixed outline color (this used to always be GColorBulgarianRose)
+    // would once the fill itself turned red.
+    GColor sun_outline = GColorFromRGB((uint8_t)((uint16_t)sun_rgb.r * 55 / 100),
+                                        (uint8_t)((uint16_t)sun_rgb.g * 55 / 100),
+                                        (uint8_t)((uint16_t)sun_rgb.b * 55 / 100));
+    graphics_context_set_fill_color(ctx, sun_fill);
     graphics_fill_circle(ctx, sun_center, sun_r);
-    graphics_context_set_stroke_color(ctx, GColorBulgarianRose);
+    graphics_context_set_stroke_color(ctx, sun_outline);
     graphics_context_set_stroke_width(ctx, 1);
     graphics_draw_circle(ctx, sun_center, sun_r);
   }
