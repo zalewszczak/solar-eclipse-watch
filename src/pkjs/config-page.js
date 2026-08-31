@@ -43,6 +43,19 @@ function esc(str) {
 // gracefully wherever this is used below, not treated as an error.
 var MARKER_PREVIEW_IMAGES = require('./marker-preview-images');
 
+// "Example styles" grid (first section on the settings page) -- each
+// numbered slot pairs a screenshot (resources/example-styles/<n>.png,
+// embedded at build time -- see generate-example-style-previews.js)
+// with a hand-authored preset (src/pkjs/example-style-presets.js) in
+// exactly the same shape the "Style Presets" section's own export/
+// import uses. This single constant controls how many slots exist;
+// add a 10th by bumping it, adding resources/example-styles/10.png,
+// re-running the generator script, and adding a "10" entry to
+// example-style-presets.js -- nothing else here needs to change.
+var EXAMPLE_STYLE_COUNT = 9;
+var EXAMPLE_STYLE_IMAGES = require('./example-style-images');
+var EXAMPLE_STYLE_PRESETS = require('./example-style-presets');
+
 // Must match CLOCK_STYLE_IDS in index.js / apply_clock_font()'s code
 // numbers in pebble-eclipse-watch.c. `preview` is inline CSS applied
 // to the "88:88" sample so each option looks distinct even without
@@ -602,6 +615,23 @@ function buildConfigHtml(current) {
   var secondsChecked = (current.showSeconds && !secondsUnsupported) ? 'checked' : '';
   var secondsDisabled = secondsUnsupported ? 'disabled' : '';
 
+  // One <button> per example-style slot (see EXAMPLE_STYLE_COUNT's own
+  // comment above) -- a screenshot if one's been generated for that
+  // slot, otherwise just its number as an empty placeholder tile;
+  // disabled (not clickable) until that slot has an actual preset.
+  var exampleStylesButtonsHtml = '';
+  for (var exStyleI = 1; exStyleI <= EXAMPLE_STYLE_COUNT; exStyleI++) {
+    var exStyleImg = EXAMPLE_STYLE_IMAGES[String(exStyleI)];
+    var exStyleHasPreset = EXAMPLE_STYLE_PRESETS[String(exStyleI)] != null;
+    exampleStylesButtonsHtml +=
+      '<button type="button" class="example-style-btn" onclick="applyExampleStyle(' + exStyleI + ')"' +
+      (exStyleHasPreset ? '' : ' disabled') + '>' +
+      (exStyleImg
+        ? '<img src="' + exStyleImg + '" alt="Example style ' + exStyleI + '">'
+        : '<span class="example-style-btn-empty">' + exStyleI + '</span>') +
+      '</button>';
+  }
+
   // Which edge-middle slots (upper/bottom/left/right-middle) does the
   // current mode/style support, and are the 4 corners themselves
   // suppressed? Must match corners_layer_update_proc's rules in
@@ -695,6 +725,11 @@ function buildConfigHtml(current) {
 '  .preset-apply-btn:disabled { opacity: 0.45; }' +
 '  .preset-icon-btn { width: 44px; flex-shrink: 0; font-size: 18px; background: var(--btn-bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text-strong); }' +
 '  .preset-name-input { flex: 1; box-sizing: border-box; }' +
+'  .example-style-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 8px; }' +
+'  .example-style-btn { position: relative; aspect-ratio: 1; box-sizing: border-box; border-radius: 8px; border: 1px solid var(--border); background: var(--btn-bg); overflow: hidden; padding: 0; }' +
+'  .example-style-btn:disabled { opacity: 0.4; }' +
+'  .example-style-btn img { width: 100%; height: 100%; object-fit: cover; display: block; }' +
+'  .example-style-btn-empty { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; font-size: 13px; font-weight: 600; color: var(--text); }' +
 '  .secondary-btn:active { background: var(--border-lighter); }' +
 '  .save-bar { position: fixed; left: 0; right: 0; bottom: 0; padding: 12px 20px calc(12px + env(safe-area-inset-bottom, 0px)); background: var(--page-bg); box-shadow: 0 -2px 6px rgba(0,0,0,0.1); }' +
 '  .save-bar button { width: 100%; padding: 14px; font-size: 16px; font-weight: 600; color: #fff; background: #ff9200; border: none; border-radius: 8px; }' +
@@ -834,6 +869,14 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    <button type="button" class="modal-cancel-btn" onclick="closeDonateModal()">Close</button>' +
 '  </div>' +
 '</div>' +
+
+'  <fieldset>' +
+'    <div class="section-legend" onclick="toggleSection(\'examples\')">Example styles <span class="chevron" id="chev-examples">&#9656;</span></div>' +
+'    <div class="section-body" id="section-examples" style="display:none;">' +
+'    <div class="help">Tap a design below to apply it immediately -- each one sets every Style, Colors, and Features setting to match, the same as pasting its JSON into "Style Presets" further down.</div>' +
+'    <div class="example-style-grid">' + exampleStylesButtonsHtml + '</div>' +
+'    </div>' +
+'  </fieldset>' +
 
 '  <fieldset>' +
 '    <div class="section-legend" onclick="toggleSection(\'style\')">Style <span class="chevron" id="chev-style">&#9656;</span></div>' +
@@ -1357,6 +1400,16 @@ handEditorModalHtml('sec', 'Edit second hand') +
 
 '<script>' +
 'var MARKER_PREVIEW_IMAGES = ' + JSON.stringify(MARKER_PREVIEW_IMAGES) + ';' +
+// Only the presets need embedding client-side (for applyExampleStyle()
+// below) -- the screenshots are already baked directly into each
+// button's <img src> above at render time, no need to duplicate them
+// here too.
+'var EXAMPLE_STYLE_PRESETS = ' + JSON.stringify(EXAMPLE_STYLE_PRESETS) + ';' +
+'function applyExampleStyle(n) {' +
+'  var preset = EXAMPLE_STYLE_PRESETS[String(n)];' +
+'  if (!preset) return;' +
+'  applyStyleCornersJson(preset);' +
+'}' +
 'function toggleManual() {' +
 '  var on = !document.getElementById("autoLoc").checked;' +
 '  document.getElementById("lat").disabled = !on;' +
