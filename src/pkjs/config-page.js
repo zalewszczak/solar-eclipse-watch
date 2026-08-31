@@ -1255,7 +1255,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  <fieldset>' +
 '    <div class="section-legend" onclick="toggleSection(\'presets\')">Style Presets <span class="chevron" id="chev-presets">&#9656;</span></div>' +
 '    <div class="section-body" id="section-presets" style="display:none;">' +
-'    <div class="help">Save up to 3 quick-recall snapshots of your whole Style + Features design below, or export/import it as JSON to back it up or share it.</div>' +
+'    <div class="help">Save up to 3 quick-recall snapshots of your whole Style + Colors + Features design below, or export/import it as JSON to back it up or share it.</div>' +
 
 '    <div class="preset-slot-row">' +
 '      <button type="button" class="preset-apply-btn" id="presetApplyBtn1" onclick="applyPresetSlot(1)" ' + (current.presetSlot1Json ? '' : 'disabled') + '>' + esc(current.presetSlot1Name || "Preset 1") + '</button>' +
@@ -1285,7 +1285,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    <label for="presetExportBox" style="margin-top:12px;">Export current design</label>' +
 '    <button type="button" class="secondary-btn" onclick="exportDesignJson()">Generate JSON</button>' +
 '    <textarea id="presetExportBox" readonly rows="6" style="margin-top:8px; font-family:monospace; font-size:11px;" onclick="this.select();"></textarea>' +
-'    <div class="help">Tap the box above then copy the text -- covers everything in the Style and Features sections.</div>' +
+'    <div class="help">Tap the box above then copy the text -- covers everything in the Style, Colors, and Features sections.</div>' +
 
 '    <label for="presetImportBox" style="margin-top:12px;">Import a design</label>' +
 '    <textarea id="presetImportBox" rows="6" placeholder="Paste JSON here" style="font-family:monospace; font-size:11px;"></textarea>' +
@@ -2353,11 +2353,11 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  updatePreview();' +
 '}' +
 // ---- Style Presets: export/import + 3 quick-recall slots -----------
-// Scoped to exactly the two DOM containers the user asked for (Style,
-// Features/\'corners\') by walking every input/select/textarea with an
-// id inside them -- deliberately NOT a hand-maintained field list, so
-// this never goes stale as fields get added to either section.
-'var PRESET_SCOPE_IDS = ["section-style", "section-corners"];' +
+// Scoped to exactly the DOM containers the design covers (Style,
+// Colors, Features/\'corners\') by walking every input/select/textarea
+// with an id inside them -- deliberately NOT a hand-maintained field
+// list, so this never goes stale as fields get added to any of them.
+'var PRESET_SCOPE_IDS = ["section-style", "section-colors", "section-corners"];' +
 'function collectStyleCornersJson() {' +
 '  var obj = {};' +
 '  PRESET_SCOPE_IDS.forEach(function (containerId) {' +
@@ -2387,6 +2387,8 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  onCornerFontSizeChange();' +
 '  onSkyModeChange();' +
 '  onShowSecondsChange();' +
+'  updateColorRoleButtons();' +
+'  updateColorRoleButtons("night");' +
 '  renderSlotPicker();' +
 '  updatePreview();' +
 '}' +
