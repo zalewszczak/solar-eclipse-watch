@@ -2037,28 +2037,23 @@ static void draw_marker_bitmap(GContext *ctx, GBitmap *mask, GRect bounds, bool 
                       bmp_bounds.size.w, bmp_bounds.size.h);
   graphics_context_set_compositing_mode(ctx, GCompOpSet);
 
-  if (anim_active) {
-    // True per-pixel circular masking isn't available on this
-    // platform -- Pebble's own clip rect is rectangular only, and
-    // there's no alpha/arbitrary-shape compositing mode to fall back
-    // on instead. Approximated with a growing SQUARE clip centered on
-    // the bitmap, revealing it from the inside out as it eases toward
-    // full size -- not truly circular, but the closest "blend in from
-    // the inside, gracefully, slowing down at the end" this platform
-    // actually supports. Clip is restored to the full screen rect
-    // afterward so nothing drawn later in this same redraw ends up
-    // clipped too.
-    int32_t eased = bg_anim_ease_out_1000(anim_progress_1000);
-    int16_t max_dim = (dest.size.w > dest.size.h) ? dest.size.w : dest.size.h;
-    int16_t reveal = (int16_t)(((int32_t)max_dim * eased) / 1000);
-    if (reveal < 2) reveal = 2;
-    GPoint dest_center = GPoint(dest.origin.x + dest.size.w / 2, dest.origin.y + dest.size.h / 2);
-    graphics_context_set_clip_rect(ctx, GRect(dest_center.x - reveal / 2, dest_center.y - reveal / 2, reveal, reveal));
-    graphics_draw_bitmap_in_rect(ctx, mask, dest);
-    graphics_context_set_clip_rect(ctx, bounds);
-    return;
-  }
-
+  // "Animate background on start"'s circular reveal for bitmap
+  // markers is NOT implemented -- Pebble's public graphics API has no
+  // per-context clip-rect setter (an earlier attempt at one,
+  // graphics_context_set_clip_rect(), doesn't actually exist and
+  // failed to build) and no arbitrary-shape/alpha compositing mode
+  // either, so there's no way to reveal only part of an already-
+  // composited bitmap draw. A real circular reveal would need a
+  // manual per-pixel blit reading the bitmap's own raw data (format-
+  // dependent: 1/2/4-bit palette vs 8-bit, see tint_marker_bitmap()
+  // above for the same distinction) gated by a growing radius test --
+  // doable, but enough of its own scope to be a separate piece of
+  // work rather than guessed at here. anim_active/anim_progress_1000
+  // are accepted (for a consistent call signature with the ring/text-
+  // marker animations) but currently unused: a bitmap marker style
+  // just draws immediately, animated or not.
+  (void)anim_active;
+  (void)anim_progress_1000;
   graphics_draw_bitmap_in_rect(ctx, mask, dest);
 }
 

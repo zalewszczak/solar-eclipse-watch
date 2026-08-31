@@ -270,6 +270,102 @@ static const HandConfig HAND_STYLE_SEC_PRESET = {
 // left untouched, whatever the sky canvas underneath already drew
 // shows straight through, the same "transparent overlay" pattern the
 // countdown label already uses successfully elsewhere in this file.
+// ---- startup clock animation --------------------------------------------
+// User setting ("Style" section, on by default): on launch, the clock
+// sweeps in from a cold-start position up to the real time instead of
+// just appearing already showing it -- digital/small-analog count up
+// from 00:00:00, big-analog's custom hands grow out from a center dot
+// and sweep into place. Driven by a fast repeating AppTimer (this is
+// the one place in the app that redraws faster than once a second,
+// let alone once a minute -- deliberately bounded to under
+// STARTUP_CLOCK_ANIM_MS and played at most once per app launch, so it
+// doesn't become an ongoing battery cost).
+#define STARTUP_CLOCK_ANIM_MS 1400
+#define STARTUP_ANIM_FRAME_MS 40 // 25fps -- smooth enough for a <1.5s cosmetic sweep, not so fast it's a real battery concern for something this short
+#define STARTUP_ANIM_PHASE_A_MS ((STARTUP_CLOCK_ANIM_MS * 3) / 10) // big-analog only: the "grow out from center" phase, see compute_startup_hand_anim()
+
+static AppTimer *s_startup_anim_timer = NULL;
+static bool s_startup_clock_anim_active = false;
+static bool s_startup_clock_anim_played = false; // guards against replaying on every settings save/data refresh, not just app launch
+static uint16_t s_startup_anim_elapsed_ms = 0;
+
+// 0-1000 fixed-point "milli-progress" curves, matching this project's
+// existing frac1000 convention elsewhere (e.g. draw_clouds_realistic's
+// height_frac1000) rather than floating point.
+
+// Starts slow, accelerates toward the end -- used for the digital-
+// clock/small-analog "counting up from 00:00" effect in
+// bottom_canvas_update_proc, so the displayed time visibly speeds up
+// as it approaches the real one.
+static int32_t ease_in_cubic_1000(int32_t t) {
+  int64_t t64 = t;
+  int32_t r = (int32_t)((t64 * t64 * t64) / 1000000);
+  return (r > 1000) ? 1000 : r;
+}
+
+// Decelerates into the target, same as ease_in_cubic_1000 but mirrored.
+static int32_t ease_out_cubic_1000(int32_t t) {
+  int32_t inv = 1000 - t;
+  int64_t inv3 = ((int64_t)inv * inv * inv) / 1000000;
+  int32_t r = 1000 - (int32_t)inv3;
+  return (r > 1000) ? 1000 : r;
+}
+
+// ease_out_cubic_1000 with a small decaying wiggle layered on top --
+// approximates a spring "settle" (not true spring physics) for the
+// big-analog hands' final rotation into place. The wiggle's own
+// amplitude is scaled by (1-t)^2, so it's negligible right at the
+// start, peaks around the middle of the curve, and decays to exactly
+// 0 by t=1000 -- the hand still ends up at exactly the base curve's
+// own endpoint (1000), just with a couple of visible wobbles along
+// the way rather than a perfectly smooth glide.
+static int32_t ease_out_wiggle_1000(int32_t t) {
+  int32_t base = ease_out_cubic_1000(t);
+  int32_t inv = 1000 - t;
+  int32_t decay = (int32_t)(((int64_t)inv * inv) / 1000); // (1-t)^2, 0-1000 scale
+  int32_t wiggle_angle = (int32_t)(((int64_t)t * TRIG_MAX_ANGLE * 5) / 1000); // ~2.5 oscillations across the curve
+  int32_t wiggle = (int32_t)(((int64_t)sin_lookup(wiggle_angle) * decay) / TRIG_MAX_RATIO / 12); // small amplitude, ~4% of full range at peak
+  return base + wiggle;
+}
+
+// Big-analog hands only: given a hand's real target angle and how far
+// into the startup animation we are, returns the angle/length to
+// actually draw it at this frame. Phase A (first
+// STARTUP_ANIM_PHASE_A_MS): the hand grows from a center dot (length
+// 0) out to full length while sweeping clockwise the short distance
+// from -60deg into the 12 o'clock position (0deg) -- "appearing from
+// center dot doing sweep clockwise to midnight position". Phase B
+// (the rest): at full length, rotates from 12 o'clock to the real
+// target angle via whichever direction (clockwise/counter-clockwise)
+// is the shorter way around, with the wiggle-settle easing above.
+static void compute_startup_hand_anim(int32_t target_angle, uint16_t elapsed_ms,
+                                       int32_t *out_angle, uint16_t *out_length_scale_1000) {
+  if (elapsed_ms <= STARTUP_ANIM_PHASE_A_MS) {
+    int32_t p = ((int32_t)elapsed_ms * 1000) / STARTUP_ANIM_PHASE_A_MS;
+    if (p > 1000) p = 1000;
+    int32_t eased = ease_out_cubic_1000(p);
+    *out_length_scale_1000 = (uint16_t)eased;
+    int32_t start_angle = -(TRIG_MAX_ANGLE / 6); // -60deg, native units
+    int32_t angle = start_angle + (int32_t)(((int64_t)(-start_angle) * eased) / 1000);
+    if (angle < 0) angle += TRIG_MAX_ANGLE;
+    *out_angle = angle;
+  } else {
+    *out_length_scale_1000 = 1000;
+    uint16_t phase_b_elapsed = elapsed_ms - STARTUP_ANIM_PHASE_A_MS;
+    uint16_t phase_b_total = STARTUP_CLOCK_ANIM_MS - STARTUP_ANIM_PHASE_A_MS;
+    int32_t p = ((int32_t)phase_b_elapsed * 1000) / phase_b_total;
+    if (p > 1000) p = 1000;
+    int32_t eased = ease_out_wiggle_1000(p);
+    // Shortest signed path from 0 (12 o'clock) to target_angle, in
+    // native units (-TRIG_MAX_ANGLE/2 .. TRIG_MAX_ANGLE/2).
+    int32_t delta = target_angle;
+    if (delta > TRIG_MAX_ANGLE / 2) delta -= TRIG_MAX_ANGLE;
+    int32_t angle = (int32_t)(((int64_t)delta * eased) / 1000);
+    if (angle < 0) angle += TRIG_MAX_ANGLE;
+    *out_angle = angle;
+  }
+}
+
 static void hands_layer_update_proc(Layer *layer, GContext *ctx) {
   // Unobstructed (not full) bounds -- this layer has no background
   // fill of its own to worry about leaving gaps in (it's a pure
@@ -733,101 +829,6 @@ static void request_retry_callback(void *data) {
   s_request_retry_timer = app_timer_register((uint32_t)s_request_retry_delay_s * 1000, request_retry_callback, NULL);
 }
 
-// ---- startup clock animation --------------------------------------------
-// User setting ("Style" section, on by default): on launch, the clock
-// sweeps in from a cold-start position up to the real time instead of
-// just appearing already showing it -- digital/small-analog count up
-// from 00:00:00, big-analog's custom hands grow out from a center dot
-// and sweep into place. Driven by a fast repeating AppTimer (this is
-// the one place in the app that redraws faster than once a second,
-// let alone once a minute -- deliberately bounded to under
-// STARTUP_CLOCK_ANIM_MS and played at most once per app launch, so it
-// doesn't become an ongoing battery cost).
-#define STARTUP_CLOCK_ANIM_MS 1400
-#define STARTUP_ANIM_FRAME_MS 40 // 25fps -- smooth enough for a <1.5s cosmetic sweep, not so fast it's a real battery concern for something this short
-#define STARTUP_ANIM_PHASE_A_MS ((STARTUP_CLOCK_ANIM_MS * 3) / 10) // big-analog only: the "grow out from center" phase, see compute_startup_hand_anim()
-
-static AppTimer *s_startup_anim_timer = NULL;
-static bool s_startup_clock_anim_active = false;
-static bool s_startup_clock_anim_played = false; // guards against replaying on every settings save/data refresh, not just app launch
-static uint16_t s_startup_anim_elapsed_ms = 0;
-
-// 0-1000 fixed-point "milli-progress" curves, matching this project's
-// existing frac1000 convention elsewhere (e.g. draw_clouds_realistic's
-// height_frac1000) rather than floating point.
-
-// Starts slow, accelerates toward the end -- used for the digital-
-// clock/small-analog "counting up from 00:00" effect in
-// bottom_canvas_update_proc, so the displayed time visibly speeds up
-// as it approaches the real one.
-static int32_t ease_in_cubic_1000(int32_t t) {
-  int64_t t64 = t;
-  int32_t r = (int32_t)((t64 * t64 * t64) / 1000000);
-  return (r > 1000) ? 1000 : r;
-}
-
-// Decelerates into the target, same as ease_in_cubic_1000 but mirrored.
-static int32_t ease_out_cubic_1000(int32_t t) {
-  int32_t inv = 1000 - t;
-  int64_t inv3 = ((int64_t)inv * inv * inv) / 1000000;
-  int32_t r = 1000 - (int32_t)inv3;
-  return (r > 1000) ? 1000 : r;
-}
-
-// ease_out_cubic_1000 with a small decaying wiggle layered on top --
-// approximates a spring "settle" (not true spring physics) for the
-// big-analog hands' final rotation into place. The wiggle's own
-// amplitude is scaled by (1-t)^2, so it's negligible right at the
-// start, peaks around the middle of the curve, and decays to exactly
-// 0 by t=1000 -- the hand still ends up at exactly the base curve's
-// own endpoint (1000), just with a couple of visible wobbles along
-// the way rather than a perfectly smooth glide.
-static int32_t ease_out_wiggle_1000(int32_t t) {
-  int32_t base = ease_out_cubic_1000(t);
-  int32_t inv = 1000 - t;
-  int32_t decay = (int32_t)(((int64_t)inv * inv) / 1000); // (1-t)^2, 0-1000 scale
-  int32_t wiggle_angle = (int32_t)(((int64_t)t * TRIG_MAX_ANGLE * 5) / 1000); // ~2.5 oscillations across the curve
-  int32_t wiggle = (int32_t)(((int64_t)sin_lookup(wiggle_angle) * decay) / TRIG_MAX_RATIO / 12); // small amplitude, ~4% of full range at peak
-  return base + wiggle;
-}
-
-// Big-analog hands only: given a hand's real target angle and how far
-// into the startup animation we are, returns the angle/length to
-// actually draw it at this frame. Phase A (first
-// STARTUP_ANIM_PHASE_A_MS): the hand grows from a center dot (length
-// 0) out to full length while sweeping clockwise the short distance
-// from -60deg into the 12 o'clock position (0deg) -- "appearing from
-// center dot doing sweep clockwise to midnight position". Phase B
-// (the rest): at full length, rotates from 12 o'clock to the real
-// target angle via whichever direction (clockwise/counter-clockwise)
-// is the shorter way around, with the wiggle-settle easing above.
-static void compute_startup_hand_anim(int32_t target_angle, uint16_t elapsed_ms,
-                                       int32_t *out_angle, uint16_t *out_length_scale_1000) {
-  if (elapsed_ms <= STARTUP_ANIM_PHASE_A_MS) {
-    int32_t p = ((int32_t)elapsed_ms * 1000) / STARTUP_ANIM_PHASE_A_MS;
-    if (p > 1000) p = 1000;
-    int32_t eased = ease_out_cubic_1000(p);
-    *out_length_scale_1000 = (uint16_t)eased;
-    int32_t start_angle = -(TRIG_MAX_ANGLE / 6); // -60deg, native units
-    int32_t angle = start_angle + (int32_t)(((int64_t)(-start_angle) * eased) / 1000);
-    if (angle < 0) angle += TRIG_MAX_ANGLE;
-    *out_angle = angle;
-  } else {
-    *out_length_scale_1000 = 1000;
-    uint16_t phase_b_elapsed = elapsed_ms - STARTUP_ANIM_PHASE_A_MS;
-    uint16_t phase_b_total = STARTUP_CLOCK_ANIM_MS - STARTUP_ANIM_PHASE_A_MS;
-    int32_t p = ((int32_t)phase_b_elapsed * 1000) / phase_b_total;
-    if (p > 1000) p = 1000;
-    int32_t eased = ease_out_wiggle_1000(p);
-    // Shortest signed path from 0 (12 o'clock) to target_angle, in
-    // native units (-TRIG_MAX_ANGLE/2 .. TRIG_MAX_ANGLE/2).
-    int32_t delta = target_angle;
-    if (delta > TRIG_MAX_ANGLE / 2) delta -= TRIG_MAX_ANGLE;
-    int32_t angle = (int32_t)(((int64_t)delta * eased) / 1000);
-    if (angle < 0) angle += TRIG_MAX_ANGLE;
-    *out_angle = angle;
-  }
-}
 
 static void startup_anim_timer_callback(void *data) {
   s_startup_anim_elapsed_ms += STARTUP_ANIM_FRAME_MS;
