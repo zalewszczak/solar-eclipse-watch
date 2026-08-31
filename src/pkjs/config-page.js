@@ -1112,8 +1112,9 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      <div class="radio-row"><input type="radio" name="shakeAnimMode" id="shakeAnimMode1" value="1" ' + (current.shakeAnimMode === '1' ? 'checked' : '') + '><label for="shakeAnimMode1" style="margin:0;">Gradient (outlines sweep through a rainbow)</label></div>' +
 '      <div class="radio-row"><input type="radio" name="shakeAnimMode" id="shakeAnimMode2" value="2" ' + (current.shakeAnimMode === '2' ? 'checked' : '') + '><label for="shakeAnimMode2" style="margin:0;">Smooth second hand</label></div>' +
 '      <div class="radio-row"><input type="radio" name="shakeAnimMode" id="shakeAnimMode3" value="3" ' + (current.shakeAnimMode === '3' ? 'checked' : '') + '><label for="shakeAnimMode3" style="margin:0;">Both</label></div>' +
+'      <div class="radio-row"><input type="radio" name="shakeAnimMode" id="shakeAnimMode4" value="4" ' + (current.shakeAnimMode === '4' ? 'checked' : '') + '><label for="shakeAnimMode4" style="margin:0;">Planet seek</label></div>' +
 '    </div>' +
-'    <div class="help">Off by default: runs for as long as the shake labels stay up -- see "Shake-to-reveal labels stay on screen for" in the Astronomy section.</div>' +
+'    <div class="help">Off by default: runs for as long as the shake labels stay up -- see "Shake-to-reveal labels stay on screen for" in the Astronomy section. "Planet seek" points the sky view at whichever 90&deg; slice of the horizon your compass currently faces, repositioning the Sun/Moon/planets to match as you turn -- weather is hidden for the duration, and it never runs on a day with an eclipse.</div>' +
 '    </div>' +
 '  </fieldset>' +
 

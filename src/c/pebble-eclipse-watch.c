@@ -489,6 +489,7 @@ static void shake_anim_timer_callback(void *data) {
   if (!still_active) {
     s_shake_anim_active = false;
     s_shake_anim_timer = NULL;
+    if (s_data.shake_anim_mode == 4) compass_service_unsubscribe(); // stop the magnetometer the moment planet seek's own window ends, not just on app exit
   } else {
     s_shake_gradient_shift = (uint8_t)((s_shake_gradient_shift + 1) % SHAKE_RAINBOW_LUT_SIZE);
     s_shake_anim_timer = app_timer_register(SHAKE_ANIM_FRAME_MS, shake_anim_timer_callback, NULL);
@@ -496,6 +497,33 @@ static void shake_anim_timer_callback(void *data) {
   if (s_hands_layer) layer_mark_dirty(s_hands_layer);
   if (s_features_layer) layer_mark_dirty(s_features_layer);
   if (s_countdown_layer) layer_mark_dirty(s_countdown_layer);
+  if (s_canvas_layer && s_data.shake_anim_mode == 4) layer_mark_dirty(s_canvas_layer); // planet seek redraws the sky canvas too, once its rendering exists -- see shake_anim_mode's own eclipse_data.h comment
+}
+
+// Planet seek's own watch-side compass reading -- subscribed only for
+// as long as the animation itself runs (compass/magnetometer use has
+// a real, ongoing power cost, unlike a plain timer), storing just the
+// latest heading for whatever future rendering code reads it via
+// planet_seek_heading_deg() below. "Pulled for each refresh" per the
+// request is naturally what this already does: compass_service_
+// subscribe()'s own callback fires on every new reading, and the
+// redraw loop (driven by shake_anim_timer_callback(), already
+// running every SHAKE_ANIM_FRAME_MS while planet seek is active) just
+// reads whatever s_planet_seek_heading_deg currently holds each time
+// it redraws, rather than the two needing to be tightly synchronized.
+static int32_t s_planet_seek_heading_deg = 0; // 0-359, true north-relative
+
+static void planet_seek_compass_handler(CompassHeadingData data) {
+  if (data.compass_status != CompassStatusDataInvalid) {
+    s_planet_seek_heading_deg = (int32_t)(((int64_t)data.true_heading * 360) / TRIG_MAX_ANGLE);
+  }
+}
+
+// Exposed for background_layer.c's future rendering code -- see
+// shake_anim_mode's own eclipse_data.h comment for the current state
+// of what's actually implemented here.
+int32_t planet_seek_heading_deg(void) {
+  return s_planet_seek_heading_deg;
 }
 
 // Called from tap_handler() below, once per shake -- restarts the
@@ -504,6 +532,7 @@ static void shake_anim_timer_callback(void *data) {
 // the gradient/hand-smoothing window rather than just extending it.
 static void maybe_start_shake_animation(void) {
   if (s_data.shake_anim_mode == 0) return;
+  if (s_data.shake_anim_mode == 4 && s_data.has_eclipse) return; // Planet seek never runs on an eclipse day, per request
   s_shake_anim_active = true;
   s_shake_anim_elapsed_ms = 0;
   s_shake_gradient_shift = 0;
@@ -511,6 +540,7 @@ static void maybe_start_shake_animation(void) {
   s_shake_anim_duration_ms = (uint32_t)seconds * 1000;
   if (s_shake_anim_timer) app_timer_cancel(s_shake_anim_timer);
   s_shake_anim_timer = app_timer_register(SHAKE_ANIM_FRAME_MS, shake_anim_timer_callback, NULL);
+  if (s_data.shake_anim_mode == 4) compass_service_subscribe(planet_seek_compass_handler);
 }
 
 static void hands_layer_update_proc(Layer *layer, GContext *ctx) {
@@ -1377,7 +1407,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   }
   if ((t = dict_find(iter, MESSAGE_KEY_SHAKE_ANIM_MODE))) {
     uint8_t v = t->value->uint8;
-    s_data.shake_anim_mode = (v <= 3) ? v : 0;
+    s_data.shake_anim_mode = (v <= 4) ? v : 0;
   }
   if ((t = dict_find(iter, MESSAGE_KEY_OUTLINE_ENABLED))) {
     s_data.outline_enabled = t->value->uint8 != 0;
@@ -2062,6 +2092,7 @@ static void deinit(void) {
   tick_timer_service_unsubscribe();
   accel_tap_service_unsubscribe();
   unobstructed_area_service_unsubscribe();
+  compass_service_unsubscribe(); // safe even if planet seek never subscribed it this session -- a no-op in that case
   if (s_label_timer) {
     app_timer_cancel(s_label_timer);
     s_label_timer = NULL;

@@ -543,10 +543,10 @@ function bgAnimModeCode() {
   var v = parseInt(getSetting('CONFIG_BG_ANIM_MODE', '0'), 10);
   return [0, 1, 2, 3].indexOf(v) === -1 ? 0 : v;
 }
-// Radio-style, exactly one of 0=off, 1=gradient, 2=smooth second hand, 3=both -- see shake_anim_mode's own comment in eclipse_data.h.
+// Radio-style, exactly one of 0=off, 1=gradient, 2=smooth second hand, 3=both, 4=Planet seek -- see shake_anim_mode's own comment in eclipse_data.h.
 function shakeAnimModeCode() {
   var v = parseInt(getSetting('CONFIG_SHAKE_ANIM_MODE', '0'), 10);
-  return [0, 1, 2, 3].indexOf(v) === -1 ? 0 : v;
+  return [0, 1, 2, 3, 4].indexOf(v) === -1 ? 0 : v;
 }
 function outlineEnabledCode() { return getSetting('CONFIG_OUTLINE_ENABLED', 'true') === 'true' ? 1 : 0; }
 function cornerFontSizeCode() {

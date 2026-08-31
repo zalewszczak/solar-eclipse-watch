@@ -261,7 +261,19 @@ typedef struct {
                              // pebble-eclipse-watch.c and subpixel.h's stroke_*_gradient_fp()
                              // functions), 2=smooth second hand (continuous sub-second motion
                              // instead of per-second jumps, for as long as shake_label_seconds),
-                             // 3=both at once.
+                             // 3=both at once, 4="Planet seek" (points the sky view at whatever
+                             // 90deg slice of the horizon the watch's compass is currently facing,
+                             // for as long as shake_label_seconds -- weather is suppressed for the
+                             // duration; the Sun/Moon/planets keep the same altitude they'd show in
+                             // the normal, non-rotated view, just repositioned left-to-right across
+                             // the screen by compass-relative azimuth, with off-screen bodies shown
+                             // as an edge-pinned label + arrow instead. Unavailable whenever today
+                             // has an eclipse -- see s_data.has_eclipse's own gating at the trigger
+                             // site). NOT YET IMPLEMENTED beyond the setting itself + the watch-side
+                             // compass subscription -- true per-body azimuth (not just altitude, all
+                             // this struct currently tracks for the Sun/Moon/planets) is a genuinely
+                             // separate, larger data-pipeline addition; see this project's own notes
+                             // on that at the compass subscription code in pebble-eclipse-watch.c.
   bool outline_enabled; // user setting: 1px contrasting-color outline behind corner/edge text,
                           // the big-analog date, the eclipse phase text, and (procedurally, non-
                           // translucent mode only) corner/edge icons and the analog hands
@@ -570,6 +582,13 @@ GColor shake_outline_color(GColor normal_color, int16_t screen_x);
 // hand_layer.c's own version -- see its definition in
 // pebble-eclipse-watch.c for why it's different from the one above.
 bool shake_gradient_active(uint8_t *out_shift);
+
+// Also defined in pebble-eclipse-watch.c -- the watch's current compass
+// heading (0-359, true-north-relative), as of the most recent reading
+// while planet seek's own compass subscription is active. Meaningless
+// (and not kept fresh) outside that window -- see shake_anim_mode's own
+// comment for what's actually implemented here so far.
+int32_t planet_seek_heading_deg(void);
 
 // Also defined in pebble-eclipse-watch.c, declared here for the same reason:
 // features_layer.c's "current conditions" and sunrise/sunset corner content
