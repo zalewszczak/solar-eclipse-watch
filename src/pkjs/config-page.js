@@ -190,12 +190,19 @@ var CORNER_CONTENT_OPTIONS = [
   { id: 80, label: 'Meteor shower' },
   { id: 81, label: 'Saturn ring angle' },
   { id: 82, label: 'Next planet rise' },
-  { id: 83, label: 'Next ISS pass' }
+  { id: 83, label: 'Next ISS pass' },
+  { id: 84, label: 'Aurora Kp index' }
 ];
 // Must match draw_corner_item()'s color_mode switch exactly.
 var CORNER_COLOR_MODE_LABELS = ['MONO', 'ACC', 'SEMI', 'COLOR'];
-function cornerContentOptionsHtml(selected) {
-  return CORNER_CONTENT_OPTIONS.map(function (o) {
+// auroraEnabled omits id 84 entirely (not just hides it) when auroras
+// are turned off in the Astronomy section -- see onAuroraEnabledChange()
+// for the live version of this same filtering, run client-side when
+// the checkbox itself is toggled without a page reload.
+function cornerContentOptionsHtml(selected, auroraEnabled) {
+  return CORNER_CONTENT_OPTIONS.filter(function (o) {
+    return o.id !== 84 || auroraEnabled;
+  }).map(function (o) {
     return '<option value="' + o.id + '"' + (String(selected) === String(o.id) ? ' selected' : '') + '>' + esc(o.label) + '</option>';
   }).join('');
 }
@@ -1120,29 +1127,29 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    </div>' +
 
 '    <div style="display:none;" id="slotDataStore">' +
-'      <select id="cornerTL">' + cornerContentOptionsHtml(current.cornerTL) + '</select>' +
+'      <select id="cornerTL">' + cornerContentOptionsHtml(current.cornerTL, current.auroraEnabled) + '</select>' +
 '      <input type="hidden" id="cornerTLColor" value="' + esc(current.cornerTLColor || '0') + '">' +
-'      <select id="cornerTR">' + cornerContentOptionsHtml(current.cornerTR) + '</select>' +
+'      <select id="cornerTR">' + cornerContentOptionsHtml(current.cornerTR, current.auroraEnabled) + '</select>' +
 '      <input type="hidden" id="cornerTRColor" value="' + esc(current.cornerTRColor || '0') + '">' +
-'      <select id="cornerBL">' + cornerContentOptionsHtml(current.cornerBL) + '</select>' +
+'      <select id="cornerBL">' + cornerContentOptionsHtml(current.cornerBL, current.auroraEnabled) + '</select>' +
 '      <input type="hidden" id="cornerBLColor" value="' + esc(current.cornerBLColor || '0') + '">' +
-'      <select id="cornerBR">' + cornerContentOptionsHtml(current.cornerBR) + '</select>' +
+'      <select id="cornerBR">' + cornerContentOptionsHtml(current.cornerBR, current.auroraEnabled) + '</select>' +
 '      <input type="hidden" id="cornerBRColor" value="' + esc(current.cornerBRColor || '0') + '">' +
-'      <select id="upperMiddleLine1Content">' + cornerContentOptionsHtml(current.upperMiddleLine1Content) + '</select>' +
+'      <select id="upperMiddleLine1Content">' + cornerContentOptionsHtml(current.upperMiddleLine1Content, current.auroraEnabled) + '</select>' +
 '      <input type="hidden" id="upperMiddleLine1Color" value="' + esc(current.upperMiddleLine1Color || '0') + '">' +
-'      <select id="upperMiddleLine2Content">' + cornerContentOptionsHtml(current.upperMiddleLine2Content) + '</select>' +
+'      <select id="upperMiddleLine2Content">' + cornerContentOptionsHtml(current.upperMiddleLine2Content, current.auroraEnabled) + '</select>' +
 '      <input type="hidden" id="upperMiddleLine2Color" value="' + esc(current.upperMiddleLine2Color || '0') + '">' +
-'      <select id="bottomMiddleLine1Content">' + cornerContentOptionsHtml(current.bottomMiddleLine1Content) + '</select>' +
+'      <select id="bottomMiddleLine1Content">' + cornerContentOptionsHtml(current.bottomMiddleLine1Content, current.auroraEnabled) + '</select>' +
 '      <input type="hidden" id="bottomMiddleLine1Color" value="' + esc(current.bottomMiddleLine1Color || '0') + '">' +
-'      <select id="bottomMiddleLine2Content">' + cornerContentOptionsHtml(current.bottomMiddleLine2Content) + '</select>' +
+'      <select id="bottomMiddleLine2Content">' + cornerContentOptionsHtml(current.bottomMiddleLine2Content, current.auroraEnabled) + '</select>' +
 '      <input type="hidden" id="bottomMiddleLine2Color" value="' + esc(current.bottomMiddleLine2Color || '0') + '">' +
-'      <select id="middleLeftLine1Content">' + cornerContentOptionsHtml(current.middleLeftLine1Content) + '</select>' +
+'      <select id="middleLeftLine1Content">' + cornerContentOptionsHtml(current.middleLeftLine1Content, current.auroraEnabled) + '</select>' +
 '      <input type="hidden" id="middleLeftLine1Color" value="' + esc(current.middleLeftLine1Color || '0') + '">' +
-'      <select id="middleLeftLine2Content">' + cornerContentOptionsHtml(current.middleLeftLine2Content) + '</select>' +
+'      <select id="middleLeftLine2Content">' + cornerContentOptionsHtml(current.middleLeftLine2Content, current.auroraEnabled) + '</select>' +
 '      <input type="hidden" id="middleLeftLine2Color" value="' + esc(current.middleLeftLine2Color || '0') + '">' +
-'      <select id="middleRightLine1Content">' + cornerContentOptionsHtml(current.middleRightLine1Content) + '</select>' +
+'      <select id="middleRightLine1Content">' + cornerContentOptionsHtml(current.middleRightLine1Content, current.auroraEnabled) + '</select>' +
 '      <input type="hidden" id="middleRightLine1Color" value="' + esc(current.middleRightLine1Color || '0') + '">' +
-'      <select id="middleRightLine2Content">' + cornerContentOptionsHtml(current.middleRightLine2Content) + '</select>' +
+'      <select id="middleRightLine2Content">' + cornerContentOptionsHtml(current.middleRightLine2Content, current.auroraEnabled) + '</select>' +
 '      <input type="hidden" id="middleRightLine2Color" value="' + esc(current.middleRightLine2Color || '0') + '">' +
 '    </div>' +
 
@@ -1228,6 +1235,12 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      <label for="showIss" style="margin:0;">Show the ISS when overhead (experimental)</label>' +
 '    </div>' +
 '    <div class="help">Fetches live orbital data each refresh. Position is a snapshot, not continuously tracked, and doesn\'t account for the station being in Earth\'s shadow -- it can occasionally show when it wouldn\'t really be visible.</div>' +
+
+'    <div class="checkbox-row subsection">' +
+'      <input type="checkbox" id="auroraEnabled" ' + (current.auroraEnabled ? 'checked' : '') + ' onchange="onAuroraEnabledChange()">' +
+'      <label for="auroraEnabled" style="margin:0;">Show auroras (experimental)</label>' +
+'    </div>' +
+'    <div class="help">Fetches NOAA\'s current planetary Kp index each refresh and estimates whether it\'s bright enough to reach your latitude -- a rough approximation (real aurora visibility also depends on local weather/light pollution), not a precise forecast. When on, an "Aurora Kp index" option becomes available in the Features section below, and the sky itself paints a faint aurora glow when conditions and darkness line up. Turning this off removes that option from every feature slot it might currently be set to.</div>' +
 
 '    <div class="checkbox-row subsection">' +
 '      <input type="checkbox" id="vibrateOnPhaseChange" ' + (current.vibrateOnPhaseChange ? 'checked' : '') + '>' +
@@ -1422,7 +1435,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  56: "NYC 07:34", 57: "CHI 06:34", 58: "DEN 05:34", 59: "LAX 04:34", 60: "ANC 03:34", 61: "HNL 02:34", 62: "SAO 09:34",' +
 '  63: "14:32:07", 64: "07", 65: "7", 66: "7", 67: "5", 68: "05", 69: "8", 70: "08", 71: "3", 72: "8",' +
 '  73: "22C", 74: "H 28C", 75: "L 11C", 76: "22 H28 L11C", 77: "FL 20C", 78: "(bt)",' +
-'  79: "3 planets", 80: "Perseids", 81: "Rings 12%", 82: "VEN 18:32", 83: "22:47"' +
+'  79: "3 planets", 80: "Perseids", 81: "Rings 12%", 82: "VEN 18:32", 83: "22:47", 84: "Kp 4.3"' +
 '};' +
 
 'function hasPreviewContent(contentId) {' +
@@ -1831,6 +1844,9 @@ handEditorModalHtml('sec', 'Edit second hand') +
 // than reusing the generator-side labels). Keep in sync with
 // CORNER_CONTENT_OPTIONS/CORNER_CATEGORIES above by hand -- every
 // content id 0-83 must appear in exactly one category\'s items list.
+'var CONTENT_SELECT_IDS = ["cornerTL", "cornerTR", "cornerBL", "cornerBR", ' +
+'  "upperMiddleLine1Content", "upperMiddleLine2Content", "bottomMiddleLine1Content", "bottomMiddleLine2Content", ' +
+'  "middleLeftLine1Content", "middleLeftLine2Content", "middleRightLine1Content", "middleRightLine2Content"];' +
 'var CORNER_CATEGORIES = [' +
 '  { id: "none", label: "None", items: [{ id: 0, label: "None" }] },' +
 '  { id: "utilities", label: "Utilities", items: [' +
@@ -1877,7 +1893,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    { id: 11, label: "Moon phase" }, { id: 16, label: "Sunrise / sunset" },' +
 '    { id: 79, label: "Planets visible now" }, { id: 80, label: "Meteor shower" },' +
 '    { id: 81, label: "Saturn ring angle" }, { id: 82, label: "Next planet rise" },' +
-'    { id: 83, label: "Next ISS pass" }' +
+'    { id: 83, label: "Next ISS pass" }' + (current.auroraEnabled ? ', { id: 84, label: "Aurora Kp index" }' : '') +
 '  ] }' +
 '];' +
 'function categoryForContentId(contentId) {' +
@@ -2289,6 +2305,29 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  if (el && out) out.textContent = el.value + "\u00b0";' +
 '  updatePreview();' +
 '}' +
+'function onAuroraEnabledChange() {' +
+'  var enabled = document.getElementById("auroraEnabled").checked;' +
+'  var astro = findCategory("astro");' +
+'  var hasIt = astro.items.some(function (it) { return it.id === 84; });' +
+'  if (enabled && !hasIt) astro.items.push({ id: 84, label: "Aurora Kp index" });' +
+'  if (!enabled && hasIt) astro.items = astro.items.filter(function (it) { return it.id !== 84; });' +
+'  CONTENT_SELECT_IDS.forEach(function (id) {' +
+'    var sel = document.getElementById(id);' +
+'    if (!sel) return;' +
+'    var opt = sel.querySelector(\'option[value="84"]\');' +
+'    if (enabled && !opt) {' +
+'      opt = document.createElement("option");' +
+'      opt.value = "84";' +
+'      opt.textContent = "Aurora Kp index";' +
+'      sel.appendChild(opt);' +
+'    } else if (!enabled && opt) {' +
+'      if (sel.value === "84") sel.value = "0";' + // dangling selection on a now-hidden option -- fall back to None
+'      opt.remove();' +
+'    }' +
+'  });' +
+'  renderSlotPicker();' +
+'  updatePreview();' +
+'}' +
 'function onShowSecondsChange() {' +
 '  var box = document.getElementById("showSeconds");' +
 '  var btn = document.getElementById("editSecHandBtn");' +
@@ -2587,6 +2626,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    CONFIG_MIDDLE_RIGHT_LINE2_COLOR: document.getElementById("middleRightLine2Color").value,' +
 '    CONFIG_SHOW_SUN_TIME: document.getElementById("showSunTime").value === "true",' +
 '    CONFIG_SHOW_ISS: document.getElementById("showIss").checked,' +
+'    CONFIG_AURORA_ENABLED: document.getElementById("auroraEnabled").checked,' +
 '    CONFIG_VIBRATE_ON_PHASE_CHANGE: document.getElementById("vibrateOnPhaseChange").checked,' +
 '    CONFIG_OUTLINE_ENABLED: document.getElementById("outlineEnabled").checked,' +
 '    CONFIG_CORNER_FONT_SIZE: document.getElementById("cornerFontSize").value,' +

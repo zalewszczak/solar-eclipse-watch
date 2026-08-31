@@ -333,8 +333,30 @@ function fetchAirQuality(lat, lon, cb) {
   });
 }
 
+// Current planetary Kp index (geomagnetic activity, 0-9 in thirds --
+// e.g. 4.33/4.67) from NOAA's Space Weather Prediction Center -- free,
+// no API key, same "no signup needed" bar as Open-Meteo above. This
+// endpoint publishes the 3-hourly definitive/estimated planetary Kp
+// series; the last row is the most recent value. Kp alone doesn't say
+// whether aurora is actually visible from any particular place (that
+// also depends on geomagnetic latitude -- see astro.js's
+// geomagneticLatitudeDeg()/auroraVisibilityScore()), just how
+// geomagnetically active the whole planet currently is.
+function fetchAuroraKp(cb) {
+  var url = 'https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json';
+  xhrGetJSON(url, 8000, function (err, json) {
+    if (err || !Array.isArray(json) || json.length < 2) return cb(err || new Error('empty Kp response'), null);
+    var last = json[json.length - 1];
+    if (!Array.isArray(last) || last.length < 2) return cb(new Error('malformed Kp row'), null);
+    var kp = parseFloat(last[1]);
+    if (isNaN(kp)) return cb(new Error('bad Kp value'), null);
+    cb(null, kp);
+  });
+}
+
 module.exports = {
   getEclipseWeather: getEclipseWeather,
   getDailyCloudGrid: getDailyCloudGrid,
-  fetchAirQuality: fetchAirQuality
+  fetchAirQuality: fetchAirQuality,
+  fetchAuroraKp: fetchAuroraKp
 };

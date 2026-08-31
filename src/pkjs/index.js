@@ -520,6 +520,7 @@ function middleRightLine2ColorModeCode() {
 
 function showSunTimeCode() { return getSetting('CONFIG_SHOW_SUN_TIME', 'false') === 'true' ? 1 : 0; }
 function showIssCode() { return getSetting('CONFIG_SHOW_ISS', 'false') === 'true' ? 1 : 0; }
+function auroraEnabledCode() { return getSetting('CONFIG_AURORA_ENABLED', 'false') === 'true' ? 1 : 0; }
 function vibrateOnPhaseChangeCode() { return getSetting('CONFIG_VIBRATE_ON_PHASE_CHANGE', 'false') === 'true' ? 1 : 0; }
 function outlineEnabledCode() { return getSetting('CONFIG_OUTLINE_ENABLED', 'true') === 'true' ? 1 : 0; }
 function cornerFontSizeCode() {
@@ -662,6 +663,7 @@ function sendDict(dict) {
   dict['MIDDLE_RIGHT_LINE2_COLOR_MODE'] = middleRightLine2ColorModeCode();
   dict['SHOW_SUN_TIME'] = showSunTimeCode();
   dict['SHOW_ISS'] = showIssCode();
+  dict['AURORA_ENABLED'] = auroraEnabledCode();
   dict['VIBRATE_ON_PHASE_CHANGE'] = vibrateOnPhaseChangeCode();
   dict['OUTLINE_ENABLED'] = outlineEnabledCode();
   dict['CORNER_FONT_SIZE'] = cornerFontSizeCode();
@@ -1335,6 +1337,7 @@ function sendDict(dict) {
 '  "MIDDLE_RIGHT_LINE2_COLOR_MODE": 0,'+
 '  "SHOW_SUN_TIME": 1,'+
 '  "SHOW_ISS": 1,'+
+'  "AURORA_ENABLED": 0,'+
 '  "VIBRATE_ON_PHASE_CHANGE": 0,'+
 '  "OUTLINE_ENABLED": 1,'+
 '  "CORNER_FONT_SIZE": 1,'+
@@ -1416,11 +1419,16 @@ function extraWeatherFieldsDict(extra) {
     // (Death Valley, the Dead Sea shore) or exactly 0 (sea level), so
     // those can't double as the "missing" signal the way they might
     // elsewhere -- this needs its own out-of-range sentinel instead.
-    'ALTITUDE_M': (typeof extra.altitudeMeters === 'number') ? Math.round(extra.altitudeMeters) : -32000
+    'ALTITUDE_M': (typeof extra.altitudeMeters === 'number') ? Math.round(extra.altitudeMeters) : -32000,
+    // x10 -- same convention as every other _x10/_decideg field. Kp is
+    // fractional (thirds: .00/.33/.67), hence the scaling rather than
+    // sending it as a plain 0-9 integer.
+    'AURORA_KP_X10': (typeof extra.auroraKpX10 === 'number') ? extra.auroraKpX10 : 0,
+    'AURORA_VISIBILITY_PCT': (typeof extra.auroraVisibilityPct === 'number') ? extra.auroraVisibilityPct : 0
   };
 }
 
-function sendNoEclipseToday(sky, cloudGrid, headlineCloud, headlineSources, locationName, moonPhase, riseSet, weatherCondition, weatherTempC, meteorShower, cloudAltitudePct, tempHighC, tempLowC, issPos, uvIndexMax, rainChancePct, humidityPct, windSpeedKmh, currentCloudPct, sunRiseTomorrow, extraWeather) {
+function sendNoEclipseToday(sky, cloudGrid, headlineCloud, headlineSources, locationName, moonPhase, riseSet, weatherCondition, weatherTempC, meteorShower, cloudAltitudePct, tempHighC, tempLowC, issPos, uvIndexMax, rainChancePct, humidityPct, windSpeedKmh, currentCloudPct, sunRiseTomorrow, extraWeather, stars) {
   var displayCloudPct = (typeof currentCloudPct === 'number') ? currentCloudPct : (headlineCloud || 0);
   var dict = {
     'DATA_VALID': 1,
@@ -1454,7 +1462,7 @@ function sendNoEclipseToday(sky, cloudGrid, headlineCloud, headlineSources, loca
   sendDict(dict);
 }
 
-function sendEclipseData(result, sky, cloudGrid, headlineCloud, headlineSources, locationName, moonPhase, riseSet, weatherCondition, weatherTempC, meteorShower, cloudAltitudePct, tempHighC, tempLowC, issPos, uvIndexMax, rainChancePct, humidityPct, windSpeedKmh, currentCloudPct, sunRiseTomorrow, extraWeather) {
+function sendEclipseData(result, sky, cloudGrid, headlineCloud, headlineSources, locationName, moonPhase, riseSet, weatherCondition, weatherTempC, meteorShower, cloudAltitudePct, tempHighC, tempLowC, issPos, uvIndexMax, rainChancePct, humidityPct, windSpeedKmh, currentCloudPct, sunRiseTomorrow, extraWeather, stars) {
   var displayCloudPct = (typeof currentCloudPct === 'number') ? currentCloudPct : (headlineCloud || 0);
   var dict = {
     'DATA_VALID': 1,
@@ -1661,6 +1669,25 @@ function fetchAirQualityIfEnabled(lat, lon, cb) {
   });
 }
 
+// Only fetches the Kp index when the user has opted in via the
+// Astronomy section's "Show auroras" checkbox -- same "opt-in, needs a
+// live external source" reasoning fetchIssIfEnabled above already
+// uses. Fails open, same as every other optional fetch here: an error
+// just means no aurora reading this cycle (score 0), not a hard
+// refresh failure.
+function fetchAuroraIfEnabled(lat, lon, cb) {
+  if (getSetting('CONFIG_AURORA_ENABLED', 'false') !== 'true') return cb({ kp: null, visibilityPct: 0 });
+  weather.fetchAuroraKp(function (err, kp) {
+    if (err || typeof kp !== 'number') {
+      console.log('eclipse-watch: aurora Kp fetch failed - ' + (err ? err.message : 'no data'));
+      return cb({ kp: null, visibilityPct: 0 });
+    }
+    var geomagLat = Math.abs(astro.geomagneticLatitudeDeg(lat, lon));
+    var score = astro.auroraVisibilityScore(kp, geomagLat);
+    cb({ kp: kp, visibilityPct: score });
+  });
+}
+
 // ---- main refresh cycle --------------------------------------------------
 
 function refreshAndSend(force) {
@@ -1759,18 +1786,22 @@ function refreshAndSend(force) {
 
           fetchIssIfEnabled(lat, lon, function (issPos) {
             fetchAirQualityIfEnabled(lat, lon, function (aqi) {
-              if (isStale()) { console.log('eclipse-watch: refresh superseded, discarding (final step)'); return; }
-              var extraWeather = {
-                windDirDeg: extras.windDirDeg, dewPointC: extras.dewPointC,
-                pressureHpa: extras.pressureHpa, pressureTrend: extras.pressureTrend,
-                aqiUs: aqi.aqiUs, aqiEu: aqi.aqiEu, altitudeMeters: altitudeMeters
-              };
-              if (result.hasEclipse) {
-                sendEclipseData(result, sky, cloudGrid, headlineCloud, headlineSources, locationName, moonPhase, riseSet, extras.condition, extras.tempC, meteorShower, extras.cloudAltitudePct, extras.tempHighC, extras.tempLowC, issPos, extras.uvIndexMax, extras.rainChancePct, extras.humidityPct, extras.windSpeedKmh, extras.currentCloudPct, sunRiseTomorrow, extraWeather);
-              } else {
-                sendNoEclipseToday(sky, cloudGrid, headlineCloud, headlineSources, locationName, moonPhase, riseSet, extras.condition, extras.tempC, meteorShower, extras.cloudAltitudePct, extras.tempHighC, extras.tempLowC, issPos, extras.uvIndexMax, extras.rainChancePct, extras.humidityPct, extras.windSpeedKmh, extras.currentCloudPct, sunRiseTomorrow, extraWeather);
-              }
-              markRefreshDone(lat, lon);
+              fetchAuroraIfEnabled(lat, lon, function (aurora) {
+                if (isStale()) { console.log('eclipse-watch: refresh superseded, discarding (final step)'); return; }
+                var extraWeather = {
+                  windDirDeg: extras.windDirDeg, dewPointC: extras.dewPointC,
+                  pressureHpa: extras.pressureHpa, pressureTrend: extras.pressureTrend,
+                  aqiUs: aqi.aqiUs, aqiEu: aqi.aqiEu, altitudeMeters: altitudeMeters,
+                  auroraKpX10: (typeof aurora.kp === 'number') ? Math.round(aurora.kp * 10) : 0,
+                  auroraVisibilityPct: aurora.visibilityPct || 0
+                };
+                if (result.hasEclipse) {
+                  sendEclipseData(result, sky, cloudGrid, headlineCloud, headlineSources, locationName, moonPhase, riseSet, extras.condition, extras.tempC, meteorShower, extras.cloudAltitudePct, extras.tempHighC, extras.tempLowC, issPos, extras.uvIndexMax, extras.rainChancePct, extras.humidityPct, extras.windSpeedKmh, extras.currentCloudPct, sunRiseTomorrow, extraWeather, stars);
+                } else {
+                  sendNoEclipseToday(sky, cloudGrid, headlineCloud, headlineSources, locationName, moonPhase, riseSet, extras.condition, extras.tempC, meteorShower, extras.cloudAltitudePct, extras.tempHighC, extras.tempLowC, issPos, extras.uvIndexMax, extras.rainChancePct, extras.humidityPct, extras.windSpeedKmh, extras.currentCloudPct, sunRiseTomorrow, extraWeather, stars);
+                }
+                markRefreshDone(lat, lon);
+              });
             });
           });
         });
@@ -1921,6 +1952,7 @@ Pebble.addEventListener('showConfiguration', function () {
     stepGoal: getSetting('CONFIG_STEP_GOAL', '10000'),
     showSunTime: getSetting('CONFIG_SHOW_SUN_TIME', 'false') === 'true',
     showIss: getSetting('CONFIG_SHOW_ISS', 'false') === 'true',
+    auroraEnabled: getSetting('CONFIG_AURORA_ENABLED', 'false') === 'true',
     vibrateOnPhaseChange: getSetting('CONFIG_VIBRATE_ON_PHASE_CHANGE', 'false') === 'true',
     outlineEnabled: getSetting('CONFIG_OUTLINE_ENABLED', 'true') === 'true',
     cornerFontSize: getSetting('CONFIG_CORNER_FONT_SIZE', '1'),
@@ -2081,6 +2113,7 @@ Pebble.addEventListener('webviewclosed', function (e) {
   setSetting('CONFIG_STEP_GOAL', settings.CONFIG_STEP_GOAL || '10000');
   setSetting('CONFIG_SHOW_SUN_TIME', settings.CONFIG_SHOW_SUN_TIME ? 'true' : 'false');
   setSetting('CONFIG_SHOW_ISS', settings.CONFIG_SHOW_ISS ? 'true' : 'false');
+  setSetting('CONFIG_AURORA_ENABLED', settings.CONFIG_AURORA_ENABLED ? 'true' : 'false');
   setSetting('CONFIG_VIBRATE_ON_PHASE_CHANGE', settings.CONFIG_VIBRATE_ON_PHASE_CHANGE ? 'true' : 'false');
   setSetting('CONFIG_OUTLINE_ENABLED', settings.CONFIG_OUTLINE_ENABLED ? 'true' : 'false');
   setSetting('CONFIG_CORNER_FONT_SIZE', settings.CONFIG_CORNER_FONT_SIZE || '1');

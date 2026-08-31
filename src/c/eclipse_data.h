@@ -489,6 +489,20 @@ typedef struct {
                                   // by the "Next ISS pass" corner content; independent of iss_alt_deg/
                                   // iss_az_deg/show_iss above, which are the separate "draw it on the sky
                                   // view right now" snapshot and its own on/off setting.
+
+  bool aurora_enabled;          // user setting ("Astronomy" section): whether auroras are fetched/shown
+                                  // at all -- gates both the "Aurora Kp index" corner content option
+                                  // (removed from the settings-page dropdown entirely when off, not just
+                                  // hidden) and the sky-view aurora glow itself.
+  uint8_t aurora_kp_x10;         // current planetary Kp index x10 (e.g. 43 = Kp 4.3), from NOAA SWPC --
+                                  // see fetchAuroraKp() in weather.js. 0 if aurora_enabled is off or the
+                                  // fetch failed; doesn't by itself mean "no aurora", just "no reading".
+  uint8_t aurora_visibility_pct; // 0-100 rough estimate of whether the current Kp index reaches the
+                                  // user's own geomagnetic latitude -- see astro.js's
+                                  // auroraVisibilityScore()/geomagneticLatitudeDeg(). Gates whether the
+                                  // sky view's aurora glow actually draws (still also needs a dark sky);
+                                  // the Kp index itself is shown/colored regardless, since a Kp reading
+                                  // is informative on its own even when the estimate says "not from here".
 } EclipseData;
 
 // Defined in pebble-eclipse-watch.c, declared here (rather than a new

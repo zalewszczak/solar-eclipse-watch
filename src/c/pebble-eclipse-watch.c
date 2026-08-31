@@ -1123,6 +1123,10 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
     s_data.show_iss = t->value->uint8 != 0;
     if (s_canvas_layer) eclipse_canvas_set_data(s_canvas_layer, &s_data); // force immediately, not just mark dirty -- the canvas throttles plain redraws internally
   }
+  if ((t = dict_find(iter, MESSAGE_KEY_AURORA_ENABLED))) {
+    s_data.aurora_enabled = t->value->uint8 != 0;
+    if (s_canvas_layer) eclipse_canvas_set_data(s_canvas_layer, &s_data); // force immediately, not just mark dirty -- the canvas throttles plain redraws internally
+  }
   if ((t = dict_find(iter, MESSAGE_KEY_CORNER_CONTENT))) {
     uint8_t *raw = t->value->data;
     int n = t->length;
@@ -1227,6 +1231,11 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
     if (s_features_layer) layer_mark_dirty(s_features_layer);
   }
   if ((t = dict_find(iter, MESSAGE_KEY_ALTITUDE_M))) s_data.altitude_m = t->value->int16;
+  if ((t = dict_find(iter, MESSAGE_KEY_AURORA_KP_X10))) s_data.aurora_kp_x10 = t->value->uint8;
+  if ((t = dict_find(iter, MESSAGE_KEY_AURORA_VISIBILITY_PCT))) {
+    s_data.aurora_visibility_pct = t->value->uint8;
+    if (s_canvas_layer) eclipse_canvas_set_data(s_canvas_layer, &s_data); // force immediately -- affects whether the sky glow draws at all
+  }
   if ((t = dict_find(iter, MESSAGE_KEY_ALTITUDE_UNIT))) {
     s_data.altitude_unit = t->value->uint8;
     if (s_features_layer) layer_mark_dirty(s_features_layer);

@@ -999,6 +999,125 @@ static void draw_meteors(GContext *ctx, GRect bounds, uint8_t intensity) {
   }
 }
 
+// ---- aurora -------------------------------------------------------------
+// Kp-index-driven upper-sky glow. Only ever considered when it's dark
+// (aurora_visible below, computed in canvas_update_proc) and
+// aurora_enabled is on; the caller further gates on
+// aurora_visibility_pct (see eclipse_data.h) before calling either of
+// these -- both assume they're only being asked to draw because that
+// check already passed. Shares the Simple/Realistic toggle cloud
+// rendering already uses (cloud_render_style) rather than a separate
+// setting of its own.
+
+// Simple style: one soft dithered glow band near the top of the sky,
+// density fading linearly toward its lower edge -- deliberately cheap
+// (a single flat per-row density falloff, no per-streak structure),
+// same "Simple = battery-friendly" trade-off draw_clouds_simple makes
+// against draw_clouds_realistic.
+static void draw_aurora_simple(GContext *ctx, GRect bounds, uint8_t visibility_pct, uint8_t kp_x10) {
+  int16_t top_y = bounds.origin.y + SKY_TOP_MARGIN;
+  int16_t band_h = 46 + (kp_x10 * 2) / 9; // taller glow at higher Kp
+  int16_t horizon_y = bounds.origin.y + bounds.size.h - GROUND_H;
+  int16_t bottom_y = top_y + band_h;
+  if (bottom_y > horizon_y) bottom_y = horizon_y;
+  if (bottom_y <= top_y) return;
+
+  // Green at typical (lower) Kp, shifting toward violet once a storm
+  // is strong enough to push the visible structure higher/redder --
+  // the same idea (just simpler -- one flat color, not a height
+  // blend) as the Realistic style's per-row color blend below.
+  RGB8 glow = (kp_x10 > 60) ? (RGB8){ 130, 60, 200 } : (RGB8){ 30, 200, 120 };
+  uint8_t density_cap = (uint8_t)(((int32_t)visibility_pct * 45) / 100); // always a glow, never a wall
+
+  for (int16_t y = top_y; y < bottom_y; y++) {
+    int16_t rel = y - top_y;
+    uint8_t density = (uint8_t)(density_cap - ((int32_t)density_cap * rel) / (bottom_y - top_y));
+    uint8_t threshold = (uint8_t)((density * 16) / 100);
+    for (int16_t x = bounds.origin.x; x < bounds.origin.x + bounds.size.w; x++) {
+      uint8_t bayer = BAYER4[y & 3][x & 3];
+      if (bayer >= threshold) continue;
+      graphics_context_set_fill_color(ctx, dither_pixel(glow, bayer));
+      graphics_fill_rect(ctx, GRect(x, y, 1, 1), 0, GCornerNone);
+    }
+  }
+}
+
+#define AURORA_STREAK_COUNT 7
+static const int16_t AURORA_STREAK_X_PCT[AURORA_STREAK_COUNT] = { 8, 22, 38, 50, 64, 80, 94 };
+// Uneven heights (percent of the band's own max) so the streaks read
+// as a rippling curtain skyline rather than a uniform wall.
+static const int16_t AURORA_STREAK_HEIGHT_PCT[AURORA_STREAK_COUNT] = { 70, 100, 55, 85, 65, 95, 60 };
+// Native-angle (0-65535) ripple phase offsets, so neighboring streaks
+// don't wave in lockstep.
+static const int32_t AURORA_STREAK_PHASE[AURORA_STREAK_COUNT] = { 0, 9362, 18725, 28087, 37449, 46811, 56174 };
+
+// Realistic style: several vertical "curtain" streaks, each with a
+// genuine sine-wave horizontal ripple (via sin_lookup, same fixed-
+// point trig every hand/marker in this app already uses) and a
+// top-to-bottom color blend -- green at the base fading toward violet/
+// magenta higher up (redder/more magenta overall as Kp climbs), the
+// classic look of a real display's lower green arc topped by faint
+// red/purple structure. Notably more expensive per redraw than the
+// Simple style above (a per-pixel color blend and dither across 7
+// overlapping streaks, not one flat band) -- the same "Realistic
+// costs more, looks more painterly" trade-off draw_clouds_realistic
+// already makes over draw_clouds_simple.
+static void draw_aurora_realistic(GContext *ctx, GRect bounds, uint8_t visibility_pct, uint8_t kp_x10) {
+  int16_t top_y = bounds.origin.y + SKY_TOP_MARGIN;
+  int16_t horizon_y = bounds.origin.y + bounds.size.h - GROUND_H;
+  int16_t max_band_h = 60 + (kp_x10 * 3) / 9;
+  int16_t streak_w = (bounds.size.w / AURORA_STREAK_COUNT) + 4; // slight overlap merges streaks into one curtain
+
+  uint8_t base_density = 35 + (uint8_t)(((int32_t)visibility_pct * 35) / 100); // 35-70%, richer than Simple's flat 45% cap
+  RGB8 base_color = { 20, 210, 110 };   // low arc: green
+  RGB8 top_color = (kp_x10 > 60) ? (RGB8){ 170, 40, 200 } : (RGB8){ 90, 40, 180 }; // upper structure: violet, more magenta once storming
+
+  for (int s = 0; s < AURORA_STREAK_COUNT; s++) {
+    int16_t cx = bounds.origin.x + (bounds.size.w * AURORA_STREAK_X_PCT[s]) / 100;
+    int16_t streak_h = (max_band_h * AURORA_STREAK_HEIGHT_PCT[s]) / 100;
+    int16_t bottom_y = top_y + streak_h;
+    if (bottom_y > horizon_y) bottom_y = horizon_y;
+    if (bottom_y <= top_y) continue;
+
+    for (int16_t y = top_y; y < bottom_y; y++) {
+      int16_t rel = y - top_y;
+      int32_t wave_angle = (AURORA_STREAK_PHASE[s] + (int32_t)rel * 900) & 0xFFFF;
+      int16_t wobble = (int16_t)((6 * sin_lookup(wave_angle)) / TRIG_MAX_RATIO);
+      int16_t row_cx = cx + wobble;
+
+      int32_t height_frac1000 = ((int32_t)rel * 1000) / streak_h;
+      RGB8 blend;
+      blend.r = lerp8(top_color.r, base_color.r, height_frac1000, 1000);
+      blend.g = lerp8(top_color.g, base_color.g, height_frac1000, 1000);
+      blend.b = lerp8(top_color.b, base_color.b, height_frac1000, 1000);
+
+      // Fades toward both edges (faint upper reach, dissolving into
+      // the sky at the bottom) -- richest through the middle third.
+      int32_t edge_fade = height_frac1000 < 500 ? height_frac1000 : (1000 - height_frac1000);
+      uint8_t density = (uint8_t)((base_density * edge_fade) / 500);
+      uint8_t threshold = (uint8_t)((density * 16) / 100);
+
+      int16_t x0 = row_cx - streak_w / 2, x1 = row_cx + streak_w / 2;
+      if (x0 < bounds.origin.x) x0 = bounds.origin.x;
+      if (x1 >= bounds.origin.x + bounds.size.w) x1 = bounds.origin.x + bounds.size.w - 1;
+      for (int16_t x = x0; x <= x1; x++) {
+        uint8_t bayer = BAYER4[y & 3][x & 3];
+        if (bayer >= threshold) continue;
+        graphics_context_set_fill_color(ctx, dither_pixel(blend, bayer));
+        graphics_fill_rect(ctx, GRect(x, y, 1, 1), 0, GCornerNone);
+      }
+    }
+  }
+}
+
+static void draw_aurora(GContext *ctx, GRect bounds, uint8_t render_style, uint8_t visibility_pct, uint8_t kp_x10) {
+  if (render_style == 0) {
+    draw_aurora_simple(ctx, bounds, visibility_pct, kp_x10);
+  } else {
+    draw_aurora_realistic(ctx, bounds, visibility_pct, kp_x10);
+  }
+}
+
 // Short weather-condition word for the "23C Overcast" style readout
 // (now drawn by the corners overlay in pebble-eclipse-watch.c, which
 // is why this isn't static -- exported via background_layer.h instead of
@@ -2180,6 +2299,21 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
     }
   }
 
+  // Aurora: dark sky, opted in, and the current Kp index plausibly
+  // reaches this latitude (see eclipse_data.h's aurora_visibility_pct
+  // comment) -- an atmospheric phenomenon like clouds, so it's absent
+  // in Space view (sky_mode == 2, "no atmosphere") same as meteors,
+  // but unlike clouds/weather it's NOT gated by weather_enabled --
+  // Clear sky mode still shows it (arguably the more realistic
+  // combination: clear skies are exactly when aurora is best seen).
+  // Threshold of 15 (not >0) avoids drawing a barely-there glow for a
+  // visibility estimate this approximate.
+  bool aurora_visible = d->sky_mode != 2 && d->aurora_enabled && sky_is_dark && d->aurora_visibility_pct > 15;
+  GPoint aurora_label_point = GPoint(bounds.origin.x + bounds.size.w / 2, bounds.origin.y + SKY_TOP_MARGIN + 20);
+  if (aurora_visible) {
+    draw_aurora(ctx, bounds, d->cloud_render_style, d->aurora_visibility_pct, d->aurora_kp_x10);
+  }
+
   // Cloud clusters, drawn last so they visibly sit in front of (and
   // can partially obscure) the sun/moon, same as real clouds. Skipped
   // entirely outside Weather sky mode -- Clear sky and Space view
@@ -2240,6 +2374,11 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
     }
     if (meteors_visible) draw_label(ctx, bounds, meteor_label_point,
                                      d->meteor_shower_name[0] != '\0' ? d->meteor_shower_name : "Meteors");
+    if (aurora_visible) {
+      static char aurora_label_buf[16];
+      snprintf(aurora_label_buf, sizeof(aurora_label_buf), "Aurora Kp %d.%d", d->aurora_kp_x10 / 10, d->aurora_kp_x10 % 10);
+      draw_label(ctx, bounds, aurora_label_point, aurora_label_buf);
+    }
     for (int s = 0; s < STAR_COUNT; s++) {
       if (star_visible[s]) draw_label(ctx, bounds, star_center[s], STAR_NAMES[s]);
     }

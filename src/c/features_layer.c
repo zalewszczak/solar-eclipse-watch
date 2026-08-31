@@ -212,6 +212,9 @@ static const uint8_t SATURN_RING_ICON[24] = { 0x00, 0x00, 0x01, 0x80, 0x07, 0xE0
   0xCF, 0xF3, 0x07, 0xE0, 0x01, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
 static const uint8_t PLANETS_ICON[24] = { 0x00, 0x00, 0x00, 0x00, 0x30, 0x00, 0x30, 0x00, 0x00, 0xE0, 0x01, 0xF0,
   0x01, 0xF0, 0x00, 0xE0, 0x00, 0x02, 0x00, 0x07, 0x00, 0x02, 0x00, 0x00 };
+// 3 wavy horizontal curtain bands -- aurora Kp index feature.
+static const uint8_t AURORA_ICON[24] = { 0x00, 0x00, 0xCC, 0xCC, 0x33, 0x33, 0xCC, 0xCC, 0x00, 0x00, 0xCC, 0xCC,
+  0x33, 0x33, 0xCC, 0xCC, 0x00, 0x00, 0xCC, 0xCC, 0x33, 0x33, 0xCC, 0xCC };
 // Sleep-feature icons: a shared bed silhouette (rows 7-11) topped
 // with a symbol (rows 0-6) that identifies which sleep readout this
 // is -- an in/out arrow for bed/wake time, a checkmark for sleep
@@ -818,6 +821,19 @@ static GColor red_green_gradient(uint8_t pct) {
   return GColorFromRGB((uint8_t)r, (uint8_t)g, 0);
 }
 
+// White (Kp 0, geomagnetically quiet) -> red (Kp 9, extreme storm) --
+// the aurora Kp index feature's own dynamic color. Runs the opposite
+// direction from red_green_gradient above (there, red is the BAD end;
+// here, red is the exciting "aurora reaching further south than
+// usual" end), so it's its own function rather than a reversed reuse.
+static GColor white_to_red_gradient(uint8_t kp_x10) {
+  if (kp_x10 >= 90) return GColorFromRGB(220, 0, 0);
+  int32_t frac1000 = ((int32_t)kp_x10 * 1000) / 90;
+  int16_t g = 255 - (int16_t)((255 * frac1000) / 1000);
+  int16_t b = g;
+  return GColorFromRGB(255, (uint8_t)g, (uint8_t)b);
+}
+
 // The four weather-family color gradients "current conditions" (and
 // nothing else) uses, each scaled by that condition's own intensity
 // rather than a single flat color -- clearer sky/heavier rain/etc.
@@ -961,7 +977,7 @@ static int16_t convert_wind(int16_t kmh, uint8_t wind_speed_unit) {
 static int16_t icon_plus_gap_width(int icon_kind) { // TODO: This might not be neccessary anymore
   switch (icon_kind) {
     case 1: case 2: case 5: case 6: case 7: case 8: case 9: case 10: case 13:
-    case 18: case 19: case 20: case 21: case 22: case 23: case 24: case 25:
+    case 18: case 19: case 20: case 21: case 22: case 23: case 24: case 25: case 26:
       return 11; // bitmap icons (7-wide at 140% scale) + gap
     case 3: return 10; // battery + gap
     case 4: return 21; // moon (radius 9, so 2*9+2 diameter box) + gap
@@ -1637,6 +1653,16 @@ void features_draw_item(GContext *ctx, GRect bounds, const EclipseData *data,
       dynamic_color = main_color;
       break;
     }
+    case 84: { // current planetary Kp index -- see eclipse_data.h's aurora_kp_x10/
+               // aurora_enabled comments. Shown (with a real Kp reading) even when
+               // aurora_visibility_pct says the estimate doesn't reach this latitude --
+               // the index itself is informative on its own, only the sky glow's
+               // own visibility is gated on that estimate.
+      icon_kind = 26;
+      snprintf(buf, sizeof(buf), "Kp %d.%d", data->aurora_kp_x10 / 10, data->aurora_kp_x10 % 10);
+      dynamic_color = white_to_red_gradient(data->aurora_kp_x10);
+      break;
+    }
     default:
       return;
   }
@@ -1877,6 +1903,17 @@ void features_draw_item(GContext *ctx, GRect bounds, const EclipseData *data,
         }
       }
       draw_tiny_icon(ctx, pos, astro_pattern, ICON_ROWS, ICON_WIDTH, color);
+      break;
+    }
+    case 26: {
+      GPoint pos = GPoint(icon_x - ICON_WIDTH+6, box_y + (CORNER_ROW_H - ICON_ROWS) / 2);
+      if (do_icon_outline) {
+        for (int i = 0; i < 4; i++) {
+          draw_tiny_icon(ctx, GPoint(pos.x + OUTLINE_OFFSETS[i].x, pos.y + OUTLINE_OFFSETS[i].y),
+                          AURORA_ICON, ICON_ROWS, ICON_WIDTH, icon_outline_color);
+        }
+      }
+      draw_tiny_icon(ctx, pos, AURORA_ICON, ICON_ROWS, ICON_WIDTH, color);
       break;
     }
     case 11: {
