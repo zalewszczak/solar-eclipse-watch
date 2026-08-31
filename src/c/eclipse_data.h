@@ -71,6 +71,13 @@ typedef struct {
 // PKJS (see src/pkjs/astro.js MAX_SKY_SAMPLES).
 #define MAX_SKY_SAMPLES 26
 
+// How many bright named stars space-view sky mode draws. Fixed (not
+// sent over AppMessage) -- must match src/pkjs/astro.js's STAR_CATALOG
+// length exactly, and STARS[]' own length in background_layer.c (which
+// owns each star's display name, in the same order PKJS's catalog is
+// in) has to match too.
+#define STAR_COUNT 16
+
 // Eclipse phase, derived on-watch from the current time vs the
 // contact times we were sent.
 typedef enum {
@@ -390,6 +397,17 @@ typedef struct {
   uint8_t cloud_render_style;                  // user setting: 0=Simple (battery-friendly circle
                                                  // puffs), 1=Realistic (metaball field, sun-relative
                                                  // warm/cool lighting) -- see draw_clouds()
+  uint8_t sky_mode;                            // user setting ("Style" section): 0=Weather sky
+                                                 // (default -- gradient + clouds/weather effects,
+                                                 // everything above), 1=Clear sky (same day/night
+                                                 // gradient, but never draws clouds/weather effects
+                                                 // or the overcast gray haze), 2=Space view (no
+                                                 // gradient at all -- a fixed dark background, Sun/
+                                                 // Moon/planets still only shown above the horizon
+                                                 // but with no atmospheric haze/color, and the
+                                                 // STAR_COUNT bright stars below always visible,
+                                                 // day or night, since there's no atmosphere left to
+                                                 // scatter sunlight and wash them out).
   int16_t moon_alt_decideg[MAX_SKY_SAMPLES];  // altitude x10, same grid as sun
 
   // Same grid again, one row per PlanetId -- kept as a 2D array
@@ -399,6 +417,18 @@ typedef struct {
   int16_t planet_alt_decideg[PLANET_COUNT][MAX_SKY_SAMPLES];
   time_t planet_rise[PLANET_COUNT];
   time_t planet_set[PLANET_COUNT];
+
+  // Space-view sky mode's bright-star field -- current alt/az only
+  // (x10 degrees, like every other _decideg field here), NOT a full-
+  // day grid like sun/moon/planet_alt_decideg above. Stars barely move
+  // within a single refresh interval, so unlike the Sun (which
+  // animates continuously along its precomputed day-arc), these are
+  // just re-sent as a fresh snapshot each refresh and drawn as-is
+  // until the next one -- see computeVisibleStars() in astro.js and
+  // STARS[] in background_layer.c for the fixed name/order both sides
+  // share.
+  int16_t star_alt_decideg[STAR_COUNT];
+  uint16_t star_az_decideg[STAR_COUNT];
 
   // Saturn's ring-opening angle as seen from Earth, 0-100 (0 = edge
   // on/invisible, 100 = maximally open) -- real rings, narrow near a

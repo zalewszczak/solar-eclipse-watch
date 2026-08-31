@@ -105,7 +105,7 @@ var PLANET_ORDER = ['mercury', 'venus', 'mars', 'jupiter', 'saturn'];
 // that drives the background sky gradient, every body's rise/set
 // animation, and the dithered cloud puffs. Sent every refresh,
 // eclipse or not, since the sky itself isn't eclipse-specific.
-function skyFieldsDict(sky, cloudGrid, moonPhase, riseSet, meteorShower, cloudAltitudePct, sunRiseTomorrow) {
+function skyFieldsDict(sky, cloudGrid, moonPhase, riseSet, meteorShower, cloudAltitudePct, sunRiseTomorrow, stars) {
   var cloudBytes = (cloudGrid || sky.sunAltDecideg.map(function () { return 0; }))
     .map(function (v) { return Math.max(0, Math.min(100, Math.round(v))); });
 
@@ -118,8 +118,17 @@ function skyFieldsDict(sky, cloudGrid, moonPhase, riseSet, meteorShower, cloudAl
     planetSetArr.push(toEpoch(riseSet[name].set));
   });
 
+  // Decidegrees, same convention as SUN_ALT_SAMPLES/etc -- alt can be
+  // negative (below horizon; space-view mode on the watch decides
+  // whether to still draw it), az is always 0-360 so its Bayer-
+  // decidegree range (0-3600) fits uint16 with room to spare.
+  var starAlt = (stars || []).map(function (s) { return Math.round(s.alt * 10); });
+  var starAz = (stars || []).map(function (s) { return Math.round(s.az * 10); });
+
   return {
     'SKY_SAMPLE_START': toEpoch(sky.sampleStart),
+    'STAR_ALT_SAMPLES': u16ArrayToBytes(starAlt),
+    'STAR_AZ_SAMPLES': u16ArrayToBytes(starAz),
     'SKY_SAMPLE_INTERVAL': sky.intervalS,
     'SKY_SAMPLE_COUNT': sky.sunAltDecideg.length,
     'SUN_ALT_SAMPLES': u16ArrayToBytes(sky.sunAltDecideg),
@@ -244,6 +253,13 @@ function sunMoonSizeCode() {
 function cloudRenderStyleCode() {
   var id = parseInt(getSetting('CONFIG_CLOUD_RENDER_STYLE', '1'), 10);
   if (isNaN(id) || id < 0 || id > 1) id = 1;
+  return id;
+}
+// 0=Weather sky (default), 1=Clear sky, 2=Space view -- see
+// background_layer.c's canvas_update_proc for what each mode changes.
+function skyModeCode() {
+  var id = parseInt(getSetting('CONFIG_SKY_MODE', '0'), 10);
+  if (isNaN(id) || id < 0 || id > 2) id = 0;
   return id;
 }
 // 0=simple, 1=hollow, 2=filled -- only hollow is actually implemented
@@ -556,6 +572,7 @@ function sendDict(dict) {
   dict['ANALOG_STYLE'] = analogStyleCode();
   dict['SUN_MOON_SIZE_PCT'] = sunMoonSizeCode();
   dict['CLOUD_RENDER_STYLE'] = cloudRenderStyleCode();
+  dict['SKY_MODE'] = skyModeCode();
   dict['WEATHER_ICON_STYLE'] = weatherIconStyleCode();
   dict['AQI_UNIT'] = aqiUnitCode();
   dict['ALTITUDE_UNIT'] = altitudeUnitCode();
@@ -1096,6 +1113,74 @@ function sendDict(dict) {
 '    0,'+
 '    0'+
 '  ],'+
+'  "STAR_ALT_SAMPLES": ['+
+'    0,'+
+'    0,'+
+'    0,'+
+'    0,'+
+'    0,'+
+'    0,'+
+'    0,'+
+'    0,'+
+'    0,'+
+'    0,'+
+'    0,'+
+'    0,'+
+'    0,'+
+'    0,'+
+'    0,'+
+'    0,'+
+'    0,'+
+'    0,'+
+'    0,'+
+'    0,'+
+'    0,'+
+'    0,'+
+'    0,'+
+'    0,'+
+'    0,'+
+'    0,'+
+'    0,'+
+'    0,'+
+'    0,'+
+'    0,'+
+'    0,'+
+'    0'+
+'  ],'+
+'  "STAR_AZ_SAMPLES": ['+
+'    0,'+
+'    0,'+
+'    0,'+
+'    0,'+
+'    0,'+
+'    0,'+
+'    0,'+
+'    0,'+
+'    0,'+
+'    0,'+
+'    0,'+
+'    0,'+
+'    0,'+
+'    0,'+
+'    0,'+
+'    0,'+
+'    0,'+
+'    0,'+
+'    0,'+
+'    0,'+
+'    0,'+
+'    0,'+
+'    0,'+
+'    0,'+
+'    0,'+
+'    0,'+
+'    0,'+
+'    0,'+
+'    0,'+
+'    0,'+
+'    0,'+
+'    0'+
+'  ],'+
 '  "SATURN_RING_OPEN_PCT": 32,'+
 '  "SKY_SCALE_MAX_ALT": 543,'+
 '  "CLOUD_SAMPLES": ['+
@@ -1154,6 +1239,7 @@ function sendDict(dict) {
 '  "ANALOG_STYLE": 3,'+
 '  "SUN_MOON_SIZE_PCT": 50,'+
 '  "CLOUD_RENDER_STYLE": 0,'+
+'  "SKY_MODE": 0,'+
 '  "WEATHER_ICON_STYLE": 1,'+
 '  "AQI_UNIT": 0,'+
 '  "ALTITUDE_UNIT": 0,'+
@@ -1355,7 +1441,7 @@ function sendNoEclipseToday(sky, cloudGrid, headlineCloud, headlineSources, loca
     'WIND_SPEED_KMH': (typeof windSpeedKmh === 'number') ? Math.round(windSpeedKmh) : 0,
     'LOCATION_NAME': locationName || ''
   };
-  var sky_ = skyFieldsDict(sky, cloudGrid, moonPhase, riseSet, meteorShower, cloudAltitudePct, sunRiseTomorrow);
+  var sky_ = skyFieldsDict(sky, cloudGrid, moonPhase, riseSet, meteorShower, cloudAltitudePct, sunRiseTomorrow, stars);
   Object.keys(sky_).forEach(function (k) { dict[k] = sky_[k]; });
   var extraW_ = extraWeatherFieldsDict(extraWeather);
   Object.keys(extraW_).forEach(function (k) { dict[k] = extraW_[k]; });
@@ -1396,7 +1482,7 @@ function sendEclipseData(result, sky, cloudGrid, headlineCloud, headlineSources,
     'WIND_SPEED_KMH': (typeof windSpeedKmh === 'number') ? Math.round(windSpeedKmh) : 0,
     'LOCATION_NAME': locationName || ''
   };
-  var sky_ = skyFieldsDict(sky, cloudGrid, moonPhase, riseSet, meteorShower, cloudAltitudePct, sunRiseTomorrow);
+  var sky_ = skyFieldsDict(sky, cloudGrid, moonPhase, riseSet, meteorShower, cloudAltitudePct, sunRiseTomorrow, stars);
   Object.keys(sky_).forEach(function (k) { dict[k] = sky_[k]; });
   var extraW_ = extraWeatherFieldsDict(extraWeather);
   Object.keys(extraW_).forEach(function (k) { dict[k] = extraW_[k]; });
@@ -1608,10 +1694,11 @@ function refreshAndSend(force) {
         '(and remember it only overrides what the PHONE calculates; the watch\'s own clock is separate).');
     }
 
-    var result, sky, moonPhase, riseSet, meteorShower;
+    var result, sky, stars, moonPhase, riseSet, meteorShower;
     try {
       result = astro.findEclipse(dayStart, lat, lon);
       sky = astro.computeDaySkySamples(dayStart, lat, lon, dip);
+      stars = astro.computeVisibleStars(now, lat, lon);
       moonPhase = astro.computeMoonPhase(now);
       riseSet = {
         sun: astro.findRiseSet(dayStart, lat, lon, function (g) { return g.sunAlt; }),
@@ -1735,6 +1822,7 @@ Pebble.addEventListener('showConfiguration', function () {
     analogStyle: getSetting('CONFIG_ANALOG_STYLE', '0'),
     sunMoonSize: getSetting('CONFIG_SUN_MOON_SIZE', '75'),
     cloudRenderStyle: getSetting('CONFIG_CLOUD_RENDER_STYLE', '1'),
+    skyMode: getSetting('CONFIG_SKY_MODE', '0'),
     weatherIconStyle: getSetting('CONFIG_WEATHER_ICON_STYLE', '1'),
     aqiUnit: getSetting('CONFIG_AQI_UNIT', '0'),
     altitudeUnit: getSetting('CONFIG_ALTITUDE_UNIT', '0'),
@@ -1894,6 +1982,7 @@ Pebble.addEventListener('webviewclosed', function (e) {
   setSetting('CONFIG_ANALOG_STYLE', settings.CONFIG_ANALOG_STYLE || '0');
   setSetting('CONFIG_SUN_MOON_SIZE', settings.CONFIG_SUN_MOON_SIZE || '100');
   setSetting('CONFIG_CLOUD_RENDER_STYLE', settings.CONFIG_CLOUD_RENDER_STYLE || '1');
+  setSetting('CONFIG_SKY_MODE', settings.CONFIG_SKY_MODE || '0');
   setSetting('CONFIG_WEATHER_ICON_STYLE', settings.CONFIG_WEATHER_ICON_STYLE || '1');
   setSetting('CONFIG_AQI_UNIT', settings.CONFIG_AQI_UNIT || '0');
   setSetting('CONFIG_ALTITUDE_UNIT', settings.CONFIG_ALTITUDE_UNIT || '0');

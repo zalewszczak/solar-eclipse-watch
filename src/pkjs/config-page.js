@@ -934,12 +934,22 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      </div>' +
 '    </div>' +
 
+'    <label for="skyMode" style="margin-top:12px;">Sky style</label>' +
+'    <select id="skyMode" onchange="onSkyModeChange()">' +
+'      <option value="0"' + (current.skyMode === '0' || !current.skyMode ? ' selected' : '') + '>Weather sky</option>' +
+'      <option value="1"' + (current.skyMode === '1' ? ' selected' : '') + '>Clear sky</option>' +
+'      <option value="2"' + (current.skyMode === '2' ? ' selected' : '') + '>Space view</option>' +
+'    </select>' +
+'    <div class="help">Weather sky shows clouds/rain/snow and the day-night gradient. Clear sky keeps the gradient but never draws weather. Space view drops the gradient entirely for a fixed dark sky, always shows the Sun/Moon/planets when above the horizon regardless of time of day, and adds a field of bright named stars (tap/shake to reveal names).</div>' +
+
+'    <div id="cloudRenderStyleRow" style="' + (current.skyMode && current.skyMode !== '0' ? 'display:none;' : '') + '">' +
 '    <label for="cloudRenderStyle" style="margin-top:12px;">Weather drawing style</label>' +
 '    <select id="cloudRenderStyle">' +
 '      <option value="1"' + (current.cloudRenderStyle === '1' || !current.cloudRenderStyle ? ' selected' : '') + '>Realistic</option>' +
 '      <option value="0"' + (current.cloudRenderStyle === '0' ? ' selected' : '') + '>Simple (battery friendly)</option>' +
 '    </select>' +
-'    <div class="help">Realistic clouds are a soft painterly shape shaded by the Sun\'s actual position -- costs more battery per redraw. Simple uses plain circle puffs instead.</div>' +
+'    <div class="help">Realistic clouds are a soft painterly shape shaded by the Sun\'s actual position -- costs more battery per redraw, and adds occasional lightning during a storm. Simple uses plain circle puffs instead.</div>' +
+'    </div>' +
 
 '    <div class="subsection" id="showSunTimeSection" style="' + (bottomStyleVal === 'digital' ? '' : 'display:none;') + '">' +
 '      <label>Week number or sunrise/sunset</label>' +
@@ -2263,6 +2273,11 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    if (hidden) hidden.value = preset[f];' +
 '  }' +
 '}' +
+'function onSkyModeChange() {' +
+'  var val = document.getElementById("skyMode").value;' +
+'  document.getElementById("cloudRenderStyleRow").style.display = (val === "0") ? "" : "none";' +
+'  updatePreview();' +
+'}' +
 'function onHandStyleChange() {' +
 '  var val = document.getElementById("bigAnalogHandStyle").value;' +
 '  document.getElementById("customHandSection").style.display = (val === "4") ? "" : "none";' +
@@ -2515,6 +2530,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    CONFIG_AQI_UNIT: document.getElementById("aqiUnit").value,' +
 '    CONFIG_ALTITUDE_UNIT: document.getElementById("altitudeUnit").value,' +
 '    CONFIG_CLOUD_RENDER_STYLE: document.getElementById("cloudRenderStyle").value,' +
+'    CONFIG_SKY_MODE: document.getElementById("skyMode").value,' +
 '    CONFIG_WEATHER_ICON_STYLE: document.getElementById("weatherIconStyle").value,' +
 '    CONFIG_SHOW_SECONDS: document.getElementById("showSeconds").checked,' +
 '    CONFIG_CUSTOM_BG: document.getElementById("customBgValue").value,' +

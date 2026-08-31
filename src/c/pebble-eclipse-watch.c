@@ -952,6 +952,10 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
     s_data.cloud_render_style = t->value->uint8;
     if (s_canvas_layer) eclipse_canvas_set_data(s_canvas_layer, &s_data); // force immediately, not just mark dirty -- the canvas throttles plain redraws internally
   }
+  if ((t = dict_find(iter, MESSAGE_KEY_SKY_MODE))) {
+    s_data.sky_mode = t->value->uint8;
+    if (s_canvas_layer) eclipse_canvas_set_data(s_canvas_layer, &s_data); // force immediately, not just mark dirty -- the canvas throttles plain redraws internally
+  }
   if ((t = dict_find(iter, MESSAGE_KEY_SHAKE_LABEL_SECONDS))) {
     s_data.shake_label_seconds = t->value->uint8;
   }
@@ -1317,6 +1321,28 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   if ((t = dict_find(iter, MESSAGE_KEY_SUN_RISE_TOMORROW))) s_data.sun_rise_tomorrow = (time_t)t->value->int32;
   if ((t = dict_find(iter, MESSAGE_KEY_MOON_RISE))) s_data.moon_rise = (time_t)t->value->int32;
   if ((t = dict_find(iter, MESSAGE_KEY_MOON_SET))) s_data.moon_set = (time_t)t->value->int32;
+  if ((t = dict_find(iter, MESSAGE_KEY_STAR_ALT_SAMPLES))) {
+    // Byte blob of int16 (little-endian) tenths-of-a-degree values,
+    // same packing as SUN_ALT_SAMPLES above -- see star_alt_decideg's
+    // own comment in eclipse_data.h for why this is a flat current-
+    // snapshot array, not a full-day grid like that one.
+    uint8_t *raw = t->value->data;
+    int n = t->length / 2;
+    if (n > STAR_COUNT) n = STAR_COUNT;
+    for (int i = 0; i < n; i++) {
+      uint16_t u = (uint16_t)raw[i * 2] | ((uint16_t)raw[i * 2 + 1] << 8);
+      s_data.star_alt_decideg[i] = (int16_t)u;
+    }
+  }
+  if ((t = dict_find(iter, MESSAGE_KEY_STAR_AZ_SAMPLES))) {
+    // Same packing, but always non-negative (0-3600 = 0-360deg x10).
+    uint8_t *raw = t->value->data;
+    int n = t->length / 2;
+    if (n > STAR_COUNT) n = STAR_COUNT;
+    for (int i = 0; i < n; i++) {
+      s_data.star_az_decideg[i] = (uint16_t)raw[i * 2] | ((uint16_t)raw[i * 2 + 1] << 8);
+    }
+  }
   if ((t = dict_find(iter, MESSAGE_KEY_METEOR_INTENSITY))) s_data.meteor_intensity = t->value->uint8;
   if ((t = dict_find(iter, MESSAGE_KEY_METEOR_SHOWER_NAME))) {
     strncpy(s_data.meteor_shower_name, t->value->cstring, sizeof(s_data.meteor_shower_name) - 1);

@@ -67,6 +67,15 @@ typedef struct {
                                // normal refresh cycle causes throughout the same eclipse day
   bool max_vibrated;          // fired the "at maximum eclipse" vibration yet for last_eclipse_max?
   bool last_iss_visible;     // same idea, for the ISS appearing/disappearing
+  time_t storm_flash_end;    // 0 = no lightning flash in progress; otherwise the time
+                               // (see draw_clouds_realistic's storm-flash comment) the
+                               // current flash finishes and the sky reverts to normal
+  bool storm_flash_was_active; // storm_flash_end > now as of the last tick -- lets the
+                                 // once-a-second throttle check (which runs before the
+                                 // expensive full redraw below even happens) notice the
+                                 // instant a flash starts or ends and force a redraw for
+                                 // just that transition, without abandoning the normal
+                                 // once-a-minute cadence the rest of the time
   GBitmap *sky_cache;       // last full render, captured via graphics_capture_frame_buffer;
                              // blitted back on the seconds in between instead of leaving
                              // the screen untouched (which is what caused flicker -- Pebble
@@ -559,8 +568,15 @@ static void cloud_shading_colors(uint8_t cloud_pct, bool stormy, RGB8 *warm, RGB
 // Sun's actual current position (clusters on either side of it
 // naturally end up lit from opposite sides), falling back to a
 // flat overhead light when the Sun's below the horizon.
+//
+// `flash_active` (see canvas_update_proc's storm-flash comment for
+// the timing) briefly lights the cloud mass from within -- every
+// pixel's blend leans toward white rather than its normal warm/cool
+// shading -- and drops a jagged bolt down from the cloud base,
+// exactly like a real strike briefly overexposing the clouds around
+// it while a thin bright channel reaches the ground.
 static void draw_clouds_realistic(GContext *ctx, GRect bounds, uint8_t cloud_pct, uint8_t cloud_altitude_pct,
-                         uint8_t visibility_pct, bool stormy, GPoint sun_center, bool sun_up) {
+                         uint8_t visibility_pct, bool stormy, GPoint sun_center, bool sun_up, bool flash_active) {
   if (cloud_pct == 0 && !stormy) return;
 
   RGB8 warm_rgb, cool_rgb;
@@ -635,9 +651,43 @@ static void draw_clouds_realistic(GContext *ctx, GRect bounds, uint8_t cloud_pct
         blend.r = lerp8(cool_rgb.r, warm_rgb.r, warm_frac, 1000);
         blend.g = lerp8(cool_rgb.g, warm_rgb.g, warm_frac, 1000);
         blend.b = lerp8(cool_rgb.b, warm_rgb.b, warm_frac, 1000);
+        if (flash_active) {
+          // Lit from within: lean hard toward white rather than the
+          // normal warm/cool shading, same "brief overexposure" look
+          // a real strike gives the clouds around it.
+          RGB8 white = { 255, 255, 255 };
+          blend.r = lerp8(blend.r, white.r, 70, 100);
+          blend.g = lerp8(blend.g, white.g, 70, 100);
+          blend.b = lerp8(blend.b, white.b, 70, 100);
+        }
         GColor color = dither_pixel(blend, bayer);
         graphics_context_set_fill_color(ctx, color);
         graphics_fill_rect(ctx, GRect(x, y, 1, 1), 0, GCornerNone);
+      }
+    }
+  }
+
+  if (flash_active) {
+    // A single jagged bolt from the first (always-present) cluster's
+    // base down toward the ground -- fixed zigzag shape, not
+    // randomized per strike, which keeps this cheap (no RNG state to
+    // carry) and is barely noticeable given how brief each flash is.
+    int16_t bx = bounds.origin.x + (bounds.size.w * CLUSTER_X_PCT[0]) / 100;
+    int16_t by = band_y + 10;
+    int16_t ground_y = bounds.origin.y + bounds.size.h - GROUND_H;
+    int16_t span = ground_y - by;
+    if (span > 8) {
+      GPoint bolt[6];
+      bolt[0] = GPoint(bx, by);
+      bolt[1] = GPoint(bx - 6, by + span * 2 / 10);
+      bolt[2] = GPoint(bx + 4, by + span * 4 / 10);
+      bolt[3] = GPoint(bx - 8, by + span * 6 / 10);
+      bolt[4] = GPoint(bx + 2, by + span * 8 / 10);
+      bolt[5] = GPoint(bx - 4, ground_y);
+      graphics_context_set_stroke_color(ctx, GColorWhite);
+      graphics_context_set_stroke_width(ctx, 2);
+      for (int i = 0; i < 5; i++) {
+        graphics_draw_line(ctx, bolt[i], bolt[i + 1]);
       }
     }
   }
@@ -754,11 +804,11 @@ static void draw_clouds_simple(GContext *ctx, GRect bounds, uint8_t cloud_pct, u
 // "Cloud style" setting (0=Simple/battery-friendly, 1=Realistic).
 static void draw_clouds(GContext *ctx, GRect bounds, uint8_t cloud_pct, uint8_t cloud_altitude_pct,
                          uint8_t visibility_pct, bool stormy, GPoint sun_center, bool sun_up,
-                         uint8_t render_style) {
+                         uint8_t render_style, bool flash_active) {
   if (render_style == 0) {
     draw_clouds_simple(ctx, bounds, cloud_pct, cloud_altitude_pct, visibility_pct, stormy);
   } else {
-    draw_clouds_realistic(ctx, bounds, cloud_pct, cloud_altitude_pct, visibility_pct, stormy, sun_center, sun_up);
+    draw_clouds_realistic(ctx, bounds, cloud_pct, cloud_altitude_pct, visibility_pct, stormy, sun_center, sun_up, flash_active);
   }
 }
 
@@ -1109,6 +1159,21 @@ static void draw_label(GContext *ctx, GRect bounds, GPoint near, const char *tex
 #define ISS_R 3
 
 static const char *PLANET_NAMES[PLANET_COUNT] = { "Mercury", "Venus", "Mars", "Jupiter", "Saturn" };
+
+// ---- bright named stars (space-view sky mode) -------------------------
+// Display names only -- position (alt/az) comes from d->star_alt_decideg/
+// star_az_decideg, computed phone-side. Order MUST match astro.js's
+// STAR_CATALOG exactly (see eclipse_data.h's STAR_COUNT comment).
+static const char *STAR_NAMES[STAR_COUNT] = {
+  "Sirius", "Canopus", "Arcturus", "Vega", "Capella", "Rigel", "Procyon", "Betelgeuse",
+  "Altair", "Aldebaran", "Antares", "Spica", "Pollux", "Fomalhaut", "Deneb", "Regulus"
+};
+// 2px for the ~7 brightest (mag < ~0.4), 1px for the rest -- real
+// stars vary continuously in brightness, but this app's canvas is far
+// too small for anything finer than "a little bigger" to read at all.
+static const uint8_t STAR_RADIUS[STAR_COUNT] = {
+  2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1
+};
 
 // Fixed sky "columns" (percent of canvas width) so multiple planets
 // visible at once don't collide -- same simplification already used
@@ -1609,6 +1674,13 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
   // the ISS's visibility just changed.
   int16_t alt = interp_sun_alt_decideg(d, now);
   bool sky_is_dark = alt <= -60;
+  // Space-view sky mode has no atmosphere to dim the sky in the first
+  // place, so its celestial bodies (planets, ISS) are never gated by
+  // brightness -- only by whether they're actually above the horizon,
+  // same as the Sun/Moon already are in every mode. Stars get their
+  // own separate always-drawn treatment further down, since they
+  // don't exist at all outside this mode.
+  bool sky_dark_for_bodies = sky_is_dark || d->sky_mode == 2;
 
   // Full screen, captured before any shrink below -- the bottom info
   // bar always sits at the true bottom of the physical screen
@@ -1621,7 +1693,7 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
   }
 
   int current_phase = compute_eclipse_phase(d, now);
-  bool current_iss_visible = compute_iss_visible(d, now, sky_is_dark);
+  bool current_iss_visible = compute_iss_visible(d, now, sky_dark_for_bodies);
   bool phase_just_changed = current_phase != state->last_eclipse_phase;
   bool was_first_draw = (state->last_eclipse_phase == -1);
 
@@ -1660,10 +1732,36 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
   // sky_cache via the documented graphics_capture_frame_buffer() API;
   // on the throttled seconds we just blit that cached bitmap back,
   // which is cheap and always leaves valid pixels on screen.
+  // Realistic-cloud lightning during a storm: a cheap per-second check
+  // (not itself a redraw -- just arithmetic) for whether a flash
+  // should start or stop right now, so a strike can appear/disappear
+  // on the actual second it's due rather than waiting for the next
+  // scheduled once-a-minute redraw. Deliberately NOT a general
+  // exception to the once-a-minute throttle -- outside an active
+  // storm this is always false and costs nothing extra; see
+  // draw_clouds_realistic() for what a flash actually looks like.
+  bool storm_realistic = d->sky_mode == 0 && d->weather_condition == 4 && d->cloud_render_style == 1;
+  bool flash_currently_active = storm_realistic && now < state->storm_flash_end;
+  if (storm_realistic && !flash_currently_active) {
+    // Deterministic pseudo-random hash of the current second, not a
+    // real RNG (nothing here needs cryptographic quality, and this
+    // avoids persisting extra seed state) -- gives each second during
+    // a storm roughly a 1-in-43 chance of being a strike, averaging
+    // one flash every ~40s.
+    uint32_t h = (uint32_t)now * 2654435761u;
+    if ((h & 0xFF) < 6) {
+      state->storm_flash_end = now + 1; // strikes read as a single ~1s flash
+      flash_currently_active = true;
+    }
+  }
+  bool storm_flash_transition = flash_currently_active != state->storm_flash_was_active;
+  state->storm_flash_was_active = flash_currently_active;
+
   bool need_full_draw = state->force_next_draw
     || phase_just_changed
     || just_passed_max
-    || current_iss_visible != state->last_iss_visible;
+    || current_iss_visible != state->last_iss_visible
+    || storm_flash_transition;
   if (!need_full_draw) {
     time_t elapsed = now - state->last_full_draw;
     if (elapsed < 0 || elapsed >= 60) need_full_draw = true;
@@ -1702,40 +1800,86 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
   uint8_t cloud_pct = interp_cloud_pct(d, now);
   bool stormy = d->weather_condition == 4;
 
-  RGB8 sky_top_rgb, sky_hz_rgb;
-  sky_colors_for_altitude(alt, &sky_top_rgb, &sky_hz_rgb);
+  // sky_mode: 0=Weather sky (below, unchanged), 1=Clear sky (same
+  // day/night gradient, but weather_enabled below skips the haze and
+  // the cloud/weather-effect calls further down), 2=Space view (no
+  // gradient at all -- flat near-black, handled entirely in this
+  // branch instead of falling through to fill_sky_gradient()).
+  bool weather_enabled = d->sky_mode == 0;
+  if (d->sky_mode == 2) {
+    graphics_context_set_fill_color(ctx, GColorBlack);
+    graphics_fill_rect(ctx, bounds, 0, GCornerNone);
+  } else {
+    RGB8 sky_top_rgb, sky_hz_rgb;
+    sky_colors_for_altitude(alt, &sky_top_rgb, &sky_hz_rgb);
 
-  // Beneath an overcast deck the sky reads grayer, like the view
-  // crossing under cloud cover from a plane window -- the effect
-  // ramps in past 35% cover, and rain/snow/storm push it further
-  // gray on top of whatever the coverage alone would give.
-  uint8_t gray_amount = 0;
-  if (cloud_pct > 35) {
-    int32_t g = ((int32_t)(cloud_pct - 35) * 100) / 65;
-    gray_amount = (uint8_t)(g > 100 ? 100 : g);
-  }
-  if (stormy) {
-    if (gray_amount < 85) gray_amount = 85;
-  } else if (d->weather_condition == 2 || d->weather_condition == 3) {
-    if (gray_amount < 55) gray_amount = 55;
+    // Beneath an overcast deck the sky reads grayer, like the view
+    // crossing under cloud cover from a plane window -- the effect
+    // ramps in past 35% cover, and rain/snow/storm push it further
+    // gray on top of whatever the coverage alone would give. Skipped
+    // entirely in Clear sky mode -- no weather means no haze either.
+    uint8_t gray_amount = 0;
+    if (weather_enabled) {
+      if (cloud_pct > 35) {
+        int32_t g = ((int32_t)(cloud_pct - 35) * 100) / 65;
+        gray_amount = (uint8_t)(g > 100 ? 100 : g);
+      }
+      if (stormy) {
+        if (gray_amount < 85) gray_amount = 85;
+      } else if (d->weather_condition == 2 || d->weather_condition == 3) {
+        if (gray_amount < 55) gray_amount = 55;
+      }
+    }
+
+    RGB8 band_rgb = sky_hz_rgb;
+    int16_t band_y_screen = bounds.origin.y + bounds.size.h; // off-canvas: no visible band by default
+    if (gray_amount > 0) {
+      RGB8 neutral_gray = { 115, 117, 120 };
+      band_rgb.r = lerp8(sky_hz_rgb.r, neutral_gray.r, gray_amount, 100);
+      band_rgb.g = lerp8(sky_hz_rgb.g, neutral_gray.g, gray_amount, 100);
+      band_rgb.b = lerp8(sky_hz_rgb.b, neutral_gray.b, gray_amount, 100);
+      band_y_screen = compute_cloud_band_y(bounds, d->cloud_altitude_pct);
+    }
+
+    fill_sky_gradient(ctx, bounds, sky_top_rgb, band_rgb, band_y_screen, sky_hz_rgb);
   }
 
-  RGB8 band_rgb = sky_hz_rgb;
-  int16_t band_y_screen = bounds.origin.y + bounds.size.h; // off-canvas: no visible band by default
-  if (gray_amount > 0) {
-    RGB8 neutral_gray = { 115, 117, 120 };
-    band_rgb.r = lerp8(sky_hz_rgb.r, neutral_gray.r, gray_amount, 100);
-    band_rgb.g = lerp8(sky_hz_rgb.g, neutral_gray.g, gray_amount, 100);
-    band_rgb.b = lerp8(sky_hz_rgb.b, neutral_gray.b, gray_amount, 100);
-    band_y_screen = compute_cloud_band_y(bounds, d->cloud_altitude_pct);
+  // Space-view sky mode's bright-star field: real azimuth-to-x /
+  // altitude-to-y placement (same simplification the ISS already uses
+  // further down, just for many bodies at once instead of one) rather
+  // than the Sun/Moon/planets' fixed-column trick, since 16 stars
+  // sharing one column would be an unreadable stack. Drawn early, as
+  // a backdrop behind the Sun/Moon/planets/clouds that follow --
+  // real stars sit "behind" everything else too. Tracked per-star for
+  // the shake-to-reveal labels alongside the Sun/Moon/planets below.
+  bool star_visible[STAR_COUNT];
+  GPoint star_center[STAR_COUNT];
+  for (int s = 0; s < STAR_COUNT; s++) {
+    star_visible[s] = false;
+    star_center[s] = GPoint(0, 0);
   }
-
-  fill_sky_gradient(ctx, bounds, sky_top_rgb, band_rgb, band_y_screen, sky_hz_rgb);
+  if (d->sky_mode == 2) {
+    for (int s = 0; s < STAR_COUNT; s++) {
+      int16_t s_alt = d->star_alt_decideg[s];
+      if (s_alt <= 0) continue; // below the horizon -- no atmosphere doesn't mean no ground
+      int16_t s_y = alt_to_y(s_alt, d->sky_scale_max_alt_decideg, bounds.size.h, STAR_RADIUS[s]);
+      int16_t s_x = (bounds.size.w * (int32_t)d->star_az_decideg[s]) / 3600;
+      GPoint c = GPoint(s_x, s_y);
+      star_visible[s] = true;
+      star_center[s] = c;
+      graphics_context_set_fill_color(ctx, GColorWhite);
+      graphics_fill_circle(ctx, c, STAR_RADIUS[s]);
+    }
+  }
 
   // "Dark enough to see planets/meteors" -- same threshold used
   // elsewhere for picking light vs dark overlay text, reused here for
-  // consistency rather than inventing a second one.
-  bool meteors_visible = sky_is_dark && d->meteor_intensity > 0;
+  // consistency rather than inventing a second one. Meteors are an
+  // atmospheric-entry phenomenon -- with no atmosphere left in space-
+  // view mode, there's nothing for one to burn up in, so this stays
+  // gated by the real sky_is_dark (not sky_dark_for_bodies) and is
+  // additionally suppressed outright in that mode.
+  bool meteors_visible = sky_is_dark && d->meteor_intensity > 0 && d->sky_mode != 2;
   GPoint meteor_label_point = GPoint(bounds.origin.x + bounds.size.w / 2, bounds.origin.y + 40);
   if (meteors_visible) {
     draw_meteors(ctx, bounds, d->meteor_intensity);
@@ -1887,7 +2031,7 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
     planet_visible[p] = false;
     planet_center[p] = GPoint(0, 0);
   }
-  if (sky_is_dark) {
+  if (sky_dark_for_bodies) {
     for (int p = 0; p < PLANET_COUNT; p++) {
       int16_t p_alt = interp_planet_alt_decideg(d, (PlanetId)p, now);
       int16_t p_alt_y = alt_to_y(p_alt, d->sky_scale_max_alt_decideg, bounds.size.h, PLANET_R);
@@ -1920,7 +2064,7 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
   // really be visible.
   bool iss_visible = false;
   GPoint iss_center = GPoint(0, 0);
-  if (d->show_iss && sky_is_dark && d->iss_alt_deg > 0 && d->iss_computed_at != 0) {
+  if (d->show_iss && sky_dark_for_bodies && d->iss_alt_deg > 0 && d->iss_computed_at != 0) {
     time_t iss_age = now - d->iss_computed_at;
     if (iss_age >= 0 && iss_age < 900) {
       int16_t iss_alt_decideg = d->iss_alt_deg * 10;
@@ -1937,9 +2081,14 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
   }
 
   // Cloud clusters, drawn last so they visibly sit in front of (and
-  // can partially obscure) the sun/moon, same as real clouds.
-  draw_clouds(ctx, bounds, cloud_pct, d->cloud_altitude_pct, d->vis_score_pct, stormy, sun_center, sun_up, d->cloud_render_style);
-  draw_weather_effect(ctx, bounds, d->weather_condition, cloud_pct, d->cloud_altitude_pct);
+  // can partially obscure) the sun/moon, same as real clouds. Skipped
+  // entirely outside Weather sky mode -- Clear sky and Space view
+  // both represent weather-free skies by definition.
+  if (weather_enabled) {
+    draw_clouds(ctx, bounds, cloud_pct, d->cloud_altitude_pct, d->vis_score_pct, stormy, sun_center, sun_up, d->cloud_render_style,
+                flash_currently_active);
+    draw_weather_effect(ctx, bounds, d->weather_condition, cloud_pct, d->cloud_altitude_pct);
+  }
 
   // The clouds%/visibility/location bar (and its black "horizon"
   // backing strip): off, shown only on shake (alongside the
@@ -1991,6 +2140,9 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
     }
     if (meteors_visible) draw_label(ctx, bounds, meteor_label_point,
                                      d->meteor_shower_name[0] != '\0' ? d->meteor_shower_name : "Meteors");
+    for (int s = 0; s < STAR_COUNT; s++) {
+      if (star_visible[s]) draw_label(ctx, bounds, star_center[s], STAR_NAMES[s]);
+    }
     if (iss_visible) draw_label(ctx, bounds, iss_center, "ISS");
   }
 
