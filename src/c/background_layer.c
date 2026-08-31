@@ -1547,13 +1547,15 @@ static GPoint point_on_ring(GPoint center, GRect screen, int32_t angle,
 // half_thick_fp, like SVG's stroke-linecap:square). translucent
 // switches every fill/stroke in here to subpixel.h's dithered variants.
 static void draw_ring_mark_fp(GContext *ctx, FGPoint inner, FGPoint outer, int32_t sin_v, int32_t cos_v,
-                               int32_t half_thick_fp, uint8_t style, GColor color, bool translucent) {
+                               int32_t half_thick_fp, uint8_t style, GColor color, bool translucent, uint8_t thickness_px) {
+  bool thin = thickness_px < 3; // see subpixel.h's own comment on fill_polygon_thin_fp() for why
   if (inner.x == outer.x && inner.y == outer.y) {
     // Degenerate zero-length mark (inner/outer border reach configured
     // equal) -- no direction to build a quad from, so just draw a dot
     // at that single point regardless of style, same fallback the
     // pre-fixed-point version of this code used.
-    fill_circle_fp(ctx, inner, half_thick_fp, color, translucent);
+    if (thin && !translucent) fill_circle_thin_fp(ctx, inner, half_thick_fp, color);
+    else fill_circle_fp(ctx, inner, half_thick_fp, color, translucent);
     return;
   }
 
@@ -1575,13 +1577,20 @@ static void draw_ring_mark_fp(GContext *ctx, FGPoint inner, FGPoint outer, int32
 
   if (translucent) {
     fill_polygon_dithered_fp(ctx, points, 4, color);
+  } else if (thin) {
+    fill_polygon_thin_fp(ctx, points, 4, color);
   } else {
     fill_polygon_fp(ctx, points, 4, color);
   }
 
   if (style == 0) { // dot caps
-    fill_circle_fp(ctx, inner, half_thick_fp, color, translucent);
-    fill_circle_fp(ctx, outer, half_thick_fp, color, translucent);
+    if (thin && !translucent) {
+      fill_circle_thin_fp(ctx, inner, half_thick_fp, color);
+      fill_circle_thin_fp(ctx, outer, half_thick_fp, color);
+    } else {
+      fill_circle_fp(ctx, inner, half_thick_fp, color, translucent);
+      fill_circle_fp(ctx, outer, half_thick_fp, color, translucent);
+    }
   }
 }
 
@@ -1625,7 +1634,7 @@ static void draw_marker_ring(GContext *ctx, GPoint center, GRect screen, const M
 
     FGPoint outer_fp = point_on_ring_fp(center_fp, screen, sin_v, cos_v, outer_pct, cfg->outer_eccentricity);
     FGPoint inner_fp = point_on_ring_fp(center_fp, screen, sin_v, cos_v, inner_pct, cfg->inner_eccentricity);
-    draw_ring_mark_fp(ctx, inner_fp, outer_fp, sin_v, cos_v, half_thick_fp, cfg->style, color, cfg->translucent);
+    draw_ring_mark_fp(ctx, inner_fp, outer_fp, sin_v, cos_v, half_thick_fp, cfg->style, color, cfg->translucent, cfg->thickness);
   }
 }
 

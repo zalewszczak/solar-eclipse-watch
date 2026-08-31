@@ -182,6 +182,127 @@ static void fill_polygon_dithered_fp(GContext *ctx, const FGPoint *pts, int n, G
   }
 }
 
+// Anti-aliased fills for thin shapes (nominal width under ~3px) --
+// point_in_convex_polygon_fp()/the circle math above sample exactly
+// ONE point per candidate pixel (its center), so whether a given
+// pixel along a narrow shape gets drawn at all comes down to whether
+// the shape's true edge happens to fall on the near or far side of
+// that single sample point -- not how much of the pixel it actually
+// covers. For a wide shape that's invisible (plenty of fully-covered
+// interior pixels either way); for a thin one it's the difference
+// between a clean edge and a line that looks thinner than its nominal
+// width, or even develops gaps, at certain sub-pixel angles. This is
+// NOT a color/bit-casting issue -- nothing in this file blends colors
+// or reads back existing pixels; every pixel is either painted solid
+// or left untouched, everywhere, including here. It's a sampling
+// resolution problem, and the fix is the same "fake alpha via ordered
+// dithering" principle fill_polygon_dithered_fp()'s flat 50% stipple
+// above already uses for translucency -- just driven by each pixel's
+// actual measured coverage instead of a fixed density.
+//
+// polygon_coverage9_fp()/circle_coverage9_fp() supersample 3x3 (9
+// sub-points spaced a third of a pixel apart) around the usual pixel-
+// center sample, giving a coverage count of 0-9 instead of a binary
+// hit/miss. fill_polygon_thin_fp()/fill_circle_thin_fp() below then
+// draw fully-covered pixels solid and skip fully-empty ones exactly
+// like the plain fill functions do, but dither everything in between
+// at a density proportional to its own coverage (scaled onto BAYER4's
+// 0-15 range) rather than either drawing or skipping it outright --
+// that graduated density is what actually reads as a smoothly
+// anti-aliased edge despite this display having no real alpha
+// blending to fall back on.
+//
+// Reserved for genuinely thin shapes rather than replacing the plain
+// fills everywhere: 9 point-in-shape tests per candidate pixel is
+// meaningfully more expensive than 1, and a thin shape's own bounding
+// box stays small (proportional to its width, however long it runs),
+// which is exactly what keeps that extra cost bounded to shapes that
+// were cheap to rasterize in the first place.
+static const int32_t SUBPIXEL_AA_OFFSETS3[3] = { -SUBPIXEL_SCALE / 3, 0, SUBPIXEL_SCALE / 3 };
+
+static uint8_t polygon_coverage9_fp(const FGPoint *pts, int n, int32_t center_x, int32_t center_y) {
+  uint8_t hits = 0;
+  for (int oy = 0; oy < 3; oy++) {
+    for (int ox = 0; ox < 3; ox++) {
+      FGPoint sample = fgpoint_new(center_x + SUBPIXEL_AA_OFFSETS3[ox], center_y + SUBPIXEL_AA_OFFSETS3[oy]);
+      if (point_in_convex_polygon_fp(pts, n, sample)) hits++;
+    }
+  }
+  return hits;
+}
+
+static uint8_t circle_coverage9_fp(int32_t center_x, int32_t center_y, int32_t cx, int32_t cy, int64_t r_sq) {
+  uint8_t hits = 0;
+  for (int oy = 0; oy < 3; oy++) {
+    for (int ox = 0; ox < 3; ox++) {
+      int64_t dx = (center_x + SUBPIXEL_AA_OFFSETS3[ox]) - cx;
+      int64_t dy = (center_y + SUBPIXEL_AA_OFFSETS3[oy]) - cy;
+      if (dx * dx + dy * dy <= r_sq) hits++;
+    }
+  }
+  return hits;
+}
+
+// coverage (0-9) -> a BAYER4-comparable threshold (0-16): a pixel
+// draws when the ordered-dither value at its position is below this,
+// same comparison shape the flat-50%-translucency dithered fills use
+// (there, the threshold is always a fixed 8).
+static inline uint8_t coverage9_to_bayer_threshold(uint8_t coverage) {
+  return (uint8_t)(((uint16_t)coverage * 16) / 9);
+}
+
+static void fill_polygon_thin_fp(GContext *ctx, const FGPoint *pts, int n, GColor color) {
+  int32_t min_x_fp = pts[0].x, max_x_fp = pts[0].x;
+  int32_t min_y_fp = pts[0].y, max_y_fp = pts[0].y;
+  for (int i = 1; i < n; i++) {
+    if (pts[i].x < min_x_fp) min_x_fp = pts[i].x;
+    if (pts[i].x > max_x_fp) max_x_fp = pts[i].x;
+    if (pts[i].y < min_y_fp) min_y_fp = pts[i].y;
+    if (pts[i].y > max_y_fp) max_y_fp = pts[i].y;
+  }
+
+  int16_t min_x = (int16_t)(min_x_fp >> SUBPIXEL_BITS);
+  int16_t max_x = (int16_t)((max_x_fp + SUBPIXEL_MASK) >> SUBPIXEL_BITS);
+  int16_t min_y = (int16_t)(min_y_fp >> SUBPIXEL_BITS);
+  int16_t max_y = (int16_t)((max_y_fp + SUBPIXEL_MASK) >> SUBPIXEL_BITS);
+
+  graphics_context_set_fill_color(ctx, color);
+
+  for (int16_t y = min_y; y <= max_y; y++) {
+    int32_t sample_y = ((int32_t)y << SUBPIXEL_BITS) + SUBPIXEL_HALF;
+    for (int16_t x = min_x; x <= max_x; x++) {
+      int32_t sample_x = ((int32_t)x << SUBPIXEL_BITS) + SUBPIXEL_HALF;
+      uint8_t coverage = polygon_coverage9_fp(pts, n, sample_x, sample_y);
+      if (coverage == 0) continue;
+      if (coverage == 9 || BAYER4[y & 3][x & 3] < coverage9_to_bayer_threshold(coverage)) {
+        graphics_fill_rect(ctx, GRect(x, y, 1, 1), 0, GCornerNone);
+      }
+    }
+  }
+}
+
+static void fill_circle_thin_fp(GContext *ctx, FGPoint center, int32_t radius_fp, GColor color) {
+  int16_t min_x = (int16_t)((center.x - radius_fp) >> SUBPIXEL_BITS);
+  int16_t max_x = (int16_t)((center.x + radius_fp + SUBPIXEL_MASK) >> SUBPIXEL_BITS);
+  int16_t min_y = (int16_t)((center.y - radius_fp) >> SUBPIXEL_BITS);
+  int16_t max_y = (int16_t)((center.y + radius_fp + SUBPIXEL_MASK) >> SUBPIXEL_BITS);
+
+  int64_t r_sq = (int64_t)radius_fp * radius_fp;
+  graphics_context_set_fill_color(ctx, color);
+
+  for (int16_t y = min_y; y <= max_y; y++) {
+    int32_t sample_y = ((int32_t)y << SUBPIXEL_BITS) + SUBPIXEL_HALF;
+    for (int16_t x = min_x; x <= max_x; x++) {
+      int32_t sample_x = ((int32_t)x << SUBPIXEL_BITS) + SUBPIXEL_HALF;
+      uint8_t coverage = circle_coverage9_fp(sample_x, sample_y, center.x, center.y, r_sq);
+      if (coverage == 0) continue;
+      if (coverage == 9 || BAYER4[y & 3][x & 3] < coverage9_to_bayer_threshold(coverage)) {
+        graphics_fill_rect(ctx, GRect(x, y, 1, 1), 0, GCornerNone);
+      }
+    }
+  }
+}
+
 // Sub-pixel circle fill (solid & dithered)
 static void fill_circle_fp(GContext *ctx, FGPoint center, int32_t radius_fp, GColor color, bool dithered) {
   int16_t min_x = (int16_t)((center.x - radius_fp) >> SUBPIXEL_BITS);

@@ -72,15 +72,20 @@ static void draw_hand_shape_once_fp(GContext *ctx, FGPoint center, int32_t angle
   FGPoint points[4], inner, outer;
   int32_t half_w;
   int n = compute_hand_geometry_fp(center, angle, cfg, points, &inner, &outer, &half_w);
+  bool thin = cfg->width < 3; // see subpixel.h's own comment on fill_polygon_thin_fp() for why
 
   if (dithered) fill_polygon_dithered_fp(ctx, points, n, color);
   else if (cfg->hollow) stroke_polygon_fp(ctx, points, n, color, false);
+  else if (thin) fill_polygon_thin_fp(ctx, points, n, color);
   else fill_polygon_fp(ctx, points, n, color);
 
   if (n == 4 && cfg->style == 0) { // dot style round caps
     if (cfg->hollow && !dithered) {
       stroke_circle_fp(ctx, inner, half_w, color, false);
       stroke_circle_fp(ctx, outer, half_w, color, false);
+    } else if (thin && !dithered) {
+      fill_circle_thin_fp(ctx, inner, half_w, color);
+      fill_circle_thin_fp(ctx, outer, half_w, color);
     } else {
       fill_circle_fp(ctx, inner, half_w, color, dithered);
       fill_circle_fp(ctx, outer, half_w, color, dithered);
@@ -196,10 +201,18 @@ static void draw_hand_shadow_once_fp(GContext *ctx, FGPoint center, int32_t angl
   int n = compute_hand_geometry_fp(shadow_center, angle, cfg, points, &inner, &outer, &half_w);
 
   if (!shadow_translucent_style) {
-    fill_polygon_fp(ctx, points, n, GColorBlack);
-    if (n == 4 && cfg->style == 0) {
-      fill_circle_fp(ctx, inner, half_w, GColorBlack, false);
-      fill_circle_fp(ctx, outer, half_w, GColorBlack, false);
+    if (cfg->width < 3) {
+      fill_polygon_thin_fp(ctx, points, n, GColorBlack);
+      if (n == 4 && cfg->style == 0) {
+        fill_circle_thin_fp(ctx, inner, half_w, GColorBlack);
+        fill_circle_thin_fp(ctx, outer, half_w, GColorBlack);
+      }
+    } else {
+      fill_polygon_fp(ctx, points, n, GColorBlack);
+      if (n == 4 && cfg->style == 0) {
+        fill_circle_fp(ctx, inner, half_w, GColorBlack, false);
+        fill_circle_fp(ctx, outer, half_w, GColorBlack, false);
+      }
     }
     return;
   }
