@@ -690,6 +690,11 @@ function buildConfigHtml(current) {
 '  .radio-row label { display: flex; align-items: center; gap: 6px; margin: 0; font-weight: normal; }' +
 '  .radio-row input { width: auto; }' +
 '  .secondary-btn { width: 100%; padding: 12px; font-size: 14px; font-weight: 600; color: var(--text-strong); background: var(--border-light); border: 1px solid var(--border); border-radius: 8px; margin-top: 12px; }' +
+'  .preset-slot-row { display: flex; gap: 6px; align-items: stretch; margin-top: 8px; }' +
+'  .preset-apply-btn { flex: 1; box-sizing: border-box; padding: 12px; font-size: 14px; font-weight: 600; color: var(--text-strong); background: var(--btn-bg); border: 1px solid var(--border); border-radius: 8px; text-align: left; }' +
+'  .preset-apply-btn:disabled { opacity: 0.45; }' +
+'  .preset-icon-btn { width: 44px; flex-shrink: 0; font-size: 18px; background: var(--btn-bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text-strong); }' +
+'  .preset-name-input { flex: 1; box-sizing: border-box; }' +
 '  .secondary-btn:active { background: var(--border-lighter); }' +
 '  .save-bar { position: fixed; left: 0; right: 0; bottom: 0; padding: 12px 20px calc(12px + env(safe-area-inset-bottom, 0px)); background: var(--page-bg); box-shadow: 0 -2px 6px rgba(0,0,0,0.1); }' +
 '  .save-bar button { width: 100%; padding: 14px; font-size: 16px; font-weight: 600; color: #fff; background: #ff9200; border: none; border-radius: 8px; }' +
@@ -1247,6 +1252,48 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      <label for="vibrateOnPhaseChange" style="margin:0;">Vibrate when the eclipse reaches its next phase</label>' +
 '    </div>' +
 '    <div class="help">A brief double buzz right as C1/C2/C3/C4 happens -- not on ordinary day-to-day changes.</div>' +
+'  <fieldset>' +
+'    <div class="section-legend" onclick="toggleSection(\'presets\')">Style Presets <span class="chevron" id="chev-presets">&#9656;</span></div>' +
+'    <div class="section-body" id="section-presets" style="display:none;">' +
+'    <div class="help">Save up to 3 quick-recall snapshots of your whole Style + Features design below, or export/import it as JSON to back it up or share it.</div>' +
+
+'    <div class="preset-slot-row">' +
+'      <button type="button" class="preset-apply-btn" id="presetApplyBtn1" onclick="applyPresetSlot(1)" ' + (current.presetSlot1Json ? '' : 'disabled') + '>' + esc(current.presetSlot1Name || "Preset 1") + '</button>' +
+'      <input type="text" class="preset-name-input" id="presetNameInput1" style="display:none;" onblur="commitRenamePresetSlot(1)" onkeydown="if (event.key === \'Enter\') this.blur();">' +
+'      <button type="button" class="preset-icon-btn" onclick="savePresetSlot(1)" title="Save current design here">&#128190;</button>' +
+'      <button type="button" class="preset-icon-btn" onclick="startRenamePresetSlot(1)" title="Rename">&#9998;</button>' +
+'    </div>' +
+'    <input type="hidden" id="presetSlot1Name" value="' + esc(current.presetSlot1Name || "Preset 1") + '">' +
+'    <input type="hidden" id="presetSlot1Json" value="' + esc(current.presetSlot1Json || "") + '">' +
+'    <div class="preset-slot-row">' +
+'      <button type="button" class="preset-apply-btn" id="presetApplyBtn2" onclick="applyPresetSlot(2)" ' + (current.presetSlot2Json ? '' : 'disabled') + '>' + esc(current.presetSlot2Name || "Preset 2") + '</button>' +
+'      <input type="text" class="preset-name-input" id="presetNameInput2" style="display:none;" onblur="commitRenamePresetSlot(2)" onkeydown="if (event.key === \'Enter\') this.blur();">' +
+'      <button type="button" class="preset-icon-btn" onclick="savePresetSlot(2)" title="Save current design here">&#128190;</button>' +
+'      <button type="button" class="preset-icon-btn" onclick="startRenamePresetSlot(2)" title="Rename">&#9998;</button>' +
+'    </div>' +
+'    <input type="hidden" id="presetSlot2Name" value="' + esc(current.presetSlot2Name || "Preset 2") + '">' +
+'    <input type="hidden" id="presetSlot2Json" value="' + esc(current.presetSlot2Json || "") + '">' +
+'    <div class="preset-slot-row">' +
+'      <button type="button" class="preset-apply-btn" id="presetApplyBtn3" onclick="applyPresetSlot(3)" ' + (current.presetSlot3Json ? '' : 'disabled') + '>' + esc(current.presetSlot3Name || "Preset 3") + '</button>' +
+'      <input type="text" class="preset-name-input" id="presetNameInput3" style="display:none;" onblur="commitRenamePresetSlot(3)" onkeydown="if (event.key === \'Enter\') this.blur();">' +
+'      <button type="button" class="preset-icon-btn" onclick="savePresetSlot(3)" title="Save current design here">&#128190;</button>' +
+'      <button type="button" class="preset-icon-btn" onclick="startRenamePresetSlot(3)" title="Rename">&#9998;</button>' +
+'    </div>' +
+'    <input type="hidden" id="presetSlot3Name" value="' + esc(current.presetSlot3Name || "Preset 3") + '">' +
+'    <input type="hidden" id="presetSlot3Json" value="' + esc(current.presetSlot3Json || "") + '">' +
+
+'    <label for="presetExportBox" style="margin-top:12px;">Export current design</label>' +
+'    <button type="button" class="secondary-btn" onclick="exportDesignJson()">Generate JSON</button>' +
+'    <textarea id="presetExportBox" readonly rows="6" style="margin-top:8px; font-family:monospace; font-size:11px;" onclick="this.select();"></textarea>' +
+'    <div class="help">Tap the box above then copy the text -- covers everything in the Style and Features sections.</div>' +
+
+'    <label for="presetImportBox" style="margin-top:12px;">Import a design</label>' +
+'    <textarea id="presetImportBox" rows="6" placeholder="Paste JSON here" style="font-family:monospace; font-size:11px;"></textarea>' +
+'    <button type="button" class="secondary-btn" onclick="importDesignJson()">Apply</button>' +
+'    <div class="help" id="presetImportStatus"></div>' +
+'    </div>' +
+'  </fieldset>' +
+
 '    </div>' +
 '  </fieldset>' +
 
@@ -2305,6 +2352,94 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  if (el && out) out.textContent = el.value + "\u00b0";' +
 '  updatePreview();' +
 '}' +
+// ---- Style Presets: export/import + 3 quick-recall slots -----------
+// Scoped to exactly the two DOM containers the user asked for (Style,
+// Features/\'corners\') by walking every input/select/textarea with an
+// id inside them -- deliberately NOT a hand-maintained field list, so
+// this never goes stale as fields get added to either section.
+'var PRESET_SCOPE_IDS = ["section-style", "section-corners"];' +
+'function collectStyleCornersJson() {' +
+'  var obj = {};' +
+'  PRESET_SCOPE_IDS.forEach(function (containerId) {' +
+'    var container = document.getElementById(containerId);' +
+'    if (!container) return;' +
+'    var els = container.querySelectorAll("input[id], select[id], textarea[id]");' +
+'    els.forEach(function (el) {' +
+'      obj[el.id] = (el.type === "checkbox") ? el.checked : el.value;' +
+'    });' +
+'  });' +
+'  return obj;' +
+'}' +
+// Sets every id->value pair from a previously-exported (or a preset
+// slot\'s saved) object, then re-runs the same cascade of dependent-UI
+// handlers each field\'s own onchange would have triggered by hand --
+// show/hide rows, slot picker labels, the preview canvas.
+'function applyStyleCornersJson(obj) {' +
+'  Object.keys(obj).forEach(function (id) {' +
+'    var el = document.getElementById(id);' +
+'    if (!el) return;' +
+'    if (el.type === "checkbox") el.checked = !!obj[id]; else el.value = obj[id];' +
+'  });' +
+'  onBottomStyleChange();' +
+'  onMarkerStyleChange();' +
+'  onHandStyleChange();' +
+'  onCornerFontChange();' +
+'  onCornerFontSizeChange();' +
+'  onSkyModeChange();' +
+'  onShowSecondsChange();' +
+'  renderSlotPicker();' +
+'  updatePreview();' +
+'}' +
+'function exportDesignJson() {' +
+'  document.getElementById("presetExportBox").value = JSON.stringify(collectStyleCornersJson(), null, 2);' +
+'}' +
+'function importDesignJson() {' +
+'  var status = document.getElementById("presetImportStatus");' +
+'  var raw = document.getElementById("presetImportBox").value;' +
+'  var obj;' +
+'  try { obj = JSON.parse(raw); } catch (e) {' +
+'    if (status) status.textContent = "Couldn\'t parse that as JSON.";' +
+'    return;' +
+'  }' +
+'  applyStyleCornersJson(obj);' +
+'  if (status) status.textContent = "Applied.";' +
+'}' +
+'function applyPresetSlot(n) {' +
+'  var jsonEl = document.getElementById("presetSlot" + n + "Json");' +
+'  if (!jsonEl || !jsonEl.value) return;' +
+'  var obj;' +
+'  try { obj = JSON.parse(jsonEl.value); } catch (e) { return; }' +
+'  applyStyleCornersJson(obj);' +
+'}' +
+'function savePresetSlot(n) {' +
+'  var jsonEl = document.getElementById("presetSlot" + n + "Json");' +
+'  var btn = document.getElementById("presetApplyBtn" + n);' +
+'  if (!jsonEl) return;' +
+'  jsonEl.value = JSON.stringify(collectStyleCornersJson());' +
+'  if (btn) btn.disabled = false;' +
+'}' +
+'function startRenamePresetSlot(n) {' +
+'  var btn = document.getElementById("presetApplyBtn" + n);' +
+'  var input = document.getElementById("presetNameInput" + n);' +
+'  var nameEl = document.getElementById("presetSlot" + n + "Name");' +
+'  if (!input || !btn) return;' +
+'  input.value = nameEl ? nameEl.value : ("Preset " + n);' +
+'  btn.style.display = "none";' +
+'  input.style.display = "";' +
+'  input.focus();' +
+'  input.select();' +
+'}' +
+'function commitRenamePresetSlot(n) {' +
+'  var btn = document.getElementById("presetApplyBtn" + n);' +
+'  var input = document.getElementById("presetNameInput" + n);' +
+'  var nameEl = document.getElementById("presetSlot" + n + "Name");' +
+'  if (!input || !btn) return;' +
+'  var newName = input.value.replace(/^\\s+|\\s+$/g, "") || ("Preset " + n);' +
+'  if (nameEl) nameEl.value = newName;' +
+'  btn.textContent = newName;' +
+'  input.style.display = "none";' +
+'  btn.style.display = "";' +
+'}' +
 'function onAuroraEnabledChange() {' +
 '  var enabled = document.getElementById("auroraEnabled").checked;' +
 '  var astro = findCategory("astro");' +
@@ -2700,7 +2835,13 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    CONFIG_HAND_SEC_SHADOW_DISTANCE: document.getElementById("handSecShadowDistance").value,' +
 '    CONFIG_CENTER_CIRCLE_RADIUS: document.getElementById("centerCircleRadius").value,' +
 '    CONFIG_CENTER_CIRCLE_COLOR: document.getElementById("centerCircleColor").value,' +
-'    CONFIG_DEBUG_OVERRIDE_DATA: document.getElementById("debugData").value' +
+'    CONFIG_DEBUG_OVERRIDE_DATA: document.getElementById("debugData").value,' +
+'    CONFIG_PRESET_1_NAME: document.getElementById("presetSlot1Name").value,' +
+'    CONFIG_PRESET_1_JSON: document.getElementById("presetSlot1Json").value,' +
+'    CONFIG_PRESET_2_NAME: document.getElementById("presetSlot2Name").value,' +
+'    CONFIG_PRESET_2_JSON: document.getElementById("presetSlot2Json").value,' +
+'    CONFIG_PRESET_3_NAME: document.getElementById("presetSlot3Name").value,' +
+'    CONFIG_PRESET_3_JSON: document.getElementById("presetSlot3Json").value' +
 '  };' +
 '  var returnTo = getQueryParam("return_to", "pebblejs://close#");' +
 '  document.location = returnTo + encodeURIComponent(JSON.stringify(settings));' +

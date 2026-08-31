@@ -1968,7 +1968,13 @@ Pebble.addEventListener('showConfiguration', function () {
       }
     })(),
     debugOverrideEnabled: getSetting('CONFIG_DEBUG_OVERRIDE_ENABLED', 'false') === 'true',
-    debugOverrideData: getSetting('CONFIG_DEBUG_OVERRIDE_DATA', '')
+    debugOverrideData: getSetting('CONFIG_DEBUG_OVERRIDE_DATA', ''),
+    presetSlot1Name: getSetting('CONFIG_PRESET_1_NAME', ''),
+    presetSlot1Json: getSetting('CONFIG_PRESET_1_JSON', ''),
+    presetSlot2Name: getSetting('CONFIG_PRESET_2_NAME', ''),
+    presetSlot2Json: getSetting('CONFIG_PRESET_2_JSON', ''),
+    presetSlot3Name: getSetting('CONFIG_PRESET_3_NAME', ''),
+    presetSlot3Json: getSetting('CONFIG_PRESET_3_JSON', '')
   });
   // Classic no-server config page: the whole thing is a data: URI, no
   // hosting required. The page reads a `return_to` query param that
@@ -2122,6 +2128,12 @@ Pebble.addEventListener('webviewclosed', function (e) {
   setSetting('CONFIG_TEST_DATETIME', settings.CONFIG_TEST_DATETIME || '');
   setSetting('CONFIG_DEBUG_OVERRIDE_ENABLED', settings.CONFIG_DEBUG_OVERRIDE_ENABLED ? 'true' : 'false');
   setSetting('CONFIG_DEBUG_OVERRIDE_DATA', settings.CONFIG_DEBUG_OVERRIDE_DATA || '');
+  setSetting('CONFIG_PRESET_1_NAME', settings.CONFIG_PRESET_1_NAME || '');
+  setSetting('CONFIG_PRESET_1_JSON', settings.CONFIG_PRESET_1_JSON || '');
+  setSetting('CONFIG_PRESET_2_NAME', settings.CONFIG_PRESET_2_NAME || '');
+  setSetting('CONFIG_PRESET_2_JSON', settings.CONFIG_PRESET_2_JSON || '');
+  setSetting('CONFIG_PRESET_3_NAME', settings.CONFIG_PRESET_3_NAME || '');
+  setSetting('CONFIG_PRESET_3_JSON', settings.CONFIG_PRESET_3_JSON || '');
 
   // The clock font / weather-readout toggle / colors are purely
   // cosmetic and phone-local -- send them immediately rather than
