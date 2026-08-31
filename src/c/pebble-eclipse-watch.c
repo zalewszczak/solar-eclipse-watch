@@ -366,6 +366,91 @@ static void compute_startup_hand_anim(int32_t target_angle, uint16_t elapsed_ms,
   }
 }
 
+// ---- shake animation ------------------------------------------------------
+// User setting ("Style" section, off by default): while the shake-to-
+// reveal labels are up, every outlined item's outline cycles through a
+// few colors before settling back to its own real color -- each item
+// starting at a different point along that same cycle (see
+// shake_anim_color()'s phase_pct param) rather than all changing in
+// lockstep -- and the second hand (if shown) switches from its normal
+// once-a-second jump to continuous sub-second motion. Driven by its
+// own fast timer, same shape as the two startup animations above, but
+// running for as long as shake_label_seconds (several seconds) rather
+// than a fixed <1.5s, hence the lower frame rate -- see
+// SHAKE_ANIM_FRAME_MS's own comment.
+#define SHAKE_ANIM_FRAME_MS 80 // ~12fps -- smooth enough for a color cycle and a moving hand over several seconds, without the same battery allowance the two much-shorter startup animations can justify
+
+static AppTimer *s_shake_anim_timer = NULL;
+static bool s_shake_anim_active = false;
+static time_t s_shake_anim_start_s = 0;
+
+// A small fixed palette rather than computed RGB blending -- GColor's
+// own r/g/b fields are 2-bit (4 levels), not 0-255, so blending
+// between an 0-255-computed "cycling" color and an existing GColor's
+// own channels would need an explicit 2-bit<->8-bit conversion step
+// to avoid a unit mismatch; picking directly from a palette of real
+// GColor constants sidesteps that entirely.
+static const GColor SHAKE_ANIM_PALETTE[] = { GColorRed, GColorOrange, GColorYellow, GColorGreen, GColorBlue, GColorVividViolet };
+#define SHAKE_ANIM_PALETTE_COUNT (int)(sizeof(SHAKE_ANIM_PALETTE) / sizeof(SHAKE_ANIM_PALETTE[0]))
+
+// Returns the color to actually draw an outline in right now:
+// normal_color unchanged if the shake animation isn't running, else a
+// point along the cycling palette above, or normal_color again once
+// this item's own local progress (see phase_pct below) reaches the
+// last 20% of the overall shake_label_seconds window. phase_pct
+// (0-100) staggers WHEN this particular item's own cycle-then-settle
+// happens within that shared window -- same "start_frac/duration_frac"
+// stagger shape features_recompute_slots()'s marker-animation cousins
+// in background_layer.c use, just a smaller (40%) spread since there's
+// no meaningful "sweep order" here, just visual variety between items.
+GColor shake_anim_color(GColor normal_color, uint8_t phase_pct) {
+  if (!s_shake_anim_active) return normal_color;
+  uint8_t duration_s = s_data.shake_label_seconds > 0 ? s_data.shake_label_seconds : 3;
+  time_t now = time(NULL);
+  int32_t elapsed_s = (int32_t)(now - s_shake_anim_start_s);
+  if (elapsed_s < 0) elapsed_s = 0;
+  int32_t overall_progress_1000 = ((int32_t)elapsed_s * 1000) / duration_s;
+  if (overall_progress_1000 > 1000) overall_progress_1000 = 1000;
+
+  int32_t start_frac = ((int32_t)phase_pct * 400) / 100;
+  int32_t duration_frac = 1000 - start_frac;
+  int32_t local = (duration_frac > 0) ? ((overall_progress_1000 - start_frac) * 1000) / duration_frac : 1000;
+  if (local < 0) local = 0;
+  if (local > 1000) local = 1000;
+
+  if (local >= 800) return normal_color; // settled back to normal for the last 20% of this item's own window
+  int idx = (int)(((int32_t)local * SHAKE_ANIM_PALETTE_COUNT) / 800);
+  if (idx >= SHAKE_ANIM_PALETTE_COUNT) idx = SHAKE_ANIM_PALETTE_COUNT - 1;
+  return SHAKE_ANIM_PALETTE[idx];
+}
+
+static void shake_anim_timer_callback(void *data) {
+  time_t now = time(NULL);
+  uint8_t duration_s = s_data.shake_label_seconds > 0 ? s_data.shake_label_seconds : 3;
+  bool still_active = s_labels_visible && (now - s_shake_anim_start_s) < duration_s;
+  if (!still_active) {
+    s_shake_anim_active = false;
+    s_shake_anim_timer = NULL;
+  } else {
+    s_shake_anim_timer = app_timer_register(SHAKE_ANIM_FRAME_MS, shake_anim_timer_callback, NULL);
+  }
+  if (s_hands_layer) layer_mark_dirty(s_hands_layer);
+  if (s_features_layer) layer_mark_dirty(s_features_layer);
+  if (s_countdown_layer) layer_mark_dirty(s_countdown_layer);
+}
+
+// Called from tap_handler() below, once per shake -- reschedules like
+// the label-reveal timer next to it already does, rather than
+// stacking a second timer on top of an already-running one.
+static void maybe_start_shake_animation(void) {
+  if (!s_data.shake_animation_enabled) return;
+  s_shake_anim_active = true;
+  s_shake_anim_start_s = time(NULL);
+  if (!s_shake_anim_timer) {
+    s_shake_anim_timer = app_timer_register(SHAKE_ANIM_FRAME_MS, shake_anim_timer_callback, NULL);
+  }
+}
+
 static void hands_layer_update_proc(Layer *layer, GContext *ctx) {
   // Unobstructed (not full) bounds -- this layer has no background
   // fill of its own to worry about leaving gaps in (it's a pure
@@ -392,7 +477,20 @@ static void hands_layer_update_proc(Layer *layer, GContext *ctx) {
 
   int32_t min_angle = ((t->tm_min * 60 + t->tm_sec) * TRIG_MAX_ANGLE) / (60 * 60);
 
-  int32_t sec_angle = (t->tm_sec * TRIG_MAX_ANGLE) / 60;
+  int32_t sec_angle;
+  if (s_shake_anim_active && s_data.show_seconds) {
+    // Shake animation: continuous sub-second motion instead of the
+    // normal once-a-second jump -- time_ms() gives a fresh timestamp
+    // with its own within-the-second millisecond offset, read
+    // together so they can't land a second apart from each other.
+    time_t smooth_now;
+    uint16_t smooth_ms;
+    time_ms(&smooth_now, &smooth_ms);
+    struct tm *smooth_t = localtime(&smooth_now);
+    sec_angle = (int32_t)((((int64_t)smooth_t->tm_sec * 1000 + smooth_ms) * TRIG_MAX_ANGLE) / 60000);
+  } else {
+    sec_angle = (t->tm_sec * TRIG_MAX_ANGLE) / 60;
+  }
 
   // Startup animation (big-analog only): substitutes each hand's real
   // target angle with an in-progress one, plus how long that hand
@@ -437,10 +535,10 @@ static void hands_layer_update_proc(Layer *layer, GContext *ctx) {
     hour_cfg.shadow_distance_px = min_cfg.shadow_distance_px = sec_cfg.shadow_distance_px = 2;
   }
 
-  hand_layer_draw(ctx, center, hour_angle, &hour_cfg, main_color, accent_color, bg, s_data.shadow_translucent, s_data.shadow_angle_deg, hour_length_scale_1000);
-  hand_layer_draw(ctx, center, min_angle, &min_cfg, main_color, accent_color, bg, s_data.shadow_translucent, s_data.shadow_angle_deg, min_length_scale_1000);
+  hand_layer_draw(ctx, center, hour_angle, &hour_cfg, main_color, accent_color, bg, s_data.shadow_translucent, s_data.shadow_angle_deg, hour_length_scale_1000, 0);
+  hand_layer_draw(ctx, center, min_angle, &min_cfg, main_color, accent_color, bg, s_data.shadow_translucent, s_data.shadow_angle_deg, min_length_scale_1000, 33);
   if (s_data.show_seconds) {
-    hand_layer_draw(ctx, center, sec_angle, &sec_cfg, main_color, accent_color, bg, s_data.shadow_translucent, s_data.shadow_angle_deg, sec_length_scale_1000);
+    hand_layer_draw(ctx, center, sec_angle, &sec_cfg, main_color, accent_color, bg, s_data.shadow_translucent, s_data.shadow_angle_deg, sec_length_scale_1000, 66);
   }
 
   if (s_data.big_analog_hand_style == 4) {
@@ -558,7 +656,18 @@ static void bottom_canvas_update_proc(Layer *layer, GContext *ctx) {
     graphics_draw_line(ctx, clock_center, min_end);
 
     if (s_data.show_seconds) {
-      int32_t sec_angle = (t->tm_sec * TRIG_MAX_ANGLE) / 60;
+      int32_t sec_angle;
+      if (s_shake_anim_active) {
+        // Same smooth sub-second motion as the big-analog hand system's
+        // own version above -- see its comment.
+        time_t smooth_now;
+        uint16_t smooth_ms;
+        time_ms(&smooth_now, &smooth_ms);
+        struct tm *smooth_t = localtime(&smooth_now);
+        sec_angle = (int32_t)((((int64_t)smooth_t->tm_sec * 1000 + smooth_ms) * TRIG_MAX_ANGLE) / 60000);
+      } else {
+        sec_angle = (t->tm_sec * TRIG_MAX_ANGLE) / 60;
+      }
       int16_t sec_len = (clock_r * 88) / 100;
       GPoint sec_end = GPoint(
         clock_center.x + (sec_len * sin_lookup(sec_angle)) / TRIG_MAX_RATIO,
@@ -1655,6 +1764,7 @@ static void tap_handler(AccelAxisType axis, int32_t direction) {
   } else {
     s_label_timer = app_timer_register(reveal_ms, hide_labels_callback, NULL);
   }
+  maybe_start_shake_animation();
 }
 
 // ---- corners overlay's own independent refresh cycle ----------------------
@@ -1903,6 +2013,10 @@ static void deinit(void) {
   if (s_bg_anim_timer) {
     app_timer_cancel(s_bg_anim_timer);
     s_bg_anim_timer = NULL;
+  }
+  if (s_shake_anim_timer) {
+    app_timer_cancel(s_shake_anim_timer);
+    s_shake_anim_timer = NULL;
   }
   window_destroy(s_window);
 }

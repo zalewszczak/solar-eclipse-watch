@@ -1,4 +1,5 @@
 #include "hand_layer.h"
+#include "eclipse_data.h" // for shake_anim_color() -- see hand_layer_draw()'s own comment on why
 
 // round_div/BAYER4/FGPoint helpers and the fill_polygon_fp()/
 // fill_polygon_dithered_fp()/fill_circle_fp()/stroke_line_fp()/
@@ -228,7 +229,7 @@ static void draw_hand_shadow_once_fp(GContext *ctx, FGPoint center, int32_t angl
 void hand_layer_draw(GContext *ctx, GPoint center, int32_t angle, const HandConfig *cfg,
                       GColor main_color, GColor accent_color, GColor bg_color,
                       bool shadow_translucent_style, uint16_t shadow_angle_deg,
-                      uint16_t length_scale_1000) {
+                      uint16_t length_scale_1000, uint8_t shake_phase_pct) {
   // Scaled-length copy for the startup animation's "grows out from a
   // center dot" phase -- everything below just keeps using `cfg` as
   // before, now possibly pointing at this shrunk copy instead of the
@@ -251,6 +252,7 @@ void hand_layer_draw(GContext *ctx, GPoint center, int32_t angle, const HandConf
     // dithered too when the hand is translucent, so the outline
     // doesn't look more solid than the fill it's outlining.
     GColor outline_color = resolve_scheme_color(cfg->outline_color, main_color, accent_color, bg_color);
+    outline_color = shake_anim_color(outline_color, shake_phase_pct); // no-op unless the "on shake" animation is actually running
     draw_hand_outline_once_fp(ctx, center_fp, angle, cfg, outline_color, cfg->translucent);
   }
 

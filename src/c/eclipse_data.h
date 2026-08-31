@@ -547,6 +547,15 @@ void get_active_color_scheme(const EclipseData *d, time_t now, GColor *bg, GColo
 GColor gcolor_from_packed(uint8_t packed);
 
 // Also defined in pebble-eclipse-watch.c, declared here for the same reason:
+// the "on shake" animation's outline color-cycling effect is driven by state
+// that file owns (when the shake happened, shake_label_seconds), but applies
+// to outlines drawn from hand_layer.c and features_layer.c too. Returns
+// normal_color unchanged whenever the animation isn't actually running (off
+// in settings, or no shake in progress) -- always safe to call unconditionally
+// wherever an outline color is being resolved.
+GColor shake_anim_color(GColor normal_color, uint8_t phase_pct);
+
+// Also defined in pebble-eclipse-watch.c, declared here for the same reason:
 // features_layer.c's "current conditions" and sunrise/sunset corner content
 // reuse the digital bottom panel's own sunrise/sunset row logic rather than
 // duplicating it.
