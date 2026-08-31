@@ -1,5 +1,6 @@
 #include "background_layer.h"
 #include "subpixel.h"
+#include "features_layer.h"
 
 // ---------------------------------------------------------------------------
 // Markers merged in (formerly marker_layer.c): the hour/second marker ring,
@@ -1321,7 +1322,14 @@ void draw_moon_phase(GContext *ctx, GRect bounds, GPoint center, int16_t radius,
 // Placed to whichever side of `near` keeps it on-canvas, since a
 // body can be anywhere from the left edge to the right edge of the
 // sky depending on its own column position.
-static void draw_label(GContext *ctx, GRect bounds, GPoint near, const char *text) {
+// label_style: 0=Boxed (opaque rounded rect, white text -- the
+// original/default look), 1=Outlined (main_color text with a 4-
+// direction-shifted contrasting outline, via features_layer.h's
+// shared draw_text_outlined() -- same technique corner/edge feature
+// text and hand outlines already use), 2=Soft (plain light-gray text,
+// no background or outline at all). User setting, right below "Shake
+// to see labels" in the Style section.
+static void draw_label(GContext *ctx, GRect bounds, GPoint near, const char *text, uint8_t label_style, GColor main_color) {
   int16_t w = 46, h = 14;
   int16_t x = near.x + 8;
   if (x + w > bounds.origin.x + bounds.size.w) x = near.x - w - 8;
@@ -1331,11 +1339,24 @@ static void draw_label(GContext *ctx, GRect bounds, GPoint near, const char *tex
   if (y + h > bounds.origin.y + bounds.size.h) y = bounds.origin.y + bounds.size.h - h;
 
   GRect r = GRect(x, y, w, h);
+  GFont font = fonts_get_system_font(FONT_KEY_GOTHIC_14);
+  GRect text_box = GRect(r.origin.x, r.origin.y - 2, r.size.w, r.size.h + 2);
+
+  if (label_style == 1) {
+    draw_text_outlined(ctx, text, font, text_box, GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter,
+                        main_color, true);
+    return;
+  }
+  if (label_style == 2) {
+    graphics_context_set_text_color(ctx, GColorLightGray);
+    graphics_draw_text(ctx, text, font, text_box, GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
+    return;
+  }
+
   graphics_context_set_fill_color(ctx, GColorBlack);
   graphics_fill_rect(ctx, r, 2, GCornersAll);
   graphics_context_set_text_color(ctx, GColorWhite);
-  graphics_draw_text(ctx, text, fonts_get_system_font(FONT_KEY_GOTHIC_14),
-                      GRect(r.origin.x, r.origin.y - 2, r.size.w, r.size.h + 2),
+  graphics_draw_text(ctx, text, font, text_box,
                       GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
 }
 
@@ -1633,19 +1654,53 @@ static uint32_t marker_text_font_resource_id(uint8_t choice) {
     case 4: return RESOURCE_ID_MINECRAFTER_FONT_12;
     case 5: return RESOURCE_ID_SFPIXELATE_FONT_14;
     case 6: return RESOURCE_ID_MISO_FONT_19;
-    default: return 0;
+    case 14: return RESOURCE_ID_BEBAS_FONT_20; // already loaded for clock_font's own small-readout companion; reused as-is here
+    default: return 0; // 0-2 and 7-13 are all fonts_get_system_font() calls -- see get_marker_text_font() below
   }
 }
 
-// Rough export heights for each font_choice (0-2 system, 3-6 custom),
-// used only to size/vertically-center each numeral's text box.
-static const uint8_t MARKER_FONT_HEIGHTS[7] = {14, 16, 20, 12, 12, 14, 19};
+// Rough export heights for each font_choice (0-2 system, 3-6 custom,
+// 7-13 more system, 14 custom again), used only to size/vertically-
+// center each numeral's text box.
+static const uint8_t MARKER_FONT_HEIGHTS[15] = {
+  14, 16, 20,       // 0-2: system S/M/L
+  12, 12, 14, 19,   // 3-6: Digital/Minecraft/Pixelate/Miso
+  17, 20, 23, 17,   // 7-10: Leco/Leco L/Leco XL/Droid Serif
+  15, 19, 21,       // 11-13: Roboto Condensed/Bitham bold/Bitham M
+  20                // 14: Bebas
+};
 // Per-font vertical fine-tune, added to MARKER_FONT_HEIGHTS when placing
-// the text box
+// the text box -- all still 0 (unmeasured on a real watch yet) for
+// every entry, including the new ones added alongside choices 7-14.
 //TODO: This needs manual tweaking and looks like fonts are not matching the settings page - investigate
-static const int8_t MARKER_FONT_Y_OFFSET[7] = {0, 0, 0, 0, 0, 0, 0};
+static const int8_t MARKER_FONT_Y_OFFSET[15] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 
 static GFont get_marker_text_font(CanvasState *state, uint8_t choice) {
+  // Values 7-13 are all fonts_get_system_font() -- no load lifecycle
+  // needed, so they're resolved directly here rather than going
+  // through marker_text_font_resource_id()'s custom-font path below
+  // (which is only for resource-backed fonts: 3-6 and 14). Still need
+  // to unload whatever custom font might already be loaded first,
+  // though, or switching from e.g. Digital straight to Leco would
+  // leave DigitalDream's font resource loaded in memory forever.
+  switch (choice) {
+    case 7: case 8: case 9: case 10: case 11: case 12: case 13:
+      if (state->marker_text_font) {
+        fonts_unload_custom_font(state->marker_text_font);
+        state->marker_text_font = NULL;
+      }
+      state->marker_text_font_loaded_choice = choice;
+      switch (choice) {
+        case 7: return fonts_get_system_font(FONT_KEY_LECO_28_LIGHT_NUMBERS);
+        case 8: return fonts_get_system_font(FONT_KEY_LECO_32_BOLD_NUMBERS);
+        case 9: return fonts_get_system_font(FONT_KEY_LECO_36_BOLD_NUMBERS);
+        case 10: return fonts_get_system_font(FONT_KEY_DROID_SERIF_28_BOLD);
+        case 11: return fonts_get_system_font(FONT_KEY_ROBOTO_CONDENSED_21);
+        case 12: return fonts_get_system_font(FONT_KEY_BITHAM_30_BLACK);
+        default: return fonts_get_system_font(FONT_KEY_BITHAM_34_MEDIUM_NUMBERS); // 13
+      }
+    default: break;
+  }
   if (choice != state->marker_text_font_loaded_choice) {
     if (state->marker_text_font) { fonts_unload_custom_font(state->marker_text_font); state->marker_text_font = NULL; }
     uint32_t res_id = marker_text_font_resource_id(choice);
@@ -2354,10 +2409,15 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
   }
 
   // Shake-to-reveal: brief name labels next to whichever bodies are
-  // actually on screen right now.
+  // actually on screen right now. Needs its own main_color -- the
+  // scheme lookup below is otherwise only computed further down,
+  // scoped to the big-analog marker-drawing block, and shake labels
+  // apply in every mode.
   if (state->show_labels) {
-    if (sun_up) draw_label(ctx, bounds, sun_center, "Sun");
-    if (moon_visible) draw_label(ctx, bounds, moon_center, "Moon");
+    GColor label_bg, label_main_color, label_accent;
+    get_active_color_scheme(d, now, &label_bg, &label_main_color, &label_accent);
+    if (sun_up) draw_label(ctx, bounds, sun_center, "Sun", d->label_style, label_main_color);
+    if (moon_visible) draw_label(ctx, bounds, moon_center, "Moon", d->label_style, label_main_color);
     for (int p = 0; p < PLANET_COUNT; p++) {
       if (planet_visible[p]) {
         // Re-drawn on top of the clouds above -- a planet's tiny 3px
@@ -2369,20 +2429,21 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
           graphics_context_set_fill_color(ctx, planet_color((PlanetId)p));
           graphics_fill_circle(ctx, planet_center[p], PLANET_R);
         }
-        draw_label(ctx, bounds, planet_center[p], PLANET_NAMES[p]);
+        draw_label(ctx, bounds, planet_center[p], PLANET_NAMES[p], d->label_style, label_main_color);
       }
     }
     if (meteors_visible) draw_label(ctx, bounds, meteor_label_point,
-                                     d->meteor_shower_name[0] != '\0' ? d->meteor_shower_name : "Meteors");
+                                     d->meteor_shower_name[0] != '\0' ? d->meteor_shower_name : "Meteors",
+                                     d->label_style, label_main_color);
     if (aurora_visible) {
       static char aurora_label_buf[16];
       snprintf(aurora_label_buf, sizeof(aurora_label_buf), "Aurora Kp %d.%d", d->aurora_kp_x10 / 10, d->aurora_kp_x10 % 10);
-      draw_label(ctx, bounds, aurora_label_point, aurora_label_buf);
+      draw_label(ctx, bounds, aurora_label_point, aurora_label_buf, d->label_style, label_main_color);
     }
     for (int s = 0; s < STAR_COUNT; s++) {
-      if (star_visible[s]) draw_label(ctx, bounds, star_center[s], STAR_NAMES[s]);
+      if (star_visible[s]) draw_label(ctx, bounds, star_center[s], STAR_NAMES[s], d->label_style, label_main_color);
     }
-    if (iss_visible) draw_label(ctx, bounds, iss_center, "ISS");
+    if (iss_visible) draw_label(ctx, bounds, iss_center, "ISS", d->label_style, label_main_color);
   }
 
   // Hour/second markers -- big-analog mode only. Drawn on top of

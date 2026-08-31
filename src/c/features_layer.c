@@ -132,7 +132,9 @@ static GFont get_corner_font(const EclipseData *data) {
   if (data->corner_font_size == 0) return fonts_get_system_font(FONT_KEY_GOTHIC_14);
   if (data->corner_font_size == 2) return fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD);
   if (data->corner_font_size == 3) return fonts_get_system_font(FONT_KEY_GOTHIC_24_BOLD);
-  return fonts_get_system_font(FONT_KEY_GOTHIC_14_BOLD); // 1 = medium, also the fallback
+  if (data->corner_font_size == 4) return fonts_get_system_font(FONT_KEY_GOTHIC_28_BOLD);
+  if (data->corner_font_size == 5) return fonts_get_system_font(FONT_KEY_ROBOTO_CONDENSED_21);
+  return fonts_get_system_font(FONT_KEY_GOTHIC_14_BOLD); // 1 = M, also the fallback
 }
 
 // A rough height estimate for whatever get_corner_font() currently
@@ -148,20 +150,22 @@ static int16_t corner_font_height_estimate(const EclipseData *data) {
   if (data->corner_font_size == 0) return 14;
   if (data->corner_font_size == 2) return 24;
   if (data->corner_font_size == 3) return 32;
+  if (data->corner_font_size == 4) return 36;
+  if (data->corner_font_size == 5) return 24;
   return 18;
 }
 
 // How many of the small-analog info panel's rows actually fit,
 // given the currently-selected corner/edge font. Any custom font
 // (which carries its own fixed size the user didn't pick for this
-// purpose) or the two larger system sizes only leave room for 3
-// rows before they'd start overlapping; small and medium both stay
+// purpose) or the larger system sizes (L/XL/XXL/Roboto) only leave
+// room for 3 rows before they'd start overlapping; S and M both stay
 // short enough for the full 4. Mirrors the equivalent check in
 // config-page.js's computeSlotAvailability() (used to gray out the
 // 4th feature button there) -- keep the two in sync.
 uint8_t small_analog_feature_count(const EclipseData *data) {
   if (data->corner_custom_font != 0) return 3;
-  if (data->corner_font_size == 2 || data->corner_font_size == 3) return 3;
+  if (data->corner_font_size >= 2) return 3;
   return 4;
 }
 
@@ -829,7 +833,16 @@ static GColor red_green_gradient(uint8_t pct) {
 static GColor white_to_red_gradient(uint8_t kp_x10) {
   if (kp_x10 >= 90) return GColorFromRGB(220, 0, 0);
   int32_t frac1000 = ((int32_t)kp_x10 * 1000) / 90;
-  int16_t g = 255 - (int16_t)((255 * frac1000) / 1000);
+  // Capped at 170, not 255 -- Pebble's display quantizes each RGB
+  // channel to just 4 levels (0/85/170/255), so anything above ~213
+  // rounds straight back up to 255 anyway. A genuinely calm Kp (or,
+  // more often in practice, no reading fetched yet, which also reads
+  // as 0) used to render as pure white text, which vanishes into any
+  // light/white-background color scheme whenever the outline setting
+  // is off. 170 quantizes cleanly to a pale pink-white that's never
+  // fully invisible, while still reading as "white-ish" per the
+  // original white-to-red design.
+  int16_t g = 170 - (int16_t)((170 * frac1000) / 1000);
   int16_t b = g;
   return GColorFromRGB(255, (uint8_t)g, (uint8_t)b);
 }

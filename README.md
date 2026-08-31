@@ -21,6 +21,81 @@ pebble build
 pebble install --emulator emery
 ```
 
+## Style Presets: Example styles and custom presets
+
+The settings page has two related but separate ways to save/share a
+whole look (every setting in the Style, Colors, and Features
+sections) as a single blob:
+
+- **Style Presets** (its own section, between Features and Weather) --
+  3 user-editable quick-recall slots, plus a free-form export/import
+  box, all live only on the phone (never sent to the watch itself,
+  and never touch `package.json`'s `messageKeys`).
+- **Example styles** (the very first section on the page) -- a fixed,
+  developer-authored gallery of ready-made looks, meant to ship with
+  the app rather than be edited by the end user.
+
+Both build the underlying design snapshot the same way, produced by
+walking every `input`/`select`/`textarea` with an `id` inside the
+page's `#section-style`, `#section-colors`, and `#section-corners`
+containers (see `collectStyleCornersJson()` in
+`src/pkjs/config-page.js`). Style Presets stores that object directly;
+Example styles wraps it as one field (`preset`) alongside a `title`
+and `description` for its preview popup -- either way, a design
+exported from Style Presets pastes straight into an Example style's
+`preset` field, and vice versa.
+
+### Making one
+
+The easiest way to author a preset -- for either an Example style or
+a Style Presets slot -- is to just use the settings page itself:
+
+1. Open the watchface's settings and design the look you want (fonts,
+   colors, hand style, corner/edge features, everything in Style,
+   Colors, and Features).
+2. Open the **Style Presets** section, tap **Generate JSON** under
+   "Export current design", and copy the box's contents.
+3. That's a complete preset. Paste it into a Style Presets slot's
+   save flow, the "Import a design" box, or (for a permanent, shipped
+   example) the `preset` field of an entry in
+   `src/pkjs/example-style-presets.js`.
+
+You don't need to hand-write or understand the JSON's keys -- it's
+just whatever the settings page's own form fields happened to be set
+to, keyed by their HTML element `id` (`bottomStyle`, `customBg`,
+`cornerTL`, and so on). Applying a preset just writes each value back
+into the matching field and re-runs the page's normal change
+handlers, the same as if you'd clicked through every control by hand.
+
+### Adding a new Example style
+
+Example styles are meant to be authored by you (the developer), not
+end users, and shipped with the app. Tapping one in the settings page
+opens a preview popup (screenshot, title, description, an Apply
+button) rather than applying it immediately:
+
+1. Design the look and export its JSON as above.
+2. Open `src/pkjs/example-style-presets.js` and fill in the next
+   empty numbered slot with `{ title, description, preset }` --
+   `title` is the short bold heading the popup shows, `description`
+   is a sentence or two under it, and `preset` is the JSON you just
+   copied (`"1": null` becomes `"1": { title: "...", description:
+   "...", preset: { ...the JSON you copied... } }`).
+3. Take a screenshot of that look (emulator or a real watch) and save
+   it as `resources/example-styles/<n>.png`, matching the slot number.
+4. Run `node scripts/generate-example-style-previews.js` to bake that
+   PNG into `src/pkjs/example-style-images.js` as the button's preview
+   image -- the settings page can't load an external image at
+   runtime, so this has to happen before `pebble build`.
+5. A slot left as `null`, or with no matching PNG generated yet, just
+   shows an empty/disabled placeholder tile -- not an error, and
+   doesn't stop the app from building.
+
+How many Example style slots exist at all is controlled by a single
+constant, `EXAMPLE_STYLE_COUNT` near the top of
+`src/pkjs/config-page.js` (9 by default) -- bump it, add the matching
+PNG and preset entry, and nothing else needs to change.
+
 ## Full color weather icons
 
 The "Weather icon"/"Temp + weather icon" corner content has 3 icon

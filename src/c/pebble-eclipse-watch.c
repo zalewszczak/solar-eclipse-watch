@@ -681,6 +681,26 @@ static void request_update(void) {
   app_message_outbox_send();
 }
 
+// Retries request_update() with capped exponential backoff (8s, 16s,
+// 32s, then settling at 60s) for as long as s_data.valid stays false
+// -- covers both a plain race (PKJS not ready yet for the very first
+// request) and the update-to-new-message-keys case: a phone still
+// running the OLD version of index.js after the watch app itself
+// updated would never recognize/answer a request built around new
+// keys, leaving the watch waiting on an empty screen indefinitely
+// with nothing to prompt it to try again. Stopped for good (see
+// inbox_received_handler) the moment real data actually arrives.
+static AppTimer *s_request_retry_timer = NULL;
+static uint16_t s_request_retry_delay_s = 8;
+
+static void request_retry_callback(void *data) {
+  s_request_retry_timer = NULL;
+  if (s_data.valid) return; // got real data in the meantime -- nothing to do
+  request_update();
+  s_request_retry_delay_s = (s_request_retry_delay_s < 60) ? s_request_retry_delay_s * 2 : 60;
+  s_request_retry_timer = app_timer_register((uint32_t)s_request_retry_delay_s * 1000, request_retry_callback, NULL);
+}
+
 static bool use_small_seconds_for_digital_clock() {
   switch (s_data.clock_font) {
     case 2: // RESOURCE_ID_SFPIXELATE_FONT_48
@@ -915,6 +935,12 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
 
   if ((t = dict_find(iter, MESSAGE_KEY_DATA_VALID))) {
     s_data.valid = t->value->uint8 != 0;
+    if (s_data.valid && s_request_retry_timer) {
+      // Real data made it through -- no need to keep pinging PKJS
+      // for it anymore (see request_retry_callback's own comment).
+      app_timer_cancel(s_request_retry_timer);
+      s_request_retry_timer = NULL;
+    }
   }
   if ((t = dict_find(iter, MESSAGE_KEY_ERROR_CODE))) {
     s_data.error_code = t->value->uint8;
@@ -958,6 +984,10 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   }
   if ((t = dict_find(iter, MESSAGE_KEY_SHAKE_LABEL_SECONDS))) {
     s_data.shake_label_seconds = t->value->uint8;
+  }
+  if ((t = dict_find(iter, MESSAGE_KEY_LABEL_STYLE))) {
+    s_data.label_style = t->value->uint8;
+    if (s_canvas_layer) layer_mark_dirty(s_canvas_layer);
   }
   if ((t = dict_find(iter, MESSAGE_KEY_BOTTOM_INFO_BAR_MODE))) {
     s_data.bottom_info_bar_mode = t->value->uint8;
@@ -1060,7 +1090,14 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   if ((t = dict_find(iter, MESSAGE_KEY_CUSTOM_SEC_COLOR))) s_data.custom_second_marker.color = t->value->uint8;
   if ((t = dict_find(iter, MESSAGE_KEY_BITMAP_MARKER_TRANSPARENT))) s_data.bitmap_marker_transparent = t->value->uint8 != 0;
   if ((t = dict_find(iter, MESSAGE_KEY_MARKER_TEXT_TARGET))) s_data.marker_text.target = t->value->uint8;
-  if ((t = dict_find(iter, MESSAGE_KEY_MARKER_TEXT_FONT))) s_data.marker_text.font_choice = t->value->uint8;
+  if ((t = dict_find(iter, MESSAGE_KEY_MARKER_TEXT_FONT))) {
+    // Clamped, unlike most other enum-ish fields here -- this one's
+    // used as a raw array index (MARKER_FONT_HEIGHTS/_Y_OFFSET in
+    // background_layer.c), not a switch with a safe default, so an
+    // out-of-range value would be a real out-of-bounds read.
+    uint8_t v = t->value->uint8;
+    s_data.marker_text.font_choice = (v <= 14) ? v : 0;
+  }
   if ((t = dict_find(iter, MESSAGE_KEY_MARKER_TEXT_OFFSET))) s_data.marker_text.offset_px = (int8_t)t->value->int16;
   if ((t = dict_find(iter, MESSAGE_KEY_MARKER_TEXT_HOUR_MASK))) s_data.marker_text.hour_mask = t->value->uint16;
   if ((t = dict_find(iter, MESSAGE_KEY_MARKER_TEXT_SEC_MASK))) s_data.marker_text.second_mask = t->value->uint16;
@@ -1627,8 +1664,12 @@ static void init(void) {
   app_message_open(app_message_inbox_size_maximum(), app_message_outbox_size_maximum());
 
   // Ask the phone for a fresh calculation as soon as we're up; PKJS
-  // will also push updates on its own schedule (see index.js).
+  // will also push updates on its own schedule (see index.js). If
+  // nothing valid comes back, request_retry_callback keeps asking
+  // with backoff rather than leaving the watch stuck on an empty
+  // screen forever (see its own comment for why that can happen).
   request_update();
+  s_request_retry_timer = app_timer_register((uint32_t)s_request_retry_delay_s * 1000, request_retry_callback, NULL);
 }
 
 static void deinit(void) {
@@ -1642,6 +1683,10 @@ static void deinit(void) {
   if (s_corners_timer) {
     app_timer_cancel(s_corners_timer);
     s_corners_timer = NULL;
+  }
+  if (s_request_retry_timer) {
+    app_timer_cancel(s_request_retry_timer);
+    s_request_retry_timer = NULL;
   }
   window_destroy(s_window);
 }

@@ -225,6 +225,12 @@ typedef struct {
                                  // an active eclipse (and in big-analogue's fullscreen-sun mode) --
                                  // both of those already have their own dedicated sizing.
   uint8_t shake_label_seconds; // how long the shake-to-reveal name labels stay up, in seconds
+  uint8_t label_style;         // user setting ("Astronomy" section, right below shake_label_seconds):
+                                 // 0=Boxed (opaque rounded rect, white text -- the original look),
+                                 // 1=Outlined (main-color text with a 4-direction-shifted contrasting
+                                 // outline, same technique corner/edge feature text already uses),
+                                 // 2=Soft (plain light-gray text, no background or outline). See
+                                 // draw_label() in background_layer.c.
   uint8_t bottom_info_bar_mode; // user setting: the clouds%/visibility/location bar at the
                                   // bottom of the sky view -- 0=off, 1=on shake (with the
                                   // Sun/Moon/planet name labels), 2=permanent (sky view shifts

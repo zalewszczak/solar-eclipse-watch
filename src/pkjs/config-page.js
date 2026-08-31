@@ -222,17 +222,40 @@ function cornerContentOptionsHtml(selected, auroraEnabled) {
 
 // Same encoding as corner_custom_font/corner_font_size combined -- see
 // marker_text_font_resource_id() in marker_layer.c.
+// Must match get_marker_text_font()/marker_text_font_resource_id() in
+// background_layer.c exactly -- same id, same font. This used to be
+// badly out of sync with that switch (wrong labels on the wrong ids,
+// two ids -- 3 and 8 -- that didn't exist on the watch at all and
+// silently fell back to the small system font instead), which is why
+// picking most of the custom options here never actually looked like
+// what the label said. ROMAN_INCOMPATIBLE_FONTS below flags entries
+// whose glyphs don't include the extra characters roman numerals
+// need.
 var MARKER_TEXT_FONTS = [
   { id: 0, label: 'System - small' },
   { id: 1, label: 'System - medium' },
   { id: 2, label: 'System - large' },
-  { id: 3, label: 'System - extra large' },
+  { id: 3, label: 'Digital' },
   { id: 4, label: 'Minecraft' },
   { id: 5, label: 'Pixelate' },
   { id: 6, label: 'Miso' },
-  { id: 7, label: 'Digital' },
-  { id: 8, label: 'Bebas' }
+  { id: 7, label: 'Leco' },
+  { id: 8, label: 'Leco L' },
+  { id: 9, label: 'Leco XL' },
+  { id: 10, label: 'Droid Serif' },
+  { id: 11, label: 'Roboto Condensed' },
+  { id: 12, label: 'Bitham bold' },
+  { id: 13, label: 'Bitham M' },
+  { id: 14, label: 'Bebas' }
 ];
+// Fonts known not to render Roman numerals correctly (missing/wrong
+// glyphs for some of the letters int_to_roman() needs) -- the Roman
+// numerals checkbox gets disabled (and, if it was checked, force-
+// unchecked) whenever one of these is selected for marker text. Only
+// verified for these three so far; add more here as they're checked
+// -- see int_to_roman() in background_layer.c for what it actually
+// needs (I, V, X, L, C, D, M).
+var ROMAN_INCOMPATIBLE_FONTS = { 8: true, 9: true, 13: true }; // Leco L, Leco XL, Bitham M
 function markerTextFontOptionsHtml(selected) {
   var sel = selected || '0';
   return MARKER_TEXT_FONTS.map(function (f) {
@@ -408,13 +431,13 @@ function textMarkerModalHtml(current) {
 
 '    <div id="markerTextOptions" style="' + (current.markerTextTarget && current.markerTextTarget !== '0' ? '' : 'display:none;') + '">' +
 '      <label for="markerTextFont" style="margin-top:10px;">Font</label>' +
-'      <select id="markerTextFont">' + markerTextFontOptionsHtml(current.markerTextFont) + '</select>' +
+'      <select id="markerTextFont" onchange="onMarkerTextFontChange()">' + markerTextFontOptionsHtml(current.markerTextFont) + '</select>' +
 
 '      <div class="checkbox-row" style="margin-top:12px;">' +
-'        <input type="checkbox" id="markerTextRoman" ' + (current.markerTextRoman === 'true' ? 'checked' : '') + '>' +
+'        <input type="checkbox" id="markerTextRoman" ' + (current.markerTextRoman === 'true' && !ROMAN_INCOMPATIBLE_FONTS[current.markerTextFont] ? 'checked' : '') + ' ' + (ROMAN_INCOMPATIBLE_FONTS[current.markerTextFont] ? 'disabled' : '') + '>' +
 '        <label for="markerTextRoman" style="margin:0;">Roman numerals</label>' +
 '      </div>' +
-'      <div class="help">Shows I, II, III... instead of 1, 2, 3... -- independent of the font above.</div>' +
+'      <div class="help" id="markerTextRomanHelp">' + (ROMAN_INCOMPATIBLE_FONTS[current.markerTextFont] ? 'Not available with this font -- its glyphs don\'t support Roman numerals correctly.' : 'Shows I, II, III... instead of 1, 2, 3... -- independent of the font above.') + '</div>' +
 
 '      <div class="slider-row">' +
 '        <label for="markerTextOffset">Offset from marker <span class="val" id="markerTextOffsetVal">' + esc(current.markerTextOffset || '0') + 'px</span></label>' +
@@ -624,7 +647,7 @@ function buildConfigHtml(current) {
     var exStyleImg = EXAMPLE_STYLE_IMAGES[String(exStyleI)];
     var exStyleHasPreset = EXAMPLE_STYLE_PRESETS[String(exStyleI)] != null;
     exampleStylesButtonsHtml +=
-      '<button type="button" class="example-style-btn" onclick="applyExampleStyle(' + exStyleI + ')"' +
+      '<button type="button" class="example-style-btn" onclick="openExampleStyleModal(' + exStyleI + ')"' +
       (exStyleHasPreset ? '' : ' disabled') + '>' +
       (exStyleImg
         ? '<img src="' + exStyleImg + '" alt="Example style ' + exStyleI + '">'
@@ -762,6 +785,10 @@ function buildConfigHtml(current) {
 '  .hex-swatch.hollow { border: none; background: transparent !important; pointer-events: none; }' +
 '  .hex-swatch.selected { border: 2px solid #ff9200; }' +
 '  .modal-cancel-btn { width: 100%; padding: 12px; font-size: 14px; font-weight: 600; color: var(--text-strong); background: var(--border-light); border: none; border-radius: 8px; margin-top: 12px; }' +
+'  .modal-confirm-btn { width: 100%; padding: 12px; font-size: 14px; font-weight: 600; color: #fff; background: #ff9200; border: none; border-radius: 8px; margin-top: 8px; }' +
+'  .modal-confirm-btn:active { background: #e08300; }' +
+'  .example-style-modal-img { width: 100%; border-radius: 8px; display: block; }' +
+'  .example-style-modal-title { font-weight: 700; font-size: 16px; margin-top: 10px; text-align: center; color: var(--text-strong); }' +
 '  .mode-btn-group { display: flex; width: 100%; margin-top: 6px; border-radius: 6px; overflow: hidden; border: 1px solid var(--border); box-sizing: border-box; }' +
 '  .mode-btn { flex: 1; padding: 10px 0; font-size: 12px; font-weight: 700; color: var(--text-strong); background: var(--btn-bg); border: none; border-right: 1px solid var(--border); }' +
 '  .mode-btn:last-child { border-right: none; }' +
@@ -870,10 +897,38 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  </div>' +
 '</div>' +
 
+// Shared by anything that needs a plain "are you sure?" step before
+// acting -- Style Presets' save/apply buttons below. showConfirm()
+// stashes the action to run and shows this; confirmModalYes() runs it
+// (once) and closes; canceling (or tapping outside) just closes.
+'<div class="modal-overlay" id="confirmModal" onclick="if (event.target === this) closeConfirmModal();">' +
+'  <div class="modal-box">' +
+'    <div class="modal-title" id="confirmModalTitle"></div>' +
+'    <div class="help" id="confirmModalMessage" style="text-align:center;"></div>' +
+'    <button type="button" class="modal-confirm-btn" onclick="confirmModalYes()">Confirm</button>' +
+'    <button type="button" class="modal-cancel-btn" onclick="closeConfirmModal()">Cancel</button>' +
+'  </div>' +
+'</div>' +
+
+// Example styles: tapping a tile opens this instead of applying
+// immediately -- image preview, bold title, description, then an
+// explicit Apply button, per the same "confirm before it takes
+// effect" idea as the plain confirm modal above, just with a richer
+// preview since there's a real design to show off first.
+'<div class="modal-overlay" id="exampleStyleModal" onclick="if (event.target === this) closeExampleStyleModal();">' +
+'  <div class="modal-box">' +
+'    <img class="example-style-modal-img" id="exampleStyleModalImg" src="" alt="">' +
+'    <div class="example-style-modal-title" id="exampleStyleModalTitle"></div>' +
+'    <div class="help" id="exampleStyleModalDesc" style="text-align:center;"></div>' +
+'    <button type="button" class="modal-confirm-btn" id="exampleStyleModalApplyBtn" onclick="confirmExampleStyleApply()">Apply this style</button>' +
+'    <button type="button" class="modal-cancel-btn" onclick="closeExampleStyleModal()">Cancel</button>' +
+'  </div>' +
+'</div>' +
+
 '  <fieldset>' +
 '    <div class="section-legend" onclick="toggleSection(\'examples\')">Example styles <span class="chevron" id="chev-examples">&#9656;</span></div>' +
 '    <div class="section-body" id="section-examples" style="display:none;">' +
-'    <div class="help">Tap a design below to apply it immediately -- each one sets every Style, Colors, and Features setting to match, the same as pasting its JSON into "Style Presets" further down.</div>' +
+'    <div class="help">Tap a design below to preview it -- each one sets every Style, Colors, and Features setting to match once you confirm, the same as pasting its JSON into "Style Presets" further down.</div>' +
 '    <div class="example-style-grid">' + exampleStylesButtonsHtml + '</div>' +
 '    </div>' +
 '  </fieldset>' +
@@ -1157,10 +1212,12 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    </select>' +
 '    <label for="cornerFontSize">Font size</label>' +
 '    <select id="cornerFontSize" onchange="onCornerFontSizeChange()" ' + (current.cornerCustomFont && current.cornerCustomFont !== '0' ? 'disabled' : '') + '>' +
-'      <option value="0"' + (current.cornerFontSize === '0' ? ' selected' : '') + '>Small</option>' +
-'      <option value="1"' + (current.cornerFontSize === '1' || !current.cornerFontSize ? ' selected' : '') + '>Medium</option>' +
-'      <option value="2"' + (current.cornerFontSize === '2' ? ' selected' : '') + '>Large</option>' +
-'      <option value="3"' + (current.cornerFontSize === '3' ? ' selected' : '') + '>Extra Large</option>' +
+'      <option value="0"' + (current.cornerFontSize === '0' ? ' selected' : '') + '>S</option>' +
+'      <option value="1"' + (current.cornerFontSize === '1' || !current.cornerFontSize ? ' selected' : '') + '>M</option>' +
+'      <option value="2"' + (current.cornerFontSize === '2' ? ' selected' : '') + '>L</option>' +
+'      <option value="3"' + (current.cornerFontSize === '3' ? ' selected' : '') + '>XL</option>' +
+'      <option value="4"' + (current.cornerFontSize === '4' ? ' selected' : '') + '>XXL</option>' +
+'      <option value="5"' + (current.cornerFontSize === '5' ? ' selected' : '') + '>Roboto</option>' +
 '    </select>' +
 '    <div class="help">Applies to corner/edge feature text and the big-analog date. A custom font has its own fixed size, so the size option above only applies to "Default".</div>' +
 
@@ -1206,6 +1263,50 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      <input type="number" id="stepGoal" min="1000" max="60000" step="500" value="' + esc(current.stepGoal || '10000') + '">' +
 '      <div class="help">Pebble doesn\'t expose a system step goal, so this app keeps its own -- same as every other Pebble health app.</div>' +
 '    </div>' +
+'    </div>' +
+'  </fieldset>' +
+
+'  <fieldset>' +
+'    <div class="section-legend" onclick="toggleSection(\'presets\')">Style Presets <span class="chevron" id="chev-presets">&#9656;</span></div>' +
+'    <div class="section-body" id="section-presets" style="display:none;">' +
+'    <div class="help">Save up to 3 quick-recall snapshots of your whole Style + Colors + Features design below, or export/import it as JSON to back it up or share it.</div>' +
+
+'    <div class="preset-slot-row">' +
+'      <button type="button" class="preset-apply-btn" id="presetApplyBtn1" onclick="applyPresetSlot(1)" ' + (current.presetSlot1Json ? '' : 'disabled') + '>' + esc(current.presetSlot1Name || "Preset 1") + '</button>' +
+'      <input type="text" class="preset-name-input" id="presetNameInput1" style="display:none;" onblur="commitRenamePresetSlot(1)" onkeydown="if (event.key === \'Enter\') this.blur();">' +
+'      <button type="button" class="preset-icon-btn" onclick="savePresetSlot(1)" title="Save current design here">&#128190;</button>' +
+'      <button type="button" class="preset-icon-btn" onclick="startRenamePresetSlot(1)" title="Rename">&#9998;</button>' +
+'    </div>' +
+'    <input type="hidden" id="presetSlot1Name" value="' + esc(current.presetSlot1Name || "Preset 1") + '">' +
+'    <input type="hidden" id="presetSlot1Json" value="' + esc(current.presetSlot1Json || "") + '">' +
+'    <div class="preset-slot-row">' +
+'      <button type="button" class="preset-apply-btn" id="presetApplyBtn2" onclick="applyPresetSlot(2)" ' + (current.presetSlot2Json ? '' : 'disabled') + '>' + esc(current.presetSlot2Name || "Preset 2") + '</button>' +
+'      <input type="text" class="preset-name-input" id="presetNameInput2" style="display:none;" onblur="commitRenamePresetSlot(2)" onkeydown="if (event.key === \'Enter\') this.blur();">' +
+'      <button type="button" class="preset-icon-btn" onclick="savePresetSlot(2)" title="Save current design here">&#128190;</button>' +
+'      <button type="button" class="preset-icon-btn" onclick="startRenamePresetSlot(2)" title="Rename">&#9998;</button>' +
+'    </div>' +
+'    <input type="hidden" id="presetSlot2Name" value="' + esc(current.presetSlot2Name || "Preset 2") + '">' +
+'    <input type="hidden" id="presetSlot2Json" value="' + esc(current.presetSlot2Json || "") + '">' +
+'    <div class="preset-slot-row">' +
+'      <button type="button" class="preset-apply-btn" id="presetApplyBtn3" onclick="applyPresetSlot(3)" ' + (current.presetSlot3Json ? '' : 'disabled') + '>' + esc(current.presetSlot3Name || "Preset 3") + '</button>' +
+'      <input type="text" class="preset-name-input" id="presetNameInput3" style="display:none;" onblur="commitRenamePresetSlot(3)" onkeydown="if (event.key === \'Enter\') this.blur();">' +
+'      <button type="button" class="preset-icon-btn" onclick="savePresetSlot(3)" title="Save current design here">&#128190;</button>' +
+'      <button type="button" class="preset-icon-btn" onclick="startRenamePresetSlot(3)" title="Rename">&#9998;</button>' +
+'    </div>' +
+'    <input type="hidden" id="presetSlot3Name" value="' + esc(current.presetSlot3Name || "Preset 3") + '">' +
+'    <input type="hidden" id="presetSlot3Json" value="' + esc(current.presetSlot3Json || "") + '">' +
+
+'    <label for="presetExportBox" style="margin-top:12px;">Export current design</label>' +
+'    <button type="button" class="secondary-btn" onclick="exportDesignJson()">Generate JSON</button>' +
+'    <button type="button" class="secondary-btn" onclick="copyExportBoxToClipboard()">Copy to clipboard</button>' +
+'    <textarea id="presetExportBox" readonly rows="6" style="margin-top:8px; font-family:monospace; font-size:11px;" onclick="this.select();"></textarea>' +
+'    <div class="help" id="presetExportStatus">Tap the box above then copy the text -- covers everything in the Style, Colors, and Features sections.</div>' +
+
+'    <label for="presetImportBox" style="margin-top:12px;">Import a design</label>' +
+'    <button type="button" class="secondary-btn" onclick="pasteImportBoxFromClipboard()">Paste from clipboard</button>' +
+'    <textarea id="presetImportBox" rows="6" placeholder="Paste JSON here" style="margin-top:8px; font-family:monospace; font-size:11px;"></textarea>' +
+'    <button type="button" class="secondary-btn" onclick="importDesignJson()">Apply</button>' +
+'    <div class="help" id="presetImportStatus"></div>' +
 '    </div>' +
 '  </fieldset>' +
 
@@ -1268,6 +1369,14 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      <input type="number" id="shakeLabelSeconds" min="1" max="10" step="1" value="' + esc(current.shakeLabelSeconds || '3') + '"> seconds' +
 '    </div>' +
 
+'    <label for="labelStyle">Label style</label>' +
+'    <select id="labelStyle">' +
+'      <option value="0"' + (current.labelStyle === '0' || !current.labelStyle ? ' selected' : '') + '>Boxed</option>' +
+'      <option value="1"' + (current.labelStyle === '1' ? ' selected' : '') + '>Outlined</option>' +
+'      <option value="2"' + (current.labelStyle === '2' ? ' selected' : '') + '>Soft</option>' +
+'    </select>' +
+'    <div class="help">Boxed is an opaque rounded box with white text (the original look). Outlined uses your main color with a contrasting outline. Soft is plain light-gray text with no background or outline.</div>' +
+
 '    <div class="subsection">' +
 '      <label for="bottomInfoBarMode">Clouds/visibility/location bar (bottom of sky view)</label>' +
 '      <select id="bottomInfoBarMode">' +
@@ -1295,47 +1404,6 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      <label for="vibrateOnPhaseChange" style="margin:0;">Vibrate when the eclipse reaches its next phase</label>' +
 '    </div>' +
 '    <div class="help">A brief double buzz right as C1/C2/C3/C4 happens -- not on ordinary day-to-day changes.</div>' +
-'  <fieldset>' +
-'    <div class="section-legend" onclick="toggleSection(\'presets\')">Style Presets <span class="chevron" id="chev-presets">&#9656;</span></div>' +
-'    <div class="section-body" id="section-presets" style="display:none;">' +
-'    <div class="help">Save up to 3 quick-recall snapshots of your whole Style + Colors + Features design below, or export/import it as JSON to back it up or share it.</div>' +
-
-'    <div class="preset-slot-row">' +
-'      <button type="button" class="preset-apply-btn" id="presetApplyBtn1" onclick="applyPresetSlot(1)" ' + (current.presetSlot1Json ? '' : 'disabled') + '>' + esc(current.presetSlot1Name || "Preset 1") + '</button>' +
-'      <input type="text" class="preset-name-input" id="presetNameInput1" style="display:none;" onblur="commitRenamePresetSlot(1)" onkeydown="if (event.key === \'Enter\') this.blur();">' +
-'      <button type="button" class="preset-icon-btn" onclick="savePresetSlot(1)" title="Save current design here">&#128190;</button>' +
-'      <button type="button" class="preset-icon-btn" onclick="startRenamePresetSlot(1)" title="Rename">&#9998;</button>' +
-'    </div>' +
-'    <input type="hidden" id="presetSlot1Name" value="' + esc(current.presetSlot1Name || "Preset 1") + '">' +
-'    <input type="hidden" id="presetSlot1Json" value="' + esc(current.presetSlot1Json || "") + '">' +
-'    <div class="preset-slot-row">' +
-'      <button type="button" class="preset-apply-btn" id="presetApplyBtn2" onclick="applyPresetSlot(2)" ' + (current.presetSlot2Json ? '' : 'disabled') + '>' + esc(current.presetSlot2Name || "Preset 2") + '</button>' +
-'      <input type="text" class="preset-name-input" id="presetNameInput2" style="display:none;" onblur="commitRenamePresetSlot(2)" onkeydown="if (event.key === \'Enter\') this.blur();">' +
-'      <button type="button" class="preset-icon-btn" onclick="savePresetSlot(2)" title="Save current design here">&#128190;</button>' +
-'      <button type="button" class="preset-icon-btn" onclick="startRenamePresetSlot(2)" title="Rename">&#9998;</button>' +
-'    </div>' +
-'    <input type="hidden" id="presetSlot2Name" value="' + esc(current.presetSlot2Name || "Preset 2") + '">' +
-'    <input type="hidden" id="presetSlot2Json" value="' + esc(current.presetSlot2Json || "") + '">' +
-'    <div class="preset-slot-row">' +
-'      <button type="button" class="preset-apply-btn" id="presetApplyBtn3" onclick="applyPresetSlot(3)" ' + (current.presetSlot3Json ? '' : 'disabled') + '>' + esc(current.presetSlot3Name || "Preset 3") + '</button>' +
-'      <input type="text" class="preset-name-input" id="presetNameInput3" style="display:none;" onblur="commitRenamePresetSlot(3)" onkeydown="if (event.key === \'Enter\') this.blur();">' +
-'      <button type="button" class="preset-icon-btn" onclick="savePresetSlot(3)" title="Save current design here">&#128190;</button>' +
-'      <button type="button" class="preset-icon-btn" onclick="startRenamePresetSlot(3)" title="Rename">&#9998;</button>' +
-'    </div>' +
-'    <input type="hidden" id="presetSlot3Name" value="' + esc(current.presetSlot3Name || "Preset 3") + '">' +
-'    <input type="hidden" id="presetSlot3Json" value="' + esc(current.presetSlot3Json || "") + '">' +
-
-'    <label for="presetExportBox" style="margin-top:12px;">Export current design</label>' +
-'    <button type="button" class="secondary-btn" onclick="exportDesignJson()">Generate JSON</button>' +
-'    <textarea id="presetExportBox" readonly rows="6" style="margin-top:8px; font-family:monospace; font-size:11px;" onclick="this.select();"></textarea>' +
-'    <div class="help">Tap the box above then copy the text -- covers everything in the Style, Colors, and Features sections.</div>' +
-
-'    <label for="presetImportBox" style="margin-top:12px;">Import a design</label>' +
-'    <textarea id="presetImportBox" rows="6" placeholder="Paste JSON here" style="font-family:monospace; font-size:11px;"></textarea>' +
-'    <button type="button" class="secondary-btn" onclick="importDesignJson()">Apply</button>' +
-'    <div class="help" id="presetImportStatus"></div>' +
-'    </div>' +
-'  </fieldset>' +
 
 '    </div>' +
 '  </fieldset>' +
@@ -1367,7 +1435,9 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    <label for="updateMins">Refresh interval (minutes, 5-60)</label>' +
 '    <input type="number" id="updateMins" min="5" max="60" step="5" value="' + esc(current.updateMins) + '">' +
 '    <div class="help">The watch won\'t re-fetch more often than this unless your location changes by more than ~10km.</div>' +
-'    <button type="button" class="secondary-btn" onclick="save()">Force refresh now</button>' +
+'    <button type="button" class="secondary-btn" onclick="save(true)">Force refresh now</button>' +
+'    <button type="button" class="secondary-btn" onclick="save(true, true)">Force full refresh</button>' +
+'    <div class="help">"Force refresh now" fetches fresh data on the same terms as a normal refresh. "Force full refresh" forces a complete resend of every field in one message (not just whatever changed), and saves a copy of it in the Testing section below as "Last Full Refresh Raw Data" -- useful for confirming a full resync actually works, e.g. after a watch app update.</div>' +
 '    </div>' +
 '  </fieldset>' +
 
@@ -1393,6 +1463,13 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      </div>' +
 '      <div class="help">Shows the full JSON payload the app last computed and sent to the watch (weather, location, eclipse timing, every setting). Edit it freely; enabling the checkbox sends exactly this text instead of the normally-computed data on every future refresh, useful for testing specific values without needing real conditions to match. Invalid JSON is ignored and the app falls back to normal data rather than failing to send anything.</div>' +
 '    </div>' +
+
+'    <div class="subsection">' +
+'      <label for="lastFullRefreshData">Last Full Refresh Raw Data</label>' +
+'      <textarea id="lastFullRefreshData" readonly rows="12" style="width:100%; box-sizing:border-box; font-family:monospace; font-size:11px;">' + esc(current.lastFullRefreshData || '') + '</textarea>' +
+'      <button type="button" class="secondary-btn" id="copyFullRefreshDataBtn" style="width:auto; margin-top:6px; padding:6px 12px;" onclick="copyFullRefreshData()">Copy</button>' +
+'      <div class="help">Only set by the "Force full refresh" button in the Updates section above -- a snapshot of that specific complete resend, kept separate from the general "last sent data" above it (which reflects whatever was sent most recently, of any kind). Empty until you\'ve used that button at least once.</div>' +
+'    </div>' +
 '    </div>' +
 '  </fieldset>' +
 
@@ -1400,15 +1477,36 @@ handEditorModalHtml('sec', 'Edit second hand') +
 
 '<script>' +
 'var MARKER_PREVIEW_IMAGES = ' + JSON.stringify(MARKER_PREVIEW_IMAGES) + ';' +
-// Only the presets need embedding client-side (for applyExampleStyle()
-// below) -- the screenshots are already baked directly into each
-// button's <img src> above at render time, no need to duplicate them
-// here too.
+// EXAMPLE_STYLE_PRESETS is { title, description, preset } per slot
+// (or null for an empty one) -- the popup below reads title/
+// description directly, and applies `.preset` (the same shape
+// applyStyleCornersJson() everywhere else already expects) only once
+// the user actually taps "Apply this style". EXAMPLE_STYLE_IMAGES is
+// needed client-side too now, for the popup's own <img> -- each
+// button's own <img src> above is a separate, already-baked-in copy.
 'var EXAMPLE_STYLE_PRESETS = ' + JSON.stringify(EXAMPLE_STYLE_PRESETS) + ';' +
-'function applyExampleStyle(n) {' +
-'  var preset = EXAMPLE_STYLE_PRESETS[String(n)];' +
-'  if (!preset) return;' +
-'  applyStyleCornersJson(preset);' +
+'var EXAMPLE_STYLE_IMAGES = ' + JSON.stringify(EXAMPLE_STYLE_IMAGES) + ';' +
+'var s_exampleStyleModalSlot = null;' +
+'function openExampleStyleModal(n) {' +
+'  var entry = EXAMPLE_STYLE_PRESETS[String(n)];' +
+'  if (!entry) return;' +
+'  s_exampleStyleModalSlot = n;' +
+'  var img = document.getElementById("exampleStyleModalImg");' +
+'  var src = EXAMPLE_STYLE_IMAGES[String(n)];' +
+'  img.style.display = src ? "" : "none";' +
+'  img.src = src || "";' +
+'  document.getElementById("exampleStyleModalTitle").textContent = entry.title || ("Example " + n);' +
+'  document.getElementById("exampleStyleModalDesc").textContent = entry.description || "";' +
+'  document.getElementById("exampleStyleModal").className = "modal-overlay open";' +
+'}' +
+'function closeExampleStyleModal() {' +
+'  document.getElementById("exampleStyleModal").className = "modal-overlay";' +
+'  s_exampleStyleModalSlot = null;' +
+'}' +
+'function confirmExampleStyleApply() {' +
+'  var entry = s_exampleStyleModalSlot != null ? EXAMPLE_STYLE_PRESETS[String(s_exampleStyleModalSlot)] : null;' +
+'  closeExampleStyleModal();' +
+'  if (entry && entry.preset) applyStyleCornersJson(entry.preset);' +
 '}' +
 'function toggleManual() {' +
 '  var on = !document.getElementById("autoLoc").checked;' +
@@ -1431,6 +1529,20 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  var ok = false;' +
 '  try { ok = document.execCommand("copy"); } catch (e) {}' +
 '  var btn = document.getElementById("copyDebugDataBtn");' +
+'  if (btn) {' +
+'    var original = btn.textContent;' +
+'    btn.textContent = ok ? "Copied!" : "Copy failed";' +
+'    setTimeout(function () { btn.textContent = original; }, 1500);' +
+'  }' +
+'}' +
+'function copyFullRefreshData() {' +
+'  var ta = document.getElementById("lastFullRefreshData");' +
+'  ta.focus();' +
+'  ta.select();' +
+'  ta.setSelectionRange(0, 999999);' +
+'  var ok = false;' +
+'  try { ok = document.execCommand("copy"); } catch (e) {}' +
+'  var btn = document.getElementById("copyFullRefreshDataBtn");' +
 '  if (btn) {' +
 '    var original = btn.textContent;' +
 '    btn.textContent = ok ? "Copied!" : "Copy failed";' +
@@ -1843,7 +1955,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  var customFont = customFontEl ? customFontEl.value : "0";' +
 '  var fontSize = fontSizeEl ? fontSizeEl.value : "1";' +
 '  if (customFont && customFont !== "0") return 3;' +
-'  if (fontSize === "2" || fontSize === "3") return 3;' +
+'  if (fontSize === "2" || fontSize === "3" || fontSize === "4" || fontSize === "5") return 3;' +
 '  return 4;' +
 '}' +
 
@@ -2357,6 +2469,18 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  document.getElementById("markerTextSecGrid").style.display = (val === "2") ? "" : "none";' +
 '  updatePreview();' +
 '}' +
+'function onMarkerTextFontChange() {' +
+'  var font = document.getElementById("markerTextFont").value;' +
+'  var romanBox = document.getElementById("markerTextRoman");' +
+'  var romanHelp = document.getElementById("markerTextRomanHelp");' +
+'  var incompatible = !!ROMAN_INCOMPATIBLE_FONTS[font];' +
+'  romanBox.disabled = incompatible;' +
+'  if (incompatible) romanBox.checked = false;' +
+'  if (romanHelp) romanHelp.textContent = incompatible ?' +
+'    "Not available with this font -- its glyphs don\'t support Roman numerals correctly." :' +
+'    "Shows I, II, III... instead of 1, 2, 3... -- independent of the font above.";' +
+'  updatePreview();' +
+'}' +
 'function openTextMarkerEditor() {' +
 '  document.getElementById("textMarkerModal").className = "modal-overlay open";' +
 '}' +
@@ -2448,6 +2572,40 @@ handEditorModalHtml('sec', 'Edit second hand') +
 'function exportDesignJson() {' +
 '  document.getElementById("presetExportBox").value = JSON.stringify(collectStyleCornersJson(), null, 2);' +
 '}' +
+// navigator.clipboard needs a secure context and isn't guaranteed to
+// exist in every webview Pebble's settings page might run inside --
+// falls back to just selecting the text (same as tapping the box
+// itself already does) so the user can still copy it via the
+// device's own selection menu.
+'function copyExportBoxToClipboard() {' +
+'  var box = document.getElementById("presetExportBox");' +
+'  var status = document.getElementById("presetExportStatus");' +
+'  if (!box.value) exportDesignJson();' +
+'  box.select();' +
+'  if (navigator.clipboard && navigator.clipboard.writeText) {' +
+'    navigator.clipboard.writeText(box.value).then(function () {' +
+'      if (status) status.textContent = "Copied to clipboard.";' +
+'    }, function () {' +
+'      if (status) status.textContent = "Couldn\'t copy automatically -- text is selected, copy it from there.";' +
+'    });' +
+'  } else if (status) {' +
+'    status.textContent = "Couldn\'t copy automatically -- text is selected, copy it from there.";' +
+'  }' +
+'}' +
+'function pasteImportBoxFromClipboard() {' +
+'  var box = document.getElementById("presetImportBox");' +
+'  var status = document.getElementById("presetImportStatus");' +
+'  if (navigator.clipboard && navigator.clipboard.readText) {' +
+'    navigator.clipboard.readText().then(function (text) {' +
+'      box.value = text;' +
+'      if (status) status.textContent = "Pasted -- tap Apply to use it.";' +
+'    }, function () {' +
+'      if (status) status.textContent = "Couldn\'t read the clipboard automatically -- paste into the box by hand instead.";' +
+'    });' +
+'  } else if (status) {' +
+'    status.textContent = "Clipboard access isn\'t available here -- paste into the box by hand instead.";' +
+'  }' +
+'}' +
 'function importDesignJson() {' +
 '  var status = document.getElementById("presetImportStatus");' +
 '  var raw = document.getElementById("presetImportBox").value;' +
@@ -2459,19 +2617,46 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  applyStyleCornersJson(obj);' +
 '  if (status) status.textContent = "Applied.";' +
 '}' +
+// Shared "are you sure?" step -- stashes the action to run and shows
+// the confirm modal; confirmModalYes() runs it (once) and closes;
+// canceling (or tapping outside the box) just closes without running
+// anything.
+'var s_pendingConfirmAction = null;' +
+'function showConfirm(title, message, onConfirm) {' +
+'  document.getElementById("confirmModalTitle").textContent = title;' +
+'  document.getElementById("confirmModalMessage").textContent = message;' +
+'  s_pendingConfirmAction = onConfirm;' +
+'  document.getElementById("confirmModal").className = "modal-overlay open";' +
+'}' +
+'function closeConfirmModal() {' +
+'  document.getElementById("confirmModal").className = "modal-overlay";' +
+'  s_pendingConfirmAction = null;' +
+'}' +
+'function confirmModalYes() {' +
+'  var action = s_pendingConfirmAction;' +
+'  closeConfirmModal();' +
+'  if (action) action();' +
+'}' +
 'function applyPresetSlot(n) {' +
 '  var jsonEl = document.getElementById("presetSlot" + n + "Json");' +
 '  if (!jsonEl || !jsonEl.value) return;' +
 '  var obj;' +
 '  try { obj = JSON.parse(jsonEl.value); } catch (e) { return; }' +
-'  applyStyleCornersJson(obj);' +
+'  var name = document.getElementById("presetSlot" + n + "Name").value || ("Preset " + n);' +
+'  showConfirm("Apply preset", \'Apply "\' + name + \'"? This replaces your current Style, Colors, and Features settings.\', function () {' +
+'    applyStyleCornersJson(obj);' +
+'  });' +
 '}' +
 'function savePresetSlot(n) {' +
 '  var jsonEl = document.getElementById("presetSlot" + n + "Json");' +
 '  var btn = document.getElementById("presetApplyBtn" + n);' +
 '  if (!jsonEl) return;' +
-'  jsonEl.value = JSON.stringify(collectStyleCornersJson());' +
-'  if (btn) btn.disabled = false;' +
+'  var name = document.getElementById("presetSlot" + n + "Name").value || ("Preset " + n);' +
+'  var hadPreset = !!jsonEl.value;' +
+'  showConfirm("Save preset", (hadPreset ? \'Overwrite "\' : \'Save your current design into "\') + name + \'"?\' + (hadPreset ? \' This replaces what was saved there.\' : \'\'), function () {' +
+'    jsonEl.value = JSON.stringify(collectStyleCornersJson());' +
+'    if (btn) btn.disabled = false;' +
+'  });' +
 '}' +
 'function startRenamePresetSlot(n) {' +
 '  var btn = document.getElementById("presetApplyBtn" + n);' +
@@ -2762,7 +2947,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  document.getElementById("nightSchemeSettings").style.display = document.getElementById("nightEnabled").checked ? "block" : "none";' +
 '}' +
 
-'function save() {' +
+'function save(forceRefresh, forceFullRefresh) {' +
 '  var mins = parseInt(document.getElementById("updateMins").value, 10);' +
 '  if (isNaN(mins) || mins < 5) mins = 20;' +
 '  var bottomStyleVal = document.getElementById("bottomStyleValue").value;' +
@@ -2832,6 +3017,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    CONFIG_STEP_GOAL: document.getElementById("stepGoal").value,' +
 '    CONFIG_SUN_MOON_SIZE: document.getElementById("sunMoonSize").value,' +
 '    CONFIG_SHAKE_LABEL_SECONDS: document.getElementById("shakeLabelSeconds").value,' +
+'    CONFIG_LABEL_STYLE: document.getElementById("labelStyle").value,' +
 '    CONFIG_BOTTOM_INFO_BAR_MODE: document.getElementById("bottomInfoBarMode").value,' +
 '    CONFIG_TEST_MODE: document.getElementById("testMode").checked,' +
 '    CONFIG_TEST_DATETIME: document.getElementById("testDateTime").value,' +
@@ -2898,6 +3084,19 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    CONFIG_PRESET_3_NAME: document.getElementById("presetSlot3Name").value,' +
 '    CONFIG_PRESET_3_JSON: document.getElementById("presetSlot3Json").value' +
 '  };' +
+// Transient, one-shot -- read once by index.js's webviewclosed
+// handler to decide whether this save should force an immediate
+// network refetch ("Force refresh now") or just apply cosmetic
+// settings and let the normal refresh cadence pick up anything that
+// actually needs new data -- never itself persisted via setSetting.
+'  settings.CONFIG_FORCE_REFRESH = !!forceRefresh || !!forceFullRefresh;' +
+// Also transient/one-shot -- tells webviewclosed to additionally
+// capture the resulting complete dict as its own separate
+// "LAST_FULL_REFRESH_DICT" snapshot (see the Testing section's "Last
+// Full Refresh Raw Data" field), independent of whatever
+// LAST_COMPUTED_DICT happens to hold from the most recent send of any
+// kind.
+'  settings.CONFIG_FORCE_FULL_REFRESH = !!forceFullRefresh;' +
 '  var returnTo = getQueryParam("return_to", "pebblejs://close#");' +
 '  document.location = returnTo + encodeURIComponent(JSON.stringify(settings));' +
 '}' +

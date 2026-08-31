@@ -20,6 +20,13 @@ var refreshTimer = null;
 // call that's still the current generation when its data is finally
 // ready is allowed to actually send it.
 var s_refreshGeneration = 0;
+// Set (from webviewclosed, on a "Force full refresh" save) right
+// before triggering that refresh cycle -- the next sendDict() call
+// after that also saves its dict as LAST_FULL_REFRESH_DICT (a
+// separate snapshot from the general LAST_COMPUTED_DICT every send
+// already updates), then clears itself so only that one send gets
+// captured.
+var s_captureNextAsFullRefresh = false;
 
 // ---- tiny settings helpers, backed directly by localStorage -------------
 
@@ -291,6 +298,13 @@ function shakeLabelSecondsCode() {
   if (secs > 10) secs = 10;
   return secs;
 }
+// 0=Boxed (default), 1=Outlined, 2=Soft -- see draw_label() in
+// background_layer.c.
+function labelStyleCode() {
+  var id = parseInt(getSetting('CONFIG_LABEL_STYLE', '0'), 10);
+  if (isNaN(id) || id < 0 || id > 2) id = 0;
+  return id;
+}
 function bottomInfoBarModeCode() {
   var v = parseInt(getSetting('CONFIG_BOTTOM_INFO_BAR_MODE', '1'), 10);
   return [0, 1, 2].indexOf(v) === -1 ? 1 : v;
@@ -525,7 +539,7 @@ function vibrateOnPhaseChangeCode() { return getSetting('CONFIG_VIBRATE_ON_PHASE
 function outlineEnabledCode() { return getSetting('CONFIG_OUTLINE_ENABLED', 'true') === 'true' ? 1 : 0; }
 function cornerFontSizeCode() {
   var v = parseInt(getSetting('CONFIG_CORNER_FONT_SIZE', '1'), 10);
-  return [0, 1, 2, 3].indexOf(v) === -1 ? 1 : v;
+  return [0, 1, 2, 3, 4, 5].indexOf(v) === -1 ? 1 : v;
 }
 function cornerCustomFontCode() {
   var v = parseInt(getSetting('CONFIG_CORNER_CUSTOM_FONT', '0'), 10);
@@ -582,6 +596,7 @@ function sendDict(dict) {
   dict['AQI_UNIT'] = aqiUnitCode();
   dict['ALTITUDE_UNIT'] = altitudeUnitCode();
   dict['SHAKE_LABEL_SECONDS'] = shakeLabelSecondsCode();
+  dict['LABEL_STYLE'] = labelStyleCode();
   dict['BOTTOM_INFO_BAR_MODE'] = bottomInfoBarModeCode();
   dict['BIG_ANALOG_HAND_STYLE'] = bigAnalogHandStyleCode();
   dict['BIG_ANALOG_HANDS_TRANSPARENT'] = bigAnalogHandsTransparentCode();
@@ -674,6 +689,10 @@ function sendDict(dict) {
 
   try {
     localStorage.setItem('LAST_COMPUTED_DICT', JSON.stringify(dict));
+    if (s_captureNextAsFullRefresh) {
+      localStorage.setItem('LAST_FULL_REFRESH_DICT', JSON.stringify(dict));
+      s_captureNextAsFullRefresh = false;
+    }
   } catch (e) {
     // Not critical if this fails (storage full, etc.) -- just means the
     // settings page's debug view won't have a fresh snapshot this time.
@@ -1257,6 +1276,7 @@ function sendDict(dict) {
 '  "AQI_US": 42,'+
 '  "AQI_EU": 18,'+
 '  "SHAKE_LABEL_SECONDS": 8,'+
+'  "LABEL_STYLE": 0,'+
 '  "BOTTOM_INFO_BAR_MODE": 0,'+
 '  "BIG_ANALOG_HAND_STYLE": 0,'+
 '  "BIG_ANALOG_HANDS_TRANSPARENT": 1,'+
@@ -1404,31 +1424,62 @@ function issFieldsDict(issPos) {
 // below, rather than growing their already-long positional parameter
 // lists by another 6 -- extra = { windDirDeg, dewPointC, pressureHpa,
 // pressureTrend, aqiUs, aqiEu }, any of which may be null/undefined.
+//
+// Fields sourced from a live network fetch (everything except
+// ALTITUDE_M, which comes from the phone's own GPS) are OMITTED
+// entirely -- not sent as a zeroed default -- when that value is
+// null/not a number, i.e. when the fetch failed or genuinely returned
+// nothing. dict_find() on the watch only touches a field when its key
+// is actually present, so an omitted key means "leave whatever's
+// already showing alone" -- a transient network hiccup no longer
+// wipes out the last known-good reading the way sending an
+// unconditional 0 used to.
 function extraWeatherFieldsDict(extra) {
   extra = extra || {};
-  return {
-    'WIND_DIR_DEG': (typeof extra.windDirDeg === 'number') ? Math.round(extra.windDirDeg) : 0,
-    'DEW_POINT_C': (typeof extra.dewPointC === 'number') ? Math.round(extra.dewPointC) : 0,
-    'PRESSURE_HPA': (typeof extra.pressureHpa === 'number') ? Math.round(extra.pressureHpa) : 0,
-    'PRESSURE_TREND': extra.pressureTrend || 0,
-    'AQI_US': (typeof extra.aqiUs === 'number') ? extra.aqiUs : 0,
-    'AQI_EU': (typeof extra.aqiEu === 'number') ? extra.aqiEu : 0,
+  var dict = {
     // -32000 = sentinel for "no altitude available" (many phones don't
     // report GPS altitude, and manual-coordinates mode never has it --
     // see getLocation()). A real altitude can legitimately be negative
     // (Death Valley, the Dead Sea shore) or exactly 0 (sea level), so
     // those can't double as the "missing" signal the way they might
     // elsewhere -- this needs its own out-of-range sentinel instead.
-    'ALTITUDE_M': (typeof extra.altitudeMeters === 'number') ? Math.round(extra.altitudeMeters) : -32000,
-    // x10 -- same convention as every other _x10/_decideg field. Kp is
-    // fractional (thirds: .00/.33/.67), hence the scaling rather than
-    // sending it as a plain 0-9 integer.
-    'AURORA_KP_X10': (typeof extra.auroraKpX10 === 'number') ? extra.auroraKpX10 : 0,
-    'AURORA_VISIBILITY_PCT': (typeof extra.auroraVisibilityPct === 'number') ? extra.auroraVisibilityPct : 0
+    // Always sent (never omitted): unlike the fields below, "no GPS
+    // altitude" is a stable fact about this phone/location, not a
+    // transient fetch failure to protect a previous reading from.
+    'ALTITUDE_M': (typeof extra.altitudeMeters === 'number') ? Math.round(extra.altitudeMeters) : -32000
   };
+  if (typeof extra.windDirDeg === 'number') dict['WIND_DIR_DEG'] = Math.round(extra.windDirDeg);
+  if (typeof extra.dewPointC === 'number') dict['DEW_POINT_C'] = Math.round(extra.dewPointC);
+  if (typeof extra.pressureHpa === 'number') {
+    dict['PRESSURE_HPA'] = Math.round(extra.pressureHpa);
+    dict['PRESSURE_TREND'] = extra.pressureTrend || 0; // trend only means anything alongside a real pressure reading
+  }
+  if (typeof extra.aqiUs === 'number') dict['AQI_US'] = extra.aqiUs;
+  if (typeof extra.aqiEu === 'number') dict['AQI_EU'] = extra.aqiEu;
+  // x10 -- same convention as every other _x10/_decideg field. Kp is
+  // fractional (thirds: .00/.33/.67), hence the scaling rather than
+  // sending it as a plain 0-9 integer.
+  if (typeof extra.auroraKpX10 === 'number') dict['AURORA_KP_X10'] = extra.auroraKpX10;
+  if (typeof extra.auroraVisibilityPct === 'number') dict['AURORA_VISIBILITY_PCT'] = extra.auroraVisibilityPct;
+  return dict;
 }
 
-function sendNoEclipseToday(sky, cloudGrid, headlineCloud, headlineSources, locationName, moonPhase, riseSet, weatherCondition, weatherTempC, meteorShower, cloudAltitudePct, tempHighC, tempLowC, issPos, uvIndexMax, rainChancePct, humidityPct, windSpeedKmh, currentCloudPct, sunRiseTomorrow, extraWeather, stars) {
+// weatherOk: false when the daily-forecast fetch (weather.js's
+// getDailyCloudGrid, which weatherCondition/weatherTempC/etc all come
+// from) failed -- in which case every field sourced from it is
+// OMITTED from the dict below rather than sent as a zeroed default,
+// so a transient network failure can't wipe the watch's last known-
+// good weather reading. This was the root cause of settings-page
+// saves occasionally "zeroing out" weather: a save used to force an
+// immediate refetch, and if that particular refetch hit a transient
+// failure, the resulting all-zeros dict got sent and applied anyway.
+function sendNoEclipseToday(sky, cloudGrid, headlineCloud, headlineSources, locationName, moonPhase, riseSet, weatherCondition, weatherTempC, meteorShower, cloudAltitudePct, tempHighC, tempLowC, issPos, uvIndexMax, rainChancePct, humidityPct, windSpeedKmh, currentCloudPct, sunRiseTomorrow, extraWeather, stars, weatherOk) {
+  // CLOUD_COVER/VIS_SCORE prefer currentCloudPct (same-source as the
+  // sky canvas's own CLOUD_SAMPLES grid) but fall back to the
+  // separate eclipse-window headline average if that's all that
+  // succeeded -- haveCloudData is true as long as EITHER source came
+  // through, only omitting these fields if both failed.
+  var haveCloudData = (typeof currentCloudPct === 'number') || headlineSources > 0;
   var displayCloudPct = (typeof currentCloudPct === 'number') ? currentCloudPct : (headlineCloud || 0);
   var dict = {
     'DATA_VALID': 1,
@@ -1440,19 +1491,23 @@ function sendNoEclipseToday(sky, cloudGrid, headlineCloud, headlineSources, loca
     'SEP_SAMPLES': [0, 0],
     'MAG_SAMPLES': [0, 0],
     'RADIUS_RATIO_PCT': 0,
-    'CLOUD_COVER': displayCloudPct,
-    'VIS_SCORE': 100 - displayCloudPct,
-    'WEATHER_SOURCES': headlineSources || 0,
-    'WEATHER_CONDITION': weatherCondition || 0,
-    'WEATHER_TEMP_C': (typeof weatherTempC === 'number') ? Math.round(weatherTempC) : 0,
-    'WEATHER_TEMP_HIGH_C': (typeof tempHighC === 'number') ? Math.round(tempHighC) : 0,
-    'WEATHER_TEMP_LOW_C': (typeof tempLowC === 'number') ? Math.round(tempLowC) : 0,
-    'UV_INDEX_X10': (typeof uvIndexMax === 'number') ? Math.round(Math.max(0, Math.min(25.5, uvIndexMax)) * 10) : 0,
-    'RAIN_CHANCE_PCT': (typeof rainChancePct === 'number') ? Math.round(rainChancePct) : 0,
-    'HUMIDITY_PCT': (typeof humidityPct === 'number') ? Math.round(humidityPct) : 0,
-    'WIND_SPEED_KMH': (typeof windSpeedKmh === 'number') ? Math.round(windSpeedKmh) : 0,
     'LOCATION_NAME': locationName || ''
   };
+  if (haveCloudData) {
+    dict['CLOUD_COVER'] = displayCloudPct;
+    dict['VIS_SCORE'] = 100 - displayCloudPct;
+    dict['WEATHER_SOURCES'] = headlineSources || 0;
+  }
+  if (weatherOk) {
+    dict['WEATHER_CONDITION'] = weatherCondition || 0;
+    dict['WEATHER_TEMP_C'] = (typeof weatherTempC === 'number') ? Math.round(weatherTempC) : 0;
+    dict['WEATHER_TEMP_HIGH_C'] = (typeof tempHighC === 'number') ? Math.round(tempHighC) : 0;
+    dict['WEATHER_TEMP_LOW_C'] = (typeof tempLowC === 'number') ? Math.round(tempLowC) : 0;
+    dict['UV_INDEX_X10'] = (typeof uvIndexMax === 'number') ? Math.round(Math.max(0, Math.min(25.5, uvIndexMax)) * 10) : 0;
+    dict['RAIN_CHANCE_PCT'] = (typeof rainChancePct === 'number') ? Math.round(rainChancePct) : 0;
+    dict['HUMIDITY_PCT'] = (typeof humidityPct === 'number') ? Math.round(humidityPct) : 0;
+    dict['WIND_SPEED_KMH'] = (typeof windSpeedKmh === 'number') ? Math.round(windSpeedKmh) : 0;
+  }
   var sky_ = skyFieldsDict(sky, cloudGrid, moonPhase, riseSet, meteorShower, cloudAltitudePct, sunRiseTomorrow, stars);
   Object.keys(sky_).forEach(function (k) { dict[k] = sky_[k]; });
   var extraW_ = extraWeatherFieldsDict(extraWeather);
@@ -1462,7 +1517,10 @@ function sendNoEclipseToday(sky, cloudGrid, headlineCloud, headlineSources, loca
   sendDict(dict);
 }
 
-function sendEclipseData(result, sky, cloudGrid, headlineCloud, headlineSources, locationName, moonPhase, riseSet, weatherCondition, weatherTempC, meteorShower, cloudAltitudePct, tempHighC, tempLowC, issPos, uvIndexMax, rainChancePct, humidityPct, windSpeedKmh, currentCloudPct, sunRiseTomorrow, extraWeather, stars) {
+// weatherOk: see sendNoEclipseToday's own comment above -- same
+// omit-rather-than-zero treatment, same reason.
+function sendEclipseData(result, sky, cloudGrid, headlineCloud, headlineSources, locationName, moonPhase, riseSet, weatherCondition, weatherTempC, meteorShower, cloudAltitudePct, tempHighC, tempLowC, issPos, uvIndexMax, rainChancePct, humidityPct, windSpeedKmh, currentCloudPct, sunRiseTomorrow, extraWeather, stars, weatherOk) {
+  var haveCloudData = (typeof currentCloudPct === 'number') || headlineSources > 0;
   var displayCloudPct = (typeof currentCloudPct === 'number') ? currentCloudPct : (headlineCloud || 0);
   var dict = {
     'DATA_VALID': 1,
@@ -1481,19 +1539,23 @@ function sendEclipseData(result, sky, cloudGrid, headlineCloud, headlineSources,
     'SEP_SAMPLES': u16ArrayToBytes(result.sepSamplesCentideg),
     'MAG_SAMPLES': result.magPctSamples,
     'RADIUS_RATIO_PCT': result.radiusRatioPct,
-    'CLOUD_COVER': displayCloudPct,
-    'VIS_SCORE': 100 - displayCloudPct,
-    'WEATHER_SOURCES': headlineSources || 0,
-    'WEATHER_CONDITION': weatherCondition || 0,
-    'WEATHER_TEMP_C': (typeof weatherTempC === 'number') ? Math.round(weatherTempC) : 0,
-    'WEATHER_TEMP_HIGH_C': (typeof tempHighC === 'number') ? Math.round(tempHighC) : 0,
-    'WEATHER_TEMP_LOW_C': (typeof tempLowC === 'number') ? Math.round(tempLowC) : 0,
-    'UV_INDEX_X10': (typeof uvIndexMax === 'number') ? Math.round(Math.max(0, Math.min(25.5, uvIndexMax)) * 10) : 0,
-    'RAIN_CHANCE_PCT': (typeof rainChancePct === 'number') ? Math.round(rainChancePct) : 0,
-    'HUMIDITY_PCT': (typeof humidityPct === 'number') ? Math.round(humidityPct) : 0,
-    'WIND_SPEED_KMH': (typeof windSpeedKmh === 'number') ? Math.round(windSpeedKmh) : 0,
     'LOCATION_NAME': locationName || ''
   };
+  if (haveCloudData) {
+    dict['CLOUD_COVER'] = displayCloudPct;
+    dict['VIS_SCORE'] = 100 - displayCloudPct;
+    dict['WEATHER_SOURCES'] = headlineSources || 0;
+  }
+  if (weatherOk) {
+    dict['WEATHER_CONDITION'] = weatherCondition || 0;
+    dict['WEATHER_TEMP_C'] = (typeof weatherTempC === 'number') ? Math.round(weatherTempC) : 0;
+    dict['WEATHER_TEMP_HIGH_C'] = (typeof tempHighC === 'number') ? Math.round(tempHighC) : 0;
+    dict['WEATHER_TEMP_LOW_C'] = (typeof tempLowC === 'number') ? Math.round(tempLowC) : 0;
+    dict['UV_INDEX_X10'] = (typeof uvIndexMax === 'number') ? Math.round(Math.max(0, Math.min(25.5, uvIndexMax)) * 10) : 0;
+    dict['RAIN_CHANCE_PCT'] = (typeof rainChancePct === 'number') ? Math.round(rainChancePct) : 0;
+    dict['HUMIDITY_PCT'] = (typeof humidityPct === 'number') ? Math.round(humidityPct) : 0;
+    dict['WIND_SPEED_KMH'] = (typeof windSpeedKmh === 'number') ? Math.round(windSpeedKmh) : 0;
+  }
   var sky_ = skyFieldsDict(sky, cloudGrid, moonPhase, riseSet, meteorShower, cloudAltitudePct, sunRiseTomorrow, stars);
   Object.keys(sky_).forEach(function (k) { dict[k] = sky_[k]; });
   var extraW_ = extraWeatherFieldsDict(extraWeather);
@@ -1680,7 +1742,10 @@ function fetchAuroraIfEnabled(lat, lon, cb) {
   weather.fetchAuroraKp(function (err, kp) {
     if (err || typeof kp !== 'number') {
       console.log('eclipse-watch: aurora Kp fetch failed - ' + (err ? err.message : 'no data'));
-      return cb({ kp: null, visibilityPct: 0 });
+      // null (not 0) -- distinguishes "fetch failed, don't touch the
+      // watch's last reading" from a genuine 0% visibility estimate,
+      // same as every other network-sourced field in extraWeatherFieldsDict.
+      return cb({ kp: null, visibilityPct: null });
     }
     var geomagLat = Math.abs(astro.geomagneticLatitudeDeg(lat, lon));
     var score = astro.auroraVisibilityScore(kp, geomagLat);
@@ -1792,13 +1857,13 @@ function refreshAndSend(force) {
                   windDirDeg: extras.windDirDeg, dewPointC: extras.dewPointC,
                   pressureHpa: extras.pressureHpa, pressureTrend: extras.pressureTrend,
                   aqiUs: aqi.aqiUs, aqiEu: aqi.aqiEu, altitudeMeters: altitudeMeters,
-                  auroraKpX10: (typeof aurora.kp === 'number') ? Math.round(aurora.kp * 10) : 0,
-                  auroraVisibilityPct: aurora.visibilityPct || 0
+                  auroraKpX10: (typeof aurora.kp === 'number') ? Math.round(aurora.kp * 10) : null,
+                  auroraVisibilityPct: (typeof aurora.visibilityPct === 'number') ? aurora.visibilityPct : null
                 };
                 if (result.hasEclipse) {
-                  sendEclipseData(result, sky, cloudGrid, headlineCloud, headlineSources, locationName, moonPhase, riseSet, extras.condition, extras.tempC, meteorShower, extras.cloudAltitudePct, extras.tempHighC, extras.tempLowC, issPos, extras.uvIndexMax, extras.rainChancePct, extras.humidityPct, extras.windSpeedKmh, extras.currentCloudPct, sunRiseTomorrow, extraWeather, stars);
+                  sendEclipseData(result, sky, cloudGrid, headlineCloud, headlineSources, locationName, moonPhase, riseSet, extras.condition, extras.tempC, meteorShower, extras.cloudAltitudePct, extras.tempHighC, extras.tempLowC, issPos, extras.uvIndexMax, extras.rainChancePct, extras.humidityPct, extras.windSpeedKmh, extras.currentCloudPct, sunRiseTomorrow, extraWeather, stars, !gridErr);
                 } else {
-                  sendNoEclipseToday(sky, cloudGrid, headlineCloud, headlineSources, locationName, moonPhase, riseSet, extras.condition, extras.tempC, meteorShower, extras.cloudAltitudePct, extras.tempHighC, extras.tempLowC, issPos, extras.uvIndexMax, extras.rainChancePct, extras.humidityPct, extras.windSpeedKmh, extras.currentCloudPct, sunRiseTomorrow, extraWeather, stars);
+                  sendNoEclipseToday(sky, cloudGrid, headlineCloud, headlineSources, locationName, moonPhase, riseSet, extras.condition, extras.tempC, meteorShower, extras.cloudAltitudePct, extras.tempHighC, extras.tempLowC, issPos, extras.uvIndexMax, extras.rainChancePct, extras.humidityPct, extras.windSpeedKmh, extras.currentCloudPct, sunRiseTomorrow, extraWeather, stars, !gridErr);
                 }
                 markRefreshDone(lat, lon);
               });
@@ -1862,6 +1927,7 @@ Pebble.addEventListener('showConfiguration', function () {
     aqiUnit: getSetting('CONFIG_AQI_UNIT', '0'),
     altitudeUnit: getSetting('CONFIG_ALTITUDE_UNIT', '0'),
     shakeLabelSeconds: getSetting('CONFIG_SHAKE_LABEL_SECONDS', '3'),
+    labelStyle: getSetting('CONFIG_LABEL_STYLE', '0'),
     bottomInfoBarMode: getSetting('CONFIG_BOTTOM_INFO_BAR_MODE', '1'),
     bigAnalogHandStyle: getSetting('CONFIG_BIG_ANALOG_HAND_STYLE', '0'),
     bigAnalogTransparent: getSetting('CONFIG_BIG_ANALOG_TRANSPARENT', 'false') === 'true',
@@ -1967,6 +2033,14 @@ Pebble.addEventListener('showConfiguration', function () {
         return '';
       }
     })(),
+    lastFullRefreshData: (function () {
+      try {
+        var raw = localStorage.getItem('LAST_FULL_REFRESH_DICT');
+        return raw ? JSON.stringify(JSON.parse(raw), null, 2) : '';
+      } catch (e) {
+        return '';
+      }
+    })(),
     debugOverrideEnabled: getSetting('CONFIG_DEBUG_OVERRIDE_ENABLED', 'false') === 'true',
     debugOverrideData: getSetting('CONFIG_DEBUG_OVERRIDE_DATA', ''),
     presetSlot1Name: getSetting('CONFIG_PRESET_1_NAME', ''),
@@ -2029,6 +2103,7 @@ Pebble.addEventListener('webviewclosed', function (e) {
   setSetting('CONFIG_AQI_UNIT', settings.CONFIG_AQI_UNIT || '0');
   setSetting('CONFIG_ALTITUDE_UNIT', settings.CONFIG_ALTITUDE_UNIT || '0');
   setSetting('CONFIG_SHAKE_LABEL_SECONDS', settings.CONFIG_SHAKE_LABEL_SECONDS || '3');
+  setSetting('CONFIG_LABEL_STYLE', settings.CONFIG_LABEL_STYLE || '0');
   setSetting('CONFIG_BOTTOM_INFO_BAR_MODE', settings.CONFIG_BOTTOM_INFO_BAR_MODE || '1');
   setSetting('CONFIG_BIG_ANALOG_HAND_STYLE', settings.CONFIG_BIG_ANALOG_HAND_STYLE || '0');
   setSetting('CONFIG_BIG_ANALOG_TRANSPARENT', settings.CONFIG_BIG_ANALOG_TRANSPARENT ? 'true' : 'false');
@@ -2137,15 +2212,26 @@ Pebble.addEventListener('webviewclosed', function (e) {
 
   // The clock font / weather-readout toggle / colors are purely
   // cosmetic and phone-local -- send them immediately rather than
-  // waiting for the full refresh cycle (location + astronomy + two
-  // weather calls) to complete, so a settings change feels instant.
-  // Actual weather temperature still needs that full cycle to arrive.
+  // waiting for a full refresh cycle to complete, so a settings
+  // change feels instant regardless of whether one happens at all.
   sendDict({});
 
   scheduleRefresh();
-  // Any settings save -- including a press of the "Force refresh now"
-  // button, which is just this same save flow with nothing else
-  // changed -- always bypasses the smart-refresh skip, since the
-  // user explicitly asked for this one.
-  refreshAndSend(true);
+  // Only an explicit "Force refresh now" press bypasses the smart-
+  // refresh skip -- an ordinary settings save no longer forces its
+  // own network refetch. It used to, and that refetch could hit a
+  // transient failure right as the user was just tweaking a color,
+  // whose result (sendEclipseData/sendNoEclipseToday, called
+  // regardless of success) would still get sent and applied --
+  // silently wiping the watch's last known-good weather. A plain
+  // save still gets a refresh if one is actually due (moved far
+  // enough, or the interval elapsed) via this same normal check.
+  //
+  // Set here, AFTER the cosmetic-only sendDict({}) above already ran
+  // (and cleared itself) -- so it's the refreshAndSend() below's own
+  // eventual sendDict() call, the one with the actual complete
+  // weather/eclipse/sky data, that gets captured as
+  // LAST_FULL_REFRESH_DICT, not that earlier cosmetic-only one.
+  if (settings.CONFIG_FORCE_FULL_REFRESH) s_captureNextAsFullRefresh = true;
+  refreshAndSend(!!settings.CONFIG_FORCE_REFRESH);
 });
