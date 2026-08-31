@@ -117,10 +117,12 @@ function skyFieldsDict(sky, cloudGrid, moonPhase, riseSet, meteorShower, cloudAl
     .map(function (v) { return Math.max(0, Math.min(100, Math.round(v))); });
 
   var planetAltCombined = [];
+  var planetAzCombined = [];
   var planetRiseArr = [];
   var planetSetArr = [];
   PLANET_ORDER.forEach(function (name) {
     planetAltCombined = planetAltCombined.concat(sky[name + 'AltDecideg']);
+    planetAzCombined = planetAzCombined.concat(sky[name + 'AzDecideg']);
     planetRiseArr.push(toEpoch(riseSet[name].rise));
     planetSetArr.push(toEpoch(riseSet[name].set));
   });
@@ -139,8 +141,16 @@ function skyFieldsDict(sky, cloudGrid, moonPhase, riseSet, meteorShower, cloudAl
     'SKY_SAMPLE_INTERVAL': sky.intervalS,
     'SKY_SAMPLE_COUNT': sky.sunAltDecideg.length,
     'SUN_ALT_SAMPLES': u16ArrayToBytes(sky.sunAltDecideg),
+    // Az samples below are for "Planet seek" (see shake_anim_mode's
+    // own eclipse_data.h comment) -- real compass-relative bearings,
+    // not just how high up something is. Unlike the alt samples,
+    // these are never adjusted for the observer's elevation dip, since
+    // that only ever affects the apparent horizon (a vertical effect).
+    'SUN_AZ_SAMPLES': u16ArrayToBytes(sky.sunAzDecideg),
     'MOON_ALT_SAMPLES': u16ArrayToBytes(sky.moonAltDecideg),
+    'MOON_AZ_SAMPLES': u16ArrayToBytes(sky.moonAzDecideg),
     'PLANET_ALT_SAMPLES': u16ArrayToBytes(planetAltCombined),
+    'PLANET_AZ_SAMPLES': u16ArrayToBytes(planetAzCombined),
     'PLANET_RISE': i32ArrayToBytes(planetRiseArr),
     'PLANET_SET': i32ArrayToBytes(planetSetArr),
     'SATURN_RING_OPEN_PCT': sky.saturnRingOpenPct,
@@ -391,7 +401,7 @@ function customSecOuterBorderCode() {
 function customSecTranslucentCode() { return getSetting('CONFIG_CUSTOM_SEC_TRANSLUCENT', 'false') === 'true' ? 1 : 0; }
 function customSecColorCode() { return clampInt(getSetting('CONFIG_CUSTOM_SEC_COLOR', '0'), 0, 2, 0); }
 function markerTextTargetCode() { return clampInt(getSetting('CONFIG_MARKER_TEXT_TARGET', '0'), 0, 2, 0); }
-function markerTextFontCode() { return clampInt(getSetting('CONFIG_MARKER_TEXT_FONT', '0'), 0, 6, 0); }
+function markerTextFontCode() { return clampInt(getSetting('CONFIG_MARKER_TEXT_FONT', '0'), 0, 14, 0); }
 function markerTextOffsetCode() { return clampInt(getSetting('CONFIG_MARKER_TEXT_OFFSET', '0'), -50, 50, 0); }
 function markerTextHourMaskCode() { return clampInt(getSetting('CONFIG_MARKER_TEXT_HOUR_MASK', '4095'), 0, 4095, 4095); }
 function markerTextSecMaskCode() { return clampInt(getSetting('CONFIG_MARKER_TEXT_SEC_MASK', '4095'), 0, 4095, 4095); }
@@ -551,11 +561,11 @@ function shakeAnimModeCode() {
 function outlineEnabledCode() { return getSetting('CONFIG_OUTLINE_ENABLED', 'true') === 'true' ? 1 : 0; }
 function cornerFontSizeCode() {
   var v = parseInt(getSetting('CONFIG_CORNER_FONT_SIZE', '1'), 10);
-  return [0, 1, 2, 3, 4, 5].indexOf(v) === -1 ? 1 : v;
+  return [0, 1, 2, 3, 4].indexOf(v) === -1 ? 1 : v;
 }
 function cornerCustomFontCode() {
   var v = parseInt(getSetting('CONFIG_CORNER_CUSTOM_FONT', '0'), 10);
-  return [0, 1, 2, 3, 4, 5].indexOf(v) === -1 ? 0 : v;
+  return [0, 1, 2, 3, 4, 5, 6].indexOf(v) === -1 ? 0 : v;
 }
 
 // Corners: 4 slots (0=top-left, 1=top-right, 2=bottom-left,

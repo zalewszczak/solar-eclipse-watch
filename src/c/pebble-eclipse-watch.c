@@ -8,9 +8,16 @@
 // rather than written as one blob -- see save_data()/load_data().
 #define PERSIST_KEY_DATA_BASE 1
 #define PERSIST_CHUNK_SIZE 200
-#define PERSIST_CHUNK_COUNT 5 // 1000 bytes of capacity; struct size is checked at compile
-                                // time below (persist_capacity_check) -- see that comment
-                                // if it ever fails to compile after adding fields.
+#define PERSIST_CHUNK_COUNT 12 // 2400 bytes of capacity -- was 5 (1000 bytes), bumped generously to
+                                 // cover Planet seek's new az sample arrays (~364 bytes) with real
+                                 // headroom for whatever gets added next, now that Pebble's own
+                                 // per-app persist budget is 1MB total (confirmed directly with
+                                 // Pebble support as of this comment -- undocumented publicly, so
+                                 // don't just trust a web search on it), not the old 4KB. Struct
+                                 // size is still checked at compile time below
+                                 // (persist_capacity_check) -- see that comment if it ever fails to
+                                 // compile after adding fields; bump this number again if so, there's
+                                 // no real reason to ration chunks tightly anymore.
 
 static Window *s_window;
 static Layer *s_countdown_layer; // custom-drawn (not TextLayer) so it can draw the 1px outline
@@ -483,23 +490,6 @@ bool shake_gradient_active(uint8_t *out_shift) {
   return true;
 }
 
-static void shake_anim_timer_callback(void *data) {
-  s_shake_anim_elapsed_ms += SHAKE_ANIM_FRAME_MS;
-  bool still_active = s_labels_visible && s_shake_anim_elapsed_ms < s_shake_anim_duration_ms;
-  if (!still_active) {
-    s_shake_anim_active = false;
-    s_shake_anim_timer = NULL;
-    if (s_data.shake_anim_mode == 4) compass_service_unsubscribe(); // stop the magnetometer the moment planet seek's own window ends, not just on app exit
-  } else {
-    s_shake_gradient_shift = (uint8_t)((s_shake_gradient_shift + 1) % SHAKE_RAINBOW_LUT_SIZE);
-    s_shake_anim_timer = app_timer_register(SHAKE_ANIM_FRAME_MS, shake_anim_timer_callback, NULL);
-  }
-  if (s_hands_layer) layer_mark_dirty(s_hands_layer);
-  if (s_features_layer) layer_mark_dirty(s_features_layer);
-  if (s_countdown_layer) layer_mark_dirty(s_countdown_layer);
-  if (s_canvas_layer && s_data.shake_anim_mode == 4) layer_mark_dirty(s_canvas_layer); // planet seek redraws the sky canvas too, once its rendering exists -- see shake_anim_mode's own eclipse_data.h comment
-}
-
 // Planet seek's own watch-side compass reading -- subscribed only for
 // as long as the animation itself runs (compass/magnetometer use has
 // a real, ongoing power cost, unlike a plain timer), storing just the
@@ -524,6 +514,25 @@ static void planet_seek_compass_handler(CompassHeadingData data) {
 // of what's actually implemented here.
 int32_t planet_seek_heading_deg(void) {
   return s_planet_seek_heading_deg;
+}
+
+static void shake_anim_timer_callback(void *data) {
+  s_shake_anim_elapsed_ms += SHAKE_ANIM_FRAME_MS;
+  bool still_active = s_labels_visible && s_shake_anim_elapsed_ms < s_shake_anim_duration_ms;
+  if (!still_active) {
+    s_shake_anim_active = false;
+    s_shake_anim_timer = NULL;
+    if (s_data.shake_anim_mode == 4) compass_service_unsubscribe(); // stop the magnetometer the moment planet seek's own window ends, not just on app exit
+  } else {
+    s_shake_gradient_shift = (uint8_t)((s_shake_gradient_shift + 1) % SHAKE_RAINBOW_LUT_SIZE);
+    s_shake_anim_timer = app_timer_register(SHAKE_ANIM_FRAME_MS, shake_anim_timer_callback, NULL);
+  }
+  if (s_hands_layer) layer_mark_dirty(s_hands_layer);
+  if (s_features_layer) layer_mark_dirty(s_features_layer);
+  if (s_countdown_layer) layer_mark_dirty(s_countdown_layer);
+  if (s_canvas_layer && s_data.shake_anim_mode == 4) {
+    eclipse_canvas_set_planet_seek(s_canvas_layer, still_active, s_shake_anim_elapsed_ms, s_planet_seek_heading_deg);
+  }
 }
 
 // Called from tap_handler() below, once per shake -- restarts the
@@ -1720,6 +1729,17 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
       s_data.sun_alt_decideg[i] = (int16_t)u;
     }
   }
+  if ((t = dict_find(iter, MESSAGE_KEY_SUN_AZ_SAMPLES))) {
+    // Same byte-blob shape as SUN_ALT_SAMPLES, but the field itself is
+    // an unsigned uint16 (azimuth is always 0-359.9deg, never
+    // negative) -- see sun_az_decideg's own eclipse_data.h comment.
+    uint8_t *raw = t->value->data;
+    int n = t->length / 2;
+    if (n > MAX_SKY_SAMPLES) n = MAX_SKY_SAMPLES;
+    for (int i = 0; i < n; i++) {
+      s_data.sun_az_decideg[i] = (uint16_t)raw[i * 2] | ((uint16_t)raw[i * 2 + 1] << 8);
+    }
+  }
   if ((t = dict_find(iter, MESSAGE_KEY_CLOUD_SAMPLES))) {
     uint8_t *raw = t->value->data;
     int n = t->length;
@@ -1738,6 +1758,14 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
       s_data.moon_alt_decideg[i] = (int16_t)u;
     }
   }
+  if ((t = dict_find(iter, MESSAGE_KEY_MOON_AZ_SAMPLES))) {
+    uint8_t *raw = t->value->data;
+    int n = t->length / 2;
+    if (n > MAX_SKY_SAMPLES) n = MAX_SKY_SAMPLES;
+    for (int i = 0; i < n; i++) {
+      s_data.moon_az_decideg[i] = (uint16_t)raw[i * 2] | ((uint16_t)raw[i * 2 + 1] << 8);
+    }
+  }
   // Packed as PLANET_COUNT rows of int16 (little-endian) samples,
   // concatenated in PlanetId order (see eclipse_data.h) -- one
   // message key instead of five near-duplicate ones.
@@ -1751,6 +1779,18 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
         int src_idx = p * (total_int16 / PLANET_COUNT) + i;
         uint16_t u = (uint16_t)raw[src_idx * 2] | ((uint16_t)raw[src_idx * 2 + 1] << 8);
         s_data.planet_alt_decideg[p][i] = (int16_t)u;
+      }
+    }
+  }
+  if ((t = dict_find(iter, MESSAGE_KEY_PLANET_AZ_SAMPLES))) {
+    uint8_t *raw = t->value->data;
+    int total_int16 = t->length / 2;
+    int per_planet = total_int16 / PLANET_COUNT;
+    if (per_planet > MAX_SKY_SAMPLES) per_planet = MAX_SKY_SAMPLES;
+    for (int p = 0; p < PLANET_COUNT; p++) {
+      for (int i = 0; i < per_planet; i++) {
+        int src_idx = p * (total_int16 / PLANET_COUNT) + i;
+        s_data.planet_az_decideg[p][i] = (uint16_t)raw[src_idx * 2] | ((uint16_t)raw[src_idx * 2 + 1] << 8);
       }
     }
   }
@@ -1893,27 +1933,52 @@ static void corners_timer_callback(void *data) {
 // no-ops in that case.
 // Reacts to Timeline Quick View (or any future system overlay using
 // this same API) appearing/disappearing at the bottom of the screen.
-// Digital/analog mode's bottom panel shrinks from the bottom so it
-// never extends past the obstruction; big-analogue mode has no
-// separate bottom bar, so its sky canvas itself shrinks the same
-// way, and its hands layer repositions itself around whatever's
-// actually visible (see hands_layer_update_proc, which reads
-// layer_get_unobstructed_bounds() directly).
+// Digital/analog mode's bottom panel used to just shrink its own
+// height from the bottom (top edge fixed) as the obstruction grew --
+// which cropped/hid its content (most visibly the digital clock's own
+// time text) rather than keeping it fully visible, since the text's
+// own position inside that panel never moved to compensate. Now the
+// panel instead shifts UP by exactly however much the obstruction
+// ate into it, keeping its own full height (and everything drawn in
+// it) intact, with the sky canvas above it shrinking by that same
+// amount to make room -- same "make room by moving, not cropping"
+// idea big-analogue mode's hands/canvas already used for this.
 static void unobstructed_change_handler(AnimationProgress progress, void *context) {
   if (!s_window) return;
   Layer *root = window_get_root_layer(s_window);
+  GRect full_bounds = layer_get_bounds(root); // the real screen size, unaffected by any obstruction
   GRect unobstructed = layer_get_unobstructed_bounds(root);
+  int16_t obstruction_h = full_bounds.size.h - unobstructed.size.h;
+  if (obstruction_h < 0) obstruction_h = 0;
 
   if (s_data.bottom_style != 2 && s_bottom_layer) {
+    // 152 -- the panel's own always-unobstructed top, fixed by
+    // apply_layout() -- not read from the layer's current frame,
+    // since that may already be shifted up from a previous
+    // obstruction change and would compound instead of staying
+    // anchored to the real, original position.
+    int16_t full_top = 152;
+    int16_t new_top = full_top - obstruction_h;
+    if (new_top < 0) new_top = 0; // clamp -- an obstruction this tall would leave no room for the panel at all otherwise
     GRect frame = layer_get_frame(s_bottom_layer);
-    int16_t top = frame.origin.y; // fixed at 152 by apply_layout()
-    int16_t new_h = unobstructed.size.h - top;
-    if (new_h < 0) new_h = 0;
-    if (frame.size.h != new_h) {
-      frame.size.h = new_h;
+    if (frame.origin.y != new_top) {
+      frame.origin.y = new_top;
       layer_set_frame(s_bottom_layer, frame);
+      layer_mark_dirty(s_bottom_layer);
     }
-    layer_mark_dirty(s_bottom_layer);
+
+    if (s_canvas_layer) {
+      GRect canvas_frame = layer_get_frame(s_canvas_layer);
+      if (canvas_frame.size.h != new_top) {
+        canvas_frame.size.h = new_top;
+        layer_set_frame(s_canvas_layer, canvas_frame);
+        // Force an immediate full redraw at the new size rather than
+        // leaving the cached bitmap sized for the old frame -- the
+        // canvas's own throttle would otherwise just blit that stale
+        // cache back until its next scheduled minute.
+        eclipse_canvas_set_data(s_canvas_layer, &s_data);
+      }
+    }
   }
 
   if (s_data.bottom_style == 2 && s_canvas_layer) {

@@ -446,6 +446,9 @@ typedef struct {
   uint32_t sky_sample_interval_s;
   uint8_t sky_sample_count;
   int16_t sun_alt_decideg[MAX_SKY_SAMPLES];   // altitude x10, e.g. 123 = 12.3 deg
+  uint16_t sun_az_decideg[MAX_SKY_SAMPLES];   // true-north-relative azimuth x10, 0-3599 -- for
+                                                // "Planet seek" (see shake_anim_mode's own comment
+                                                // further down); same grid as sun_alt_decideg
   uint8_t cloud_pct_samples[MAX_SKY_SAMPLES]; // 0-100 straight percentage
   uint8_t cloud_altitude_pct;                  // 0=low cloud, 100=high cloud (from Open-Meteo's
                                                  // low/mid/high cloud-cover split), biases cloud
@@ -465,12 +468,14 @@ typedef struct {
                                                  // day or night, since there's no atmosphere left to
                                                  // scatter sunlight and wash them out).
   int16_t moon_alt_decideg[MAX_SKY_SAMPLES];  // altitude x10, same grid as sun
+  uint16_t moon_az_decideg[MAX_SKY_SAMPLES];  // azimuth x10 -- same convention as sun_az_decideg
 
   // Same grid again, one row per PlanetId -- kept as a 2D array
   // (rather than 5 separately-named fields) so both the AppMessage
   // parsing and the drawing code can loop over PLANET_COUNT instead
   // of duplicating near-identical code per planet.
   int16_t planet_alt_decideg[PLANET_COUNT][MAX_SKY_SAMPLES];
+  uint16_t planet_az_decideg[PLANET_COUNT][MAX_SKY_SAMPLES]; // azimuth x10 -- same convention as sun_az_decideg
   time_t planet_rise[PLANET_COUNT];
   time_t planet_set[PLANET_COUNT];
 

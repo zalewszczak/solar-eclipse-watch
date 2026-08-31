@@ -439,7 +439,14 @@ function computeGeometry(date, latDeg, lonDeg) {
 
   var sep = angularSeparation(sun.ra, sun.dec, moon.ra, moon.dec);
   var sunAlt = sunAltitude(sun, latDeg, lst);
-  var moonAlt = altAz(moon.ra, moon.dec, latDeg, lst).alt;
+  // sunAltitude() above only ever returns altitude (it's the simpler,
+  // slightly cheaper of the two -- fine for the many places that only
+  // ever needed alt), so azimuth needs this project's own general
+  // altAz() instead, same as the Moon/planets already use just below.
+  var sunAz = altAz(sun.ra, sun.dec, latDeg, lst).az;
+  var moonAltAz = altAz(moon.ra, moon.dec, latDeg, lst);
+  var moonAlt = moonAltAz.alt;
+  var moonAz = moonAltAz.az;
 
   var mercury = planetPosition(MERCURY_ELEMENTS, T, sun);
   var venus = planetPosition(VENUS_ELEMENTS, T, sun);
@@ -447,11 +454,11 @@ function computeGeometry(date, latDeg, lonDeg) {
   var jupiter = planetPosition(JUPITER_ELEMENTS, T, sun);
   var saturn = planetPosition(SATURN_ELEMENTS, T, sun);
 
-  var mercuryAlt = altAz(mercury.ra, mercury.dec, latDeg, lst).alt;
-  var venusAlt = altAz(venus.ra, venus.dec, latDeg, lst).alt;
-  var marsAlt = altAz(mars.ra, mars.dec, latDeg, lst).alt;
-  var jupiterAlt = altAz(jupiter.ra, jupiter.dec, latDeg, lst).alt;
-  var saturnAlt = altAz(saturn.ra, saturn.dec, latDeg, lst).alt;
+  var mercuryAltAz = altAz(mercury.ra, mercury.dec, latDeg, lst);
+  var venusAltAz = altAz(venus.ra, venus.dec, latDeg, lst);
+  var marsAltAz = altAz(mars.ra, mars.dec, latDeg, lst);
+  var jupiterAltAz = altAz(jupiter.ra, jupiter.dec, latDeg, lst);
+  var saturnAltAz = altAz(saturn.ra, saturn.dec, latDeg, lst);
   var saturnRingB = saturnRingAngle(T, saturn.eclipticLon, saturn.eclipticLat);
 
   return {
@@ -459,12 +466,19 @@ function computeGeometry(date, latDeg, lonDeg) {
     sunRadius: sun.semidiameterDeg,
     moonRadius: moon.semidiameterDeg,
     sunAlt: sunAlt,
+    sunAz: sunAz,
     moonAlt: moonAlt,
-    mercuryAlt: mercuryAlt,
-    venusAlt: venusAlt,
-    marsAlt: marsAlt,
-    jupiterAlt: jupiterAlt,
-    saturnAlt: saturnAlt,
+    moonAz: moonAz,
+    mercuryAlt: mercuryAltAz.alt,
+    mercuryAz: mercuryAltAz.az,
+    venusAlt: venusAltAz.alt,
+    venusAz: venusAltAz.az,
+    marsAlt: marsAltAz.alt,
+    marsAz: marsAltAz.az,
+    jupiterAlt: jupiterAltAz.alt,
+    jupiterAz: jupiterAltAz.az,
+    saturnAlt: saturnAltAz.alt,
+    saturnAz: saturnAltAz.az,
     saturnRingB: saturnRingB,
     sun: sun,
     moon: moon,
@@ -807,9 +821,11 @@ function computeMoonPhase(date) {
  *   vantage point shows them rising earlier / setting later, the way
  *   a physically lower horizon actually looks from up there.
  * @returns {object} { sampleStart, intervalS, times, sunAltDecideg,
- *   moonAltDecideg, mercuryAltDecideg, venusAltDecideg,
- *   marsAltDecideg, jupiterAltDecideg, saturnAltDecideg,
- *   saturnRingOpenPct, scaleMaxAltDecideg }
+ *   sunAzDecideg, moonAltDecideg, moonAzDecideg, mercuryAltDecideg,
+ *   mercuryAzDecideg, venusAltDecideg, venusAzDecideg, marsAltDecideg,
+ *   marsAzDecideg, jupiterAltDecideg, jupiterAzDecideg,
+ *   saturnAltDecideg, saturnAzDecideg, saturnRingOpenPct,
+ *   scaleMaxAltDecideg }
  */
 function computeDaySkySamples(dayStart, latDeg, lonDeg, elevationDipDeg) {
   var stepMs = 60 * 60000; // 1 hour
@@ -817,12 +833,19 @@ function computeDaySkySamples(dayStart, latDeg, lonDeg, elevationDipDeg) {
   var dip = elevationDipDeg || 0;
   var times = [];
   var sunAltDecideg = [];
+  var sunAzDecideg = [];
   var moonAltDecideg = [];
+  var moonAzDecideg = [];
   var mercuryAltDecideg = [];
+  var mercuryAzDecideg = [];
   var venusAltDecideg = [];
+  var venusAzDecideg = [];
   var marsAltDecideg = [];
+  var marsAzDecideg = [];
   var jupiterAltDecideg = [];
+  var jupiterAzDecideg = [];
   var saturnAltDecideg = [];
+  var saturnAzDecideg = [];
   var maxSunAlt = -900;
   var maxMoonAlt = -900;
   var saturnRingOpenPct = 0;
@@ -837,12 +860,25 @@ function computeDaySkySamples(dayStart, latDeg, lonDeg, elevationDipDeg) {
     // stretch the Sun/Moon's vertical scale to accommodate them.
     times.push(t);
     sunAltDecideg.push(sunA);
+    // Azimuth (0-3599, tenths of a degree, true-north-based -- same
+    // convention astro.js's own altAz() already returns) alongside
+    // each existing altitude sample -- for "Planet seek", which needs
+    // real compass-relative bearings, not just how high up something
+    // is. elevationDipDeg only affects the vertical (altitude) reading,
+    // so it's never applied to any of these Az values.
+    sunAzDecideg.push(Math.round(geo.sunAz * 10));
     moonAltDecideg.push(moonA);
+    moonAzDecideg.push(Math.round(geo.moonAz * 10));
     mercuryAltDecideg.push(Math.round((geo.mercuryAlt + dip) * 10));
+    mercuryAzDecideg.push(Math.round(geo.mercuryAz * 10));
     venusAltDecideg.push(Math.round((geo.venusAlt + dip) * 10));
+    venusAzDecideg.push(Math.round(geo.venusAz * 10));
     marsAltDecideg.push(Math.round((geo.marsAlt + dip) * 10));
+    marsAzDecideg.push(Math.round(geo.marsAz * 10));
     jupiterAltDecideg.push(Math.round((geo.jupiterAlt + dip) * 10));
+    jupiterAzDecideg.push(Math.round(geo.jupiterAz * 10));
     saturnAltDecideg.push(Math.round((geo.saturnAlt + dip) * 10));
+    saturnAzDecideg.push(Math.round(geo.saturnAz * 10));
     if (sunA > maxSunAlt) maxSunAlt = sunA;
     if (moonA > maxMoonAlt) maxMoonAlt = moonA;
     // Ring angle changes over years, not hours -- one snapshot
@@ -858,12 +894,19 @@ function computeDaySkySamples(dayStart, latDeg, lonDeg, elevationDipDeg) {
     intervalS: stepMs / 1000,
     times: times,
     sunAltDecideg: sunAltDecideg,
+    sunAzDecideg: sunAzDecideg,
     moonAltDecideg: moonAltDecideg,
+    moonAzDecideg: moonAzDecideg,
     mercuryAltDecideg: mercuryAltDecideg,
+    mercuryAzDecideg: mercuryAzDecideg,
     venusAltDecideg: venusAltDecideg,
+    venusAzDecideg: venusAzDecideg,
     marsAltDecideg: marsAltDecideg,
+    marsAzDecideg: marsAzDecideg,
     jupiterAltDecideg: jupiterAltDecideg,
+    jupiterAzDecideg: jupiterAzDecideg,
     saturnAltDecideg: saturnAltDecideg,
+    saturnAzDecideg: saturnAzDecideg,
     saturnRingOpenPct: Math.max(0, Math.min(100, saturnRingOpenPct)),
     scaleMaxAltDecideg: Math.max(maxSunAlt, maxMoonAlt, 50)
   };

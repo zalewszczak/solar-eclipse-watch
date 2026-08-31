@@ -79,11 +79,30 @@ typedef struct {
                                  // once-a-minute cadence the rest of the time
   bool bg_anim_active;       // "animate background on start" -- see eclipse_canvas_set_bg_anim()
   uint16_t bg_anim_elapsed_ms; // and canvas_update_proc's own use of both these fields
+  bool planet_seek_active;      // "Planet seek" (shake_anim_mode 4) -- see
+  uint16_t planet_seek_elapsed_ms; // eclipse_canvas_set_planet_seek() and canvas_update_proc's
+  int32_t planet_seek_heading_deg; // own use of these three fields
   GBitmap *sky_cache;       // last full render, captured via graphics_capture_frame_buffer;
                              // blitted back on the seconds in between instead of leaving
                              // the screen untouched (which is what caused flicker -- Pebble
                              // doesn't guarantee framebuffer content persists between
                              // update_proc invocations, so "just don't draw" isn't safe)
+
+  // Planet seek's own cached body positions, in NORMAL (non-rotated)
+  // screen space -- the Sun/Moon/planet paint calls below skip
+  // actually painting a disc whenever planet_seek_active is true (see
+  // each one's own "skip_body_paint" check), so sky_cache above never
+  // gets bodies baked into it at their old positions during Planet
+  // seek -- avoiding a "ghost" of the un-rotated position bleeding
+  // through once the real (repositioned) body gets painted over the
+  // cache each frame. These fields are what a Planet-seek-only cache-
+  // blit frame (no full draw at all that tick) reads as the "normal"
+  // endpoint for its own position blend, since a cache-blit frame
+  // doesn't run the normal position math that would otherwise
+  // recompute them -- see canvas_update_proc's own Planet-seek
+  // section for how they're actually used.
+  GPoint cached_sun_center, cached_moon_center, cached_planet_center[PLANET_COUNT];
+  bool cached_sun_up, cached_moon_visible, cached_planet_visible[PLANET_COUNT];
 
   // Bitmap marker styles (big_analog_marker_style 3-7) -- moved in from
   // pebble-eclipse-watch.c along with the rest of marker drawing, so the
@@ -234,6 +253,84 @@ static int16_t interp_planet_alt_decideg(const EclipseData *d, PlanetId planet, 
   int32_t a = samples[idx];
   int32_t b = samples[idx + 1];
   return (int16_t)(a + ((b - a) * frac_num) / frac_den);
+}
+
+// Azimuth blend for the *_az_decideg interpolators below -- unlike
+// altitude, azimuth wraps at 0/3600 (360.0deg), so a plain linear
+// blend between e.g. 3590 and 10 would sweep the WRONG, long way
+// around (350deg backwards through 180) instead of the short 20deg
+// hop through 0/360 -- this takes whichever of the two directions is
+// actually shorter before blending, then normalizes the result back
+// into 0-3599.
+static uint16_t interp_az_wrapped(uint16_t a, uint16_t b, int32_t frac_num, int32_t frac_den) {
+  int32_t diff = (int32_t)b - (int32_t)a;
+  if (diff > 1800) diff -= 3600;
+  if (diff < -1800) diff += 3600;
+  int32_t result = (int32_t)a + (diff * frac_num) / frac_den;
+  result = result % 3600;
+  if (result < 0) result += 3600;
+  return (uint16_t)result;
+}
+
+// Same grid/lookup shape as interp_sun_alt_decideg() above, but for
+// azimuth (see sun_az_decideg's own eclipse_data.h comment) -- "Planet
+// seek"'s own real compass-relative bearing for the Sun.
+static uint16_t interp_sun_az_decideg(const EclipseData *d, time_t t) {
+  if (d->sky_sample_count == 0) return 0;
+  if (d->sky_sample_interval_s == 0) return d->sun_az_decideg[0];
+
+  int64_t offset_s = (int64_t)t - (int64_t)d->sky_sample_start;
+  int64_t idx_f = offset_s / (int64_t)d->sky_sample_interval_s;
+
+  if (idx_f <= 0) return d->sun_az_decideg[0];
+  if (idx_f >= d->sky_sample_count - 1) return d->sun_az_decideg[d->sky_sample_count - 1];
+
+  int idx = (int)idx_f;
+  time_t t0 = d->sky_sample_start + idx * (time_t)d->sky_sample_interval_s;
+  int32_t frac_num = (int32_t)(t - t0);
+  int32_t frac_den = (int32_t)d->sky_sample_interval_s;
+  if (frac_den <= 0) frac_den = 1;
+
+  return interp_az_wrapped(d->sun_az_decideg[idx], d->sun_az_decideg[idx + 1], frac_num, frac_den);
+}
+
+static uint16_t interp_moon_az_decideg(const EclipseData *d, time_t t) {
+  if (d->sky_sample_count == 0) return 0;
+  if (d->sky_sample_interval_s == 0) return d->moon_az_decideg[0];
+
+  int64_t offset_s = (int64_t)t - (int64_t)d->sky_sample_start;
+  int64_t idx_f = offset_s / (int64_t)d->sky_sample_interval_s;
+
+  if (idx_f <= 0) return d->moon_az_decideg[0];
+  if (idx_f >= d->sky_sample_count - 1) return d->moon_az_decideg[d->sky_sample_count - 1];
+
+  int idx = (int)idx_f;
+  time_t t0 = d->sky_sample_start + idx * (time_t)d->sky_sample_interval_s;
+  int32_t frac_num = (int32_t)(t - t0);
+  int32_t frac_den = (int32_t)d->sky_sample_interval_s;
+  if (frac_den <= 0) frac_den = 1;
+
+  return interp_az_wrapped(d->moon_az_decideg[idx], d->moon_az_decideg[idx + 1], frac_num, frac_den);
+}
+
+static uint16_t interp_planet_az_decideg(const EclipseData *d, PlanetId planet, time_t t) {
+  const uint16_t *samples = d->planet_az_decideg[planet];
+  if (d->sky_sample_count == 0) return 0;
+  if (d->sky_sample_interval_s == 0) return samples[0];
+
+  int64_t offset_s = (int64_t)t - (int64_t)d->sky_sample_start;
+  int64_t idx_f = offset_s / (int64_t)d->sky_sample_interval_s;
+
+  if (idx_f <= 0) return samples[0];
+  if (idx_f >= d->sky_sample_count - 1) return samples[d->sky_sample_count - 1];
+
+  int idx = (int)idx_f;
+  time_t t0 = d->sky_sample_start + idx * (time_t)d->sky_sample_interval_s;
+  int32_t frac_num = (int32_t)(t - t0);
+  int32_t frac_den = (int32_t)d->sky_sample_interval_s;
+  if (frac_den <= 0) frac_den = 1;
+
+  return interp_az_wrapped(samples[idx], samples[idx + 1], frac_num, frac_den);
 }
 
 // How long before/after the actual rise or set moment to animate the
@@ -2118,6 +2215,135 @@ static void draw_all_markers(GContext *ctx, CanvasState *state, GPoint center, G
 }
 
 
+// ---- "Planet seek" (shake_anim_mode 4) ---------------------------------
+// See shake_anim_mode's own eclipse_data.h comment for the feature as a
+// whole. Draws each visible body (cached_sun_up/cached_moon_visible/
+// cached_planet_visible[], all populated by the most recent normal
+// draw -- see their own comment on CanvasState) at a position blended
+// between its normal (non-rotated) screen spot and a compass-relative
+// one: azimuth mapped across a 90deg field of view centered on the
+// watch's current heading, in a 500ms ease-in / hold / 500ms ease-out
+// sweep. A body outside that 90deg window gets an edge-pinned label +
+// arrow instead of being drawn off-canvas invisibly. Altitude (and so
+// screen Y) never changes here -- only the compass-relative X does.
+
+// azimuth (0-3599 decideg) -> signed offset from the view's own
+// center, wrapped to the shorter of the two ways around the compass
+// (-1800..1800 decideg) -- same wraparound reasoning as
+// interp_az_wrapped() above, just centered on the live heading
+// instead of blending between two samples.
+static int32_t planet_seek_az_offset_decideg(uint16_t az_decideg, int32_t heading_deg) {
+  int32_t diff = (int32_t)az_decideg - heading_deg * 10;
+  diff = diff % 3600;
+  if (diff > 1800) diff -= 3600;
+  if (diff < -1800) diff += 3600;
+  return diff;
+}
+
+// A small filled triangle pointing left or right, for the off-screen
+// edge label's own arrow -- built from GPathInfo/gpath_draw_filled,
+// the standard Pebble primitive for exactly this ("simple flat-shaded
+// polygon") rather than a custom rasterizer, since it's a single
+// static 3-point shape with no need for subpixel.h's own machinery.
+static void draw_planet_seek_arrow(GContext *ctx, GPoint tip, bool points_left, GColor color) {
+  int16_t w = 6, h = 8;
+  GPoint pts_left[3] = { GPoint(tip.x, tip.y), GPoint(tip.x + w, tip.y - h / 2), GPoint(tip.x + w, tip.y + h / 2) };
+  GPoint pts_right[3] = { GPoint(tip.x, tip.y), GPoint(tip.x - w, tip.y - h / 2), GPoint(tip.x - w, tip.y + h / 2) };
+  GPathInfo info = { .num_points = 3, .points = points_left ? pts_left : pts_right };
+  GPath *path = gpath_create(&info);
+  graphics_context_set_fill_color(ctx, color);
+  gpath_draw_filled(ctx, path);
+  gpath_destroy(path);
+}
+
+static void draw_planet_seek_body(GContext *ctx, GRect bounds, const char *name,
+                                   uint16_t az_decideg, GPoint normal_center, int16_t radius,
+                                   GColor fill_color, int32_t heading_deg, int32_t blend_t_1000,
+                                   uint8_t label_style, GColor main_color) {
+  int32_t offset_decideg = planet_seek_az_offset_decideg(az_decideg, heading_deg);
+  // 90deg field of view across the full screen width -- +-45deg maps
+  // to the left/right edges.
+  int32_t compass_x = bounds.origin.x + bounds.size.w / 2 + (int32_t)((int64_t)offset_decideg * bounds.size.w / 900);
+  int16_t blended_x = (int16_t)(normal_center.x + (((int32_t)compass_x - normal_center.x) * blend_t_1000) / 1000);
+  GPoint pos = GPoint(blended_x, normal_center.y);
+
+  bool on_screen = (offset_decideg >= -450 && offset_decideg <= 450)
+    && pos.x >= bounds.origin.x - radius && pos.x <= bounds.origin.x + bounds.size.w + radius;
+
+  if (on_screen) {
+    graphics_context_set_fill_color(ctx, fill_color);
+    graphics_fill_circle(ctx, pos, radius);
+    draw_label(ctx, bounds, pos, name, label_style, main_color);
+    return;
+  }
+
+  // Off screen: label pinned to whichever edge is the shorter way to
+  // turn to actually reach it, with an arrow pointing further off that
+  // same edge -- offset_decideg > 0 means the body is clockwise
+  // (east) of center, i.e. reached by turning right, hence pinned to
+  // the RIGHT edge (and vice versa for < 0/left) -- see the request's
+  // own worked example ("Sun behind on my left" -> left edge, left-
+  // pointing arrow).
+  bool pin_right = offset_decideg > 0;
+  int16_t edge_x = pin_right ? (bounds.origin.x + bounds.size.w - 30) : (bounds.origin.x + 30);
+  GPoint edge_pos = GPoint(edge_x, normal_center.y);
+  draw_label(ctx, bounds, edge_pos, name, label_style, main_color);
+  GPoint arrow_tip = GPoint(pin_right ? (bounds.origin.x + bounds.size.w - 2) : (bounds.origin.x + 2), normal_center.y);
+  draw_planet_seek_arrow(ctx, arrow_tip, !pin_right, main_color);
+}
+
+// eased_t_1000: 0 = fully at the normal (non-rotated) position, 1000 =
+// fully at the compass-relative one -- see canvas_update_proc's own
+// call site for how the 500ms-in/hold/500ms-out phases produce this.
+// 500ms ease-in from the normal position, then a hold at the fully
+// compass-relative position, then a 500ms ease-out back to normal --
+// see draw_planet_seek_overlay's own top comment. Shared by both of
+// canvas_update_proc's own call sites (the early cache-blit return
+// and the end of a full draw) so the timing logic lives in exactly
+// one place.
+static int32_t planet_seek_eased_t_1000(const CanvasState *state, const EclipseData *d) {
+  uint32_t duration_ms = (uint32_t)(d->shake_label_seconds > 0 ? d->shake_label_seconds : 3) * 1000;
+  uint16_t elapsed = state->planet_seek_elapsed_ms;
+  if (elapsed < 500) {
+    return bg_anim_ease_out_1000(((int32_t)elapsed * 1000) / 500);
+  }
+  if (duration_ms > 500 && elapsed > duration_ms - 500) {
+    int32_t remaining = (int32_t)duration_ms - (int32_t)elapsed;
+    if (remaining < 0) remaining = 0;
+    return bg_anim_ease_out_1000((remaining * 1000) / 500);
+  }
+  return 1000;
+}
+
+static void draw_planet_seek_overlay(GContext *ctx, CanvasState *state, const EclipseData *d,
+                                      GRect bounds, time_t now, int32_t eased_t_1000, GColor main_color) {
+  int32_t heading_deg = state->planet_seek_heading_deg;
+
+  uint8_t pct = d->sun_moon_size_pct > 0 ? d->sun_moon_size_pct : 100;
+  int16_t sun_r = (SUN_R_NORMAL * pct) / 100;
+  if (sun_r < 4) sun_r = 4;
+  int16_t moon_r = (MOON_R_NORMAL * pct) / 100;
+  if (moon_r < 4) moon_r = 4;
+
+  if (state->cached_sun_up) {
+    RGB8 sun_rgb = sun_color_for_altitude(interp_sun_alt_decideg(d, now));
+    GColor sun_fill = GColorFromRGB(sun_rgb.r, sun_rgb.g, sun_rgb.b);
+    draw_planet_seek_body(ctx, bounds, "Sun", interp_sun_az_decideg(d, now), state->cached_sun_center, sun_r,
+                           sun_fill, heading_deg, eased_t_1000, d->label_style, main_color);
+  }
+  if (state->cached_moon_visible) {
+    draw_planet_seek_body(ctx, bounds, "Moon", interp_moon_az_decideg(d, now), state->cached_moon_center, moon_r,
+                           GColorWhite, heading_deg, eased_t_1000, d->label_style, main_color);
+  }
+  for (int p = 0; p < PLANET_COUNT; p++) {
+    if (!state->cached_planet_visible[p]) continue;
+    draw_planet_seek_body(ctx, bounds, PLANET_NAMES[p], interp_planet_az_decideg(d, (PlanetId)p, now),
+                           state->cached_planet_center[p], PLANET_R, planet_color((PlanetId)p),
+                           heading_deg, eased_t_1000, d->label_style, main_color);
+  }
+}
+
+
 static void canvas_update_proc(Layer *layer, GContext *ctx) {
   CanvasState *state = (CanvasState *)layer_get_data(layer);
   EclipseData *d = state->data;
@@ -2261,6 +2487,11 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
 
   if (!need_full_draw && state->sky_cache) {
     graphics_draw_bitmap_in_rect(ctx, state->sky_cache, bounds);
+    if (state->planet_seek_active) {
+      GColor bg, main_color, accent_color;
+      get_active_color_scheme(d, now, &bg, &main_color, &accent_color);
+      draw_planet_seek_overlay(ctx, state, d, bounds, now, planet_seek_eased_t_1000(state, d), main_color);
+    }
     return;
   }
 
@@ -2477,7 +2708,7 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
     sun_up = body_screen_y(sun_alt_y, d->sun_rise, d->sun_set, now, horizon_y, sun_r, &sun_y);
     sun_center = GPoint(bounds.size.w / 2, sun_y);
   }
-  if (sun_up) {
+  if (sun_up && !state->planet_seek_active) {
     RGB8 sun_rgb = sun_color_for_altitude(alt);
     GColor sun_fill = GColorFromRGB(sun_rgb.r, sun_rgb.g, sun_rgb.b);
     // A darker rim in the same hue, rather than a fixed color -- keeps
@@ -2509,10 +2740,12 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
     GPoint offset = moon_offset_px(d, now, sun_r, moon_r);
     moon_center = GPoint(sun_center.x + offset.x, sun_center.y + offset.y);
     moon_visible = true;
-    graphics_context_set_fill_color(ctx, GColorDarkGray);
-    graphics_fill_circle(ctx, moon_center, moon_r);
-    graphics_context_set_stroke_color(ctx, GColorBlack);
-    graphics_draw_circle(ctx, moon_center, moon_r);
+    if (!state->planet_seek_active) {
+      graphics_context_set_fill_color(ctx, GColorDarkGray);
+      graphics_fill_circle(ctx, moon_center, moon_r);
+      graphics_context_set_stroke_color(ctx, GColorBlack);
+      graphics_draw_circle(ctx, moon_center, moon_r);
+    }
   }
 
   // Outside of an active eclipse, show the real Moon in its correct
@@ -2534,7 +2767,9 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
         moon_center = enforce_min_separation(sun_center, moon_center, min_dist);
       }
       moon_visible = true;
-      draw_moon_phase(ctx, bounds, moon_center, moon_r, d->moon_phase_pct, d->moon_waxing, GColorWhite);
+      if (!state->planet_seek_active) {
+        draw_moon_phase(ctx, bounds, moon_center, moon_r, d->moon_phase_pct, d->moon_waxing, GColorWhite);
+      }
     }
   }
 
@@ -2558,13 +2793,29 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
       GPoint c = GPoint((bounds.size.w * PLANET_COLUMN_PCT[p]) / 100, p_y);
       planet_visible[p] = true;
       planet_center[p] = c;
-      if (p == PLANET_SATURN) {
-        draw_saturn(ctx, c, d->saturn_ring_open_pct);
-      } else {
-        graphics_context_set_fill_color(ctx, planet_color((PlanetId)p));
-        graphics_fill_circle(ctx, c, PLANET_R);
+      if (!state->planet_seek_active) {
+        if (p == PLANET_SATURN) {
+          draw_saturn(ctx, c, d->saturn_ring_open_pct);
+        } else {
+          graphics_context_set_fill_color(ctx, planet_color((PlanetId)p));
+          graphics_fill_circle(ctx, c, PLANET_R);
+        }
       }
     }
+  }
+
+  // Cache this frame's normal (non-rotated) body positions -- see
+  // cached_sun_center's own comment above for why: a Planet-seek
+  // cache-blit frame (no full draw this tick) needs a "normal" endpoint
+  // for its own position blend without re-running all the rise/set/
+  // altitude math above just to get it again.
+  state->cached_sun_center = sun_center;
+  state->cached_sun_up = sun_up;
+  state->cached_moon_center = moon_center;
+  state->cached_moon_visible = moon_visible;
+  for (int p = 0; p < PLANET_COUNT; p++) {
+    state->cached_planet_center[p] = planet_center[p];
+    state->cached_planet_visible[p] = planet_visible[p];
   }
 
   // ISS: uses its real azimuth (not a fixed column like the planets,
@@ -2615,8 +2866,12 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
   // Cloud clusters, drawn last so they visibly sit in front of (and
   // can partially obscure) the sun/moon, same as real clouds. Skipped
   // entirely outside Weather sky mode -- Clear sky and Space view
-  // both represent weather-free skies by definition.
-  if (weather_enabled) {
+  // both represent weather-free skies by definition -- and, per
+  // request, during Planet seek too (its own separate reason: weather
+  // is suppressed for the whole animation, not just this one frame,
+  // so it doesn't get baked into the bodies-free cache Planet seek
+  // reuses every frame -- see cached_sun_center's own comment above).
+  if (weather_enabled && !state->planet_seek_active) {
     bool cloud_anim_active = state->bg_anim_active && d->bg_anim_mode == 1;
     int32_t cloud_anim_progress_1000 = 0;
     if (cloud_anim_active) {
@@ -2747,6 +3002,12 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
       graphics_release_frame_buffer(ctx, fb);
     }
   }
+
+  if (state->planet_seek_active) {
+    GColor bg, main_color, accent_color;
+    get_active_color_scheme(d, now, &bg, &main_color, &accent_color);
+    draw_planet_seek_overlay(ctx, state, d, bounds, now, planet_seek_eased_t_1000(state, d), main_color);
+  }
 }
 
 Layer *eclipse_canvas_create(GRect frame) {
@@ -2809,6 +3070,24 @@ void eclipse_canvas_set_bg_anim(Layer *layer, bool active, uint16_t elapsed_ms) 
   state->bg_anim_active = active;
   state->bg_anim_elapsed_ms = elapsed_ms;
   state->force_next_draw = true;
+  layer_mark_dirty(layer);
+}
+
+// Deliberately does NOT force a full redraw the way eclipse_canvas_set_
+// bg_anim() above does -- Planet seek's whole point is to redraw ONLY
+// the repositioned bodies each frame on top of a cached backdrop
+// (see canvas_update_proc's own "Planet seek" section), so forcing
+// the full, expensive gradient+clouds+markers pipeline on every single
+// 33ms tick would defeat that entirely. Just updates state and marks
+// the layer dirty so canvas_update_proc runs -- it decides for itself
+// whether that means a full redraw or the lightweight Planet-seek path.
+void eclipse_canvas_set_planet_seek(Layer *layer, bool active, uint16_t elapsed_ms, int32_t heading_deg) {
+  CanvasState *state = (CanvasState *)layer_get_data(layer);
+  bool was_active = state->planet_seek_active;
+  state->planet_seek_active = active;
+  state->planet_seek_elapsed_ms = elapsed_ms;
+  state->planet_seek_heading_deg = heading_deg;
+  if (active != was_active) state->force_next_draw = true; // the one moment it DOES need a full draw: entering/leaving the mode, so the cache/backdrop itself gets refreshed at the right moment
   layer_mark_dirty(layer);
 }
 
