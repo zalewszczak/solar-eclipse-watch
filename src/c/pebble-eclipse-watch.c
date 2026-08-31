@@ -1933,27 +1933,52 @@ static void corners_timer_callback(void *data) {
 // no-ops in that case.
 // Reacts to Timeline Quick View (or any future system overlay using
 // this same API) appearing/disappearing at the bottom of the screen.
-// Digital/analog mode's bottom panel shrinks from the bottom so it
-// never extends past the obstruction; big-analogue mode has no
-// separate bottom bar, so its sky canvas itself shrinks the same
-// way, and its hands layer repositions itself around whatever's
-// actually visible (see hands_layer_update_proc, which reads
-// layer_get_unobstructed_bounds() directly).
+// Digital/analog mode's bottom panel used to just shrink its own
+// height from the bottom (top edge fixed) as the obstruction grew --
+// which cropped/hid its content (most visibly the digital clock's own
+// time text) rather than keeping it fully visible, since the text's
+// own position inside that panel never moved to compensate. Now the
+// panel instead shifts UP by exactly however much the obstruction
+// ate into it, keeping its own full height (and everything drawn in
+// it) intact, with the sky canvas above it shrinking by that same
+// amount to make room -- same "make room by moving, not cropping"
+// idea big-analogue mode's hands/canvas already used for this.
 static void unobstructed_change_handler(AnimationProgress progress, void *context) {
   if (!s_window) return;
   Layer *root = window_get_root_layer(s_window);
+  GRect full_bounds = layer_get_bounds(root); // the real screen size, unaffected by any obstruction
   GRect unobstructed = layer_get_unobstructed_bounds(root);
+  int16_t obstruction_h = full_bounds.size.h - unobstructed.size.h;
+  if (obstruction_h < 0) obstruction_h = 0;
 
   if (s_data.bottom_style != 2 && s_bottom_layer) {
+    // 152 -- the panel's own always-unobstructed top, fixed by
+    // apply_layout() -- not read from the layer's current frame,
+    // since that may already be shifted up from a previous
+    // obstruction change and would compound instead of staying
+    // anchored to the real, original position.
+    int16_t full_top = 152;
+    int16_t new_top = full_top - obstruction_h;
+    if (new_top < 0) new_top = 0; // clamp -- an obstruction this tall would leave no room for the panel at all otherwise
     GRect frame = layer_get_frame(s_bottom_layer);
-    int16_t top = frame.origin.y; // fixed at 152 by apply_layout()
-    int16_t new_h = unobstructed.size.h - top;
-    if (new_h < 0) new_h = 0;
-    if (frame.size.h != new_h) {
-      frame.size.h = new_h;
+    if (frame.origin.y != new_top) {
+      frame.origin.y = new_top;
       layer_set_frame(s_bottom_layer, frame);
+      layer_mark_dirty(s_bottom_layer);
     }
-    layer_mark_dirty(s_bottom_layer);
+
+    if (s_canvas_layer) {
+      GRect canvas_frame = layer_get_frame(s_canvas_layer);
+      if (canvas_frame.size.h != new_top) {
+        canvas_frame.size.h = new_top;
+        layer_set_frame(s_canvas_layer, canvas_frame);
+        // Force an immediate full redraw at the new size rather than
+        // leaving the cached bitmap sized for the old frame -- the
+        // canvas's own throttle would otherwise just blit that stale
+        // cache back until its next scheduled minute.
+        eclipse_canvas_set_data(s_canvas_layer, &s_data);
+      }
+    }
   }
 
   if (s_data.bottom_style == 2 && s_canvas_layer) {

@@ -888,6 +888,30 @@ handEditorModalHtml('hour', 'Edit hour hand') +
 handEditorModalHtml('min', 'Edit minute hand') +
 handEditorModalHtml('sec', 'Edit second hand') +
 
+// Center circle -- same "commits live, no separate draft/Save state"
+// shape as the text marker modal above, not the hand editor's own
+// draft-then-Save/Cancel one, since there are only 2 fields here and
+// they already commit live via their own oninput/onchange handlers.
+'<div class="modal-overlay" id="centerCircleModal" onclick="if (event.target === this) closeCenterCircleEditor();">' +
+'  <div class="modal-box">' +
+'    <div class="modal-title">Center circle</div>' +
+
+'    <div class="slider-row">' +
+'      <label for="centerCircleRadius">Radius <span class="val" id="centerCircleRadiusVal">' + esc(current.centerCircleRadius || '3') + 'px</span></label>' +
+'    <div class="slider-with-buttons">' +
+'    <button type="button" class="slider-step-btn" onclick="stepSlider(\'centerCircleRadius\', -1)">&minus;</button>' +
+'      <input type="range" id="centerCircleRadius" min="0" max="30" step="1" value="' + esc(current.centerCircleRadius || '3') + '" oninput="document.getElementById(\'centerCircleRadiusVal\').textContent = this.value + \'px\';">' +
+'    <button type="button" class="slider-step-btn" onclick="stepSlider(\'centerCircleRadius\', 1)">+</button>' +
+'    </div>' +
+'    </div>' +
+'    <div class="help">0 = off.</div>' +
+'    <label for="centerCircleColor">Color</label>' +
+'    <select id="centerCircleColor">' + schemeColorOptionsHtml(current.centerCircleColor) + '</select>' +
+
+'    <button type="button" class="modal-cancel-btn" onclick="closeCenterCircleEditor()" style="margin-top:14px;">Close</button>' +
+'  </div>' +
+'</div>' +
+
 '<div class="modal-overlay" id="donateModal">' +
 '  <div class="modal-box">' +
 '    <div class="modal-title">Support this project</div>' +
@@ -1004,17 +1028,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '        <button type="button" class="marker-edit-btn" onclick="openHandEditor(\'hour\')">Edit hour hand &rsaquo;</button>' +
 '        <button type="button" class="marker-edit-btn" onclick="openHandEditor(\'min\')">Edit minute hand &rsaquo;</button>' +
 '        <button type="button" class="marker-edit-btn" id="editSecHandBtn" ' + (secondsChecked ? '' : 'disabled') + ' onclick="openHandEditor(\'sec\')">Edit second hand &rsaquo;</button>' +
-'        <div class="slider-row">' +
-'          <label for="centerCircleRadius">Center circle <span class="val" id="centerCircleRadiusVal">' + esc(current.centerCircleRadius || '3') + 'px</span></label>' +
-'        <div class="slider-with-buttons">' +
-'        <button type="button" class="slider-step-btn" onclick="stepSlider(\'centerCircleRadius\', -1)">&minus;</button>' +
-'          <input type="range" id="centerCircleRadius" min="0" max="30" step="1" value="' + esc(current.centerCircleRadius || '3') + '" oninput="document.getElementById(\'centerCircleRadiusVal\').textContent = this.value + \'px\';">' +
-'        <button type="button" class="slider-step-btn" onclick="stepSlider(\'centerCircleRadius\', 1)">+</button>' +
-'        </div>' +
-'        </div>' +
-'        <div class="help">0 = off.</div>' +
-'        <label for="centerCircleColor">Center circle color</label>' +
-'        <select id="centerCircleColor">' + schemeColorOptionsHtml(current.centerCircleColor) + '</select>' +
+'        <button type="button" class="marker-edit-btn" onclick="openCenterCircleEditor()">Edit center circle &rsaquo;</button>' +
           handHiddenInputsHtml(current) +
 '      </div>' +
 
@@ -1037,12 +1051,6 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      </div>' +
 '      <div class="help">Bitmap styles are tinted with your main color (see the preview above) and their mask art shows behind the hands there once you\'ve added a resource PNG for that style. Which edge-middle info slots they support (instead of the 4 corners) varies by style -- see the Features section below.</div>' +
 '      <div class="help">When an eclipse is actually happening, the Sun fills the whole screen as a background behind the hands.</div>' +
-
-'      <div class="checkbox-row" id="drawFeaturesBeneathHandsRow" style="margin-top:12px;">' +
-'        <input type="checkbox" id="drawFeaturesBeneathHands" ' + (current.drawFeaturesBeneathHands ? 'checked' : '') + ' onchange="updatePreview()">' +
-'        <label for="drawFeaturesBeneathHands" style="margin:0;">Draw features beneath hands</label>' +
-'      </div>' +
-'      <div class="help">Corners/edges info (see the Features section below) normally draws on top of the hands -- enable this to tuck it underneath instead.</div>' +
 
 '      <div id="customMarkerSection" style="' + (current.bigAnalogMarkerStyle === '8' ? '' : 'display:none;') + '">' +
 '        <button type="button" class="marker-edit-btn" onclick="openCustomMarkerEditor(\'hour\')">Edit hour markers &rsaquo;</button>' +
@@ -1091,31 +1099,6 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    </div>' +
 '    <div class="help">Adds a thin outline (in your color scheme\'s background color) behind corner/edge text and icons, the big-analog date, the eclipse phase text, and the hands -- so they stay readable over any part of the sky. Icons and hands only get it outside translucent/transparent mode.</div>' +
 
-'    <div class="checkbox-row subsection">' +
-'      <input type="checkbox" id="startupClockAnimationEnabled" ' + (current.startupClockAnimationEnabled !== false ? 'checked' : '') + '>' +
-'      <label for="startupClockAnimationEnabled" style="margin:0;">Animate clock on start</label>' +
-'    </div>' +
-'    <div class="help">On for launch: the hands/digits sweep in from a cold-start position up to the real time, under 1.5s, instead of just appearing already showing it.</div>' +
-
-'    <div class="subsection">' +
-'      <label>Animate background on start</label>' +
-'      <div class="radio-row"><input type="radio" name="bgAnimMode" id="bgAnimMode0" value="0" ' + (current.bgAnimMode === '0' || !current.bgAnimMode ? 'checked' : '') + '><label for="bgAnimMode0" style="margin:0;">Off</label></div>' +
-'      <div class="radio-row"><input type="radio" name="bgAnimMode" id="bgAnimMode1" value="1" ' + (current.bgAnimMode === '1' ? 'checked' : '') + '><label for="bgAnimMode1" style="margin:0;">Weather (clouds slide in from the sides)</label></div>' +
-'      <div class="radio-row"><input type="radio" name="bgAnimMode" id="bgAnimMode2" value="2" ' + (current.bgAnimMode === '2' ? 'checked' : '') + '><label for="bgAnimMode2" style="margin:0;">Planets (Sun/Moon/planets + sky sweep in from a couple hours ago)</label></div>' +
-'      <div class="radio-row"><input type="radio" name="bgAnimMode" id="bgAnimMode3" value="3" ' + (current.bgAnimMode === '3' ? 'checked' : '') + '><label for="bgAnimMode3" style="margin:0;">Markers (big-analog hour markers animate in; seconds draw normally)</label></div>' +
-'    </div>' +
-'    <div class="help">Off by default: exactly one of the above sweeps into place on launch, under 1.5s.</div>' +
-
-'    <div class="subsection">' +
-'      <label>Animate outlines on shake</label>' +
-'      <div class="radio-row"><input type="radio" name="shakeAnimMode" id="shakeAnimMode0" value="0" ' + (current.shakeAnimMode === '0' || !current.shakeAnimMode ? 'checked' : '') + '><label for="shakeAnimMode0" style="margin:0;">Off</label></div>' +
-'      <div class="radio-row"><input type="radio" name="shakeAnimMode" id="shakeAnimMode1" value="1" ' + (current.shakeAnimMode === '1' ? 'checked' : '') + '><label for="shakeAnimMode1" style="margin:0;">Gradient (outlines sweep through a rainbow)</label></div>' +
-'      <div class="radio-row"><input type="radio" name="shakeAnimMode" id="shakeAnimMode2" value="2" ' + (current.shakeAnimMode === '2' ? 'checked' : '') + '><label for="shakeAnimMode2" style="margin:0;">Smooth second hand</label></div>' +
-'      <div class="radio-row"><input type="radio" name="shakeAnimMode" id="shakeAnimMode3" value="3" ' + (current.shakeAnimMode === '3' ? 'checked' : '') + '><label for="shakeAnimMode3" style="margin:0;">Both</label></div>' +
-'      <div class="radio-row"><input type="radio" name="shakeAnimMode" id="shakeAnimMode4" value="4" ' + (current.shakeAnimMode === '4' ? 'checked' : '') + '><label for="shakeAnimMode4" style="margin:0;">Planet seek</label></div>' +
-'    </div>' +
-'    <div class="help">Off by default: runs for as long as the shake labels stay up -- see "Shake-to-reveal labels stay on screen for" in the Astronomy section. "Planet seek" points the sky view at whichever 90&deg; slice of the horizon your compass currently faces, repositioning the Sun/Moon/planets to match as you turn -- weather is hidden for the duration, and it never runs on a day with an eclipse.</div>' +
-'    </div>' +
 '  </fieldset>' +
 
 '  <fieldset>' +
@@ -1235,6 +1218,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      <option value="3"' + (current.cornerCustomFont === '3' ? ' selected' : '') + '>Pixelate</option>' +
 '      <option value="4"' + (current.cornerCustomFont === '4' ? ' selected' : '') + '>Miso</option>' +
 '      <option value="5"' + (current.cornerCustomFont === '5' ? ' selected' : '') + '>Bebas</option>' +
+'      <option value="6"' + (current.cornerCustomFont === '6' ? ' selected' : '') + '>Roboto</option>' +
 '    </select>' +
 '    <label for="cornerFontSize">Font size</label>' +
 '    <select id="cornerFontSize" onchange="onCornerFontSizeChange()" ' + (current.cornerCustomFont && current.cornerCustomFont !== '0' ? 'disabled' : '') + '>' +
@@ -1243,7 +1227,6 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      <option value="2"' + (current.cornerFontSize === '2' ? ' selected' : '') + '>L</option>' +
 '      <option value="3"' + (current.cornerFontSize === '3' ? ' selected' : '') + '>XL</option>' +
 '      <option value="4"' + (current.cornerFontSize === '4' ? ' selected' : '') + '>XXL</option>' +
-'      <option value="5"' + (current.cornerFontSize === '5' ? ' selected' : '') + '>Roboto</option>' +
 '    </select>' +
 '    <div class="help">Applies to corner/edge feature text and the big-analog date. A custom font has its own fixed size, so the size option above only applies to "Default".</div>' +
 
@@ -1289,6 +1272,44 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      <input type="number" id="stepGoal" min="1000" max="60000" step="500" value="' + esc(current.stepGoal || '10000') + '">' +
 '      <div class="help">Pebble doesn\'t expose a system step goal, so this app keeps its own -- same as every other Pebble health app.</div>' +
 '    </div>' +
+
+'    <div class="checkbox-row subsection" id="drawFeaturesBeneathHandsRow">' +
+'      <input type="checkbox" id="drawFeaturesBeneathHands" ' + (current.drawFeaturesBeneathHands ? 'checked' : '') + ' onchange="updatePreview()">' +
+'      <label for="drawFeaturesBeneathHands" style="margin:0;">Draw features beneath hands</label>' +
+'    </div>' +
+'    <div class="help">Big-analog mode only -- corners/edges info here normally draws on top of the hands; enable this to tuck it underneath instead.</div>' +
+'    </div>' +
+'  </fieldset>' +
+
+'  <fieldset>' +
+'    <div class="section-legend" onclick="toggleSection(\'animation\')">Animation <span class="chevron" id="chev-animation">&#9656;</span></div>' +
+'    <div class="section-body" id="section-animation" style="display:none;">' +
+'    <div class="checkbox-row subsection">' +
+'      <input type="checkbox" id="startupClockAnimationEnabled" ' + (current.startupClockAnimationEnabled !== false ? 'checked' : '') + '>' +
+'      <label for="startupClockAnimationEnabled" style="margin:0;">Animate clock on start</label>' +
+'    </div>' +
+'    <div class="help">On for launch: the hands/digits sweep in from a cold-start position up to the real time, under 1.5s, instead of just appearing already showing it.</div>' +
+
+'    <div class="subsection">' +
+'      <label>Animate background on start</label>' +
+'      <div class="radio-row"><input type="radio" name="bgAnimMode" id="bgAnimMode0" value="0" ' + (current.bgAnimMode === '0' || !current.bgAnimMode ? 'checked' : '') + '><label for="bgAnimMode0" style="margin:0;">Off</label></div>' +
+'      <div class="radio-row"><input type="radio" name="bgAnimMode" id="bgAnimMode1" value="1" ' + (current.bgAnimMode === '1' ? 'checked' : '') + '><label for="bgAnimMode1" style="margin:0;">Weather (clouds slide in from the sides)</label></div>' +
+'      <div class="radio-row"><input type="radio" name="bgAnimMode" id="bgAnimMode2" value="2" ' + (current.bgAnimMode === '2' ? 'checked' : '') + '><label for="bgAnimMode2" style="margin:0;">Planets (Sun/Moon/planets + sky sweep in from a couple hours ago)</label></div>' +
+'      <div class="radio-row"><input type="radio" name="bgAnimMode" id="bgAnimMode3" value="3" ' + (current.bgAnimMode === '3' ? 'checked' : '') + '><label for="bgAnimMode3" style="margin:0;">Markers (big-analog hour markers animate in; seconds draw normally)</label></div>' +
+'    </div>' +
+'    <div class="help">Off by default: exactly one of the above sweeps into place on launch, under 1.5s.</div>' +
+
+'    <div class="subsection">' +
+'      <label>Animate outlines on shake</label>' +
+'      <div class="radio-row"><input type="radio" name="shakeAnimMode" id="shakeAnimMode0" value="0" ' + (current.shakeAnimMode === '0' || !current.shakeAnimMode ? 'checked' : '') + '><label for="shakeAnimMode0" style="margin:0;">Off</label></div>' +
+'      <div class="radio-row"><input type="radio" name="shakeAnimMode" id="shakeAnimMode1" value="1" ' + (current.shakeAnimMode === '1' ? 'checked' : '') + '><label for="shakeAnimMode1" style="margin:0;">Gradient (outlines sweep through a rainbow)</label></div>' +
+'      <div class="radio-row"><input type="radio" name="shakeAnimMode" id="shakeAnimMode2" value="2" ' + (current.shakeAnimMode === '2' ? 'checked' : '') + '><label for="shakeAnimMode2" style="margin:0;">Smooth second hand</label></div>' +
+'      <div class="radio-row"><input type="radio" name="shakeAnimMode" id="shakeAnimMode3" value="3" ' + (current.shakeAnimMode === '3' ? 'checked' : '') + '><label for="shakeAnimMode3" style="margin:0;">Both</label></div>' +
+'      <div class="radio-row"><input type="radio" name="shakeAnimMode" id="shakeAnimMode4" value="4" ' + (current.shakeAnimMode === '4' ? 'checked' : '') + '><label for="shakeAnimMode4" style="margin:0;">Planet seek</label></div>' +
+'    </div>' +
+'    <div class="help">Off by default: runs for as long as the shake labels stay up -- see "Shake-to-reveal labels stay on screen for" in the Astronomy section. "Planet seek" points the sky view at whichever 90&deg; slice of the horizon your compass currently faces, repositioning the Sun/Moon/planets to match as you turn -- weather is hidden for the duration, and it never runs on a day with an eclipse.</div>' +
+'    </div>' +
+
 '    </div>' +
 '  </fieldset>' +
 
@@ -2513,6 +2534,12 @@ handEditorModalHtml('sec', 'Edit second hand') +
 'function closeTextMarkerEditor() {' +
 '  document.getElementById("textMarkerModal").className = "modal-overlay";' +
 '}' +
+'function openCenterCircleEditor() {' +
+'  document.getElementById("centerCircleModal").className = "modal-overlay open";' +
+'}' +
+'function closeCenterCircleEditor() {' +
+'  document.getElementById("centerCircleModal").className = "modal-overlay";' +
+'}' +
 'function toggleMarkBtn(kind, i) {' +
 '  var hiddenId = kind === "hour" ? "markerTextHourMask" : "markerTextSecMask";' +
 '  var hidden = document.getElementById(hiddenId);' +
@@ -2557,10 +2584,11 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '}' +
 // ---- Style Presets: export/import + 3 quick-recall slots -----------
 // Scoped to exactly the DOM containers the design covers (Style,
-// Colors, Features/\'corners\') by walking every input/select/textarea
-// with an id inside them -- deliberately NOT a hand-maintained field
-// list, so this never goes stale as fields get added to any of them.
-'var PRESET_SCOPE_IDS = ["section-style", "section-colors", "section-corners"];' +
+// Colors, Features/\'corners\', Animation) by walking every input/
+// select/textarea with an id inside them -- deliberately NOT a hand-
+// maintained field list, so this never goes stale as fields get added
+// to any of them.
+'var PRESET_SCOPE_IDS = ["section-style", "section-colors", "section-corners", "section-animation"];' +
 'function collectStyleCornersJson() {' +
 '  var obj = {};' +
 '  PRESET_SCOPE_IDS.forEach(function (containerId) {' +
@@ -2568,6 +2596,10 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    if (!container) return;' +
 '    var els = container.querySelectorAll("input[id], select[id], textarea[id]");' +
 '    els.forEach(function (el) {' +
+'      if (el.type === "radio") {' +
+'        if (el.checked) obj[el.name] = el.value;' + // one entry per group (its own name, not each option's own id), only for whichever option is actually checked
+'        return;' +
+'      }' +
 '      obj[el.id] = (el.type === "checkbox") ? el.checked : el.value;' +
 '    });' +
 '  });' +
@@ -2580,7 +2612,11 @@ handEditorModalHtml('sec', 'Edit second hand') +
 'function applyStyleCornersJson(obj) {' +
 '  Object.keys(obj).forEach(function (id) {' +
 '    var el = document.getElementById(id);' +
-'    if (!el) return;' +
+'    if (!el) {' +
+'      var radio = document.querySelector(\'input[name="\' + id + \'"][value="\' + obj[id] + \'"]\');' + // no plain element has this id -- try it as a radio group name instead
+'      if (radio) radio.checked = true;' +
+'      return;' +
+'    }' +
 '    if (el.type === "checkbox") el.checked = !!obj[id]; else el.value = obj[id];' +
 '  });' +
 '  onBottomStyleChange();' +
