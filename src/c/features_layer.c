@@ -66,22 +66,22 @@ static const GPoint OUTLINE_OFFSETS[4] = { {-1, 0}, {1, 0}, {0, -1}, {0, 1} };
 // not with the scheme's background color, which is what this used to
 // (incorrectly) use.
 //
-// "On shake" animation: every caller of this function (corner/edge
-// text and icons, the big-analog date, the eclipse phase/countdown
-// text) shares one synchronized cycle-then-settle here, rather than
-// each getting its own phase offset the way the 3 hands do in
-// hand_layer.c -- there are simply too many call sites for a
-// per-item stagger to be worth threading through all of them, so
-// they all pulse together instead. shake_anim_color() itself is a
-// no-op (returns base unchanged) whenever the animation isn't
-// actually running.
+// "On shake" animation: text/icon outlines can only take one fill
+// color per whole draw call (graphics_draw_text()/
+// graphics_draw_bitmap_in_rect() don't support anything finer), so
+// unlike hand_layer.c's outlines -- which sample the gradient per
+// pixel for a true left-to-right sweep across the screen -- every
+// caller here just samples the gradient once, at a fixed reference
+// point, and shares that single color. shake_outline_color() itself
+// is a no-op (returns base unchanged) whenever the animation isn't
+// actually running or isn't in a gradient-including mode.
 GColor contrasting_outline_color(GColor c) {
   uint8_t r = (c.argb >> 4) & 0x03;
   uint8_t g = (c.argb >> 2) & 0x03;
   uint8_t b = c.argb & 0x03;
   int luma = r * 3 + g * 6 + b; // approximates 0.3/0.6/0.1 luma weights, out of 30
   GColor base = (luma >= 15) ? GColorBlack : GColorWhite;
-  return shake_anim_color(base, 50);
+  return shake_outline_color(base, 0);
 }
 
 void draw_text_outlined(GContext *ctx, const char *text, GFont font, GRect box,

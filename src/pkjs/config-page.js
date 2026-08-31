@@ -733,6 +733,7 @@ function buildConfigHtml(current) {
 '  input[type=text], input[type=number], select { width: 100%; box-sizing: border-box; padding: 8px; font-size: 15px; border: 1px solid var(--border); border-radius: 5px; background: var(--card-bg); color: var(--text); }' +
 '  input[disabled], select[disabled] { background: var(--border-light); color: var(--text-disabled); }' +
 '  .checkbox-row { display: flex; align-items: center; gap: 10px; }' +
+'  .radio-row { display: flex; align-items: center; gap: 10px; margin-top: 6px; }' +
 '  input[type=checkbox] { appearance: none; -webkit-appearance: none; width: 30px; height: 30px; flex-shrink: 0; margin: 0; padding: 0; box-sizing: border-box; border: 2px solid var(--border); border-radius: 8px; background: var(--card-bg); position: relative; }' +
 '  input[type=checkbox]:checked { background: #ff9200; border-color: #ff9200; }' +
 '  input[type=checkbox]:checked::after { content: ""; position: absolute; left: 9px; top: 4px; width: 7px; height: 14px; border: solid #fff; border-width: 0 3px 3px 0; transform: rotate(45deg); }' +
@@ -1096,17 +1097,23 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    </div>' +
 '    <div class="help">On for launch: the hands/digits sweep in from a cold-start position up to the real time, under 1.5s, instead of just appearing already showing it.</div>' +
 
-'    <div class="checkbox-row subsection">' +
-'      <input type="checkbox" id="startupBackgroundAnimationEnabled" ' + (current.startupBackgroundAnimationEnabled ? 'checked' : '') + '>' +
-'      <label for="startupBackgroundAnimationEnabled" style="margin:0;">Animate background on start</label>' +
+'    <div class="subsection">' +
+'      <label>Animate background on start</label>' +
+'      <div class="radio-row"><input type="radio" name="bgAnimMode" id="bgAnimMode0" value="0" ' + (current.bgAnimMode === '0' || !current.bgAnimMode ? 'checked' : '') + '><label for="bgAnimMode0" style="margin:0;">Off</label></div>' +
+'      <div class="radio-row"><input type="radio" name="bgAnimMode" id="bgAnimMode1" value="1" ' + (current.bgAnimMode === '1' ? 'checked' : '') + '><label for="bgAnimMode1" style="margin:0;">Weather (clouds slide in from the sides)</label></div>' +
+'      <div class="radio-row"><input type="radio" name="bgAnimMode" id="bgAnimMode2" value="2" ' + (current.bgAnimMode === '2' ? 'checked' : '') + '><label for="bgAnimMode2" style="margin:0;">Planets (Sun/Moon/planets + sky sweep in from a couple hours ago)</label></div>' +
+'      <div class="radio-row"><input type="radio" name="bgAnimMode" id="bgAnimMode3" value="3" ' + (current.bgAnimMode === '3' ? 'checked' : '') + '><label for="bgAnimMode3" style="margin:0;">Markers (big-analog hour markers animate in; seconds draw normally)</label></div>' +
 '    </div>' +
-'    <div class="help">Off by default: on launch, the Sun/Moon/planets/clouds/markers sweep in from an earlier position or off-screen up to their real current state, under 1.5s.</div>' +
+'    <div class="help">Off by default: exactly one of the above sweeps into place on launch, under 1.5s.</div>' +
 
-'    <div class="checkbox-row subsection">' +
-'      <input type="checkbox" id="shakeAnimationEnabled" ' + (current.shakeAnimationEnabled ? 'checked' : '') + '>' +
-'      <label for="shakeAnimationEnabled" style="margin:0;">Animate outlines on shake</label>' +
+'    <div class="subsection">' +
+'      <label>Animate outlines on shake</label>' +
+'      <div class="radio-row"><input type="radio" name="shakeAnimMode" id="shakeAnimMode0" value="0" ' + (current.shakeAnimMode === '0' || !current.shakeAnimMode ? 'checked' : '') + '><label for="shakeAnimMode0" style="margin:0;">Off</label></div>' +
+'      <div class="radio-row"><input type="radio" name="shakeAnimMode" id="shakeAnimMode1" value="1" ' + (current.shakeAnimMode === '1' ? 'checked' : '') + '><label for="shakeAnimMode1" style="margin:0;">Gradient (outlines sweep through a rainbow)</label></div>' +
+'      <div class="radio-row"><input type="radio" name="shakeAnimMode" id="shakeAnimMode2" value="2" ' + (current.shakeAnimMode === '2' ? 'checked' : '') + '><label for="shakeAnimMode2" style="margin:0;">Smooth second hand</label></div>' +
+'      <div class="radio-row"><input type="radio" name="shakeAnimMode" id="shakeAnimMode3" value="3" ' + (current.shakeAnimMode === '3' ? 'checked' : '') + '><label for="shakeAnimMode3" style="margin:0;">Both</label></div>' +
 '    </div>' +
-'    <div class="help">Off by default: on shake, every outlined item\'s outline cycles through a color gradient back to normal (each item starting at a different point along it) for as long as the shake labels stay up -- see "Shake-to-reveal labels stay on screen for" in the Astronomy section. The second hand switches to smooth continuous motion for that same stretch.</div>' +
+'    <div class="help">Off by default: runs for as long as the shake labels stay up -- see "Shake-to-reveal labels stay on screen for" in the Astronomy section.</div>' +
 '    </div>' +
 '  </fieldset>' +
 
@@ -2965,6 +2972,10 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  document.getElementById("nightSchemeSettings").style.display = document.getElementById("nightEnabled").checked ? "block" : "none";' +
 '}' +
 
+'function radioValue(name, fallback) {' +
+'  var checked = document.querySelector("input[name=\\"" + name + "\\"]:checked");' +
+'  return checked ? checked.value : fallback;' +
+'}' +
 'function save(forceRefresh, forceFullRefresh) {' +
 '  var mins = parseInt(document.getElementById("updateMins").value, 10);' +
 '  if (isNaN(mins) || mins < 5) mins = 20;' +
@@ -3022,8 +3033,8 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    CONFIG_AURORA_ENABLED: document.getElementById("auroraEnabled").checked,' +
 '    CONFIG_VIBRATE_ON_PHASE_CHANGE: document.getElementById("vibrateOnPhaseChange").checked,' +
 '    CONFIG_STARTUP_CLOCK_ANIMATION_ENABLED: document.getElementById("startupClockAnimationEnabled").checked,' +
-'    CONFIG_STARTUP_BACKGROUND_ANIMATION_ENABLED: document.getElementById("startupBackgroundAnimationEnabled").checked,' +
-'    CONFIG_SHAKE_ANIMATION_ENABLED: document.getElementById("shakeAnimationEnabled").checked,' +
+'    CONFIG_BG_ANIM_MODE: radioValue("bgAnimMode", "0"),' +
+'    CONFIG_SHAKE_ANIM_MODE: radioValue("shakeAnimMode", "0"),' +
 '    CONFIG_OUTLINE_ENABLED: document.getElementById("outlineEnabled").checked,' +
 '    CONFIG_CORNER_FONT_SIZE: document.getElementById("cornerFontSize").value,' +
 '    CONFIG_CORNER_CUSTOM_FONT: document.getElementById("cornerCustomFont").value,' +

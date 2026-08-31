@@ -367,71 +367,130 @@ static void compute_startup_hand_anim(int32_t target_angle, uint16_t elapsed_ms,
 }
 
 // ---- shake animation ------------------------------------------------------
-// User setting ("Style" section, off by default): while the shake-to-
-// reveal labels are up, every outlined item's outline cycles through a
-// few colors before settling back to its own real color -- each item
-// starting at a different point along that same cycle (see
-// shake_anim_color()'s phase_pct param) rather than all changing in
-// lockstep -- and the second hand (if shown) switches from its normal
-// once-a-second jump to continuous sub-second motion. Driven by its
-// own fast timer, same shape as the two startup animations above, but
-// running for as long as shake_label_seconds (several seconds) rather
-// than a fixed <1.5s, hence the lower frame rate -- see
-// SHAKE_ANIM_FRAME_MS's own comment.
-#define SHAKE_ANIM_FRAME_MS 80 // ~12fps -- smooth enough for a color cycle and a moving hand over several seconds, without the same battery allowance the two much-shorter startup animations can justify
+// User setting ("Style" section, off by default, radio-style single
+// choice via shake_anim_mode: 0=off, 1=gradient outline shift only,
+// 2=smooth second hand only, 3=both): while the shake-to-reveal
+// labels are up, outlines sweep through a rainbow gradient and/or the
+// second hand (if shown) switches from its normal once-a-second jump
+// to continuous sub-second motion. Driven by its own fast timer, same
+// shape as the two startup animations above -- and, like them, keyed
+// off a frame counter (s_shake_anim_elapsed_ms) rather than
+// wall-clock time(NULL) seconds, which is what made the color cycle
+// visibly jump only once a second regardless of how often the timer
+// itself fired: time(NULL) only has whole-second resolution, so many
+// consecutive redraws within the same second were all computing the
+// identical "elapsed seconds" value and thus the identical color.
+#define SHAKE_ANIM_FRAME_MS 33 // 30fps, per request
 
 static AppTimer *s_shake_anim_timer = NULL;
 static bool s_shake_anim_active = false;
-static time_t s_shake_anim_start_s = 0;
+static uint32_t s_shake_anim_elapsed_ms = 0;
+static uint32_t s_shake_anim_duration_ms = 3000;
 
-// A small fixed palette rather than computed RGB blending -- GColor's
-// own r/g/b fields are 2-bit (4 levels), not 0-255, so blending
-// between an 0-255-computed "cycling" color and an existing GColor's
-// own channels would need an explicit 2-bit<->8-bit conversion step
-// to avoid a unit mismatch; picking directly from a palette of real
-// GColor constants sidesteps that entirely.
-static const GColor SHAKE_ANIM_PALETTE[] = { GColorRed, GColorOrange, GColorYellow, GColorGreen, GColorBlue, GColorVividViolet };
-#define SHAKE_ANIM_PALETTE_COUNT (int)(sizeof(SHAKE_ANIM_PALETTE) / sizeof(SHAKE_ANIM_PALETTE[0]))
+// ---- shared ease-out lookup table -----------------------------------
+// Cubic ease-out (1-(1-t)^3), precomputed at 21 points (0, 50, 100,
+// ..., 1000) -- avoids the 2 multiplications ease_out_cubic_1000()
+// used to do on every single call in favor of one table lookup + a
+// cheap linear interpolation between its 2 nearest points, and gives
+// every animation that wants this same "starts quick, eases into
+// place" feel (the startup clock/hand sweep, the background sweep,
+// marker reveals, the shake color cycle) one shared table to pull
+// from instead of each recomputing its own curve. Integer-only, no
+// floating point anywhere in here.
+static const int16_t EASE_OUT_LUT[21] = {
+  0, 143, 271, 386, 488, 579, 657, 726, 784, 834, 875, 909, 936, 958, 973, 985, 992, 997, 999, 1000, 1000
+};
+static int32_t ease_out_lut_1000(int32_t t) {
+  if (t <= 0) return 0;
+  if (t >= 1000) return 1000;
+  int32_t idx = t / 50;
+  int32_t frac = t - idx * 50;
+  int32_t lo = EASE_OUT_LUT[idx];
+  int32_t hi = EASE_OUT_LUT[idx + 1];
+  return lo + ((hi - lo) * frac) / 50;
+}
 
-// Returns the color to actually draw an outline in right now:
-// normal_color unchanged if the shake animation isn't running, else a
-// point along the cycling palette above, or normal_color again once
-// this item's own local progress (see phase_pct below) reaches the
-// last 20% of the overall shake_label_seconds window. phase_pct
-// (0-100) staggers WHEN this particular item's own cycle-then-settle
-// happens within that shared window -- same "start_frac/duration_frac"
-// stagger shape features_recompute_slots()'s marker-animation cousins
-// in background_layer.c use, just a smaller (40%) spread since there's
-// no meaningful "sweep order" here, just visual variety between items.
-GColor shake_anim_color(GColor normal_color, uint8_t phase_pct) {
+// ---- rainbow outline gradient -----------------------------------------
+// A real gradient ACROSS THE SCREEN (color depends on where on screen
+// a pixel is, not just on which item or what time it is), rather than
+// every outlined item flashing the exact same single color together --
+// see rainbow_outline_color_at()'s own comment for how. 24 entries,
+// stored as raw packed argb bytes (not GColor structs -- GColorFromRGB()
+// can't safely be used inside a static array initializer, since it's a
+// macro that isn't guaranteed to reduce to a constant expression
+// everywhere; gcolor_from_packed() unpacks a byte back into a real
+// GColor at the point of use instead, which is just a normal function
+// call and has no such restriction) computed offline via a plain
+// integer 6-segment HSV hue sweep, then snapped to the nearest of
+// Pebble's own 4 levels per channel (0/85/170/255) -- this project's
+// whole 64-color palette is built from exactly those 4 levels per
+// channel, so there's no shade this table could contain that isn't
+// already a real, exact color in it.
+#define SHAKE_RAINBOW_LUT_SIZE 24
+static const uint8_t SHAKE_RAINBOW_LUT[SHAKE_RAINBOW_LUT_SIZE] = {
+  0xF0, 0xF4, 0xF4, 0xF8, 0xFC, 0xEC, 0xEC, 0xDC, 0xCC, 0xCD, 0xCD, 0xCE,
+  0xCF, 0xCB, 0xCB, 0xC7, 0xC3, 0xD3, 0xD3, 0xE3, 0xF3, 0xF2, 0xF2, 0xF1
+};
+
+// screen_x: the pixel's own x coordinate -- divided by 3 so each LUT
+// entry spans a few pixels of screen width ("predefine some gradient
+// line couple pixels width" per the request) rather than changing
+// color every single pixel, which read as noise rather than a
+// gradient. shift: how far the whole table has scrolled so far (see
+// shake_anim_timer_callback() below) -- advancing this ONE integer
+// once per frame is the entire "animation" cost; no per-pixel
+// recomputation happens here at all, just an index shift + one array
+// read + one function call to unpack it, all integer math.
+static GColor rainbow_outline_color_at(int16_t screen_x, uint8_t shift) {
+  int32_t idx = (screen_x / 3 + shift) % SHAKE_RAINBOW_LUT_SIZE;
+  if (idx < 0) idx += SHAKE_RAINBOW_LUT_SIZE;
+  return gcolor_from_packed(SHAKE_RAINBOW_LUT[idx]);
+}
+
+static uint8_t s_shake_gradient_shift = 0; // advanced by 1 each shake_anim_timer_callback() tick while gradient mode is on
+
+// Returns the color to actually draw an outline pixel/item in right
+// now. screen_x is that pixel/item's own x coordinate, used to sample
+// the scrolling rainbow strip above when gradient mode
+// (shake_anim_mode 1 or 3) is on; normal_color (unchanged) otherwise,
+// including whenever the animation isn't currently running at all.
+// Genuine per-pixel use (hand outlines, drawn through this project's
+// own subpixel rasterizer) gets a real per-pixel gradient; text/icon
+// outlines -- drawn through Pebble's own text/bitmap compositing,
+// which only accepts one fill color per call, with no way to vary it
+// pixel-by-pixel -- fall back to sampling the strip once at that
+// item's own screen position instead, which still gives different
+// items different colors based on where they are, just not an
+// internal gradient within a single item's own outline.
+GColor shake_outline_color(GColor normal_color, int16_t screen_x) {
   if (!s_shake_anim_active) return normal_color;
-  uint8_t duration_s = s_data.shake_label_seconds > 0 ? s_data.shake_label_seconds : 3;
-  time_t now = time(NULL);
-  int32_t elapsed_s = (int32_t)(now - s_shake_anim_start_s);
-  if (elapsed_s < 0) elapsed_s = 0;
-  int32_t overall_progress_1000 = ((int32_t)elapsed_s * 1000) / duration_s;
-  if (overall_progress_1000 > 1000) overall_progress_1000 = 1000;
+  if (!(s_data.shake_anim_mode == 1 || s_data.shake_anim_mode == 3)) return normal_color;
+  return rainbow_outline_color_at(screen_x, s_shake_gradient_shift);
+}
 
-  int32_t start_frac = ((int32_t)phase_pct * 400) / 100;
-  int32_t duration_frac = 1000 - start_frac;
-  int32_t local = (duration_frac > 0) ? ((overall_progress_1000 - start_frac) * 1000) / duration_frac : 1000;
-  if (local < 0) local = 0;
-  if (local > 1000) local = 1000;
-
-  if (local >= 800) return normal_color; // settled back to normal for the last 20% of this item's own window
-  int idx = (int)(((int32_t)local * SHAKE_ANIM_PALETTE_COUNT) / 800);
-  if (idx >= SHAKE_ANIM_PALETTE_COUNT) idx = SHAKE_ANIM_PALETTE_COUNT - 1;
-  return SHAKE_ANIM_PALETTE[idx];
+// hand_layer.c's own version of the above -- hand outlines are drawn
+// through this project's own subpixel rasterizer (see subpixel.h's
+// stroke_*_gradient_fp() functions), which CAN sample a color per
+// pixel, so it needs the raw shift value to do that itself rather
+// than a single pre-resolved color the way features_layer.c's flatter
+// text/icon outlines do above. Returns false (nothing written to
+// *out_shift) whenever the gradient shouldn't apply right now, so the
+// caller knows to fall back to its own normal fixed-color outline.
+bool shake_gradient_active(uint8_t *out_shift) {
+  if (!s_shake_anim_active) return false;
+  if (!(s_data.shake_anim_mode == 1 || s_data.shake_anim_mode == 3)) return false;
+  *out_shift = s_shake_gradient_shift;
+  return true;
 }
 
 static void shake_anim_timer_callback(void *data) {
-  time_t now = time(NULL);
-  uint8_t duration_s = s_data.shake_label_seconds > 0 ? s_data.shake_label_seconds : 3;
-  bool still_active = s_labels_visible && (now - s_shake_anim_start_s) < duration_s;
+  s_shake_anim_elapsed_ms += SHAKE_ANIM_FRAME_MS;
+  bool still_active = s_labels_visible && s_shake_anim_elapsed_ms < s_shake_anim_duration_ms;
   if (!still_active) {
     s_shake_anim_active = false;
     s_shake_anim_timer = NULL;
   } else {
+    s_shake_gradient_shift = (uint8_t)((s_shake_gradient_shift + 1) % SHAKE_RAINBOW_LUT_SIZE);
     s_shake_anim_timer = app_timer_register(SHAKE_ANIM_FRAME_MS, shake_anim_timer_callback, NULL);
   }
   if (s_hands_layer) layer_mark_dirty(s_hands_layer);
@@ -439,16 +498,19 @@ static void shake_anim_timer_callback(void *data) {
   if (s_countdown_layer) layer_mark_dirty(s_countdown_layer);
 }
 
-// Called from tap_handler() below, once per shake -- reschedules like
-// the label-reveal timer next to it already does, rather than
-// stacking a second timer on top of an already-running one.
+// Called from tap_handler() below, once per shake -- restarts the
+// window fresh each time (unlike the label-reveal timer next to it,
+// which reschedules), so a repeated shake mid-animation also resets
+// the gradient/hand-smoothing window rather than just extending it.
 static void maybe_start_shake_animation(void) {
-  if (!s_data.shake_animation_enabled) return;
+  if (s_data.shake_anim_mode == 0) return;
   s_shake_anim_active = true;
-  s_shake_anim_start_s = time(NULL);
-  if (!s_shake_anim_timer) {
-    s_shake_anim_timer = app_timer_register(SHAKE_ANIM_FRAME_MS, shake_anim_timer_callback, NULL);
-  }
+  s_shake_anim_elapsed_ms = 0;
+  s_shake_gradient_shift = 0;
+  uint8_t seconds = s_data.shake_label_seconds > 0 ? s_data.shake_label_seconds : 3;
+  s_shake_anim_duration_ms = (uint32_t)seconds * 1000;
+  if (s_shake_anim_timer) app_timer_cancel(s_shake_anim_timer);
+  s_shake_anim_timer = app_timer_register(SHAKE_ANIM_FRAME_MS, shake_anim_timer_callback, NULL);
 }
 
 static void hands_layer_update_proc(Layer *layer, GContext *ctx) {
@@ -535,10 +597,10 @@ static void hands_layer_update_proc(Layer *layer, GContext *ctx) {
     hour_cfg.shadow_distance_px = min_cfg.shadow_distance_px = sec_cfg.shadow_distance_px = 2;
   }
 
-  hand_layer_draw(ctx, center, hour_angle, &hour_cfg, main_color, accent_color, bg, s_data.shadow_translucent, s_data.shadow_angle_deg, hour_length_scale_1000, 0);
-  hand_layer_draw(ctx, center, min_angle, &min_cfg, main_color, accent_color, bg, s_data.shadow_translucent, s_data.shadow_angle_deg, min_length_scale_1000, 33);
+  hand_layer_draw(ctx, center, hour_angle, &hour_cfg, main_color, accent_color, bg, s_data.shadow_translucent, s_data.shadow_angle_deg, hour_length_scale_1000);
+  hand_layer_draw(ctx, center, min_angle, &min_cfg, main_color, accent_color, bg, s_data.shadow_translucent, s_data.shadow_angle_deg, min_length_scale_1000);
   if (s_data.show_seconds) {
-    hand_layer_draw(ctx, center, sec_angle, &sec_cfg, main_color, accent_color, bg, s_data.shadow_translucent, s_data.shadow_angle_deg, sec_length_scale_1000, 66);
+    hand_layer_draw(ctx, center, sec_angle, &sec_cfg, main_color, accent_color, bg, s_data.shadow_translucent, s_data.shadow_angle_deg, sec_length_scale_1000);
   }
 
   if (s_data.big_analog_hand_style == 4) {
@@ -575,18 +637,22 @@ static void bottom_canvas_update_proc(Layer *layer, GContext *ctx) {
   time_t now = time(NULL);
   struct tm *t = localtime(&now);
 
-  // Startup animation (digital + small-analog): substitutes an eased,
-  // sped-up count-up from midnight to the real time for the DISPLAYED
-  // time only -- `now`/the color scheme below still use the real
-  // current time. Every read of `t->tm_hour`/`tm_min`/`tm_sec` below
-  // (both the digital HH:MM(:SS) text and the small-analog hand
-  // angles further down) shares this one struct tm, so both get the
-  // count-up for free from this single substitution.
+  // Startup animation (digital + small-analog): substitutes an eased
+  // count-up from midnight to the real time for the DISPLAYED time
+  // only -- `now`/the color scheme below still use the real current
+  // time. Every read of `t->tm_hour`/`tm_min`/`tm_sec` below (both
+  // the digital HH:MM(:SS) text and the small-analog hand angles
+  // further down) shares this one struct tm, so both get the
+  // count-up for free from this single substitution. Uses the same
+  // shared ease-out table every other "settles gracefully into place"
+  // animation in this app uses (fast at first, gradually slowing into
+  // the real time) -- this used to accelerate INTO the stop instead
+  // (ease-in), which read as an abrupt halt right at the end.
   struct tm anim_tm;
   if (s_startup_clock_anim_active) {
     int32_t progress = ((int32_t)s_startup_anim_elapsed_ms * 1000) / STARTUP_CLOCK_ANIM_MS;
     if (progress > 1000) progress = 1000;
-    int32_t eased = ease_in_cubic_1000(progress);
+    int32_t eased = ease_out_lut_1000(progress);
     int32_t seconds_since_midnight = t->tm_hour * 3600 + t->tm_min * 60 + t->tm_sec;
     int32_t fake_seconds = (int32_t)(((int64_t)seconds_since_midnight * eased) / 1000);
     time_t midnight = now - seconds_since_midnight;
@@ -999,7 +1065,7 @@ static void bg_anim_timer_callback(void *data) {
 }
 
 static void maybe_start_startup_background_animation(void) {
-  if (s_bg_anim_played || !s_data.startup_background_animation_enabled) return;
+  if (s_bg_anim_played || s_data.bg_anim_mode == 0) return;
   s_bg_anim_played = true;
   s_bg_anim_active = true;
   s_bg_anim_elapsed_ms = 0;
@@ -1305,11 +1371,13 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   if ((t = dict_find(iter, MESSAGE_KEY_STARTUP_CLOCK_ANIMATION_ENABLED))) {
     s_data.startup_clock_animation_enabled = t->value->uint8 != 0;
   }
-  if ((t = dict_find(iter, MESSAGE_KEY_STARTUP_BACKGROUND_ANIMATION_ENABLED))) {
-    s_data.startup_background_animation_enabled = t->value->uint8 != 0;
+  if ((t = dict_find(iter, MESSAGE_KEY_BG_ANIM_MODE))) {
+    uint8_t v = t->value->uint8;
+    s_data.bg_anim_mode = (v <= 3) ? v : 0; // clamped -- used as a raw array-free switch/compare, but still worth guarding against a stray out-of-range byte
   }
-  if ((t = dict_find(iter, MESSAGE_KEY_SHAKE_ANIMATION_ENABLED))) {
-    s_data.shake_animation_enabled = t->value->uint8 != 0;
+  if ((t = dict_find(iter, MESSAGE_KEY_SHAKE_ANIM_MODE))) {
+    uint8_t v = t->value->uint8;
+    s_data.shake_anim_mode = (v <= 3) ? v : 0;
   }
   if ((t = dict_find(iter, MESSAGE_KEY_OUTLINE_ENABLED))) {
     s_data.outline_enabled = t->value->uint8 != 0;

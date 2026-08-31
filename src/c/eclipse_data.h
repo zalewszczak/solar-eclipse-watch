@@ -244,19 +244,24 @@ typedef struct {
                                           // rather than just appearing already showing it. See
                                           // s_startup_clock_anim_* in pebble-eclipse-watch.c and
                                           // hand_layer.c's HandConfig-level sweep-in support. Under 1.5s.
-  bool startup_background_animation_enabled; // user setting ("Style" section, default false): sun/
-                                               // moon/planets/clouds/markers animate in from an earlier
-                                               // position/off-screen up to their real current state on
-                                               // app launch. NOT YET IMPLEMENTED on the watch as of this
-                                               // field's addition -- the setting exists and is sent, but
-                                               // background_layer.c doesn't act on it yet.
-  bool shake_animation_enabled; // user setting ("Style" section, default false): on shake, every
-                                  // outlined item's outline cycles through a color gradient back to
-                                  // its normal color (each item at a different point along it) for as
-                                  // long as shake_label_seconds, during which the second hand (if
-                                  // shown) switches from per-second jumps to continuous smooth motion.
-                                  // NOT YET IMPLEMENTED on the watch as of this field's addition -- the
-                                  // setting exists and is sent, but nothing reacts to it yet.
+  uint8_t bg_anim_mode; // user setting ("Style" section, default 0=off): radio-style, exactly one
+                         // of 0=off, 1=weather (clouds slide in from the sides), 2=planets (Sun/
+                         // Moon/planets + the sky gradient sweep in from their position a couple
+                         // hours ago), 3=markers (big-analog HOUR markers only -- second markers
+                         // are excluded and always drawn normally -- animate in from off-screen,
+                         // see draw_all_markers()'s own comment on why they're not genuinely
+                         // cached rather than just skipped-from-animation). Only one kind of
+                         // element animates at a time -- see canvas_update_proc's own gating at
+                         // each of its 3 uses (the sky_now substitution, the draw_clouds() call,
+                         // and the draw_all_markers() call).
+  uint8_t shake_anim_mode; // user setting ("Style" section, default 0=off): radio-style, exactly
+                             // one of 0=off, 1=gradient (outlines sweep through a rainbow -- a real
+                             // gradient across the screen, not a single shared flashing color; see
+                             // shake_outline_color()/shake_gradient_active() in
+                             // pebble-eclipse-watch.c and subpixel.h's stroke_*_gradient_fp()
+                             // functions), 2=smooth second hand (continuous sub-second motion
+                             // instead of per-second jumps, for as long as shake_label_seconds),
+                             // 3=both at once.
   bool outline_enabled; // user setting: 1px contrasting-color outline behind corner/edge text,
                           // the big-analog date, the eclipse phase text, and (procedurally, non-
                           // translucent mode only) corner/edge icons and the analog hands
@@ -547,13 +552,24 @@ void get_active_color_scheme(const EclipseData *d, time_t now, GColor *bg, GColo
 GColor gcolor_from_packed(uint8_t packed);
 
 // Also defined in pebble-eclipse-watch.c, declared here for the same reason:
-// the "on shake" animation's outline color-cycling effect is driven by state
-// that file owns (when the shake happened, shake_label_seconds), but applies
-// to outlines drawn from hand_layer.c and features_layer.c too. Returns
-// normal_color unchanged whenever the animation isn't actually running (off
-// in settings, or no shake in progress) -- always safe to call unconditionally
-// wherever an outline color is being resolved.
-GColor shake_anim_color(GColor normal_color, uint8_t phase_pct);
+// the "on shake" animation's outline gradient effect is driven by state
+// that file owns (when the shake happened, shake_anim_mode,
+// shake_label_seconds), but applies to outlines drawn from hand_layer.c
+// (which samples it per-pixel for a true screen-space gradient there --
+// see subpixel.h's own stroke_*_gradient_fp() functions) and
+// features_layer.c (which, unlike hand_layer.c, only has one fill color
+// to give a whole text/icon draw call, so it samples this once at that
+// item's own screen position instead). screen_x is whichever pixel/item
+// position is relevant to the caller. Returns normal_color unchanged
+// whenever the animation isn't actually running (off in settings, no
+// shake in progress, or in a mode that doesn't include the gradient) --
+// always safe to call unconditionally wherever an outline color is
+// being resolved.
+GColor shake_outline_color(GColor normal_color, int16_t screen_x);
+
+// hand_layer.c's own version -- see its definition in
+// pebble-eclipse-watch.c for why it's different from the one above.
+bool shake_gradient_active(uint8_t *out_shift);
 
 // Also defined in pebble-eclipse-watch.c, declared here for the same reason:
 // features_layer.c's "current conditions" and sunrise/sunset corner content

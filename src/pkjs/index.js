@@ -538,8 +538,16 @@ function auroraEnabledCode() { return getSetting('CONFIG_AURORA_ENABLED', 'false
 function vibrateOnPhaseChangeCode() { return getSetting('CONFIG_VIBRATE_ON_PHASE_CHANGE', 'false') === 'true' ? 1 : 0; }
 // Default true -- matches the C struct comment; the other two default false.
 function startupClockAnimationEnabledCode() { return getSetting('CONFIG_STARTUP_CLOCK_ANIMATION_ENABLED', 'true') === 'true' ? 1 : 0; }
-function startupBackgroundAnimationEnabledCode() { return getSetting('CONFIG_STARTUP_BACKGROUND_ANIMATION_ENABLED', 'false') === 'true' ? 1 : 0; }
-function shakeAnimationEnabledCode() { return getSetting('CONFIG_SHAKE_ANIMATION_ENABLED', 'false') === 'true' ? 1 : 0; }
+// Radio-style, exactly one of 0=off, 1=weather, 2=planets, 3=markers -- see bg_anim_mode's own comment in eclipse_data.h.
+function bgAnimModeCode() {
+  var v = parseInt(getSetting('CONFIG_BG_ANIM_MODE', '0'), 10);
+  return [0, 1, 2, 3].indexOf(v) === -1 ? 0 : v;
+}
+// Radio-style, exactly one of 0=off, 1=gradient, 2=smooth second hand, 3=both -- see shake_anim_mode's own comment in eclipse_data.h.
+function shakeAnimModeCode() {
+  var v = parseInt(getSetting('CONFIG_SHAKE_ANIM_MODE', '0'), 10);
+  return [0, 1, 2, 3].indexOf(v) === -1 ? 0 : v;
+}
 function outlineEnabledCode() { return getSetting('CONFIG_OUTLINE_ENABLED', 'true') === 'true' ? 1 : 0; }
 function cornerFontSizeCode() {
   var v = parseInt(getSetting('CONFIG_CORNER_FONT_SIZE', '1'), 10);
@@ -685,8 +693,8 @@ function sendDict(dict) {
   dict['AURORA_ENABLED'] = auroraEnabledCode();
   dict['VIBRATE_ON_PHASE_CHANGE'] = vibrateOnPhaseChangeCode();
   dict['STARTUP_CLOCK_ANIMATION_ENABLED'] = startupClockAnimationEnabledCode();
-  dict['STARTUP_BACKGROUND_ANIMATION_ENABLED'] = startupBackgroundAnimationEnabledCode();
-  dict['SHAKE_ANIMATION_ENABLED'] = shakeAnimationEnabledCode();
+  dict['BG_ANIM_MODE'] = bgAnimModeCode();
+  dict['SHAKE_ANIM_MODE'] = shakeAnimModeCode();
   dict['OUTLINE_ENABLED'] = outlineEnabledCode();
   dict['CORNER_FONT_SIZE'] = cornerFontSizeCode();
   dict['CORNER_CUSTOM_FONT'] = cornerCustomFontCode();
@@ -1367,8 +1375,8 @@ function sendDict(dict) {
 '  "AURORA_ENABLED": 0,'+
 '  "VIBRATE_ON_PHASE_CHANGE": 0,'+
 '  "STARTUP_CLOCK_ANIMATION_ENABLED": 1,'+
-'  "STARTUP_BACKGROUND_ANIMATION_ENABLED": 0,'+
-'  "SHAKE_ANIMATION_ENABLED": 0,'+
+'  "BG_ANIM_MODE": 0,'+
+'  "SHAKE_ANIM_MODE": 0,'+
 '  "OUTLINE_ENABLED": 1,'+
 '  "CORNER_FONT_SIZE": 1,'+
 '  "CORNER_CUSTOM_FONT": 5,'+
@@ -2031,8 +2039,8 @@ Pebble.addEventListener('showConfiguration', function () {
     auroraEnabled: getSetting('CONFIG_AURORA_ENABLED', 'false') === 'true',
     vibrateOnPhaseChange: getSetting('CONFIG_VIBRATE_ON_PHASE_CHANGE', 'false') === 'true',
     startupClockAnimationEnabled: getSetting('CONFIG_STARTUP_CLOCK_ANIMATION_ENABLED', 'true') === 'true',
-    startupBackgroundAnimationEnabled: getSetting('CONFIG_STARTUP_BACKGROUND_ANIMATION_ENABLED', 'false') === 'true',
-    shakeAnimationEnabled: getSetting('CONFIG_SHAKE_ANIMATION_ENABLED', 'false') === 'true',
+    bgAnimMode: getSetting('CONFIG_BG_ANIM_MODE', '0'),
+    shakeAnimMode: getSetting('CONFIG_SHAKE_ANIM_MODE', '0'),
     outlineEnabled: getSetting('CONFIG_OUTLINE_ENABLED', 'true') === 'true',
     cornerFontSize: getSetting('CONFIG_CORNER_FONT_SIZE', '1'),
     cornerCustomFont: getSetting('CONFIG_CORNER_CUSTOM_FONT', '0'),
@@ -2210,8 +2218,8 @@ Pebble.addEventListener('webviewclosed', function (e) {
   setSetting('CONFIG_AURORA_ENABLED', settings.CONFIG_AURORA_ENABLED ? 'true' : 'false');
   setSetting('CONFIG_VIBRATE_ON_PHASE_CHANGE', settings.CONFIG_VIBRATE_ON_PHASE_CHANGE ? 'true' : 'false');
   setSetting('CONFIG_STARTUP_CLOCK_ANIMATION_ENABLED', settings.CONFIG_STARTUP_CLOCK_ANIMATION_ENABLED ? 'true' : 'false');
-  setSetting('CONFIG_STARTUP_BACKGROUND_ANIMATION_ENABLED', settings.CONFIG_STARTUP_BACKGROUND_ANIMATION_ENABLED ? 'true' : 'false');
-  setSetting('CONFIG_SHAKE_ANIMATION_ENABLED', settings.CONFIG_SHAKE_ANIMATION_ENABLED ? 'true' : 'false');
+  setSetting('CONFIG_BG_ANIM_MODE', settings.CONFIG_BG_ANIM_MODE || '0');
+  setSetting('CONFIG_SHAKE_ANIM_MODE', settings.CONFIG_SHAKE_ANIM_MODE || '0');
   setSetting('CONFIG_OUTLINE_ENABLED', settings.CONFIG_OUTLINE_ENABLED ? 'true' : 'false');
   setSetting('CONFIG_CORNER_FONT_SIZE', settings.CONFIG_CORNER_FONT_SIZE || '1');
   setSetting('CONFIG_CORNER_CUSTOM_FONT', settings.CONFIG_CORNER_CUSTOM_FONT || '0');

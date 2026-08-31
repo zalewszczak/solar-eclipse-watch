@@ -1911,6 +1911,10 @@ static void draw_text_markers(GContext *ctx, GPoint center, GRect screen, Canvas
   const MarkerRingConfig *ring = is_hour ? hour_cfg : second_cfg;
   uint16_t mask = is_hour ? text_cfg->hour_mask : text_cfg->second_mask;
   if (mask == 0) return;
+  // Same "hour only" scoping as draw_all_markers()'s own two ring
+  // calls: text markers sitting on the second ring's positions don't
+  // animate in either, regardless of what the caller passed in.
+  if (!is_hour) { anim_active = false; anim_overall_progress_1000 = 0; }
 
   GFont font = get_marker_text_font(state, text_cfg->font_choice);
   int16_t fh = MARKER_FONT_HEIGHTS[text_cfg->font_choice] + MARKER_FONT_Y_OFFSET[text_cfg->font_choice];
@@ -2095,8 +2099,17 @@ static void draw_all_markers(GContext *ctx, CanvasState *state, GPoint center, G
 
   // Second ring first so the hour ring's marks draw on top at shared
   // 12-o'clock-aligned slots (matches the original procedural markers'
-  // precedent of hour ticks winning at shared positions).
-  draw_marker_ring(ctx, center, screen, second_cfg, 60, 5, main_color, accent_color, bg_color, anim_active, anim_progress_1000);
+  // precedent of hour ticks winning at shared positions). Only the
+  // hour ring actually animates in "markers" mode -- the second ring
+  // always draws at its real, settled position, never off-screen or
+  // mid-sweep, per request (a 60-mark ring animating in on top of a
+  // 12-mark one was judged too visually busy). It's still drawn fresh
+  // every frame during the animation rather than genuinely cached,
+  // though -- a real bitmap cache for it is a larger, separate piece
+  // of work (see this project's own notes on the broader background-
+  // animation caching architecture) than swapping which args get
+  // passed here.
+  draw_marker_ring(ctx, center, screen, second_cfg, 60, 5, main_color, accent_color, bg_color, false, 0);
   draw_marker_ring(ctx, center, screen, hour_cfg, 12, 0, main_color, accent_color, bg_color, anim_active, anim_progress_1000);
 
   if (marker_style == 8) {
@@ -2140,7 +2153,7 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
   // and every body's screen position all at once from this one
   // substitution point.
   time_t sky_now = now;
-  if (state->bg_anim_active) {
+  if (state->bg_anim_active && d->bg_anim_mode == 2) {
     int32_t progress = ((int32_t)state->bg_anim_elapsed_ms * 1000) / BG_ANIM_MS;
     if (progress > 1000) progress = 1000;
     int32_t eased = bg_anim_ease_out_1000(progress);
@@ -2604,13 +2617,14 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
   // entirely outside Weather sky mode -- Clear sky and Space view
   // both represent weather-free skies by definition.
   if (weather_enabled) {
+    bool cloud_anim_active = state->bg_anim_active && d->bg_anim_mode == 1;
     int32_t cloud_anim_progress_1000 = 0;
-    if (state->bg_anim_active) {
+    if (cloud_anim_active) {
       cloud_anim_progress_1000 = ((int32_t)state->bg_anim_elapsed_ms * 1000) / BG_ANIM_MS;
       if (cloud_anim_progress_1000 > 1000) cloud_anim_progress_1000 = 1000;
     }
     draw_clouds(ctx, bounds, cloud_pct, d->cloud_altitude_pct, d->vis_score_pct, stormy, sun_center, sun_up, d->cloud_render_style,
-                flash_currently_active, alt, state->bg_anim_active, cloud_anim_progress_1000);
+                flash_currently_active, alt, cloud_anim_active, cloud_anim_progress_1000);
     draw_weather_effect(ctx, bounds, d->weather_condition, cloud_pct, d->cloud_altitude_pct);
   }
 
@@ -2692,13 +2706,14 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
     GPoint full_center = GPoint(full_bounds.size.w / 2, full_bounds.size.h / 2);
     GColor bg, main_color, accent_color;
     get_active_color_scheme(d, now, &bg, &main_color, &accent_color);
+    bool marker_anim_active = state->bg_anim_active && d->bg_anim_mode == 3;
     int32_t marker_anim_progress_1000 = 0;
-    if (state->bg_anim_active) {
+    if (marker_anim_active) {
       marker_anim_progress_1000 = ((int32_t)state->bg_anim_elapsed_ms * 1000) / BG_ANIM_MS;
       if (marker_anim_progress_1000 > 1000) marker_anim_progress_1000 = 1000;
     }
     draw_all_markers(ctx, state, full_center, full_bounds, d, main_color, accent_color, bg,
-                      state->bg_anim_active, marker_anim_progress_1000);
+                      marker_anim_active, marker_anim_progress_1000);
   }
 
   // Cache what was just drawn: capture the real framebuffer (this is

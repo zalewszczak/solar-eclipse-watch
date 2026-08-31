@@ -461,3 +461,96 @@ static void stroke_circle_fp(GContext *ctx, FGPoint center, int32_t radius_fp, G
     if (err > 0) { x--; err -= 2 * x + 1; }
   }
 }
+
+// ---- gradient variants for the "on shake" outline animation ---------
+// Same rasterizers as stroke_line_fp/stroke_polygon_fp/stroke_circle_fp
+// above, but instead of one fixed color for the whole stroke, each
+// individual pixel's color is looked up from RAINBOW_OUTLINE_LUT based
+// on that pixel's own x coordinate -- a genuine gradient across the
+// SCREEN, not just a color that changes over time/by item. `shift`
+// (updated once per animation frame, not per pixel -- see
+// pebble-eclipse-watch.c's shake_anim_timer_callback()) is the entire
+// "animation": it just moves where in the table screen_x=0 starts
+// reading from, so the strip appears to scroll without recomputing any
+// actual color values.
+//
+// Duplicated here (same small table, same lookup) rather than sharing
+// pebble-eclipse-watch.c's copy -- this header is included by both
+// hand_layer.c and background_layer.c and doesn't otherwise depend on
+// eclipse_data.h/pebble-eclipse-watch.c's own declarations, and this
+// project already prefers a small duplicated helper over threading a
+// cross-file dependency through a shared low-level header for
+// something this self-contained (see this file's own top comment).
+#define RAINBOW_LUT_SIZE 24
+static const uint8_t RAINBOW_OUTLINE_LUT[RAINBOW_LUT_SIZE] = {
+  0xF0, 0xF4, 0xF4, 0xF8, 0xFC, 0xEC, 0xEC, 0xDC, 0xCC, 0xCD, 0xCD, 0xCE,
+  0xCF, 0xCB, 0xCB, 0xC7, 0xC3, 0xD3, 0xD3, 0xE3, 0xF3, 0xF2, 0xF2, 0xF1
+};
+
+static GColor rainbow_color_at_fp(int16_t screen_x, uint8_t shift) {
+  int32_t idx = (screen_x / 3 + shift) % RAINBOW_LUT_SIZE;
+  if (idx < 0) idx += RAINBOW_LUT_SIZE;
+  GColor c;
+  c.argb = RAINBOW_OUTLINE_LUT[idx];
+  return c;
+}
+
+static void stroke_line_gradient_fp(GContext *ctx, FGPoint a, FGPoint b, uint8_t shift) {
+  int32_t dx = b.x - a.x;
+  int32_t dy = b.y - a.y;
+  int32_t max_len = abs(dx) > abs(dy) ? abs(dx) : abs(dy);
+  int32_t steps = (max_len + SUBPIXEL_MASK) >> SUBPIXEL_BITS;
+  if (steps == 0) steps = 1;
+
+  int32_t x_inc = dx / steps;
+  int32_t y_inc = dy / steps;
+  int32_t cur_x = a.x;
+  int32_t cur_y = a.y;
+
+  int16_t last_px = -32768, last_py = -32768;
+
+  for (int i = 0; i <= steps; i++) {
+    int16_t px = fp_round_to_px(cur_x);
+    int16_t py = fp_round_to_px(cur_y);
+
+    if (px != last_px || py != last_py) {
+      graphics_context_set_fill_color(ctx, rainbow_color_at_fp(px, shift));
+      graphics_fill_rect(ctx, GRect(px, py, 1, 1), 0, GCornerNone);
+      last_px = px;
+      last_py = py;
+    }
+    cur_x += x_inc;
+    cur_y += y_inc;
+  }
+}
+
+static void stroke_polygon_gradient_fp(GContext *ctx, const FGPoint *pts, int n, uint8_t shift) {
+  for (int i = 0; i < n; i++) {
+    stroke_line_gradient_fp(ctx, pts[i], pts[(i + 1) % n], shift);
+  }
+}
+
+static void stroke_circle_gradient_fp(GContext *ctx, FGPoint center, int32_t radius_fp, uint8_t shift) {
+  int16_t r_px = fp_round_to_px(radius_fp);
+  if (r_px < 1) r_px = 1;
+
+  int16_t x = r_px, y = 0, err = 0;
+  int16_t cx = fp_round_to_px(center.x);
+  int16_t cy = fp_round_to_px(center.y);
+
+  while (x >= y) {
+    GPoint pts[8] = {
+      GPoint(cx + x, cy + y), GPoint(cx + y, cy + x),
+      GPoint(cx - y, cy + x), GPoint(cx - x, cy + y),
+      GPoint(cx - x, cy - y), GPoint(cx - y, cy - x),
+      GPoint(cx + y, cy - x), GPoint(cx + x, cy - y),
+    };
+    for (int i = 0; i < 8; i++) {
+      graphics_context_set_fill_color(ctx, rainbow_color_at_fp(pts[i].x, shift));
+      graphics_fill_rect(ctx, GRect(pts[i].x, pts[i].y, 1, 1), 0, GCornerNone);
+    }
+    y++;
+    if (err <= 0) err += 2 * y + 1;
+    if (err > 0) { x--; err -= 2 * x + 1; }
+  }
+}

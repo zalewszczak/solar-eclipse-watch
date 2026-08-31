@@ -1,5 +1,5 @@
 #include "hand_layer.h"
-#include "eclipse_data.h" // for shake_anim_color() -- see hand_layer_draw()'s own comment on why
+#include "eclipse_data.h" // for shake_gradient_active() -- see draw_hand_outline_once_fp()'s own comment on why
 
 // round_div/BAYER4/FGPoint helpers and the fill_polygon_fp()/
 // fill_polygon_dithered_fp()/fill_circle_fp()/stroke_line_fp()/
@@ -109,6 +109,24 @@ static void draw_hand_outline_once_fp(GContext *ctx, FGPoint center, int32_t ang
   FGPoint points[4], inner, outer;
   int32_t half_w;
   int n = compute_hand_geometry_fp(center, angle, cfg, points, &inner, &outer, &half_w);
+
+  // "On shake" gradient mode: a true per-pixel screen-space sweep
+  // instead of one fixed color for the whole outline -- see
+  // subpixel.h's stroke_*_gradient_fp() functions and their own
+  // comment for how. Only for the non-dithered case: a translucent
+  // hand's dithered outline already has its own density logic, and
+  // combining "which pixels get skipped for translucency" with "what
+  // color the ones that survive should be" is more than this is worth
+  // -- a translucent hand's outline just doesn't gradient-shift.
+  uint8_t shake_shift;
+  if (!dithered && shake_gradient_active(&shake_shift)) {
+    stroke_polygon_gradient_fp(ctx, points, n, shake_shift);
+    if (n == 4 && cfg->style == 0) {
+      stroke_circle_gradient_fp(ctx, inner, half_w, shake_shift);
+      stroke_circle_gradient_fp(ctx, outer, half_w, shake_shift);
+    }
+    return;
+  }
 
   stroke_polygon_fp(ctx, points, n, color, dithered);
 
@@ -229,7 +247,7 @@ static void draw_hand_shadow_once_fp(GContext *ctx, FGPoint center, int32_t angl
 void hand_layer_draw(GContext *ctx, GPoint center, int32_t angle, const HandConfig *cfg,
                       GColor main_color, GColor accent_color, GColor bg_color,
                       bool shadow_translucent_style, uint16_t shadow_angle_deg,
-                      uint16_t length_scale_1000, uint8_t shake_phase_pct) {
+                      uint16_t length_scale_1000) {
   // Scaled-length copy for the startup animation's "grows out from a
   // center dot" phase -- everything below just keeps using `cfg` as
   // before, now possibly pointing at this shrunk copy instead of the
@@ -250,9 +268,11 @@ void hand_layer_draw(GContext *ctx, GPoint center, int32_t angle, const HandConf
   if (cfg->outline_enabled) {
     // A real perimeter trace now (see draw_hand_outline_once above),
     // dithered too when the hand is translucent, so the outline
-    // doesn't look more solid than the fill it's outlining.
+    // doesn't look more solid than the fill it's outlining. The "on
+    // shake" gradient effect (if active) is applied inside
+    // draw_hand_outline_once_fp() itself now, per pixel -- see its own
+    // comment -- rather than resolved to one flat color up here.
     GColor outline_color = resolve_scheme_color(cfg->outline_color, main_color, accent_color, bg_color);
-    outline_color = shake_anim_color(outline_color, shake_phase_pct); // no-op unless the "on shake" animation is actually running
     draw_hand_outline_once_fp(ctx, center_fp, angle, cfg, outline_color, cfg->translucent);
   }
 

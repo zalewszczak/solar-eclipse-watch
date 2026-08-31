@@ -77,16 +77,15 @@ typedef struct {
 // hand's own length (not its width) proportionally -- used only by
 // the startup animation's "grows out from a center dot" phase, see
 // compute_startup_hand_anim() in pebble-eclipse-watch.c. Pass 1000
-// for a normal, non-animated draw.
-// shake_phase_pct (0-100) is this hand's own phase offset into the
-// "on shake" outline color-cycle animation -- see shake_anim_color()
-// in eclipse_data.h/pebble-eclipse-watch.c, which this passes
-// straight through to when resolving the outline color below. Only
-// matters if cfg->outline_enabled; pass anything (e.g. 0) otherwise.
+// for a normal, non-animated draw. The "on shake" outline gradient
+// (if active) is applied automatically, per pixel, whenever
+// cfg->outline_enabled -- see shake_gradient_active() in
+// eclipse_data.h/pebble-eclipse-watch.c and draw_hand_outline_once_fp()
+// in hand_layer.c; no separate parameter needed for it here.
 void hand_layer_draw(GContext *ctx, GPoint center, int32_t angle, const HandConfig *cfg,
                       GColor main_color, GColor accent_color, GColor bg_color,
                       bool shadow_translucent_style, uint16_t shadow_angle_deg,
-                      uint16_t length_scale_1000, uint8_t shake_phase_pct);
+                      uint16_t length_scale_1000);
 
 // Shared (not per-hand) center decoration -- radius 0 means off.
 void hand_layer_draw_center_circle(GContext *ctx, GPoint center, uint8_t radius, uint8_t color_choice,
