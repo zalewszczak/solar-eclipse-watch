@@ -116,10 +116,7 @@ static uint32_t corner_custom_font_resource_id(uint8_t choice) {
     case 3: return RESOURCE_ID_SFPIXELATE_FONT_14;
     case 4: return RESOURCE_ID_MISO_FONT_19;
     case 5: return RESOURCE_ID_BEBAS_FONT_20;
-    default: return 0; // 0 = default (corner_font_size applies instead); 6 = Roboto also falls
-                         // here -- it's a system font (FONT_KEY_ROBOTO_CONDENSED_21), not a
-                         // loaded custom one, so there's no resource to load for it either;
-                         // see get_corner_font()'s own early check for choice 6.
+    default: return 0; // 0 = default -- no custom font, corner_font_size applies instead
   }
 }
 
@@ -142,19 +139,12 @@ void ensure_corner_custom_font(uint8_t choice) {
 // cycle so it's actually loaded), otherwise a system font sized per
 // corner_font_size.
 static GFont get_corner_font(const EclipseData *data) {
-  // Roboto -- a real system font (moved out of the S/M/L/XL/XXL size
-  // dropdown, where it was wrongly listed as if it were just another
-  // size, and into this project's own "Font" dropdown alongside
-  // Digital/Minecraft/Pixelate/Miso/Bebas, where it actually belongs)
-  // -- checked before s_corner_custom_font below since there's no
-  // custom font resource loaded for it (see corner_custom_font_
-  // resource_id()'s own comment).
-  if (data->corner_custom_font == 6) return fonts_get_system_font(FONT_KEY_ROBOTO_CONDENSED_21);
   if (s_corner_custom_font) return s_corner_custom_font;
   if (data->corner_font_size == 0) return fonts_get_system_font(FONT_KEY_GOTHIC_14);
   if (data->corner_font_size == 2) return fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD);
   if (data->corner_font_size == 3) return fonts_get_system_font(FONT_KEY_GOTHIC_24_BOLD);
   if (data->corner_font_size == 4) return fonts_get_system_font(FONT_KEY_GOTHIC_28_BOLD);
+  if (data->corner_font_size == 5) return fonts_get_system_font(FONT_KEY_ROBOTO_CONDENSED_21);
   return fonts_get_system_font(FONT_KEY_GOTHIC_14_BOLD); // 1 = M, also the fallback
 }
 
@@ -168,11 +158,11 @@ static int16_t corner_font_height_estimate(const EclipseData *data) {
   if (data->corner_custom_font == 3) return 14;
   if (data->corner_custom_font == 4) return 19;
   if (data->corner_custom_font == 5) return 24;
-  if (data->corner_custom_font == 6) return 24; // Roboto
   if (data->corner_font_size == 0) return 14;
   if (data->corner_font_size == 2) return 24;
   if (data->corner_font_size == 3) return 32;
   if (data->corner_font_size == 4) return 36;
+  if (data->corner_font_size == 5) return 24;
   return 18;
 }
 

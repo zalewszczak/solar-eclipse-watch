@@ -401,7 +401,7 @@ function customSecOuterBorderCode() {
 function customSecTranslucentCode() { return getSetting('CONFIG_CUSTOM_SEC_TRANSLUCENT', 'false') === 'true' ? 1 : 0; }
 function customSecColorCode() { return clampInt(getSetting('CONFIG_CUSTOM_SEC_COLOR', '0'), 0, 2, 0); }
 function markerTextTargetCode() { return clampInt(getSetting('CONFIG_MARKER_TEXT_TARGET', '0'), 0, 2, 0); }
-function markerTextFontCode() { return clampInt(getSetting('CONFIG_MARKER_TEXT_FONT', '0'), 0, 14, 0); }
+function markerTextFontCode() { return clampInt(getSetting('CONFIG_MARKER_TEXT_FONT', '0'), 0, 6, 0); }
 function markerTextOffsetCode() { return clampInt(getSetting('CONFIG_MARKER_TEXT_OFFSET', '0'), -50, 50, 0); }
 function markerTextHourMaskCode() { return clampInt(getSetting('CONFIG_MARKER_TEXT_HOUR_MASK', '4095'), 0, 4095, 4095); }
 function markerTextSecMaskCode() { return clampInt(getSetting('CONFIG_MARKER_TEXT_SEC_MASK', '4095'), 0, 4095, 4095); }
@@ -561,11 +561,11 @@ function shakeAnimModeCode() {
 function outlineEnabledCode() { return getSetting('CONFIG_OUTLINE_ENABLED', 'true') === 'true' ? 1 : 0; }
 function cornerFontSizeCode() {
   var v = parseInt(getSetting('CONFIG_CORNER_FONT_SIZE', '1'), 10);
-  return [0, 1, 2, 3, 4].indexOf(v) === -1 ? 1 : v;
+  return [0, 1, 2, 3, 4, 5].indexOf(v) === -1 ? 1 : v;
 }
 function cornerCustomFontCode() {
   var v = parseInt(getSetting('CONFIG_CORNER_CUSTOM_FONT', '0'), 10);
-  return [0, 1, 2, 3, 4, 5, 6].indexOf(v) === -1 ? 0 : v;
+  return [0, 1, 2, 3, 4, 5].indexOf(v) === -1 ? 0 : v;
 }
 
 // Corners: 4 slots (0=top-left, 1=top-right, 2=bottom-left,
