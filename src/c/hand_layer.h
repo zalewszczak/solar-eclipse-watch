@@ -73,9 +73,15 @@ typedef struct {
 // hand's shadow doesn't end up reading darker/more solid than the hand
 // it belongs to. Solid style always draws a fully opaque shadow
 // regardless of cfg->translucent.
+// length_scale_1000 (0-1000, 1000 = normal/full length) shrinks the
+// hand's own length (not its width) proportionally -- used only by
+// the startup animation's "grows out from a center dot" phase, see
+// compute_startup_hand_anim() in pebble-eclipse-watch.c. Pass 1000
+// for a normal, non-animated draw.
 void hand_layer_draw(GContext *ctx, GPoint center, int32_t angle, const HandConfig *cfg,
                       GColor main_color, GColor accent_color, GColor bg_color,
-                      bool shadow_translucent_style, uint16_t shadow_angle_deg);
+                      bool shadow_translucent_style, uint16_t shadow_angle_deg,
+                      uint16_t length_scale_1000);
 
 // Shared (not per-hand) center decoration -- radius 0 means off.
 void hand_layer_draw_center_circle(GContext *ctx, GPoint center, uint8_t radius, uint8_t color_choice,

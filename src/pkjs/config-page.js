@@ -1089,6 +1089,24 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      <label for="outlineEnabled" style="margin:0;">Outline text, icons, and hands for contrast</label>' +
 '    </div>' +
 '    <div class="help">Adds a thin outline (in your color scheme\'s background color) behind corner/edge text and icons, the big-analog date, the eclipse phase text, and the hands -- so they stay readable over any part of the sky. Icons and hands only get it outside translucent/transparent mode.</div>' +
+
+'    <div class="checkbox-row subsection">' +
+'      <input type="checkbox" id="startupClockAnimationEnabled" ' + (current.startupClockAnimationEnabled !== false ? 'checked' : '') + '>' +
+'      <label for="startupClockAnimationEnabled" style="margin:0;">Animate clock on start</label>' +
+'    </div>' +
+'    <div class="help">On for launch: the hands/digits sweep in from a cold-start position up to the real time, under 1.5s, instead of just appearing already showing it.</div>' +
+
+'    <div class="checkbox-row subsection">' +
+'      <input type="checkbox" id="startupBackgroundAnimationEnabled" ' + (current.startupBackgroundAnimationEnabled ? 'checked' : '') + '>' +
+'      <label for="startupBackgroundAnimationEnabled" style="margin:0;">Animate background on start</label>' +
+'    </div>' +
+'    <div class="help">Off by default: on launch, the Sun/Moon/planets/clouds/markers sweep in from an earlier position or off-screen up to their real current state, under 1.5s.</div>' +
+
+'    <div class="checkbox-row subsection">' +
+'      <input type="checkbox" id="shakeAnimationEnabled" ' + (current.shakeAnimationEnabled ? 'checked' : '') + '>' +
+'      <label for="shakeAnimationEnabled" style="margin:0;">Animate outlines on shake</label>' +
+'    </div>' +
+'    <div class="help">Off by default: on shake, every outlined item\'s outline cycles through a color gradient back to normal (each item starting at a different point along it) for as long as the shake labels stay up -- see "Shake-to-reveal labels stay on screen for" in the Astronomy section. The second hand switches to smooth continuous motion for that same stretch.</div>' +
 '    </div>' +
 '  </fieldset>' +
 
@@ -3003,6 +3021,9 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    CONFIG_SHOW_ISS: document.getElementById("showIss").checked,' +
 '    CONFIG_AURORA_ENABLED: document.getElementById("auroraEnabled").checked,' +
 '    CONFIG_VIBRATE_ON_PHASE_CHANGE: document.getElementById("vibrateOnPhaseChange").checked,' +
+'    CONFIG_STARTUP_CLOCK_ANIMATION_ENABLED: document.getElementById("startupClockAnimationEnabled").checked,' +
+'    CONFIG_STARTUP_BACKGROUND_ANIMATION_ENABLED: document.getElementById("startupBackgroundAnimationEnabled").checked,' +
+'    CONFIG_SHAKE_ANIMATION_ENABLED: document.getElementById("shakeAnimationEnabled").checked,' +
 '    CONFIG_OUTLINE_ENABLED: document.getElementById("outlineEnabled").checked,' +
 '    CONFIG_CORNER_FONT_SIZE: document.getElementById("cornerFontSize").value,' +
 '    CONFIG_CORNER_CUSTOM_FONT: document.getElementById("cornerCustomFont").value,' +

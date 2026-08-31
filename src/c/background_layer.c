@@ -77,6 +77,8 @@ typedef struct {
                                  // instant a flash starts or ends and force a redraw for
                                  // just that transition, without abandoning the normal
                                  // once-a-minute cadence the rest of the time
+  bool bg_anim_active;       // "animate background on start" -- see eclipse_canvas_set_bg_anim()
+  uint16_t bg_anim_elapsed_ms; // and canvas_update_proc's own use of both these fields
   GBitmap *sky_cache;       // last full render, captured via graphics_capture_frame_buffer;
                              // blitted back on the seconds in between instead of leaving
                              // the screen untouched (which is what caused flicker -- Pebble
@@ -361,6 +363,36 @@ typedef struct { uint8_t r, g, b; } RGB8;
 static uint8_t lerp8(uint8_t a, uint8_t b, int32_t num, int32_t den) {
   if (den == 0) return a;
   return (uint8_t)(a + ((int32_t)(b - a) * num) / den);
+}
+
+// Decelerates into the target -- "animate background on start"'s own
+// easing (graceful, slowing down at the end), separate from
+// pebble-eclipse-watch.c's identically-behaved ease_out_cubic_1000
+// (used for its own, unrelated clock-hand animation) since these are
+// two different translation units and this is a small enough helper
+// that duplicating it is simpler than threading a shared declaration
+// through a header for one function -- same reasoning subpixel.h's
+// own top-of-file comment already gives for this project's small
+// self-contained helpers generally.
+#define BG_ANIM_MS 1400 // must match pebble-eclipse-watch.c's own BG_ANIM_MS -- same duplication reasoning as above
+static int32_t bg_anim_ease_out_1000(int32_t t) {
+  int32_t inv = 1000 - t;
+  int64_t inv3 = ((int64_t)inv * inv * inv) / 1000000;
+  int32_t r = 1000 - (int32_t)inv3;
+  return (r > 1000) ? 1000 : r;
+}
+
+// Starts slow, accelerates toward the end -- the text markers' own
+// "count up from 0" effect (see draw_text_markers), matching
+// pebble-eclipse-watch.c's identically-behaved ease_in_cubic_1000
+// used for its own, separate digital-clock count-up. Positions still
+// use the decelerating curve above (bg_anim_ease_out_1000) -- only
+// the counted-up number itself speeds up toward its real value, the
+// same "odometer" feel the clock's own count-up already has.
+static int32_t bg_anim_ease_in_1000(int32_t t) {
+  int64_t t64 = t;
+  int32_t r = (int32_t)((t64 * t64 * t64) / 1000000);
+  return (r > 1000) ? 1000 : r;
 }
 
 // The Sun's own disc color, white near the zenith and shifting through
@@ -710,7 +742,7 @@ static void cloud_shading_colors(uint8_t cloud_pct, bool stormy, int16_t sun_alt
 // it while a thin bright channel reaches the ground.
 static void draw_clouds_realistic(GContext *ctx, GRect bounds, uint8_t cloud_pct, uint8_t cloud_altitude_pct,
                          uint8_t visibility_pct, bool stormy, GPoint sun_center, bool sun_up, bool flash_active,
-                         int16_t sun_alt_decideg) {
+                         int16_t sun_alt_decideg, bool anim_active, int32_t anim_progress_1000) {
   if (cloud_pct == 0 && !stormy) return;
 
   RGB8 warm_rgb, cool_rgb;
@@ -731,8 +763,22 @@ static void draw_clouds_realistic(GContext *ctx, GRect bounds, uint8_t cloud_pct
   int16_t up_h = (35 * scale_pct) / 100 + 5;
   int16_t down_h = (30 * scale_pct) / 100 + 5;
 
+  int32_t slide_eased = anim_active ? (1000 - bg_anim_ease_out_1000(anim_progress_1000)) : 0; // 1000 at start, 0 once settled
+
   for (int c = 0; c < cluster_count; c++) {
     int16_t cx = bounds.origin.x + (bounds.size.w * CLUSTER_X_PCT[c]) / 100;
+    // "Animate background on start": slides in from whichever side of
+    // the screen this cluster is already closer to -- left-half
+    // clusters approach from further left, right-half ones from
+    // further right, so the whole cloud deck reads as converging in
+    // from both sides rather than every puff arriving from one
+    // direction. Distance is a fixed fraction of the screen width,
+    // scaled down to nothing as slide_eased itself decays to 0.
+    if (slide_eased > 0) {
+      int16_t side_dist = bounds.size.w / 2;
+      int32_t signed_dist = (CLUSTER_X_PCT[c] < 50) ? -(int32_t)side_dist : (int32_t)side_dist;
+      cx += (int16_t)((signed_dist * slide_eased) / 1000);
+    }
     int16_t cy = band_y + CLUSTER_Y_OFFSET[c];
 
     // Light direction from this cluster toward the Sun, normalized to
@@ -920,7 +966,8 @@ static void dither_fill_circle(GContext *ctx, GRect bounds, GPoint center, int16
 }
 
 static void draw_clouds_simple(GContext *ctx, GRect bounds, uint8_t cloud_pct, uint8_t cloud_altitude_pct,
-                                uint8_t visibility_pct, bool stormy, int16_t sun_alt_decideg) {
+                                uint8_t visibility_pct, bool stormy, int16_t sun_alt_decideg,
+                                bool anim_active, int32_t anim_progress_1000) {
   if (cloud_pct == 0 && !stormy) return;
 
   GColor lit_color, shadow_color;
@@ -937,8 +984,15 @@ static void draw_clouds_simple(GContext *ctx, GRect bounds, uint8_t cloud_pct, u
   int16_t scale_pct = 70 + (cloud_pct * 60) / 100;
   if (stormy && scale_pct < 130) scale_pct = 130;
 
+  int32_t slide_eased = anim_active ? (1000 - bg_anim_ease_out_1000(anim_progress_1000)) : 0; // same slide-in as draw_clouds_realistic's own, see its comment
+
   for (int c = 0; c < cluster_count; c++) {
     int16_t cx = bounds.origin.x + (bounds.size.w * CLUSTER_X_PCT[c]) / 100;
+    if (slide_eased > 0) {
+      int16_t side_dist = bounds.size.w / 2;
+      int32_t signed_dist = (CLUSTER_X_PCT[c] < 50) ? -(int32_t)side_dist : (int32_t)side_dist;
+      cx += (int16_t)((signed_dist * slide_eased) / 1000);
+    }
     int16_t cy = band_y + CLUSTER_Y_OFFSET[c];
     for (int p = 0; p < CLOUD_TEMPLATE_COUNT; p++) {
       int16_t px = (CLOUD_TEMPLATE[p].dx * scale_pct) / 100;
@@ -956,11 +1010,12 @@ static void draw_clouds_simple(GContext *ctx, GRect bounds, uint8_t cloud_pct, u
 // "Cloud style" setting (0=Simple/battery-friendly, 1=Realistic).
 static void draw_clouds(GContext *ctx, GRect bounds, uint8_t cloud_pct, uint8_t cloud_altitude_pct,
                          uint8_t visibility_pct, bool stormy, GPoint sun_center, bool sun_up,
-                         uint8_t render_style, bool flash_active, int16_t sun_alt_decideg) {
+                         uint8_t render_style, bool flash_active, int16_t sun_alt_decideg,
+                         bool anim_active, int32_t anim_progress_1000) {
   if (render_style == 0) {
-    draw_clouds_simple(ctx, bounds, cloud_pct, cloud_altitude_pct, visibility_pct, stormy, sun_alt_decideg);
+    draw_clouds_simple(ctx, bounds, cloud_pct, cloud_altitude_pct, visibility_pct, stormy, sun_alt_decideg, anim_active, anim_progress_1000);
   } else {
-    draw_clouds_realistic(ctx, bounds, cloud_pct, cloud_altitude_pct, visibility_pct, stormy, sun_center, sun_up, flash_active, sun_alt_decideg);
+    draw_clouds_realistic(ctx, bounds, cloud_pct, cloud_altitude_pct, visibility_pct, stormy, sun_center, sun_up, flash_active, sun_alt_decideg, anim_active, anim_progress_1000);
   }
 }
 
@@ -1676,8 +1731,32 @@ static GColor marker_ring_color(uint8_t choice, GColor main_color, GColor accent
   }
 }
 
+// "Animate background on start": each mark staggers in starting from
+// the fully-reached, fully-eccentric extreme (100%/100 -- effectively
+// off the visible screen, or at least hard up against its very edge --
+// see MarkerRingConfig's own inner/outer_border_pct/eccentricity
+// comments in eclipse_data.h for why those particular values count as
+// "off screen") down to its real configured position, beginning with
+// the 12-o'clock mark and sweeping clockwise through the rest -- mark
+// i's own animation starts MARKER_ANIM_STAGGER_1000*i/marks of the way
+// into the overall duration and has whatever's left of it to finish,
+// so every mark still lands exactly on its real position by the time
+// the overall progress reaches 1.0 regardless of how late it started.
+#define MARKER_ANIM_STAGGER_1000 600 // marks' own starts spread across the first 60% of the duration
+
+static int32_t marker_anim_mark_progress_1000_raw(int mark_index, int marks, int32_t overall_progress_1000) {
+  int32_t start_frac = ((int32_t)mark_index * MARKER_ANIM_STAGGER_1000) / marks;
+  int32_t duration_frac = 1000 - start_frac;
+  if (duration_frac <= 0) return 1000;
+  int32_t local = ((overall_progress_1000 - start_frac) * 1000) / duration_frac;
+  if (local < 0) local = 0;
+  if (local > 1000) local = 1000;
+  return local;
+}
+
 static void draw_marker_ring(GContext *ctx, GPoint center, GRect screen, const MarkerRingConfig *cfg,
-                              int marks, int skip_step, GColor main_color, GColor accent_color, GColor bg_color) {
+                              int marks, int skip_step, GColor main_color, GColor accent_color, GColor bg_color,
+                              bool anim_active, int32_t anim_overall_progress_1000) {
   if (cfg->thickness == 0) return;
   GColor color = marker_ring_color(cfg->color, main_color, accent_color, bg_color);
   uint8_t inner_pct = cfg->inner_border_pct, outer_pct = cfg->outer_border_pct;
@@ -1701,8 +1780,18 @@ static void draw_marker_ring(GContext *ctx, GPoint center, GRect screen, const M
     int32_t angle = (((int32_t)i * TRIG_MAX_ANGLE) / marks) & 0xFFFF;
     int32_t sin_v = sin_lookup(angle), cos_v = cos_lookup(angle);
 
-    FGPoint outer_fp = point_on_ring_fp(center_fp, screen, sin_v, cos_v, outer_pct, cfg->outer_eccentricity);
-    FGPoint inner_fp = point_on_ring_fp(center_fp, screen, sin_v, cos_v, inner_pct, cfg->inner_eccentricity);
+    uint8_t use_inner_pct = inner_pct, use_outer_pct = outer_pct;
+    uint8_t use_inner_ecc = cfg->inner_eccentricity, use_outer_ecc = cfg->outer_eccentricity;
+    if (anim_active) {
+      int32_t p = bg_anim_ease_out_1000(marker_anim_mark_progress_1000_raw(i, marks, anim_overall_progress_1000));
+      use_inner_pct = (uint8_t)lerp8(100, inner_pct, p, 1000);
+      use_outer_pct = (uint8_t)lerp8(100, outer_pct, p, 1000);
+      use_inner_ecc = (uint8_t)lerp8(100, cfg->inner_eccentricity, p, 1000);
+      use_outer_ecc = (uint8_t)lerp8(100, cfg->outer_eccentricity, p, 1000);
+    }
+
+    FGPoint outer_fp = point_on_ring_fp(center_fp, screen, sin_v, cos_v, use_outer_pct, use_outer_ecc);
+    FGPoint inner_fp = point_on_ring_fp(center_fp, screen, sin_v, cos_v, use_inner_pct, use_inner_ecc);
     draw_ring_mark_fp(ctx, inner_fp, outer_fp, sin_v, cos_v, half_thick_fp, cfg->style, color, cfg->translucent, cfg->thickness);
   }
 }
@@ -1815,7 +1904,8 @@ static void int_to_roman(int num, char *buf, size_t buf_size) {
 
 static void draw_text_markers(GContext *ctx, GPoint center, GRect screen, CanvasState *state,
                                const MarkerTextConfig *text_cfg, const MarkerRingConfig *hour_cfg,
-                               const MarkerRingConfig *second_cfg, GColor color) {
+                               const MarkerRingConfig *second_cfg, GColor color,
+                               bool anim_active, int32_t anim_overall_progress_1000) {
   if (text_cfg->target == 0) return;
   bool is_hour = (text_cfg->target == 1);
   const MarkerRingConfig *ring = is_hour ? hour_cfg : second_cfg;
@@ -1846,7 +1936,19 @@ static void draw_text_markers(GContext *ctx, GPoint center, GRect screen, Canvas
 
     char buf[8];
     int label = is_hour ? (i == 0 ? 12 : i) : (i * 5);
-    if (text_cfg->roman_numerals) int_to_roman(label, buf, sizeof(buf));
+    // "Animate background on start": each label counts up from 0 to
+    // its real value, using the same 12-mark clockwise stagger (mark
+    // index i is also the mark's own 12-o'clock-relative position
+    // here, same as draw_marker_ring's) but an accelerating curve
+    // instead of a decelerating one -- see bg_anim_ease_in_1000's own
+    // comment for why.
+    if (anim_active) {
+      int32_t local = marker_anim_mark_progress_1000_raw(i, 12, anim_overall_progress_1000);
+      int32_t eased = bg_anim_ease_in_1000(local);
+      label = (int)(((int32_t)label * eased) / 1000);
+    }
+    if (text_cfg->roman_numerals && label > 0) int_to_roman(label, buf, sizeof(buf));
+    else if (text_cfg->roman_numerals) buf[0] = '\0'; // roman numerals have no glyph for 0 -- blank rather than garbage mid-count-up
     else snprintf(buf, sizeof(buf), "%d", label);
 
     int16_t box_w = 30, box_h = fh + 4;
@@ -1927,13 +2029,36 @@ static void tint_marker_bitmap(CanvasState *state, GColor tint_color, bool trans
   state->marker_bitmap_tint_color = tint_color;
 }
 
-static void draw_marker_bitmap(GContext *ctx, GBitmap *mask, GRect bounds) {
+static void draw_marker_bitmap(GContext *ctx, GBitmap *mask, GRect bounds, bool anim_active, int32_t anim_progress_1000) {
   if (!mask) return;
   GRect bmp_bounds = gbitmap_get_bounds(mask);
   GRect dest = GRect(bounds.origin.x + (bounds.size.w - bmp_bounds.size.w) / 2,
                       bounds.origin.y + (bounds.size.h - bmp_bounds.size.h) / 2,
                       bmp_bounds.size.w, bmp_bounds.size.h);
   graphics_context_set_compositing_mode(ctx, GCompOpSet);
+
+  if (anim_active) {
+    // True per-pixel circular masking isn't available on this
+    // platform -- Pebble's own clip rect is rectangular only, and
+    // there's no alpha/arbitrary-shape compositing mode to fall back
+    // on instead. Approximated with a growing SQUARE clip centered on
+    // the bitmap, revealing it from the inside out as it eases toward
+    // full size -- not truly circular, but the closest "blend in from
+    // the inside, gracefully, slowing down at the end" this platform
+    // actually supports. Clip is restored to the full screen rect
+    // afterward so nothing drawn later in this same redraw ends up
+    // clipped too.
+    int32_t eased = bg_anim_ease_out_1000(anim_progress_1000);
+    int16_t max_dim = (dest.size.w > dest.size.h) ? dest.size.w : dest.size.h;
+    int16_t reveal = (int16_t)(((int32_t)max_dim * eased) / 1000);
+    if (reveal < 2) reveal = 2;
+    GPoint dest_center = GPoint(dest.origin.x + dest.size.w / 2, dest.origin.y + dest.size.h / 2);
+    graphics_context_set_clip_rect(ctx, GRect(dest_center.x - reveal / 2, dest_center.y - reveal / 2, reveal, reveal));
+    graphics_draw_bitmap_in_rect(ctx, mask, dest);
+    graphics_context_set_clip_rect(ctx, bounds);
+    return;
+  }
+
   graphics_draw_bitmap_in_rect(ctx, mask, dest);
 }
 
@@ -1944,7 +2069,8 @@ static void draw_marker_bitmap(GContext *ctx, GBitmap *mask, GRect bounds) {
 // cadence (once a minute, or immediately on a forced redraw) rather than
 // every tick. big-analog mode only; callers must gate on d->bottom_style.
 static void draw_all_markers(GContext *ctx, CanvasState *state, GPoint center, GRect screen,
-                              const EclipseData *d, GColor main_color, GColor accent_color, GColor bg_color) {
+                              const EclipseData *d, GColor main_color, GColor accent_color, GColor bg_color,
+                              bool anim_active, int32_t anim_progress_1000) {
   uint8_t marker_style = d->big_analog_marker_style;
 
   if (marker_style == 9) { // none -- no ring, no bitmap, nothing to draw
@@ -1958,7 +2084,7 @@ static void draw_all_markers(GContext *ctx, CanvasState *state, GPoint center, G
 
   if (is_bitmap_style) {
     tint_marker_bitmap(state, main_color, d->bitmap_marker_transparent);
-    draw_marker_bitmap(ctx, state->marker_bitmap, screen);
+    draw_marker_bitmap(ctx, state->marker_bitmap, screen, anim_active, anim_progress_1000);
     return;
   }
 
@@ -1975,11 +2101,11 @@ static void draw_all_markers(GContext *ctx, CanvasState *state, GPoint center, G
   // Second ring first so the hour ring's marks draw on top at shared
   // 12-o'clock-aligned slots (matches the original procedural markers'
   // precedent of hour ticks winning at shared positions).
-  draw_marker_ring(ctx, center, screen, second_cfg, 60, 5, main_color, accent_color, bg_color);
-  draw_marker_ring(ctx, center, screen, hour_cfg, 12, 0, main_color, accent_color, bg_color);
+  draw_marker_ring(ctx, center, screen, second_cfg, 60, 5, main_color, accent_color, bg_color, anim_active, anim_progress_1000);
+  draw_marker_ring(ctx, center, screen, hour_cfg, 12, 0, main_color, accent_color, bg_color, anim_active, anim_progress_1000);
 
   if (marker_style == 8) {
-    draw_text_markers(ctx, center, screen, state, &d->marker_text, hour_cfg, second_cfg, main_color);
+    draw_text_markers(ctx, center, screen, state, &d->marker_text, hour_cfg, second_cfg, main_color, anim_active, anim_progress_1000);
   }
 }
 
@@ -2006,10 +2132,31 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
     return;
   }
 
+  // "Animate background on start": sweeps the Sun/Moon/planets' own
+  // effective observation time from a couple hours ago up to the real
+  // `now`, eased to slow down toward the end -- since sky_colors_for_
+  // altitude()/the Sun's own color/planet-visibility-threshold below
+  // all key off whichever altitude this produces, substituting it in
+  // place of `now` for just those position/color lookups (NOT
+  // anything else in this function -- eclipse timing, the weather-
+  // driven cloud coverage amount, the user's own day/night color
+  // scheme, and the countdown label all keep using the real `now`)
+  // cascades the sweep across the sky gradient, the Sun's disc color,
+  // and every body's screen position all at once from this one
+  // substitution point.
+  time_t sky_now = now;
+  if (state->bg_anim_active) {
+    int32_t progress = ((int32_t)state->bg_anim_elapsed_ms * 1000) / BG_ANIM_MS;
+    if (progress > 1000) progress = 1000;
+    int32_t eased = bg_anim_ease_out_1000(progress);
+    time_t past = now - 2 * 3600; // "a couple hours ago"
+    sky_now = past + (time_t)(((int64_t)(now - past) * eased) / 1000);
+  }
+
   // Computed early -- cheap (just interpolation, no drawing) -- since
   // the throttle decision below needs sky darkness to tell whether
   // the ISS's visibility just changed.
-  int16_t alt = interp_sun_alt_decideg(d, now);
+  int16_t alt = interp_sun_alt_decideg(d, sky_now);
   bool sky_is_dark = alt <= -60;
   // Space-view sky mode has no atmosphere to dim the sky in the first
   // place, so its celestial bodies (planets, ISS) are never gated by
@@ -2133,7 +2280,7 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
   state->last_eclipse_phase = current_phase;
   state->last_iss_visible = current_iss_visible;
 
-  int16_t moon_alt = interp_moon_alt_decideg(d, now);
+  int16_t moon_alt = interp_moon_alt_decideg(d, sky_now);
   uint8_t cloud_pct = interp_cloud_pct(d, now);
   bool stormy = d->weather_condition == 4;
 
@@ -2395,7 +2542,7 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
   }
   if (sky_dark_for_bodies) {
     for (int p = 0; p < PLANET_COUNT; p++) {
-      int16_t p_alt = interp_planet_alt_decideg(d, (PlanetId)p, now);
+      int16_t p_alt = interp_planet_alt_decideg(d, (PlanetId)p, sky_now);
       int16_t p_alt_y = alt_to_y(p_alt, d->sky_scale_max_alt_decideg, bounds.size.h, PLANET_R);
       int16_t p_y;
       bool p_up = body_screen_y(p_alt_y, d->planet_rise[p], d->planet_set[p], now, horizon_y, PLANET_R, &p_y);
@@ -2462,8 +2609,13 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
   // entirely outside Weather sky mode -- Clear sky and Space view
   // both represent weather-free skies by definition.
   if (weather_enabled) {
+    int32_t cloud_anim_progress_1000 = 0;
+    if (state->bg_anim_active) {
+      cloud_anim_progress_1000 = ((int32_t)state->bg_anim_elapsed_ms * 1000) / BG_ANIM_MS;
+      if (cloud_anim_progress_1000 > 1000) cloud_anim_progress_1000 = 1000;
+    }
     draw_clouds(ctx, bounds, cloud_pct, d->cloud_altitude_pct, d->vis_score_pct, stormy, sun_center, sun_up, d->cloud_render_style,
-                flash_currently_active, alt);
+                flash_currently_active, alt, state->bg_anim_active, cloud_anim_progress_1000);
     draw_weather_effect(ctx, bounds, d->weather_condition, cloud_pct, d->cloud_altitude_pct);
   }
 
@@ -2545,7 +2697,13 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
     GPoint full_center = GPoint(full_bounds.size.w / 2, full_bounds.size.h / 2);
     GColor bg, main_color, accent_color;
     get_active_color_scheme(d, now, &bg, &main_color, &accent_color);
-    draw_all_markers(ctx, state, full_center, full_bounds, d, main_color, accent_color, bg);
+    int32_t marker_anim_progress_1000 = 0;
+    if (state->bg_anim_active) {
+      marker_anim_progress_1000 = ((int32_t)state->bg_anim_elapsed_ms * 1000) / BG_ANIM_MS;
+      if (marker_anim_progress_1000 > 1000) marker_anim_progress_1000 = 1000;
+    }
+    draw_all_markers(ctx, state, full_center, full_bounds, d, main_color, accent_color, bg,
+                      state->bg_anim_active, marker_anim_progress_1000);
   }
 
   // Cache what was just drawn: capture the real framebuffer (this is
@@ -2632,6 +2790,14 @@ void eclipse_canvas_set_data(Layer *layer, EclipseData *data) {
 void eclipse_canvas_set_show_labels(Layer *layer, bool show) {
   CanvasState *state = (CanvasState *)layer_get_data(layer);
   state->show_labels = show;
+  state->force_next_draw = true;
+  layer_mark_dirty(layer);
+}
+
+void eclipse_canvas_set_bg_anim(Layer *layer, bool active, uint16_t elapsed_ms) {
+  CanvasState *state = (CanvasState *)layer_get_data(layer);
+  state->bg_anim_active = active;
+  state->bg_anim_elapsed_ms = elapsed_ms;
   state->force_next_draw = true;
   layer_mark_dirty(layer);
 }

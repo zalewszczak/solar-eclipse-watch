@@ -227,7 +227,21 @@ static void draw_hand_shadow_once_fp(GContext *ctx, FGPoint center, int32_t angl
 
 void hand_layer_draw(GContext *ctx, GPoint center, int32_t angle, const HandConfig *cfg,
                       GColor main_color, GColor accent_color, GColor bg_color,
-                      bool shadow_translucent_style, uint16_t shadow_angle_deg) {
+                      bool shadow_translucent_style, uint16_t shadow_angle_deg,
+                      uint16_t length_scale_1000) {
+  // Scaled-length copy for the startup animation's "grows out from a
+  // center dot" phase -- everything below just keeps using `cfg` as
+  // before, now possibly pointing at this shrunk copy instead of the
+  // caller's real one. Width/back_offset/outline/shadow all stay at
+  // their real configured size regardless -- only the hand's own
+  // length grows in.
+  HandConfig scaled_cfg;
+  if (length_scale_1000 < 1000) {
+    scaled_cfg = *cfg;
+    scaled_cfg.length = (uint8_t)(((uint32_t)cfg->length * length_scale_1000) / 1000);
+    cfg = &scaled_cfg;
+  }
+
   FGPoint center_fp = fgpoint_from_gpoint(center);
 
   draw_hand_shadow_once_fp(ctx, center_fp, angle, cfg, shadow_translucent_style, shadow_angle_deg);

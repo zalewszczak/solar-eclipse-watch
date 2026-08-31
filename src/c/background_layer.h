@@ -24,6 +24,15 @@ void eclipse_canvas_set_data(Layer *layer, EclipseData *data);
 // true on tap and false again after a few seconds via app_timer.
 void eclipse_canvas_set_show_labels(Layer *layer, bool show);
 
+// Drives the "animate background on start" effect -- active/
+// elapsed_ms mirror pebble-eclipse-watch.c's own s_bg_anim_active/
+// s_bg_anim_elapsed_ms exactly (see maybe_start_startup_background_
+// animation() there); this just hands them to the canvas's own draw
+// code (see canvas_update_proc's own comment on where they're used)
+// and forces an immediate full redraw, same "force + mark dirty"
+// shape eclipse_canvas_set_data() above already uses.
+void eclipse_canvas_set_bg_anim(Layer *layer, bool active, uint16_t elapsed_ms);
+
 // Call every second from the tick handler; the canvas's own internal
 // once-a-minute throttle decides whether this actually triggers a
 // redraw or just returns immediately, so this is always cheap to call.

@@ -238,6 +238,25 @@ typedef struct {
   bool vibrate_on_phase_change; // user setting: brief double vibration when the eclipse crosses
                                   // into its next phase (C1/C2/C3/C4) -- not on the "there's an
                                   // eclipse today, waiting" transition, only real contact events
+  bool startup_clock_animation_enabled; // user setting ("Style" section, default true): the clock
+                                          // hands/digits animate in from a "cold start" position (00:00,
+                                          // or hands at 12) up to the real current time on app launch,
+                                          // rather than just appearing already showing it. See
+                                          // s_startup_clock_anim_* in pebble-eclipse-watch.c and
+                                          // hand_layer.c's HandConfig-level sweep-in support. Under 1.5s.
+  bool startup_background_animation_enabled; // user setting ("Style" section, default false): sun/
+                                               // moon/planets/clouds/markers animate in from an earlier
+                                               // position/off-screen up to their real current state on
+                                               // app launch. NOT YET IMPLEMENTED on the watch as of this
+                                               // field's addition -- the setting exists and is sent, but
+                                               // background_layer.c doesn't act on it yet.
+  bool shake_animation_enabled; // user setting ("Style" section, default false): on shake, every
+                                  // outlined item's outline cycles through a color gradient back to
+                                  // its normal color (each item at a different point along it) for as
+                                  // long as shake_label_seconds, during which the second hand (if
+                                  // shown) switches from per-second jumps to continuous smooth motion.
+                                  // NOT YET IMPLEMENTED on the watch as of this field's addition -- the
+                                  // setting exists and is sent, but nothing reacts to it yet.
   bool outline_enabled; // user setting: 1px contrasting-color outline behind corner/edge text,
                           // the big-analog date, the eclipse phase text, and (procedurally, non-
                           // translucent mode only) corner/edge icons and the analog hands

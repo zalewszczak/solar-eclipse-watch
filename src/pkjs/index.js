@@ -536,6 +536,10 @@ function showSunTimeCode() { return getSetting('CONFIG_SHOW_SUN_TIME', 'false') 
 function showIssCode() { return getSetting('CONFIG_SHOW_ISS', 'false') === 'true' ? 1 : 0; }
 function auroraEnabledCode() { return getSetting('CONFIG_AURORA_ENABLED', 'false') === 'true' ? 1 : 0; }
 function vibrateOnPhaseChangeCode() { return getSetting('CONFIG_VIBRATE_ON_PHASE_CHANGE', 'false') === 'true' ? 1 : 0; }
+// Default true -- matches the C struct comment; the other two default false.
+function startupClockAnimationEnabledCode() { return getSetting('CONFIG_STARTUP_CLOCK_ANIMATION_ENABLED', 'true') === 'true' ? 1 : 0; }
+function startupBackgroundAnimationEnabledCode() { return getSetting('CONFIG_STARTUP_BACKGROUND_ANIMATION_ENABLED', 'false') === 'true' ? 1 : 0; }
+function shakeAnimationEnabledCode() { return getSetting('CONFIG_SHAKE_ANIMATION_ENABLED', 'false') === 'true' ? 1 : 0; }
 function outlineEnabledCode() { return getSetting('CONFIG_OUTLINE_ENABLED', 'true') === 'true' ? 1 : 0; }
 function cornerFontSizeCode() {
   var v = parseInt(getSetting('CONFIG_CORNER_FONT_SIZE', '1'), 10);
@@ -680,6 +684,9 @@ function sendDict(dict) {
   dict['SHOW_ISS'] = showIssCode();
   dict['AURORA_ENABLED'] = auroraEnabledCode();
   dict['VIBRATE_ON_PHASE_CHANGE'] = vibrateOnPhaseChangeCode();
+  dict['STARTUP_CLOCK_ANIMATION_ENABLED'] = startupClockAnimationEnabledCode();
+  dict['STARTUP_BACKGROUND_ANIMATION_ENABLED'] = startupBackgroundAnimationEnabledCode();
+  dict['SHAKE_ANIMATION_ENABLED'] = shakeAnimationEnabledCode();
   dict['OUTLINE_ENABLED'] = outlineEnabledCode();
   dict['CORNER_FONT_SIZE'] = cornerFontSizeCode();
   dict['CORNER_CUSTOM_FONT'] = cornerCustomFontCode();
@@ -1359,6 +1366,9 @@ function sendDict(dict) {
 '  "SHOW_ISS": 1,'+
 '  "AURORA_ENABLED": 0,'+
 '  "VIBRATE_ON_PHASE_CHANGE": 0,'+
+'  "STARTUP_CLOCK_ANIMATION_ENABLED": 1,'+
+'  "STARTUP_BACKGROUND_ANIMATION_ENABLED": 0,'+
+'  "SHAKE_ANIMATION_ENABLED": 0,'+
 '  "OUTLINE_ENABLED": 1,'+
 '  "CORNER_FONT_SIZE": 1,'+
 '  "CORNER_CUSTOM_FONT": 5,'+
@@ -2020,6 +2030,9 @@ Pebble.addEventListener('showConfiguration', function () {
     showIss: getSetting('CONFIG_SHOW_ISS', 'false') === 'true',
     auroraEnabled: getSetting('CONFIG_AURORA_ENABLED', 'false') === 'true',
     vibrateOnPhaseChange: getSetting('CONFIG_VIBRATE_ON_PHASE_CHANGE', 'false') === 'true',
+    startupClockAnimationEnabled: getSetting('CONFIG_STARTUP_CLOCK_ANIMATION_ENABLED', 'true') === 'true',
+    startupBackgroundAnimationEnabled: getSetting('CONFIG_STARTUP_BACKGROUND_ANIMATION_ENABLED', 'false') === 'true',
+    shakeAnimationEnabled: getSetting('CONFIG_SHAKE_ANIMATION_ENABLED', 'false') === 'true',
     outlineEnabled: getSetting('CONFIG_OUTLINE_ENABLED', 'true') === 'true',
     cornerFontSize: getSetting('CONFIG_CORNER_FONT_SIZE', '1'),
     cornerCustomFont: getSetting('CONFIG_CORNER_CUSTOM_FONT', '0'),
@@ -2196,6 +2209,9 @@ Pebble.addEventListener('webviewclosed', function (e) {
   setSetting('CONFIG_SHOW_ISS', settings.CONFIG_SHOW_ISS ? 'true' : 'false');
   setSetting('CONFIG_AURORA_ENABLED', settings.CONFIG_AURORA_ENABLED ? 'true' : 'false');
   setSetting('CONFIG_VIBRATE_ON_PHASE_CHANGE', settings.CONFIG_VIBRATE_ON_PHASE_CHANGE ? 'true' : 'false');
+  setSetting('CONFIG_STARTUP_CLOCK_ANIMATION_ENABLED', settings.CONFIG_STARTUP_CLOCK_ANIMATION_ENABLED ? 'true' : 'false');
+  setSetting('CONFIG_STARTUP_BACKGROUND_ANIMATION_ENABLED', settings.CONFIG_STARTUP_BACKGROUND_ANIMATION_ENABLED ? 'true' : 'false');
+  setSetting('CONFIG_SHAKE_ANIMATION_ENABLED', settings.CONFIG_SHAKE_ANIMATION_ENABLED ? 'true' : 'false');
   setSetting('CONFIG_OUTLINE_ENABLED', settings.CONFIG_OUTLINE_ENABLED ? 'true' : 'false');
   setSetting('CONFIG_CORNER_FONT_SIZE', settings.CONFIG_CORNER_FONT_SIZE || '1');
   setSetting('CONFIG_CORNER_CUSTOM_FONT', settings.CONFIG_CORNER_CUSTOM_FONT || '0');

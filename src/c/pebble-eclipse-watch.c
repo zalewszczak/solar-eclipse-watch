@@ -296,6 +296,19 @@ static void hands_layer_update_proc(Layer *layer, GContext *ctx) {
 
   int32_t min_angle = ((t->tm_min * 60 + t->tm_sec) * TRIG_MAX_ANGLE) / (60 * 60);
 
+  int32_t sec_angle = (t->tm_sec * TRIG_MAX_ANGLE) / 60;
+
+  // Startup animation (big-analog only): substitutes each hand's real
+  // target angle with an in-progress one, plus how long that hand
+  // currently is -- see compute_startup_hand_anim()'s own comment.
+  // 1000 = full length/no substitution for a normal, non-animated draw.
+  uint16_t hour_length_scale_1000 = 1000, min_length_scale_1000 = 1000, sec_length_scale_1000 = 1000;
+  if (s_startup_clock_anim_active) {
+    compute_startup_hand_anim(hour_angle, s_startup_anim_elapsed_ms, &hour_angle, &hour_length_scale_1000);
+    compute_startup_hand_anim(min_angle, s_startup_anim_elapsed_ms, &min_angle, &min_length_scale_1000);
+    compute_startup_hand_anim(sec_angle, s_startup_anim_elapsed_ms, &sec_angle, &sec_length_scale_1000);
+  }
+
   // All 5 hand styles now go through hand_layer_draw() -- custom (4) uses
   // the user's own per-hand settings; 0-3 use one of the hardcoded
   // HAND_STYLE_*_PRESETS above, with the still-global hand settings
@@ -328,11 +341,10 @@ static void hands_layer_update_proc(Layer *layer, GContext *ctx) {
     hour_cfg.shadow_distance_px = min_cfg.shadow_distance_px = sec_cfg.shadow_distance_px = 2;
   }
 
-  hand_layer_draw(ctx, center, hour_angle, &hour_cfg, main_color, accent_color, bg, s_data.shadow_translucent, s_data.shadow_angle_deg);
-  hand_layer_draw(ctx, center, min_angle, &min_cfg, main_color, accent_color, bg, s_data.shadow_translucent, s_data.shadow_angle_deg);
+  hand_layer_draw(ctx, center, hour_angle, &hour_cfg, main_color, accent_color, bg, s_data.shadow_translucent, s_data.shadow_angle_deg, hour_length_scale_1000);
+  hand_layer_draw(ctx, center, min_angle, &min_cfg, main_color, accent_color, bg, s_data.shadow_translucent, s_data.shadow_angle_deg, min_length_scale_1000);
   if (s_data.show_seconds) {
-    int32_t sec_angle = (t->tm_sec * TRIG_MAX_ANGLE) / 60;
-    hand_layer_draw(ctx, center, sec_angle, &sec_cfg, main_color, accent_color, bg, s_data.shadow_translucent, s_data.shadow_angle_deg);
+    hand_layer_draw(ctx, center, sec_angle, &sec_cfg, main_color, accent_color, bg, s_data.shadow_translucent, s_data.shadow_angle_deg, sec_length_scale_1000);
   }
 
   if (s_data.big_analog_hand_style == 4) {
@@ -368,6 +380,26 @@ static void bottom_canvas_update_proc(Layer *layer, GContext *ctx) {
   GRect bounds = layer_get_bounds(layer);
   time_t now = time(NULL);
   struct tm *t = localtime(&now);
+
+  // Startup animation (digital + small-analog): substitutes an eased,
+  // sped-up count-up from midnight to the real time for the DISPLAYED
+  // time only -- `now`/the color scheme below still use the real
+  // current time. Every read of `t->tm_hour`/`tm_min`/`tm_sec` below
+  // (both the digital HH:MM(:SS) text and the small-analog hand
+  // angles further down) shares this one struct tm, so both get the
+  // count-up for free from this single substitution.
+  struct tm anim_tm;
+  if (s_startup_clock_anim_active) {
+    int32_t progress = ((int32_t)s_startup_anim_elapsed_ms * 1000) / STARTUP_CLOCK_ANIM_MS;
+    if (progress > 1000) progress = 1000;
+    int32_t eased = ease_in_cubic_1000(progress);
+    int32_t seconds_since_midnight = t->tm_hour * 3600 + t->tm_min * 60 + t->tm_sec;
+    int32_t fake_seconds = (int32_t)(((int64_t)seconds_since_midnight * eased) / 1000);
+    time_t midnight = now - seconds_since_midnight;
+    time_t fake_time = midnight + fake_seconds;
+    anim_tm = *localtime(&fake_time);
+    t = &anim_tm;
+  }
 
   GColor bg, text_color, accent_color;
   get_active_color_scheme(&s_data, now, &bg, &text_color, &accent_color);
@@ -701,6 +733,170 @@ static void request_retry_callback(void *data) {
   s_request_retry_timer = app_timer_register((uint32_t)s_request_retry_delay_s * 1000, request_retry_callback, NULL);
 }
 
+// ---- startup clock animation --------------------------------------------
+// User setting ("Style" section, on by default): on launch, the clock
+// sweeps in from a cold-start position up to the real time instead of
+// just appearing already showing it -- digital/small-analog count up
+// from 00:00:00, big-analog's custom hands grow out from a center dot
+// and sweep into place. Driven by a fast repeating AppTimer (this is
+// the one place in the app that redraws faster than once a second,
+// let alone once a minute -- deliberately bounded to under
+// STARTUP_CLOCK_ANIM_MS and played at most once per app launch, so it
+// doesn't become an ongoing battery cost).
+#define STARTUP_CLOCK_ANIM_MS 1400
+#define STARTUP_ANIM_FRAME_MS 40 // 25fps -- smooth enough for a <1.5s cosmetic sweep, not so fast it's a real battery concern for something this short
+#define STARTUP_ANIM_PHASE_A_MS ((STARTUP_CLOCK_ANIM_MS * 3) / 10) // big-analog only: the "grow out from center" phase, see compute_startup_hand_anim()
+
+static AppTimer *s_startup_anim_timer = NULL;
+static bool s_startup_clock_anim_active = false;
+static bool s_startup_clock_anim_played = false; // guards against replaying on every settings save/data refresh, not just app launch
+static uint16_t s_startup_anim_elapsed_ms = 0;
+
+// 0-1000 fixed-point "milli-progress" curves, matching this project's
+// existing frac1000 convention elsewhere (e.g. draw_clouds_realistic's
+// height_frac1000) rather than floating point.
+
+// Starts slow, accelerates toward the end -- used for the digital-
+// clock/small-analog "counting up from 00:00" effect in
+// bottom_canvas_update_proc, so the displayed time visibly speeds up
+// as it approaches the real one.
+static int32_t ease_in_cubic_1000(int32_t t) {
+  int64_t t64 = t;
+  int32_t r = (int32_t)((t64 * t64 * t64) / 1000000);
+  return (r > 1000) ? 1000 : r;
+}
+
+// Decelerates into the target, same as ease_in_cubic_1000 but mirrored.
+static int32_t ease_out_cubic_1000(int32_t t) {
+  int32_t inv = 1000 - t;
+  int64_t inv3 = ((int64_t)inv * inv * inv) / 1000000;
+  int32_t r = 1000 - (int32_t)inv3;
+  return (r > 1000) ? 1000 : r;
+}
+
+// ease_out_cubic_1000 with a small decaying wiggle layered on top --
+// approximates a spring "settle" (not true spring physics) for the
+// big-analog hands' final rotation into place. The wiggle's own
+// amplitude is scaled by (1-t)^2, so it's negligible right at the
+// start, peaks around the middle of the curve, and decays to exactly
+// 0 by t=1000 -- the hand still ends up at exactly the base curve's
+// own endpoint (1000), just with a couple of visible wobbles along
+// the way rather than a perfectly smooth glide.
+static int32_t ease_out_wiggle_1000(int32_t t) {
+  int32_t base = ease_out_cubic_1000(t);
+  int32_t inv = 1000 - t;
+  int32_t decay = (int32_t)(((int64_t)inv * inv) / 1000); // (1-t)^2, 0-1000 scale
+  int32_t wiggle_angle = (int32_t)(((int64_t)t * TRIG_MAX_ANGLE * 5) / 1000); // ~2.5 oscillations across the curve
+  int32_t wiggle = (int32_t)(((int64_t)sin_lookup(wiggle_angle) * decay) / TRIG_MAX_RATIO / 12); // small amplitude, ~4% of full range at peak
+  return base + wiggle;
+}
+
+// Big-analog hands only: given a hand's real target angle and how far
+// into the startup animation we are, returns the angle/length to
+// actually draw it at this frame. Phase A (first
+// STARTUP_ANIM_PHASE_A_MS): the hand grows from a center dot (length
+// 0) out to full length while sweeping clockwise the short distance
+// from -60deg into the 12 o'clock position (0deg) -- "appearing from
+// center dot doing sweep clockwise to midnight position". Phase B
+// (the rest): at full length, rotates from 12 o'clock to the real
+// target angle via whichever direction (clockwise/counter-clockwise)
+// is the shorter way around, with the wiggle-settle easing above.
+static void compute_startup_hand_anim(int32_t target_angle, uint16_t elapsed_ms,
+                                       int32_t *out_angle, uint16_t *out_length_scale_1000) {
+  if (elapsed_ms <= STARTUP_ANIM_PHASE_A_MS) {
+    int32_t p = ((int32_t)elapsed_ms * 1000) / STARTUP_ANIM_PHASE_A_MS;
+    if (p > 1000) p = 1000;
+    int32_t eased = ease_out_cubic_1000(p);
+    *out_length_scale_1000 = (uint16_t)eased;
+    int32_t start_angle = -(TRIG_MAX_ANGLE / 6); // -60deg, native units
+    int32_t angle = start_angle + (int32_t)(((int64_t)(-start_angle) * eased) / 1000);
+    if (angle < 0) angle += TRIG_MAX_ANGLE;
+    *out_angle = angle;
+  } else {
+    *out_length_scale_1000 = 1000;
+    uint16_t phase_b_elapsed = elapsed_ms - STARTUP_ANIM_PHASE_A_MS;
+    uint16_t phase_b_total = STARTUP_CLOCK_ANIM_MS - STARTUP_ANIM_PHASE_A_MS;
+    int32_t p = ((int32_t)phase_b_elapsed * 1000) / phase_b_total;
+    if (p > 1000) p = 1000;
+    int32_t eased = ease_out_wiggle_1000(p);
+    // Shortest signed path from 0 (12 o'clock) to target_angle, in
+    // native units (-TRIG_MAX_ANGLE/2 .. TRIG_MAX_ANGLE/2).
+    int32_t delta = target_angle;
+    if (delta > TRIG_MAX_ANGLE / 2) delta -= TRIG_MAX_ANGLE;
+    int32_t angle = (int32_t)(((int64_t)delta * eased) / 1000);
+    if (angle < 0) angle += TRIG_MAX_ANGLE;
+    *out_angle = angle;
+  }
+}
+
+static void startup_anim_timer_callback(void *data) {
+  s_startup_anim_elapsed_ms += STARTUP_ANIM_FRAME_MS;
+  if (s_startup_anim_elapsed_ms >= STARTUP_CLOCK_ANIM_MS) {
+    s_startup_clock_anim_active = false;
+    s_startup_anim_timer = NULL;
+  } else {
+    s_startup_anim_timer = app_timer_register(STARTUP_ANIM_FRAME_MS, startup_anim_timer_callback, NULL);
+  }
+  if (s_hands_layer) layer_mark_dirty(s_hands_layer);
+  if (s_bottom_layer) layer_mark_dirty(s_bottom_layer);
+}
+
+// Called once from window_load(), after the layers it needs to mark
+// dirty already exist. A no-op (and leaves s_startup_clock_anim_active
+// false) if the setting is off, or if this app session already played
+// it once -- a settings save or a fresh data push shouldn't replay it.
+static void maybe_start_startup_clock_animation(void) {
+  if (s_startup_clock_anim_played || !s_data.startup_clock_animation_enabled) return;
+  s_startup_clock_anim_played = true;
+  s_startup_clock_anim_active = true;
+  s_startup_anim_elapsed_ms = 0;
+  s_startup_anim_timer = app_timer_register(STARTUP_ANIM_FRAME_MS, startup_anim_timer_callback, NULL);
+}
+
+// ---- startup background animation ---------------------------------------
+// User setting ("Style" section, off by default): on launch, the Sun/
+// Moon/planets/sky gradient sweep in from where they were a couple
+// hours ago up to their real current state, clouds slide in from the
+// side, and markers/text markers animate in from off-screen/zero --
+// see background_layer.c's canvas_update_proc (the sun/moon/planet/sky
+// sweep itself, driven by eclipse_canvas_set_bg_anim() below) and
+// draw_all_markers()/draw_text_markers() (the marker/text-marker
+// pieces). A separate timer/state pair from the clock animation above
+// -- the two settings are independent, and either, both, or neither
+// can be on -- but the same "fast timer, bounded duration, played once
+// per session" shape.
+#define BG_ANIM_MS 1400
+#define BG_ANIM_FRAME_MS 40 // matches STARTUP_ANIM_FRAME_MS -- see its own comment
+
+static AppTimer *s_bg_anim_timer = NULL;
+static bool s_bg_anim_active = false;
+static bool s_bg_anim_played = false;
+static uint16_t s_bg_anim_elapsed_ms = 0;
+
+static void bg_anim_timer_callback(void *data) {
+  s_bg_anim_elapsed_ms += BG_ANIM_FRAME_MS;
+  if (s_bg_anim_elapsed_ms >= BG_ANIM_MS) {
+    s_bg_anim_active = false;
+    s_bg_anim_timer = NULL;
+  } else {
+    s_bg_anim_timer = app_timer_register(BG_ANIM_FRAME_MS, bg_anim_timer_callback, NULL);
+  }
+  // eclipse_canvas_set_bg_anim() forces the sky canvas to actually
+  // redraw every frame despite its own once-a-minute throttle, same
+  // "explicit force + mark dirty" shape as eclipse_canvas_set_data()/
+  // eclipse_canvas_set_show_labels() already use for their own reasons.
+  if (s_canvas_layer) eclipse_canvas_set_bg_anim(s_canvas_layer, s_bg_anim_active, s_bg_anim_elapsed_ms);
+}
+
+static void maybe_start_startup_background_animation(void) {
+  if (s_bg_anim_played || !s_data.startup_background_animation_enabled) return;
+  s_bg_anim_played = true;
+  s_bg_anim_active = true;
+  s_bg_anim_elapsed_ms = 0;
+  if (s_canvas_layer) eclipse_canvas_set_bg_anim(s_canvas_layer, true, 0);
+  s_bg_anim_timer = app_timer_register(BG_ANIM_FRAME_MS, bg_anim_timer_callback, NULL);
+}
+
 static bool use_small_seconds_for_digital_clock() {
   switch (s_data.clock_font) {
     case 2: // RESOURCE_ID_SFPIXELATE_FONT_48
@@ -995,6 +1191,15 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   }
   if ((t = dict_find(iter, MESSAGE_KEY_VIBRATE_ON_PHASE_CHANGE))) {
     s_data.vibrate_on_phase_change = t->value->uint8 != 0;
+  }
+  if ((t = dict_find(iter, MESSAGE_KEY_STARTUP_CLOCK_ANIMATION_ENABLED))) {
+    s_data.startup_clock_animation_enabled = t->value->uint8 != 0;
+  }
+  if ((t = dict_find(iter, MESSAGE_KEY_STARTUP_BACKGROUND_ANIMATION_ENABLED))) {
+    s_data.startup_background_animation_enabled = t->value->uint8 != 0;
+  }
+  if ((t = dict_find(iter, MESSAGE_KEY_SHAKE_ANIMATION_ENABLED))) {
+    s_data.shake_animation_enabled = t->value->uint8 != 0;
   }
   if ((t = dict_find(iter, MESSAGE_KEY_OUTLINE_ENABLED))) {
     s_data.outline_enabled = t->value->uint8 != 0;
@@ -1632,6 +1837,8 @@ static void window_load(Window *window) {
   apply_clock_font(); // uses whatever was loaded from persistent storage
 
   refresh_status_and_maybe_canvas(true);
+  maybe_start_startup_clock_animation();
+  maybe_start_startup_background_animation();
 }
 
 static void window_unload(Window *window) {
@@ -1687,6 +1894,14 @@ static void deinit(void) {
   if (s_request_retry_timer) {
     app_timer_cancel(s_request_retry_timer);
     s_request_retry_timer = NULL;
+  }
+  if (s_startup_anim_timer) {
+    app_timer_cancel(s_startup_anim_timer);
+    s_startup_anim_timer = NULL;
+  }
+  if (s_bg_anim_timer) {
+    app_timer_cancel(s_bg_anim_timer);
+    s_bg_anim_timer = NULL;
   }
   window_destroy(s_window);
 }
