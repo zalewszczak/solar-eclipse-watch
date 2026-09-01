@@ -33,6 +33,31 @@ function esc(str) {
     .replace(/>/g, '&gt;');
 }
 
+// Simple black-and-white (stroke="currentColor" so they inherit the
+// button's own text color -- white when active, same as the label
+// below them, no separate active-state icon needed) line-icons for
+// the 3 clock-layout buttons above the section they belong to.
+var MODE_BTN_ICONS = {
+  digital:
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+    '<rect x="3" y="7" width="18" height="10" rx="2"/>' +
+    '<line x1="7" y1="11" x2="10" y2="11"/><line x1="14" y1="11" x2="17" y2="11"/>' +
+    '<line x1="7" y1="14" x2="10" y2="14"/><line x1="14" y1="14" x2="17" y2="14"/>' +
+    '</svg>',
+  analog:
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+    '<circle cx="12" cy="12" r="9"/>' +
+    '<line x1="12" y1="12" x2="12" y2="7"/><line x1="12" y1="12" x2="15.5" y2="14"/>' +
+    '</svg>',
+  biganalog:
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+    '<circle cx="12" cy="12" r="11"/>' +
+    '<line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/>' +
+    '<line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/>' +
+    '<line x1="12" y1="12" x2="12" y2="6"/><line x1="12" y1="12" x2="17" y2="14.5"/>' +
+    '</svg>'
+};
+
 // Base64 data: URIs for each bitmap marker style's preview image,
 // generated at build time from the same resource PNGs used on the
 // watch itself (resources/images/<name>_background.png -- see
@@ -791,7 +816,8 @@ function buildConfigHtml(current) {
 '  .example-style-modal-img { width: 100%; border-radius: 8px; display: block; }' +
 '  .example-style-modal-title { font-weight: 700; font-size: 16px; margin-top: 10px; text-align: center; color: var(--text-strong); }' +
 '  .mode-btn-group { display: flex; width: 100%; margin-top: 6px; border-radius: 6px; overflow: hidden; border: 1px solid var(--border); box-sizing: border-box; }' +
-'  .mode-btn { flex: 1; padding: 10px 0; font-size: 12px; font-weight: 700; color: var(--text-strong); background: var(--btn-bg); border: none; border-right: 1px solid var(--border); }' +
+'  .mode-btn { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 8px 0 10px; font-size: 12px; font-weight: 700; color: var(--text-strong); background: var(--btn-bg); border: none; border-right: 1px solid var(--border); }' +
+'  .mode-btn svg { width: 26px; height: 26px; display: block; }' +
 '  .mode-btn:last-child { border-right: none; }' +
 '  .mode-btn.active { background: #ff9200; color: #fff; box-shadow: inset 0 2px 4px rgba(0,0,0,0.35); }' +
 '  .slider-row { margin-top: 12px; }' +
@@ -964,9 +990,9 @@ handEditorModalHtml('sec', 'Edit second hand') +
 
 '    <label>Layout</label>' +
 '    <div class="mode-btn-group" id="bottomStyleGroup">' +
-'      <button type="button" class="mode-btn' + (bottomStyleVal === 'digital' ? ' active' : '') + '" onclick="selectBottomStyle(\'digital\')">DIGITAL</button>' +
-'      <button type="button" class="mode-btn' + (isAnalog ? ' active' : '') + '" onclick="selectBottomStyle(\'analog\')">ANALOG</button>' +
-'      <button type="button" class="mode-btn' + (isBigAnalog ? ' active' : '') + '" onclick="selectBottomStyle(\'biganalog\')">BIG ANALOG</button>' +
+'      <button type="button" class="mode-btn' + (bottomStyleVal === 'digital' ? ' active' : '') + '" onclick="selectBottomStyle(\'digital\')">' + MODE_BTN_ICONS.digital + '<span>DIGITAL</span></button>' +
+'      <button type="button" class="mode-btn' + (isAnalog ? ' active' : '') + '" onclick="selectBottomStyle(\'analog\')">' + MODE_BTN_ICONS.analog + '<span>ANALOG</span></button>' +
+'      <button type="button" class="mode-btn' + (isBigAnalog ? ' active' : '') + '" onclick="selectBottomStyle(\'biganalog\')">' + MODE_BTN_ICONS.biganalog + '<span>BIG ANALOG</span></button>' +
 '    </div>' +
 '    <input type="hidden" id="bottomStyleValue" value="' + esc(bottomStyleVal) + '">' +
 '    <div class="help">Analog shows a clock face on the left and clouds/location/date/week on the right. Big analog fills the whole screen with fullscreen hands over the sky/eclipse view -- no bottom bar.</div>' +
@@ -1005,6 +1031,17 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '        <label for="bigAnalogHandsShadow" style="margin:0;">Shadow</label>' +
 '      </div>' +
 '      <div class="help">Drop shadow behind all 3 hands, offset 2px in the angle set below -- pick your own distance per hand instead with the Custom hand style below.</div>' +
+
+'      <div id="handPresetContrastStyleRow" style="' + (current.bigAnalogHandStyle === '4' ? 'display:none;' : '') + '">' +
+'      <label for="handPresetContrastStyle" style="margin-top:12px;">Contrast style</label>' +
+'      <select id="handPresetContrastStyle" onchange="updatePreview()">' +
+'        <option value="0"' + (current.handPresetContrastStyle === '0' ? ' selected' : '') + '>None</option>' +
+'        <option value="1"' + (current.handPresetContrastStyle === '1' ? ' selected' : '') + '>Contrasting outline</option>' +
+'        <option value="2"' + (current.handPresetContrastStyle === '2' || !current.handPresetContrastStyle ? ' selected' : '') + '>Background color outline</option>' +
+'        <option value="3"' + (current.handPresetContrastStyle === '3' ? ' selected' : '') + '>Shadow</option>' +
+'      </select>' +
+'      <div class="help">Only applies to the 5 hand styles above (Classic/Modern/etc, not Custom) -- "Contrasting outline" auto-picks black or white against each hand\'s own color; "Background color outline" (the default, and the only look this had before this setting existed) traces the scheme\'s background color instead; "Shadow" drops a solid black 1px offset (down and right) rather than an outline at all. Icons, text features, and the Custom hand style all keep using the separate "Outline text, icons, and hands" checkbox above instead.</div>' +
+'      </div>' +
 
 '      <label for="shadowTranslucent" style="margin-top:12px;">Shadow style</label>' +
 '      <select id="shadowTranslucent" onchange="updatePreview()">' +
@@ -2781,6 +2818,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  document.getElementById("customHandSection").style.display = (val === "4") ? "" : "none";' +
 '  document.getElementById("bigAnalogTransparentRow").style.display = (val === "4") ? "none" : "";' +
 '  document.getElementById("bigAnalogHandsShadowRow").style.display = (val === "4") ? "none" : "";' +
+'  document.getElementById("handPresetContrastStyleRow").style.display = (val === "4") ? "none" : "";' +
 '  var preset = HAND_PRESETS[val];' +
 '  if (preset) {' +
 '    applyHandPresetToKind("hour", preset.hour);' +
@@ -3073,6 +3111,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    CONFIG_BG_ANIM_MODE: radioValue("bgAnimMode", "0"),' +
 '    CONFIG_SHAKE_ANIM_MODE: radioValue("shakeAnimMode", "0"),' +
 '    CONFIG_OUTLINE_ENABLED: document.getElementById("outlineEnabled").checked,' +
+'    CONFIG_HAND_PRESET_CONTRAST_STYLE: document.getElementById("handPresetContrastStyle").value,' +
 '    CONFIG_CORNER_FONT_SIZE: document.getElementById("cornerFontSize").value,' +
 '    CONFIG_CORNER_CUSTOM_FONT: document.getElementById("cornerCustomFont").value,' +
 '    CONFIG_CORNER_TL: document.getElementById("cornerTL").value,' +

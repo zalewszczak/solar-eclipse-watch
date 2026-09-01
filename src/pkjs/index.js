@@ -559,6 +559,11 @@ function shakeAnimModeCode() {
   return [0, 1, 2, 3, 4].indexOf(v) === -1 ? 0 : v;
 }
 function outlineEnabledCode() { return getSetting('CONFIG_OUTLINE_ENABLED', 'true') === 'true' ? 1 : 0; }
+// Radio-style, exactly one of 0=None, 1=Contrasting outline, 2=Background color outline, 3=Shadow -- see hand_preset_contrast_style's own comment in eclipse_data.h. Default 2 matches the fixed behavior every hand style preset had before this setting existed.
+function handPresetContrastStyleCode() {
+  var v = parseInt(getSetting('CONFIG_HAND_PRESET_CONTRAST_STYLE', '2'), 10);
+  return [0, 1, 2, 3].indexOf(v) === -1 ? 2 : v;
+}
 function cornerFontSizeCode() {
   var v = parseInt(getSetting('CONFIG_CORNER_FONT_SIZE', '1'), 10);
   return [0, 1, 2, 3, 4].indexOf(v) === -1 ? 1 : v;
@@ -706,6 +711,7 @@ function sendDict(dict) {
   dict['BG_ANIM_MODE'] = bgAnimModeCode();
   dict['SHAKE_ANIM_MODE'] = shakeAnimModeCode();
   dict['OUTLINE_ENABLED'] = outlineEnabledCode();
+  dict['HAND_PRESET_CONTRAST_STYLE'] = handPresetContrastStyleCode();
   dict['CORNER_FONT_SIZE'] = cornerFontSizeCode();
   dict['CORNER_CUSTOM_FONT'] = cornerCustomFontCode();
   dict['CORNER_CONTENT'] = cornerContentBytes();
@@ -1388,6 +1394,7 @@ function sendDict(dict) {
 '  "BG_ANIM_MODE": 0,'+
 '  "SHAKE_ANIM_MODE": 0,'+
 '  "OUTLINE_ENABLED": 1,'+
+'  "HAND_PRESET_CONTRAST_STYLE": 2,'+
 '  "CORNER_FONT_SIZE": 1,'+
 '  "CORNER_CUSTOM_FONT": 5,'+
 '  "CORNER_CONTENT": ['+
@@ -2052,6 +2059,7 @@ Pebble.addEventListener('showConfiguration', function () {
     bgAnimMode: getSetting('CONFIG_BG_ANIM_MODE', '0'),
     shakeAnimMode: getSetting('CONFIG_SHAKE_ANIM_MODE', '0'),
     outlineEnabled: getSetting('CONFIG_OUTLINE_ENABLED', 'true') === 'true',
+    handPresetContrastStyle: getSetting('CONFIG_HAND_PRESET_CONTRAST_STYLE', '2'),
     cornerFontSize: getSetting('CONFIG_CORNER_FONT_SIZE', '1'),
     cornerCustomFont: getSetting('CONFIG_CORNER_CUSTOM_FONT', '0'),
     testMode: getSetting('CONFIG_TEST_MODE', 'false') === 'true',
@@ -2231,6 +2239,7 @@ Pebble.addEventListener('webviewclosed', function (e) {
   setSetting('CONFIG_BG_ANIM_MODE', settings.CONFIG_BG_ANIM_MODE || '0');
   setSetting('CONFIG_SHAKE_ANIM_MODE', settings.CONFIG_SHAKE_ANIM_MODE || '0');
   setSetting('CONFIG_OUTLINE_ENABLED', settings.CONFIG_OUTLINE_ENABLED ? 'true' : 'false');
+  setSetting('CONFIG_HAND_PRESET_CONTRAST_STYLE', settings.CONFIG_HAND_PRESET_CONTRAST_STYLE || '2');
   setSetting('CONFIG_CORNER_FONT_SIZE', settings.CONFIG_CORNER_FONT_SIZE || '1');
   setSetting('CONFIG_CORNER_CUSTOM_FONT', settings.CONFIG_CORNER_CUSTOM_FONT || '0');
   setSetting('CONFIG_TEST_MODE', settings.CONFIG_TEST_MODE ? 'true' : 'false');

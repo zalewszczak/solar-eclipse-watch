@@ -276,7 +276,24 @@ typedef struct {
                              // on that at the compass subscription code in pebble-eclipse-watch.c.
   bool outline_enabled; // user setting: 1px contrasting-color outline behind corner/edge text,
                           // the big-analog date, the eclipse phase text, and (procedurally, non-
-                          // translucent mode only) corner/edge icons and the analog hands
+                          // translucent mode only) corner/edge icons and the CUSTOM hand system
+                          // (big_analog_hand_style == 4) -- the 4 built-in hand style presets
+                          // (styles 0-3) use their own separate hand_preset_contrast_style
+                          // setting below instead, not this one.
+  uint8_t hand_preset_contrast_style; // user setting ("Style" section, right below the hand
+                                        // style picker): applies ONLY to the 4 built-in hand
+                                        // style presets (big_analog_hand_style 0-3) -- never to
+                                        // the custom hand system, icons, or text features, which
+                                        // all keep using outline_enabled above unchanged. Exactly
+                                        // one of: 0=None (no outline at all), 1=Contrasting
+                                        // outline (auto black/white by luma against the hand's
+                                        // own fill color -- see HandConfig's own
+                                        // outline_auto_contrast comment in hand_layer.h),
+                                        // 2=Background color outline (the scheme's own background
+                                        // color -- this was the fixed, only behavior before this
+                                        // setting existed), 3=Shadow (a solid black copy of the
+                                        // hand shifted 1px right+down, NOT a traced outline at
+                                        // all -- see HandConfig's own hard_shadow comment).
   uint8_t corner_font_size; // user setting: 0=small (GOTHIC_14), 1=medium (GOTHIC_14_BOLD),
                               // 2=large (GOTHIC_18_BOLD) -- ignored when corner_custom_font != 0,
                               // since a custom font has its own fixed baked-in size

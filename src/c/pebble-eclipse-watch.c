@@ -621,7 +621,18 @@ static void hands_layer_update_proc(Layer *layer, GContext *ctx) {
     min_cfg = HAND_STYLE_MIN_PRESETS[idx];
     sec_cfg = HAND_STYLE_SEC_PRESET;
     hour_cfg.translucent = min_cfg.translucent = sec_cfg.translucent = s_data.big_analog_hands_transparent;
-    hour_cfg.outline_enabled = min_cfg.outline_enabled = sec_cfg.outline_enabled = s_data.outline_enabled;
+    // "Contrast style" (hand_preset_contrast_style) -- see its own
+    // eclipse_data.h comment for the 4 options. Replaces what used to
+    // be a single always-on "background color outline" driven by the
+    // shared outline_enabled boolean -- see HandConfig's own
+    // outline_auto_contrast/hard_shadow comments in hand_layer.h for
+    // how 1/3 are actually implemented.
+    bool outline_on = s_data.hand_preset_contrast_style == 1 || s_data.hand_preset_contrast_style == 2;
+    bool auto_contrast = s_data.hand_preset_contrast_style == 1;
+    bool hard_shadow = s_data.hand_preset_contrast_style == 3;
+    hour_cfg.outline_enabled = min_cfg.outline_enabled = sec_cfg.outline_enabled = outline_on;
+    hour_cfg.outline_auto_contrast = min_cfg.outline_auto_contrast = sec_cfg.outline_auto_contrast = auto_contrast;
+    hour_cfg.hard_shadow = min_cfg.hard_shadow = sec_cfg.hard_shadow = hard_shadow;
     // contrasting_outline_color() picked black/white dynamically by luma;
     // the closest fixed equivalent in HandConfig's 3-option scheme-color
     // enum is the scheme's own background, which is high-contrast against
@@ -1420,6 +1431,10 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   }
   if ((t = dict_find(iter, MESSAGE_KEY_OUTLINE_ENABLED))) {
     s_data.outline_enabled = t->value->uint8 != 0;
+  }
+  if ((t = dict_find(iter, MESSAGE_KEY_HAND_PRESET_CONTRAST_STYLE))) {
+    uint8_t v = t->value->uint8;
+    s_data.hand_preset_contrast_style = (v <= 3) ? v : 2; // clamped -- used as a raw comparison, not a safely-defaulting switch, and 2 (background outline) matches the old fixed pre-this-setting behavior
   }
   if ((t = dict_find(iter, MESSAGE_KEY_CORNER_FONT_SIZE))) {
     s_data.corner_font_size = t->value->uint8;

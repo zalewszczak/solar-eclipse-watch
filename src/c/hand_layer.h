@@ -42,6 +42,23 @@ typedef struct {
   bool outline_enabled;      // traces a genuine 1px perimeter stroke in outline_color underneath
                                // the fill (see draw_hand_outline_once_fp() in hand_layer.c)
   uint8_t outline_color;      // 0=main, 1=accent, 2=background
+  // Both of these are only ever set true for the 4 built-in hand
+  // style PRESETS (big_analog_hand_style 0-3), driven by the
+  // "Contrast style" dropdown -- see hand_preset_contrast_style's own
+  // eclipse_data.h comment. The custom hand system (style 4) never
+  // sets either; it keeps using outline_enabled/outline_color above
+  // directly, exactly as before this dropdown existed.
+  bool outline_auto_contrast;  // ignores outline_color above -- outline color is instead computed
+                                 // dynamically from the hand's own fill color (same
+                                 // contrasting_outline_color() logic corner/edge text and icons
+                                 // already use), same as "Contrast style: Contrasting outline"
+  bool hard_shadow;             // ignores outline_enabled/outline_color entirely -- draws a solid
+                                  // black copy of the hand shape shifted 1px right+down underneath
+                                  // instead of an outline at all, same as "Contrast style: Shadow"
+                                  // (a different feature from the drop-shadow system below, despite
+                                  // the similar name -- that one's angle-configurable and can be
+                                  // dithered/offset by several px; this is always exactly 1px, always
+                                  // solid black, never angled)
   bool translucent;           // per-hand ~50% transparency, via the same Bayer-dithered stipple
                                 // fill_polygon_dithered() already uses elsewhere in this project --
                                 // applies to both the fill and the outline (if enabled). Takes
