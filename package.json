@@ -38,6 +38,7 @@
       "health"
     ],
     "messageKeys": [
+      "MESSAGE_TYPE",
       "C1_TIME",
       "C2_TIME",
       "MAX_TIME",
@@ -381,6 +382,233 @@
           "type": "bitmap",
           "name": "BROWN_BACKGROUND",
           "file": "images/brown_background.png"
+        },
+        {
+          "type": "bitmap",
+          "name": "ICON_HEART",
+          "file": "images/icon_heart.png",
+          "memoryFormat": "1BitPalette"
+        },
+        {
+          "type": "bitmap",
+          "name": "ICON_FOOT",
+          "file": "images/icon_foot.png",
+          "memoryFormat": "1BitPalette"
+        },
+        {
+          "type": "bitmap",
+          "name": "ICON_UMBRELLA",
+          "file": "images/icon_umbrella.png",
+          "memoryFormat": "1BitPalette"
+        },
+        {
+          "type": "bitmap",
+          "name": "ICON_DROPLET",
+          "file": "images/icon_droplet.png",
+          "memoryFormat": "1BitPalette"
+        },
+        {
+          "type": "bitmap",
+          "name": "ICON_WIND",
+          "file": "images/icon_wind.png",
+          "memoryFormat": "1BitPalette"
+        },
+        {
+          "type": "bitmap",
+          "name": "ICON_GPS_PIN",
+          "file": "images/icon_gps_pin.png",
+          "memoryFormat": "1BitPalette"
+        },
+        {
+          "type": "bitmap",
+          "name": "ICON_EYE",
+          "file": "images/icon_eye.png",
+          "memoryFormat": "1BitPalette"
+        },
+        {
+          "type": "bitmap",
+          "name": "ICON_CLOUD",
+          "file": "images/icon_cloud.png",
+          "memoryFormat": "1BitPalette"
+        },
+        {
+          "type": "bitmap",
+          "name": "ICON_BLUETOOTH",
+          "file": "images/icon_bluetooth.png",
+          "memoryFormat": "1BitPalette"
+        },
+        {
+          "type": "bitmap",
+          "name": "ICON_ISS",
+          "file": "images/icon_iss.png",
+          "memoryFormat": "1BitPalette"
+        },
+        {
+          "type": "bitmap",
+          "name": "ICON_SATURN_RING",
+          "file": "images/icon_saturn_ring.png",
+          "memoryFormat": "1BitPalette"
+        },
+        {
+          "type": "bitmap",
+          "name": "ICON_PLANETS",
+          "file": "images/icon_planets.png",
+          "memoryFormat": "1BitPalette"
+        },
+        {
+          "type": "bitmap",
+          "name": "ICON_AURORA",
+          "file": "images/icon_aurora.png",
+          "memoryFormat": "1BitPalette"
+        },
+        {
+          "type": "bitmap",
+          "name": "ICON_BED_ARROW_IN",
+          "file": "images/icon_bed_arrow_in.png",
+          "memoryFormat": "1BitPalette"
+        },
+        {
+          "type": "bitmap",
+          "name": "ICON_BED_ARROW_OUT",
+          "file": "images/icon_bed_arrow_out.png",
+          "memoryFormat": "1BitPalette"
+        },
+        {
+          "type": "bitmap",
+          "name": "ICON_BED_CHECK",
+          "file": "images/icon_bed_check.png",
+          "memoryFormat": "1BitPalette"
+        },
+        {
+          "type": "bitmap",
+          "name": "ICON_BED_CLOCK",
+          "file": "images/icon_bed_clock.png",
+          "memoryFormat": "1BitPalette"
+        },
+        {
+          "type": "bitmap",
+          "name": "ICON_BED_CHECK_CLOCK",
+          "file": "images/icon_bed_check_clock.png",
+          "memoryFormat": "1BitPalette"
+        },
+        {
+          "type": "bitmap",
+          "name": "ICON_WEATHER_SIMPLE_SUN",
+          "file": "images/icon_simple_sun.png",
+          "memoryFormat": "1BitPalette"
+        },
+        {
+          "type": "bitmap",
+          "name": "ICON_WEATHER_SIMPLE_PARTLY_CLOUDY",
+          "file": "images/icon_simple_partly_cloudy.png",
+          "memoryFormat": "1BitPalette"
+        },
+        {
+          "type": "bitmap",
+          "name": "ICON_WEATHER_SIMPLE_CLOUDY_OVERCAST",
+          "file": "images/icon_simple_cloudy_overcast.png",
+          "memoryFormat": "1BitPalette"
+        },
+        {
+          "type": "bitmap",
+          "name": "ICON_WEATHER_SIMPLE_FOG",
+          "file": "images/icon_simple_fog.png",
+          "memoryFormat": "1BitPalette"
+        },
+        {
+          "type": "bitmap",
+          "name": "ICON_WEATHER_SIMPLE_RAIN",
+          "file": "images/icon_simple_rain.png",
+          "memoryFormat": "1BitPalette"
+        },
+        {
+          "type": "bitmap",
+          "name": "ICON_WEATHER_SIMPLE_SNOW",
+          "file": "images/icon_simple_snow.png",
+          "memoryFormat": "1BitPalette"
+        },
+        {
+          "type": "bitmap",
+          "name": "ICON_WEATHER_SIMPLE_STORM",
+          "file": "images/icon_simple_storm.png",
+          "memoryFormat": "1BitPalette"
+        },
+        {
+          "type": "bitmap",
+          "name": "ICON_WEATHER_HOLLOW_SUN",
+          "file": "images/icon_hollow_sun.png",
+          "memoryFormat": "1BitPalette"
+        },
+        {
+          "type": "bitmap",
+          "name": "ICON_WEATHER_HOLLOW_PARTLY_CLOUDY",
+          "file": "images/icon_hollow_partly_cloudy.png",
+          "memoryFormat": "1BitPalette"
+        },
+        {
+          "type": "bitmap",
+          "name": "ICON_WEATHER_HOLLOW_CLOUDY_OVERCAST",
+          "file": "images/icon_hollow_cloudy_overcast.png",
+          "memoryFormat": "1BitPalette"
+        },
+        {
+          "type": "bitmap",
+          "name": "ICON_WEATHER_HOLLOW_FOG",
+          "file": "images/icon_hollow_fog.png",
+          "memoryFormat": "1BitPalette"
+        },
+        {
+          "type": "bitmap",
+          "name": "ICON_WEATHER_HOLLOW_RAIN",
+          "file": "images/icon_hollow_rain.png",
+          "memoryFormat": "1BitPalette"
+        },
+        {
+          "type": "bitmap",
+          "name": "ICON_WEATHER_HOLLOW_SNOW",
+          "file": "images/icon_hollow_snow.png",
+          "memoryFormat": "1BitPalette"
+        },
+        {
+          "type": "bitmap",
+          "name": "ICON_WEATHER_HOLLOW_STORM",
+          "file": "images/icon_hollow_storm.png",
+          "memoryFormat": "1BitPalette"
+        },
+        {
+          "type": "bitmap",
+          "name": "ICON_WEATHER_FULLCOLOR_SUN",
+          "file": "images/icon_fullcolor_sun.png"
+        },
+        {
+          "type": "bitmap",
+          "name": "ICON_WEATHER_FULLCOLOR_PARTLY_CLOUDY",
+          "file": "images/icon_fullcolor_partly_cloudy.png"
+        },
+        {
+          "type": "bitmap",
+          "name": "ICON_WEATHER_FULLCOLOR_CLOUDY_OVERCAST",
+          "file": "images/icon_fullcolor_cloudy_overcast.png"
+        },
+        {
+          "type": "bitmap",
+          "name": "ICON_WEATHER_FULLCOLOR_FOG",
+          "file": "images/icon_fullcolor_fog.png"
+        },
+        {
+          "type": "bitmap",
+          "name": "ICON_WEATHER_FULLCOLOR_RAIN",
+          "file": "images/icon_fullcolor_rain.png"
+        },
+        {
+          "type": "bitmap",
+          "name": "ICON_WEATHER_FULLCOLOR_SNOW",
+          "file": "images/icon_fullcolor_snow.png"
+        },
+        {
+          "type": "bitmap",
+          "name": "ICON_WEATHER_FULLCOLOR_STORM",
+          "file": "images/icon_fullcolor_storm.png"
         }
       ]
     }

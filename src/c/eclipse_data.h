@@ -84,6 +84,56 @@ typedef struct {
 // in) has to match too.
 #define STAR_COUNT 16
 
+// ---------------------------------------------------------------------
+// AppMessage chunking
+//
+// PKJS used to build one giant dictionary (every eclipse/weather/sky/
+// settings/features key at once) and send it in a single
+// Pebble.sendAppMessage() call. That forced app_message_open() to
+// reserve buffers big enough for the *whole* payload, which on Emery
+// was needlessly close to the platform max and ate into heap the rest
+// of the watchapp could've used.
+//
+// Instead, PKJS now sends several smaller, purpose-built dictionaries
+// per refresh cycle, one at a time (see sendChunk()/pumpSendQueue() in
+// index.js), each tagged with MESSAGE_KEY_MESSAGE_TYPE so the C side
+// (and anyone reading a packet capture) can tell which subset of keys
+// to expect. inbox_received_handler() still just does a dict_find()
+// per key it cares about -- that's already tolerant of a partial
+// dictionary -- so MESSAGE_TYPE isn't required for correctness, only
+// for logging/validation and so a chunk's *shape* is documented in one
+// place. Keep this enum's values in sync with the MSG_TYPE object at
+// the top of src/pkjs/index.js.
+typedef enum {
+  MSG_TYPE_STATUS = 0,      // DATA_VALID, ERROR_CODE, LOCATION_NAME
+  MSG_TYPE_ECLIPSE = 1,     // contact times, magnitude, separation/mag sample arrays
+  MSG_TYPE_WEATHER = 2,     // current conditions: temps, humidity, wind, AQI, ...
+  MSG_TYPE_ASTRONOMY = 3,   // sun/moon/planet/star position samples, rise/set times
+  MSG_TYPE_SKY_EFFECTS = 4, // aurora, meteor shower, ISS pass
+  MSG_TYPE_FEATURES = 5,    // corner/edge content-slot selection + what feeds them
+  MSG_TYPE_SETTINGS = 6,    // clock face cosmetics: hands, markers, colors, units, fonts
+} MsgType;
+
+// Largest of the chunks above is MSG_TYPE_ASTRONOMY, at roughly:
+//   4B dict header + ~23 tuples (7B overhead each) + sample-array
+//   payload bytes (5 planets x 26 samples x 2 arrays x 2B, plus
+//   sun/moon/star/cloud arrays) -- works out to ~1060 bytes as of the
+//   current MAX_SKY_SAMPLES/PLANET_COUNT/STAR_COUNT. APPMSG_INBOX_SIZE
+//   below rounds that up with headroom for future fields; if you add
+//   samples/planets/stars, re-check this against the actual size
+//   (APP_LOG the return value of dict_write_end() from PKJS, or watch
+//   for APP_MSG_BUFFER_OVERFLOW in inbox_dropped_handler) and bump it.
+//
+// Outbox only ever carries the watch's own tiny REQUEST_UPDATE ping
+// back to the phone, so it stays small regardless of how big the
+// inbound chunks get.
+//
+// See app_message_open()'s docs for why sizing to the biggest actual
+// chunk (not app_message_inbox_size_maximum()) is the point of all
+// this: https://developer.rebble.io/docs/c/Foundation/AppMessage/#app_message_open
+#define APPMSG_INBOX_SIZE 1200
+#define APPMSG_OUTBOX_SIZE 64
+
 // Eclipse phase, derived on-watch from the current time vs the
 // contact times we were sent.
 typedef enum {

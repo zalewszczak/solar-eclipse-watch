@@ -1456,6 +1456,14 @@ static void update_tick_subscription(void) {
 static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   Tuple *t;
 
+  // Purely diagnostic -- every field below is still applied via its
+  // own dict_find(), which already tolerates a partial dictionary, so
+  // parsing doesn't branch on this. It just labels which chunk (see
+  // MsgType in eclipse_data.h) this inbox message was, for APP_LOG.
+  if ((t = dict_find(iter, MESSAGE_KEY_MESSAGE_TYPE))) {
+    APP_LOG(APP_LOG_LEVEL_DEBUG, "inbox: chunk type %d", (int)t->value->uint8);
+  }
+
   if ((t = dict_find(iter, MESSAGE_KEY_DATA_VALID))) {
     s_data.valid = t->value->uint8 != 0;
     if (s_data.valid && s_request_retry_timer) {
@@ -2273,7 +2281,12 @@ static void init(void) {
 
   app_message_register_inbox_received(inbox_received_handler);
   app_message_register_inbox_dropped(inbox_dropped_handler);
-  app_message_open(app_message_inbox_size_maximum(), app_message_outbox_size_maximum());
+  // Sized to the biggest single chunk PKJS now sends (MSG_TYPE_ASTRONOMY)
+  // plus headroom, rather than the platform maximum -- see the
+  // APPMSG_INBOX_SIZE/APPMSG_OUTBOX_SIZE comment in eclipse_data.h.
+  // app_message_open() clamps internally if a value is still too big
+  // for the platform, so this is safe even if the estimate drifts.
+  app_message_open(APPMSG_INBOX_SIZE, APPMSG_OUTBOX_SIZE);
 
   // Ask the phone for a fresh calculation as soon as we're up; PKJS
   // will also push updates on its own schedule (see index.js). If

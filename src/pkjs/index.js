@@ -8,6 +8,175 @@ var TYPE_CODE = { none: 0, partial: 1, total: 2, annular: 3 };
 
 var MAX_FEATURES = 83; // highest corner/edge content id -- see CORNER_CONTENT_OPTIONS in config-page.js
 
+// ---- AppMessage chunking -------------------------------------------------
+//
+// The watch used to get one giant dictionary per refresh (every
+// eclipse/weather/sky/settings/features key at once), which forced
+// app_message_open() on the C side to reserve inbox/outbox buffers big
+// enough for that whole payload. Instead, every send now goes through
+// sendFlatDict() below, which buckets keys by subject into several
+// smaller dictionaries and sends them one at a time, each tagged with
+// MESSAGE_TYPE so the watch knows which subset of keys to expect. Keep
+// this enum in sync with the MsgType enum in src/c/eclipse_data.h.
+var MSG_TYPE = {
+  STATUS: 0,      // DATA_VALID, ERROR_CODE, LOCATION_NAME
+  ECLIPSE: 1,      // contact times, magnitude, separation/mag sample arrays
+  WEATHER: 2,      // current conditions: temps, humidity, wind, AQI, ...
+  ASTRONOMY: 3,    // sun/moon/planet/star position samples, rise/set times
+  SKY_EFFECTS: 4,  // aurora, meteor shower, ISS pass
+  FEATURES: 5,     // corner/edge content-slot selection + what feeds them
+  SETTINGS: 6      // clock face cosmetics: hands, markers, colors, units, fonts
+};
+
+// Send order: STATUS/ECLIPSE first since DATA_VALID gates whether the
+// rest of the face renders as "eclipse day" at all, then the other
+// data chunks, then the purely cosmetic ones last.
+var MSG_TYPE_SEND_ORDER = [
+  MSG_TYPE.STATUS, MSG_TYPE.ECLIPSE, MSG_TYPE.WEATHER, MSG_TYPE.ASTRONOMY,
+  MSG_TYPE.SKY_EFFECTS, MSG_TYPE.FEATURES, MSG_TYPE.SETTINGS
+];
+
+// Maps every AppMessage key (other than MESSAGE_TYPE itself) to the
+// chunk it belongs in. Built once from a table rather than scattering
+// the mapping across each dict-building function, so it's one place
+// to check when a new key is added.
+var KEY_TYPE_MAP = (function () {
+  var map = {};
+  function assign(type, keys) { keys.forEach(function (k) { map[k] = type; }); }
+
+  assign(MSG_TYPE.STATUS, ['DATA_VALID', 'ERROR_CODE', 'LOCATION_NAME']);
+
+  assign(MSG_TYPE.ECLIPSE, [
+    'C1_TIME', 'C2_TIME', 'MAX_TIME', 'C3_TIME', 'C4_TIME', 'SUNSET_TIME',
+    'MAGNITUDE', 'ECLIPSE_TYPE', 'POS_ANGLE',
+    'SAMPLE_START', 'SAMPLE_INTERVAL', 'SAMPLE_COUNT',
+    'SEP_SAMPLES', 'MAG_SAMPLES', 'RADIUS_RATIO_PCT'
+  ]);
+
+  assign(MSG_TYPE.WEATHER, [
+    'CLOUD_COVER', 'VIS_SCORE', 'WEATHER_SOURCES', 'WEATHER_CONDITION',
+    'WEATHER_TEMP_C', 'WEATHER_TEMP_HIGH_C', 'WEATHER_TEMP_LOW_C',
+    'UV_INDEX_X10', 'RAIN_CHANCE_PCT', 'HUMIDITY_PCT', 'WIND_SPEED_KMH',
+    'WIND_DIR_DEG', 'DEW_POINT_C', 'PRESSURE_HPA', 'PRESSURE_TREND',
+    'AQI_US', 'AQI_EU', 'ALTITUDE_M'
+  ]);
+
+  assign(MSG_TYPE.ASTRONOMY, [
+    'SKY_SAMPLE_START', 'SKY_SAMPLE_INTERVAL', 'SKY_SAMPLE_COUNT',
+    'SUN_ALT_SAMPLES', 'SUN_AZ_SAMPLES', 'MOON_ALT_SAMPLES', 'MOON_AZ_SAMPLES',
+    'PLANET_ALT_SAMPLES', 'PLANET_AZ_SAMPLES', 'PLANET_RISE', 'PLANET_SET',
+    'SATURN_RING_OPEN_PCT', 'SKY_SCALE_MAX_ALT',
+    'CLOUD_SAMPLES', 'CLOUD_ALTITUDE_PCT',
+    'MOON_PHASE_PCT', 'MOON_WAXING',
+    'SUN_RISE', 'SUN_SET', 'SUN_RISE_TOMORROW', 'MOON_RISE', 'MOON_SET',
+    'STAR_ALT_SAMPLES', 'STAR_AZ_SAMPLES'
+  ]);
+
+  assign(MSG_TYPE.SKY_EFFECTS, [
+    'AURORA_KP_X10', 'AURORA_VISIBILITY_PCT',
+    'METEOR_INTENSITY', 'METEOR_SHOWER_NAME',
+    'ISS_ALT', 'ISS_AZ', 'ISS_COMPUTED_AT', 'ISS_NEXT_PASS'
+  ]);
+
+  assign(MSG_TYPE.FEATURES, [
+    'CORNER_FONT_SIZE', 'CORNER_CUSTOM_FONT', 'CORNER_CONTENT', 'CORNER_COLOR_MODE',
+    'UPPER_MIDDLE_LINE1_CONTENT', 'UPPER_MIDDLE_LINE1_COLOR_MODE',
+    'UPPER_MIDDLE_LINE2_CONTENT', 'UPPER_MIDDLE_LINE2_COLOR_MODE',
+    'BOTTOM_MIDDLE_LINE1_CONTENT', 'BOTTOM_MIDDLE_LINE1_COLOR_MODE',
+    'BOTTOM_MIDDLE_LINE2_CONTENT', 'BOTTOM_MIDDLE_LINE2_COLOR_MODE',
+    'MIDDLE_LEFT_LINE1_CONTENT', 'MIDDLE_LEFT_LINE1_COLOR_MODE',
+    'MIDDLE_LEFT_LINE2_CONTENT', 'MIDDLE_LEFT_LINE2_COLOR_MODE',
+    'MIDDLE_RIGHT_LINE1_CONTENT', 'MIDDLE_RIGHT_LINE1_COLOR_MODE',
+    'MIDDLE_RIGHT_LINE2_CONTENT', 'MIDDLE_RIGHT_LINE2_COLOR_MODE',
+    'BOTTOM_INFO_BAR_MODE', 'SHOW_SUN_TIME', 'SHOW_ISS', 'AURORA_ENABLED',
+    'DAILY_STEP_GOAL'
+  ]);
+
+  assign(MSG_TYPE.SETTINGS, [
+    'CLOCK_FONT', 'TEMP_UNIT', 'WIND_SPEED_UNIT', 'SHOW_SECONDS',
+    'CUSTOM_BG', 'CUSTOM_TEXT', 'CUSTOM_ACCENT',
+    'NIGHT_SCHEME_ENABLED', 'NIGHT_CUSTOM_BG', 'NIGHT_CUSTOM_TEXT', 'NIGHT_CUSTOM_ACCENT',
+    'BOTTOM_STYLE', 'ANALOG_STYLE', 'SUN_MOON_SIZE_PCT', 'CLOUD_RENDER_STYLE',
+    'SKY_MODE', 'WEATHER_ICON_STYLE', 'AQI_UNIT', 'ALTITUDE_UNIT',
+    'SHAKE_LABEL_SECONDS', 'LABEL_STYLE',
+    'VIBRATE_ON_PHASE_CHANGE', 'STARTUP_CLOCK_ANIMATION_ENABLED',
+    'BG_ANIM_MODE', 'SHAKE_ANIM_MODE', 'OUTLINE_ENABLED', 'HAND_PRESET_CONTRAST_STYLE',
+    'BIG_ANALOG_HAND_STYLE', 'BIG_ANALOG_HANDS_TRANSPARENT', 'BIG_ANALOG_HANDS_SHADOW',
+    'SHADOW_TRANSLUCENT', 'SHADOW_ANGLE',
+    'BIG_ANALOG_MARKER_STYLE', 'BITMAP_MARKER_TRANSPARENT', 'DRAW_FEATURES_BENEATH_HANDS',
+    'CUSTOM_HOUR_STYLE', 'CUSTOM_HOUR_THICKNESS', 'CUSTOM_HOUR_INNER_ECC', 'CUSTOM_HOUR_OUTER_ECC',
+    'CUSTOM_HOUR_INNER_BORDER', 'CUSTOM_HOUR_OUTER_BORDER', 'CUSTOM_HOUR_TRANSLUCENT', 'CUSTOM_HOUR_COLOR',
+    'CUSTOM_SEC_STYLE', 'CUSTOM_SEC_THICKNESS', 'CUSTOM_SEC_INNER_ECC', 'CUSTOM_SEC_OUTER_ECC',
+    'CUSTOM_SEC_INNER_BORDER', 'CUSTOM_SEC_OUTER_BORDER', 'CUSTOM_SEC_TRANSLUCENT', 'CUSTOM_SEC_COLOR',
+    'MARKER_TEXT_TARGET', 'MARKER_TEXT_FONT', 'MARKER_TEXT_OFFSET',
+    'MARKER_TEXT_HOUR_MASK', 'MARKER_TEXT_SEC_MASK', 'MARKER_TEXT_ROMAN',
+    'HAND_HOUR_STYLE', 'HAND_HOUR_WIDTH', 'HAND_HOUR_LENGTH', 'HAND_HOUR_BACK_OFFSET', 'HAND_HOUR_COLOR',
+    'HAND_HOUR_OUTLINE_ENABLED', 'HAND_HOUR_OUTLINE_COLOR', 'HAND_HOUR_TRANSLUCENT',
+    'HAND_HOUR_SHADOW_ENABLED', 'HAND_HOUR_SHADOW_DISTANCE',
+    'HAND_MIN_STYLE', 'HAND_MIN_WIDTH', 'HAND_MIN_LENGTH', 'HAND_MIN_BACK_OFFSET', 'HAND_MIN_COLOR',
+    'HAND_MIN_OUTLINE_ENABLED', 'HAND_MIN_OUTLINE_COLOR', 'HAND_MIN_TRANSLUCENT',
+    'HAND_MIN_SHADOW_ENABLED', 'HAND_MIN_SHADOW_DISTANCE',
+    'HAND_SEC_STYLE', 'HAND_SEC_WIDTH', 'HAND_SEC_LENGTH', 'HAND_SEC_BACK_OFFSET', 'HAND_SEC_COLOR',
+    'HAND_SEC_OUTLINE_ENABLED', 'HAND_SEC_OUTLINE_COLOR', 'HAND_SEC_TRANSLUCENT',
+    'HAND_SEC_SHADOW_ENABLED', 'HAND_SEC_SHADOW_DISTANCE',
+    'CENTER_CIRCLE_RADIUS', 'CENTER_CIRCLE_COLOR'
+  ]);
+
+  return map;
+})();
+
+// Only one AppMessage can be in flight at a time -- s_sendQueue holds
+// the chunks still waiting to go out for the current send*() call(s),
+// s_sendInFlight guards against overlapping Pebble.sendAppMessage()
+// calls (which would otherwise error/clobber each other).
+var s_sendQueue = [];
+var s_sendInFlight = false;
+
+// Buckets a flat {KEY: value} dict (as every send*() function used to
+// build a single one) into per-MESSAGE_TYPE chunks and queues them.
+// A key with no entry in KEY_TYPE_MAP is a bug (a key was added
+// without updating the map above) -- rather than silently dropping
+// it, it's logged and placed in SETTINGS so it still reaches the
+// watch instead of vanishing.
+function enqueueFlatDict(flatDict) {
+  var buckets = {};
+  Object.keys(flatDict).forEach(function (k) {
+    var type = KEY_TYPE_MAP[k];
+    if (type === undefined) {
+      console.log('eclipse-watch: no MSG_TYPE mapping for key ' + k + ', defaulting to SETTINGS -- update KEY_TYPE_MAP');
+      type = MSG_TYPE.SETTINGS;
+    }
+    if (!buckets[type]) buckets[type] = {};
+    buckets[type][k] = flatDict[k];
+  });
+  MSG_TYPE_SEND_ORDER.forEach(function (type) {
+    if (buckets[type]) {
+      buckets[type]['MESSAGE_TYPE'] = type;
+      s_sendQueue.push(buckets[type]);
+    }
+  });
+  pumpSendQueue();
+}
+
+function pumpSendQueue() {
+  if (s_sendInFlight || s_sendQueue.length === 0) return;
+  s_sendInFlight = true;
+  var chunk = s_sendQueue.shift();
+  var msgType = chunk['MESSAGE_TYPE'];
+  Pebble.sendAppMessage(chunk, function () {
+    console.log('eclipse-watch: chunk sent (type ' + msgType + '), ' + s_sendQueue.length + ' queued');
+    s_sendInFlight = false;
+    pumpSendQueue();
+  }, function (e) {
+    // Drop rather than retry-forever: the next refresh/settings-save
+    // cycle will enqueue a fresh chunk of the same type anyway, so a
+    // stuck retry here would just delay everything behind it.
+    console.log('eclipse-watch: chunk send failed (type ' + msgType + '), dropping: ' + JSON.stringify(e));
+    s_sendInFlight = false;
+    pumpSendQueue();
+  });
+}
+
 var refreshTimer = null;
 // Guards against a slow, older refresh's response arriving AFTER a
 // newer one and overwriting it with stale data -- e.g. the periodic
@@ -21,7 +190,7 @@ var refreshTimer = null;
 // ready is allowed to actually send it.
 var s_refreshGeneration = 0;
 // Set (from webviewclosed, on a "Force full refresh" save) right
-// before triggering that refresh cycle -- the next sendDict() call
+// before triggering that refresh cycle -- the next sendFlatDict() call
 // after that also saves its dict as LAST_FULL_REFRESH_DICT (a
 // separate snapshot from the general LAST_COMPUTED_DICT every send
 // already updates), then clears itself so only that one send gets
@@ -599,7 +768,15 @@ function dailyStepGoalValue() {
   return v;
 }
 
-function sendDict(dict) {
+// Builds the full flat dict (eclipse/weather/sky data passed in, plus
+// the cosmetic settings/features fields merged in below) exactly as
+// before, then hands it to enqueueFlatDict() to be split into typed
+// chunks and sent one at a time -- see the AppMessage chunking block
+// near the top of this file. Kept the name/shape of the old
+// single-big-message sendDict() so every call site below (and the
+// debug-override/localStorage-snapshot logic already living here)
+// stayed untouched.
+function sendFlatDict(dict) {
   // Always carried, on every message -- these are purely cosmetic,
   // phone-local preferences, not eclipse data, so there's no reason
   // to gate them behind DATA_VALID or wait for a full refresh cycle.
@@ -1434,15 +1611,14 @@ function sendDict(dict) {
     }
   }
 
-  Pebble.sendAppMessage(toSend, function () {
-    console.log('eclipse-watch: data sent to watch');
-  }, function (e) {
-    console.log('eclipse-watch: send failed, will retry next cycle: ' + JSON.stringify(e));
-  });
+  // Splits toSend into per-subject chunks (STATUS/ECLIPSE/WEATHER/
+  // ASTRONOMY/SKY_EFFECTS/FEATURES/SETTINGS) and queues them -- see
+  // enqueueFlatDict() near the top of this file.
+  enqueueFlatDict(toSend);
 }
 
 function sendInvalid(errorCode) {
-  sendDict({ 'DATA_VALID': 0, 'ERROR_CODE': errorCode || 0 });
+  sendFlatDict({ 'DATA_VALID': 0, 'ERROR_CODE': errorCode || 0 });
 }
 
 function issFieldsDict(issPos) {
@@ -1549,7 +1725,7 @@ function sendNoEclipseToday(sky, cloudGrid, headlineCloud, headlineSources, loca
   Object.keys(extraW_).forEach(function (k) { dict[k] = extraW_[k]; });
   var iss_ = issFieldsDict(issPos);
   Object.keys(iss_).forEach(function (k) { dict[k] = iss_[k]; });
-  sendDict(dict);
+  sendFlatDict(dict);
 }
 
 // weatherOk: see sendNoEclipseToday's own comment above -- same
@@ -1597,7 +1773,7 @@ function sendEclipseData(result, sky, cloudGrid, headlineCloud, headlineSources,
   Object.keys(extraW_).forEach(function (k) { dict[k] = extraW_[k]; });
   var iss_ = issFieldsDict(issPos);
   Object.keys(iss_).forEach(function (k) { dict[k] = iss_[k]; });
-  sendDict(dict);
+  sendFlatDict(dict);
 }
 
 // ---- location naming (cached reverse geocode) -----------------------------
@@ -2257,7 +2433,7 @@ Pebble.addEventListener('webviewclosed', function (e) {
   // cosmetic and phone-local -- send them immediately rather than
   // waiting for a full refresh cycle to complete, so a settings
   // change feels instant regardless of whether one happens at all.
-  sendDict({});
+  sendFlatDict({});
 
   scheduleRefresh();
   // Only an explicit "Force refresh now" press bypasses the smart-
@@ -2270,9 +2446,9 @@ Pebble.addEventListener('webviewclosed', function (e) {
   // save still gets a refresh if one is actually due (moved far
   // enough, or the interval elapsed) via this same normal check.
   //
-  // Set here, AFTER the cosmetic-only sendDict({}) above already ran
+  // Set here, AFTER the cosmetic-only sendFlatDict({}) above already ran
   // (and cleared itself) -- so it's the refreshAndSend() below's own
-  // eventual sendDict() call, the one with the actual complete
+  // eventual sendFlatDict() call, the one with the actual complete
   // weather/eclipse/sky data, that gets captured as
   // LAST_FULL_REFRESH_DICT, not that earlier cosmetic-only one.
   if (settings.CONFIG_FORCE_FULL_REFRESH) s_captureNextAsFullRefresh = true;
