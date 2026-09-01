@@ -553,10 +553,10 @@ function bgAnimModeCode() {
   var v = parseInt(getSetting('CONFIG_BG_ANIM_MODE', '0'), 10);
   return [0, 1, 2, 3].indexOf(v) === -1 ? 0 : v;
 }
-// Radio-style, exactly one of 0=off, 1=gradient, 2=smooth second hand, 3=both, 4=Planet seek -- see shake_anim_mode's own comment in eclipse_data.h.
+// Radio-style, exactly one of 0=off, 1=gradient, 2=smooth second hand, 3=both, 4=Planet seek, 5=Paths -- see shake_anim_mode's own comment in eclipse_data.h.
 function shakeAnimModeCode() {
   var v = parseInt(getSetting('CONFIG_SHAKE_ANIM_MODE', '0'), 10);
-  return [0, 1, 2, 3, 4].indexOf(v) === -1 ? 0 : v;
+  return [0, 1, 2, 3, 4, 5].indexOf(v) === -1 ? 0 : v;
 }
 function outlineEnabledCode() { return getSetting('CONFIG_OUTLINE_ENABLED', 'true') === 'true' ? 1 : 0; }
 // Radio-style, exactly one of 0=None, 1=Contrasting outline, 2=Background color outline, 3=Shadow -- see hand_preset_contrast_style's own comment in eclipse_data.h. Default 2 matches the fixed behavior every hand style preset had before this setting existed.

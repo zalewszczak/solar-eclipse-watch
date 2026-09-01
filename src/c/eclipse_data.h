@@ -269,11 +269,17 @@ typedef struct {
                              // the screen by compass-relative azimuth, with off-screen bodies shown
                              // as an edge-pinned label + arrow instead. Unavailable whenever today
                              // has an eclipse -- see s_data.has_eclipse's own gating at the trigger
-                             // site). NOT YET IMPLEMENTED beyond the setting itself + the watch-side
-                             // compass subscription -- true per-body azimuth (not just altitude, all
-                             // this struct currently tracks for the Sun/Moon/planets) is a genuinely
-                             // separate, larger data-pipeline addition; see this project's own notes
-                             // on that at the compass subscription code in pebble-eclipse-watch.c.
+                             // site), 5="Paths" (each currently-visible Sun/Moon/planet grows a
+                             // dotted 1px trail in its own color, tracing that body's altitude over
+                             // roughly the surrounding 4 hours at its own fixed on-screen column --
+                             // see draw_body_paths_overlay() in background_layer.c. Extends out from
+                             // the body over the first 500ms, holds, then contracts back over the
+                             // last 500ms, same shape as Planet seek's own 500ms-in/hold/500ms-out
+                             // timing. Bodies currently below the horizon or otherwise not drawn get
+                             // no path at all in this first version -- an off-screen body's own path
+                             // + label + arrow, and rise/set labels at each path end, are both real
+                             // ideas but neither is implemented here; see this project's own notes on
+                             // both near draw_body_paths_overlay() for what a real attempt would need).
   bool outline_enabled; // user setting: 1px contrasting-color outline behind corner/edge text,
                           // the big-analog date, the eclipse phase text, and (procedurally, non-
                           // translucent mode only) corner/edge icons and the CUSTOM hand system

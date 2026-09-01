@@ -38,6 +38,10 @@ void eclipse_canvas_set_bg_anim(Layer *layer, bool active, uint16_t elapsed_ms);
 // eclipse_data.h for the feature as a whole.
 void eclipse_canvas_set_planet_seek(Layer *layer, bool active, uint16_t elapsed_ms, int32_t heading_deg);
 
+// Drives "Paths" (shake_anim_mode 5) -- see its own comment in
+// background_layer.c and shake_anim_mode's own comment in eclipse_data.h.
+void eclipse_canvas_set_shake_paths(Layer *layer, bool active, uint16_t elapsed_ms);
+
 // Call every second from the tick handler; the canvas's own internal
 // once-a-minute throttle decides whether this actually triggers a
 // redraw or just returns immediately, so this is always cheap to call.

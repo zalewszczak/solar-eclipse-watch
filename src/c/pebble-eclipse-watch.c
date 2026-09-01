@@ -596,6 +596,9 @@ static void shake_anim_timer_callback(void *data) {
   if (s_canvas_layer && s_data.shake_anim_mode == 4) {
     eclipse_canvas_set_planet_seek(s_canvas_layer, still_active, s_shake_anim_elapsed_ms, s_planet_seek_heading_deg);
   }
+  if (s_canvas_layer && s_data.shake_anim_mode == 5) {
+    eclipse_canvas_set_shake_paths(s_canvas_layer, still_active, s_shake_anim_elapsed_ms);
+  }
 }
 
 // Called from tap_handler() below, once per shake -- restarts the
@@ -1490,7 +1493,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   }
   if ((t = dict_find(iter, MESSAGE_KEY_SHAKE_ANIM_MODE))) {
     uint8_t v = t->value->uint8;
-    s_data.shake_anim_mode = (v <= 4) ? v : 0;
+    s_data.shake_anim_mode = (v <= 5) ? v : 0;
   }
   if ((t = dict_find(iter, MESSAGE_KEY_OUTLINE_ENABLED))) {
     s_data.outline_enabled = t->value->uint8 != 0;

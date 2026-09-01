@@ -82,6 +82,8 @@ typedef struct {
   bool planet_seek_active;      // "Planet seek" (shake_anim_mode 4) -- see
   uint16_t planet_seek_elapsed_ms; // eclipse_canvas_set_planet_seek() and canvas_update_proc's
   int32_t planet_seek_heading_deg; // own use of these three fields
+  bool shake_paths_active;      // "Paths" (shake_anim_mode 5) -- see
+  uint16_t shake_paths_elapsed_ms; // eclipse_canvas_set_shake_paths() and draw_body_paths_overlay()
   GBitmap *sky_cache;       // last full render, captured via graphics_capture_frame_buffer;
                              // blitted back on the seconds in between instead of leaving
                              // the screen untouched (which is what caused flicker -- Pebble
@@ -2303,9 +2305,18 @@ static void draw_planet_seek_body(GContext *ctx, GRect bounds, const char *name,
 // canvas_update_proc's own call sites (the early cache-blit return
 // and the end of a full draw) so the timing logic lives in exactly
 // one place.
-static int32_t planet_seek_eased_t_1000(const CanvasState *state, const EclipseData *d) {
+// 500ms ease-in from 0, then a hold at 1000, then a 500ms ease-out
+// back to 0 -- the shared extend/hold/contract shape both Planet
+// seek (its position blend) and Paths (its reveal-length budget)
+// use, given how far into a shake_label_seconds-long window we
+// currently are. Pulled out as its own elapsed-ms-parameterized
+// function (rather than reading state->planet_seek_elapsed_ms
+// directly the way this used to) so Paths -- which tracks its own,
+// separate elapsed-ms field, since it can run independently of
+// Planet seek (a different shake_anim_mode value) -- can share the
+// exact same timing math instead of duplicating it.
+static int32_t shake_anim_eased_t_1000(uint16_t elapsed, const EclipseData *d) {
   uint32_t duration_ms = (uint32_t)(d->shake_label_seconds > 0 ? d->shake_label_seconds : 3) * 1000;
-  uint16_t elapsed = state->planet_seek_elapsed_ms;
   if (elapsed < 500) {
     return bg_anim_ease_out_1000(((int32_t)elapsed * 1000) / 500);
   }
@@ -2315,6 +2326,10 @@ static int32_t planet_seek_eased_t_1000(const CanvasState *state, const EclipseD
     return bg_anim_ease_out_1000((remaining * 1000) / 500);
   }
   return 1000;
+}
+
+static int32_t planet_seek_eased_t_1000(const CanvasState *state, const EclipseData *d) {
+  return shake_anim_eased_t_1000(state->planet_seek_elapsed_ms, d);
 }
 
 // ---- "Planets" background-on-start animation (bg_anim_mode 2) ---------
@@ -2329,6 +2344,79 @@ static int32_t planet_seek_eased_t_1000(const CanvasState *state, const EclipseD
 // own moon_visible flag -- eclipse mode never reaches this animation at
 // all (bg_anim_mode is a Style-section setting with no eclipse-time
 // relevance), but the flag's meaning carries over regardless.
+// ---- "Paths" (shake_anim_mode 5) ---------------------------------------
+// See shake_anim_mode's own eclipse_data.h comment for what this is and
+// what's deliberately NOT attempted here (off-screen bodies, rise/set
+// end labels). Only ever called for a body that's actually visible right
+// now (state->cached_*_up/visible), since there's no on-screen anchor
+// point to grow a path out of otherwise.
+#define BODY_PATH_SAMPLE_COUNT 4    // each direction from now: 30/60/90/120 minutes out
+#define BODY_PATH_SAMPLE_STEP_S 1800 // 30 minutes
+#define BODY_PATH_MAX_PX 36          // fully-extended reveal length, in path pixels, per direction
+
+// alts_backward[0..count-1] are samples at now-30min, now-60min, ...;
+// alts_forward the same but into the future. Both walk outward from
+// body_center (index 0 = closest to now) as two separate budget-limited
+// dotted polylines -- see stroke_line_dotted_budget_fp()'s own comment
+// for why the budget can end a path mid-segment instead of only at a
+// sample boundary, which is what makes the smooth extend/contract
+// animation possible instead of jumping in 30-minute increments.
+static void draw_body_path_from_altitudes(GContext *ctx, const EclipseData *d, GRect bounds,
+                                           GPoint body_center, GColor color,
+                                           const int16_t *alts_backward, const int16_t *alts_forward,
+                                           int count, int32_t reveal_px) {
+  FGPoint prev_b = fgpoint_from_gpoint(body_center);
+  int32_t budget_b = reveal_px;
+  for (int i = 0; i < count && budget_b > 0; i++) {
+    int16_t y = alt_to_y(alts_backward[i], d->sky_scale_max_alt_decideg, bounds.size.h, 0);
+    FGPoint next = fgpoint_from_gpoint(GPoint(body_center.x, y));
+    if (!stroke_line_dotted_budget_fp(ctx, prev_b, next, color, &budget_b)) break;
+    prev_b = next;
+  }
+  FGPoint prev_f = fgpoint_from_gpoint(body_center);
+  int32_t budget_f = reveal_px;
+  for (int i = 0; i < count && budget_f > 0; i++) {
+    int16_t y = alt_to_y(alts_forward[i], d->sky_scale_max_alt_decideg, bounds.size.h, 0);
+    FGPoint next = fgpoint_from_gpoint(GPoint(body_center.x, y));
+    if (!stroke_line_dotted_budget_fp(ctx, prev_f, next, color, &budget_f)) break;
+    prev_f = next;
+  }
+}
+
+static void draw_body_paths_overlay(GContext *ctx, CanvasState *state, const EclipseData *d, GRect bounds, time_t now) {
+  int32_t reveal_px = (BODY_PATH_MAX_PX * shake_anim_eased_t_1000(state->shake_paths_elapsed_ms, d)) / 1000; // same 500ms-in/hold/500ms-out shape Planet seek's own position blend uses -- see shake_anim_eased_t_1000's own comment
+
+  int16_t sun_back[BODY_PATH_SAMPLE_COUNT], sun_fwd[BODY_PATH_SAMPLE_COUNT];
+  int16_t moon_back[BODY_PATH_SAMPLE_COUNT], moon_fwd[BODY_PATH_SAMPLE_COUNT];
+  int16_t planet_back[PLANET_COUNT][BODY_PATH_SAMPLE_COUNT], planet_fwd[PLANET_COUNT][BODY_PATH_SAMPLE_COUNT];
+  for (int i = 0; i < BODY_PATH_SAMPLE_COUNT; i++) {
+    time_t t_back = now - (time_t)((i + 1) * BODY_PATH_SAMPLE_STEP_S);
+    time_t t_fwd = now + (time_t)((i + 1) * BODY_PATH_SAMPLE_STEP_S);
+    sun_back[i] = interp_sun_alt_decideg(d, t_back);
+    sun_fwd[i] = interp_sun_alt_decideg(d, t_fwd);
+    moon_back[i] = interp_moon_alt_decideg(d, t_back);
+    moon_fwd[i] = interp_moon_alt_decideg(d, t_fwd);
+    for (int p = 0; p < PLANET_COUNT; p++) {
+      planet_back[p][i] = interp_planet_alt_decideg(d, (PlanetId)p, t_back);
+      planet_fwd[p][i] = interp_planet_alt_decideg(d, (PlanetId)p, t_fwd);
+    }
+  }
+
+  if (state->cached_sun_up) {
+    draw_body_path_from_altitudes(ctx, d, bounds, state->cached_sun_center, state->cached_sun_fill_color,
+                                   sun_back, sun_fwd, BODY_PATH_SAMPLE_COUNT, reveal_px);
+  }
+  if (state->cached_moon_visible) {
+    draw_body_path_from_altitudes(ctx, d, bounds, state->cached_moon_center, GColorWhite,
+                                   moon_back, moon_fwd, BODY_PATH_SAMPLE_COUNT, reveal_px);
+  }
+  for (int p = 0; p < PLANET_COUNT; p++) {
+    if (!state->cached_planet_visible[p]) continue;
+    draw_body_path_from_altitudes(ctx, d, bounds, state->cached_planet_center[p], planet_color((PlanetId)p),
+                                   planet_back[p], planet_fwd[p], BODY_PATH_SAMPLE_COUNT, reveal_px);
+  }
+}
+
 static void draw_bg_anim_planets_overlay(GContext *ctx, CanvasState *state, const EclipseData *d, GRect bounds) {
   if (state->cached_sun_up) {
     graphics_context_set_fill_color(ctx, state->cached_sun_fill_color);
@@ -2543,6 +2631,9 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
     }
     if (state->bg_anim_active && d->bg_anim_mode == 2) {
       draw_bg_anim_planets_overlay(ctx, state, d, bounds);
+    }
+    if (state->shake_paths_active) {
+      draw_body_paths_overlay(ctx, state, d, bounds, now);
     }
     return;
   }
@@ -3067,6 +3158,9 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
   if (state->bg_anim_active && d->bg_anim_mode == 2) {
     draw_bg_anim_planets_overlay(ctx, state, d, bounds);
   }
+  if (state->shake_paths_active) {
+    draw_body_paths_overlay(ctx, state, d, bounds, now);
+  }
 }
 
 Layer *eclipse_canvas_create(GRect frame) {
@@ -3147,6 +3241,22 @@ void eclipse_canvas_set_planet_seek(Layer *layer, bool active, uint16_t elapsed_
   state->planet_seek_elapsed_ms = elapsed_ms;
   state->planet_seek_heading_deg = heading_deg;
   if (active != was_active) state->force_next_draw = true; // the one moment it DOES need a full draw: entering/leaving the mode, so the cache/backdrop itself gets refreshed at the right moment
+  layer_mark_dirty(layer);
+}
+
+// "Paths" (shake_anim_mode 5) -- unlike eclipse_canvas_set_planet_seek()
+// above, this never forces a full redraw: the bodies it draws paths
+// from are already drawn normally (not skip-painted the way Planet
+// seek/the Planets bg-anim need to be), so whatever's already cached
+// is a perfectly good backdrop for every frame of this animation --
+// each frame just blits that same cache and draws the path's CURRENT
+// reveal length fresh on top, never baking the path itself into the
+// cache at all (the cache-blit early-return in canvas_update_proc
+// returns before any capture happens).
+void eclipse_canvas_set_shake_paths(Layer *layer, bool active, uint16_t elapsed_ms) {
+  CanvasState *state = (CanvasState *)layer_get_data(layer);
+  state->shake_paths_active = active;
+  state->shake_paths_elapsed_ms = elapsed_ms;
   layer_mark_dirty(layer);
 }
 
