@@ -1419,23 +1419,34 @@ static void apply_clock_font(void) {
   if (s_bottom_layer) layer_mark_dirty(s_bottom_layer);
 }
 
-// Battery-saving tick granularity: SECOND_UNIT only when the second
-// hand / digital clock's own seconds are actually shown (show_seconds),
-// MINUTE_UNIT otherwise -- tick_handler() just calls
-// refresh_status_and_maybe_canvas(), which has no per-second-specific
-// behavior of its own, so firing once a minute instead of once a
-// second when nothing on screen needs live seconds is free correctness,
-// not a tradeoff. Corner/edge content types that show seconds (Time:
-// second, Time: full H:M:S, etc.) don't factor in here -- those already
-// refresh on the features layer's own independent 5s timer
-// (CORNERS_REFRESH_MS), never tied to this subscription at all.
-// tick_timer_service_subscribe() itself replaces any existing
-// subscription, so no explicit unsubscribe is needed before switching.
+// Battery-saving tick granularity: SECOND_UNIT only when something on
+// screen actually needs live seconds -- the second hand / digital
+// clock's own seconds (show_seconds), OR a corner/edge slot showing a
+// seconds-precision content type (Time: second, Time: full H:M:S, and
+// the tens/ones-digit variants) -- MINUTE_UNIT otherwise.
+// tick_handler() itself has no per-second-specific behavior beyond
+// what's gated on s_tick_unit_is_seconds below, so firing once a
+// minute instead of once a second when nothing needs live seconds is
+// free correctness, not a tradeoff. tick_timer_service_subscribe()
+// itself replaces any existing subscription, so no explicit
+// unsubscribe is needed before switching.
 static bool s_tick_subscribed = false;    // has any subscription happened yet
 static bool s_tick_unit_is_seconds = false; // if so, at which granularity
 
+// Content ids that display a live seconds value -- see
+// CORNER_CONTENT_OPTIONS in config-page.js for the full label list.
+static const uint8_t SECOND_PRECISION_CONTENT_IDS[] = { 63, 69, 70, 71, 72 };
+
+static bool need_second_precision(void) {
+  if (s_data.show_seconds) return true;
+  for (int i = 0; i < (int)(sizeof(SECOND_PRECISION_CONTENT_IDS) / sizeof(SECOND_PRECISION_CONTENT_IDS[0])); i++) {
+    if (corner_content_in_use(SECOND_PRECISION_CONTENT_IDS[i])) return true;
+  }
+  return false;
+}
+
 static void update_tick_subscription(void) {
-  bool need_seconds = s_data.show_seconds;
+  bool need_seconds = need_second_precision();
   if (s_tick_subscribed && need_seconds == s_tick_unit_is_seconds) return; // already at the right granularity
   s_tick_subscribed = true;
   s_tick_unit_is_seconds = need_seconds;
@@ -1960,7 +1971,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   if ((t = dict_find(iter, MESSAGE_KEY_ISS_COMPUTED_AT))) s_data.iss_computed_at = (time_t)t->value->int32;
   if ((t = dict_find(iter, MESSAGE_KEY_ISS_NEXT_PASS))) s_data.iss_next_pass = (time_t)(int32_t)t->value->int32;
 
-  update_tick_subscription(); // re-checks show_seconds -- switches SECOND_UNIT/MINUTE_UNIT if this settings update actually changed it
+  update_tick_subscription(); // re-checks whether live seconds are actually needed -- switches SECOND_UNIT/MINUTE_UNIT if this settings update changed that (show_seconds, or which content a corner/edge slot now shows)
   save_data();
   refresh_status_and_maybe_canvas(true);
 }
@@ -1973,6 +1984,13 @@ static void inbox_dropped_handler(AppMessageResult reason, void *context) {
 
 static void tick_handler(struct tm *tick_time, TimeUnits units_changed) {
   refresh_status_and_maybe_canvas(false);
+  // Piggybacks on the same SECOND_UNIT ticks show_seconds already
+  // needs, rather than a separate wake source, to give seconds-
+  // precision corner/edge content (Time: second, etc.) genuinely live
+  // per-second updates -- see need_second_precision()'s own comment.
+  // Never fires when this subscription is at MINUTE_UNIT, since
+  // s_tick_unit_is_seconds is false in that case.
+  if (s_tick_unit_is_seconds && s_features_layer) layer_mark_dirty(s_features_layer);
 }
 
 static void select_click_handler(ClickRecognizerRef recognizer, void *context) {
@@ -2014,12 +2032,18 @@ static void tap_handler(AccelAxisType axis, int32_t direction) {
 
 // ---- corners overlay's own independent refresh cycle ----------------------
 
-// A separate, shorter cadence than the sky canvas's once-a-minute
-// throttle -- health data (heart rate especially) is worth checking
-// more often, and redrawing four small icons/numbers is cheap enough
-// that doing it this often doesn't meaningfully affect battery life,
-// as long as it never touches the much more expensive sky canvas.
-#define CORNERS_REFRESH_MS 5000
+// Once a minute, matching update_tick_subscription()'s own baseline
+// for anything that doesn't need to be genuinely live -- used to be a
+// much shorter 5s cadence specifically for health data (heart rate
+// especially), but Pebble's own HealthService doesn't actually refresh
+// a heart-rate reading that often either, so 5s bought little real
+// freshness for a real, constant battery cost. Seconds-precision
+// content (Time: second, etc.) no longer depends on this timer at all
+// -- see tick_handler()'s own piggyback on the SECOND_UNIT ticks
+// need_second_precision() already requests when that content is
+// active, which gives it genuinely live per-second updates instead of
+// whatever staleness this cadence would otherwise leave it with.
+#define CORNERS_REFRESH_MS 60000
 static AppTimer *s_corners_timer = NULL;
 
 static void corners_timer_callback(void *data) {
