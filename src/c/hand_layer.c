@@ -17,53 +17,256 @@ static GColor resolve_scheme_color(uint8_t choice, GColor main_color, GColor acc
   return main_color; // choice 0, and any unrecognized value
 }
 
-// Computes the hand shape's actual boundary points (triangle: 3, dot/
-// square: 4) plus, for the dot style, the two round-cap centers and
-// their shared radius -- shared by the fill/hollow pass
-// (draw_hand_shape_once) and the outline pass (draw_hand_outline_once)
-// below, so both always agree on exactly where the shape's edge is.
-// Returns the point count (3 or 4).
-// Computes hand geometry using sub-pixel fixed-point precision
-static int compute_hand_geometry_fp(FGPoint center, int32_t angle, const HandConfig *cfg,
-                                     FGPoint *points, FGPoint *inner_out, FGPoint *outer_out, int32_t *half_w_out) {
+// ---- hand shape geometry ---------------------------------------------
+//
+// Every hand shape (existing dot/triangle/square, plus dauphine/sword/
+// spade/arrow/pomme below) is built from a small, fixed set of convex
+// primitives -- 1-2 polygons (3-5 points each) and 0-2 circles --
+// packed into a HandGeometry. The fill/outline/shadow passes below all
+// just iterate whatever's in here, so a new style only ever needs to
+// change compute_hand_geometry_fp(), never the three drawing passes
+// themselves. (Circles matter for round caps like the dot style's
+// pivot/tip caps or the pomme's rounded thick section, and for the
+// spade's droplet tip -- everything else is a plain filled polygon.)
+//
+// Every polygon here MUST be convex: fill_polygon_fp() (and the
+// dithered/thin variants) all test membership via
+// point_in_convex_polygon_fp(), same as before this file supported
+// more than one shape. Any style whose real shape isn't convex on its
+// own (pomme's thick+thin sections; spade/arrow's line-or-triangle
+// base plus a separate tip ornament) is decomposed into 2 separate
+// convex polygons instead of one -- see each style's own comment
+// below for its exact point layout.
+#define HAND_MAX_POLY_PTS 5
+#define HAND_MAX_POLYS 2
+#define HAND_MAX_CIRCLES 2
+
+typedef struct {
+  FGPoint pts[HAND_MAX_POLY_PTS];
+  int n;     // 0 = unused
+  bool thin; // true when this polygon's own half-width is < 1.5px -- see
+              // subpixel.h's fill_polygon_thin_fp() comment for why that
+              // needs a different fill routine than a normal-width shape.
+} HandPoly;
+
+typedef struct {
+  FGPoint center;
+  int32_t radius_fp;
+  bool thin;
+} HandCircle;
+
+typedef struct {
+  HandPoly polys[HAND_MAX_POLYS];
+  int n_polys;
+  HandCircle circles[HAND_MAX_CIRCLES];
+  int n_circles;
+} HandGeometry;
+
+// A point at signed distance `axial_fp` along the hand's own axis from
+// `center` -- positive moves toward the tip (same direction `length`
+// extends in), negative moves toward the back (same direction a
+// positive back_offset extends in). Every style below places its
+// points by combining this with perp_offset_fp() (the sideways/width
+// component) -- together they're the same dx/dy math
+// compute_hand_geometry_fp() always used, just factored out so each
+// style's point layout reads as "how far along, how far to the side"
+// instead of repeating the sin/cos arithmetic per point.
+static FGPoint point_at_axial_fp(FGPoint center, int32_t sin_v, int32_t cos_v, int32_t axial_fp) {
+  int32_t dx = (int32_t)(((int64_t)axial_fp * sin_v) / TRIG_MAX_RATIO);
+  int32_t dy = (int32_t)(((int64_t)axial_fp * cos_v) / TRIG_MAX_RATIO);
+  return fgpoint_new(center.x + dx, center.y - dy);
+}
+
+static void perp_offset_fp(int32_t sin_v, int32_t cos_v, int32_t half_w_fp, int32_t *dx_w, int32_t *dy_w) {
+  *dx_w = (int32_t)(((int64_t)half_w_fp * cos_v) / TRIG_MAX_RATIO);
+  *dy_w = (int32_t)(((int64_t)half_w_fp * sin_v) / TRIG_MAX_RATIO);
+}
+
+// half-width in sub-pixel units, floored at 0.5px same as the original
+// single-shape version of this file always did (a literal 0px width
+// would make every fill/stroke routine below degenerate).
+static int32_t half_width_fp(uint8_t width_px) {
+  int32_t half_w_fp = ((int32_t)width_px << SUBPIXEL_BITS) / 2;
+  if (half_w_fp < (1 << (SUBPIXEL_BITS - 1))) half_w_fp = 1 << (SUBPIXEL_BITS - 1);
+  return half_w_fp;
+}
+
+// Appends the standard 4-point "base rectangle" (inner-left, inner-
+// right, outer-right, outer-left, in that consistent winding order --
+// same order the original dot/square body always used) spanning
+// `inner_axial_fp` to `outer_axial_fp` at half-width `half_w_fp` into
+// `poly`, and optionally (round_caps) two matching circles into `geo`
+// -- shared by styles 0/2 (the whole hand), 5/pomme (its thick
+// section) and 6/spade (its "rounded line" base).
+static void append_capsule_fp(HandGeometry *geo, FGPoint center, int32_t sin_v, int32_t cos_v,
+                               int32_t inner_axial_fp, int32_t outer_axial_fp, int32_t half_w_fp,
+                               bool thin, bool round_caps) {
+  FGPoint inner = point_at_axial_fp(center, sin_v, cos_v, inner_axial_fp);
+  FGPoint outer = point_at_axial_fp(center, sin_v, cos_v, outer_axial_fp);
+  int32_t dx_w, dy_w;
+  perp_offset_fp(sin_v, cos_v, half_w_fp, &dx_w, &dy_w);
+
+  HandPoly *poly = &geo->polys[geo->n_polys++];
+  poly->n = 4;
+  poly->thin = thin;
+  poly->pts[0] = fgpoint_new(inner.x - dx_w, inner.y - dy_w);
+  poly->pts[1] = fgpoint_new(inner.x + dx_w, inner.y + dy_w);
+  poly->pts[2] = fgpoint_new(outer.x + dx_w, outer.y + dy_w);
+  poly->pts[3] = fgpoint_new(outer.x - dx_w, outer.y - dy_w);
+
+  if (round_caps) {
+    geo->circles[geo->n_circles++] = (HandCircle){ .center = inner, .radius_fp = half_w_fp, .thin = thin };
+    geo->circles[geo->n_circles++] = (HandCircle){ .center = outer, .radius_fp = half_w_fp, .thin = thin };
+  }
+}
+
+// Appends a 3-point triangle: two points at `base_axial_fp` spread
+// half_w_fp apart, tapering to `tip_point` (an already-computed point,
+// not just an axial distance, so callers can pass either a plain
+// point_at_axial_fp() result -- style 1/triangle's own tip, style
+// 7/arrow's base -- or a point built some other way).
+static void append_taper_fp(HandGeometry *geo, FGPoint center, int32_t sin_v, int32_t cos_v,
+                             int32_t base_axial_fp, int32_t half_w_fp, FGPoint tip_point, bool thin) {
+  FGPoint base = point_at_axial_fp(center, sin_v, cos_v, base_axial_fp);
+  int32_t dx_w, dy_w;
+  perp_offset_fp(sin_v, cos_v, half_w_fp, &dx_w, &dy_w);
+
+  HandPoly *poly = &geo->polys[geo->n_polys++];
+  poly->n = 3;
+  poly->thin = thin;
+  poly->pts[0] = fgpoint_new(base.x - dx_w, base.y - dy_w);
+  poly->pts[1] = fgpoint_new(base.x + dx_w, base.y + dy_w);
+  poly->pts[2] = tip_point;
+}
+
+static void compute_hand_geometry_fp(FGPoint center, int32_t angle, const HandConfig *cfg, HandGeometry *geo) {
+  geo->n_polys = 0;
+  geo->n_circles = 0;
+
   int32_t sin_v = sin_lookup(angle), cos_v = cos_lookup(angle);
 
-  int32_t len_fp  = (int32_t)cfg->length << SUBPIXEL_BITS;
-  int32_t back_fp = (int32_t)cfg->back_offset << SUBPIXEL_BITS;
-  int32_t half_w_fp = ((int32_t)cfg->width << SUBPIXEL_BITS) / 2;
-  if (half_w_fp < (1 << (SUBPIXEL_BITS - 1))) {
-    half_w_fp = 1 << (SUBPIXEL_BITS - 1); // 0.5px minimum
+  int32_t len_fp    = (int32_t)cfg->length << SUBPIXEL_BITS;
+  int32_t back_fp    = -((int32_t)cfg->back_offset << SUBPIXEL_BITS); // axial (negative = toward back)
+  int32_t mid_fp      = (int32_t)cfg->middle_offset << SUBPIXEL_BITS;  // axial (positive = toward tip)
+  int32_t half_w_fp    = half_width_fp(cfg->width);
+  int32_t half_sw_fp    = half_width_fp(cfg->secondary_width);
+  bool thin_w  = cfg->width < 3;
+  bool thin_sw = cfg->secondary_width < 3;
+
+  switch (cfg->style) {
+    case 1: { // triangle -- tapers to a single point at the tip
+      FGPoint outer = point_at_axial_fp(center, sin_v, cos_v, len_fp);
+      append_taper_fp(geo, center, sin_v, cos_v, back_fp, half_w_fp, outer, thin_w);
+      return;
+    }
+
+    case 3: { // dauphine -- 4-point kite: pointy back, two side points
+              // near the pivot (at middle_offset), pointy tip. "obey
+              // back_offset, but never let the back point end up
+              // nearer than middle_offset" -- literal max() of the two,
+              // per the request.
+      int8_t effective_back = (cfg->back_offset < cfg->middle_offset) ? cfg->middle_offset : cfg->back_offset;
+      int32_t back_ax = -((int32_t)effective_back << SUBPIXEL_BITS);
+      FGPoint back_tip = point_at_axial_fp(center, sin_v, cos_v, back_ax);
+      FGPoint top_tip  = point_at_axial_fp(center, sin_v, cos_v, len_fp);
+      FGPoint mid       = point_at_axial_fp(center, sin_v, cos_v, mid_fp);
+      int32_t dx_w, dy_w;
+      perp_offset_fp(sin_v, cos_v, half_w_fp, &dx_w, &dy_w);
+
+      HandPoly *poly = &geo->polys[geo->n_polys++];
+      poly->n = 4;
+      poly->thin = thin_w;
+      poly->pts[0] = back_tip;
+      poly->pts[1] = fgpoint_new(mid.x - dx_w, mid.y - dy_w);
+      poly->pts[2] = top_tip;
+      poly->pts[3] = fgpoint_new(mid.x + dx_w, mid.y + dy_w);
+      return;
+    }
+
+    case 4: { // sword -- 5-point pentagon: base (back_offset, regular
+              // width), tapering out to a wider mid-bulge (middle_offset,
+              // clamped to the hand's own length; secondary_width),
+              // tapering back in to a single tip point (length).
+      int32_t mid_ax = mid_fp;
+      if (mid_ax > len_fp) mid_ax = len_fp;
+      FGPoint top = point_at_axial_fp(center, sin_v, cos_v, len_fp);
+      FGPoint base = point_at_axial_fp(center, sin_v, cos_v, back_fp);
+      FGPoint mid   = point_at_axial_fp(center, sin_v, cos_v, mid_ax);
+      int32_t dx_w, dy_w, dx_sw, dy_sw;
+      perp_offset_fp(sin_v, cos_v, half_w_fp, &dx_w, &dy_w);
+      perp_offset_fp(sin_v, cos_v, half_sw_fp, &dx_sw, &dy_sw);
+
+      HandPoly *poly = &geo->polys[geo->n_polys++];
+      poly->n = 5;
+      poly->thin = thin_w; // dominant/base width -- matches the other multi-width styles' convention
+      poly->pts[0] = fgpoint_new(base.x - dx_w, base.y - dy_w);
+      poly->pts[1] = fgpoint_new(mid.x - dx_sw, mid.y - dy_sw);
+      poly->pts[2] = top;
+      poly->pts[3] = fgpoint_new(mid.x + dx_sw, mid.y + dy_sw);
+      poly->pts[4] = fgpoint_new(base.x + dx_w, base.y + dy_w);
+      return;
+    }
+
+    case 5: { // pomme -- a rounded thick section (middle_offset..length,
+              // regular width, round-capped for that "apple" look) on a
+              // thinner plain tail (back_offset..middle_offset, secondary_width).
+      append_capsule_fp(geo, center, sin_v, cos_v, mid_fp, len_fp, half_w_fp, thin_w, true);
+      append_capsule_fp(geo, center, sin_v, cos_v, back_fp, mid_fp, half_sw_fp, thin_sw, false);
+      return;
+    }
+
+    case 6: { // spade -- the existing "rounded line" body (back_offset..
+              // length, regular width, round-capped, i.e. exactly style
+              // 0's own shape) plus a droplet tip ornament: a circle
+              // (secondary_width) sitting at the very tip, topped with a
+              // triangular point when middle_offset is bigger than
+              // secondary_width (measured from the circle's own center --
+              // i.e. from the tip point) -- otherwise just the circle
+              // alone, which already looks like a rounded droplet top.
+      append_capsule_fp(geo, center, sin_v, cos_v, back_fp, len_fp, half_w_fp, thin_w, true);
+      FGPoint tip = point_at_axial_fp(center, sin_v, cos_v, len_fp);
+      geo->circles[geo->n_circles++] = (HandCircle){ .center = tip, .radius_fp = half_sw_fp, .thin = thin_sw };
+      if (cfg->middle_offset > cfg->secondary_width) {
+        FGPoint apex = point_at_axial_fp(center, sin_v, cos_v, len_fp + mid_fp);
+        int32_t dx_sw, dy_sw;
+        perp_offset_fp(sin_v, cos_v, half_sw_fp, &dx_sw, &dy_sw);
+        HandPoly *poly = &geo->polys[geo->n_polys++];
+        poly->n = 3;
+        poly->thin = thin_sw;
+        poly->pts[0] = fgpoint_new(tip.x - dx_sw, tip.y - dy_sw);
+        poly->pts[1] = fgpoint_new(tip.x + dx_sw, tip.y + dy_sw);
+        poly->pts[2] = apex;
+      }
+      return;
+    }
+
+    case 7: { // arrow -- the existing triangle body (back_offset..length,
+              // regular width, tapering to a point -- exactly style 1's
+              // own shape) plus a small tip-pointer triangle beyond it:
+              // base spread by secondary_width right at the tip, apex
+              // middle_offset further out.
+      FGPoint tip = point_at_axial_fp(center, sin_v, cos_v, len_fp);
+      append_taper_fp(geo, center, sin_v, cos_v, back_fp, half_w_fp, tip, thin_w);
+      FGPoint apex = point_at_axial_fp(center, sin_v, cos_v, len_fp + mid_fp);
+      int32_t dx_sw, dy_sw;
+      perp_offset_fp(sin_v, cos_v, half_sw_fp, &dx_sw, &dy_sw);
+      HandPoly *poly = &geo->polys[geo->n_polys++];
+      poly->n = 3;
+      poly->thin = thin_sw;
+      poly->pts[0] = fgpoint_new(tip.x - dx_sw, tip.y - dy_sw);
+      poly->pts[1] = fgpoint_new(tip.x + dx_sw, tip.y + dy_sw);
+      poly->pts[2] = apex;
+      return;
+    }
+
+    case 0:  // dot -- round-capped body
+    case 2:  // square -- flat-capped body (same rectangle, no circles)
+    default: // any unrecognized style value falls back to style 2's plain body
+      append_capsule_fp(geo, center, sin_v, cos_v, back_fp, len_fp, half_w_fp, thin_w, cfg->style == 0);
+      return;
   }
-
-  int32_t dx_outer = (int32_t)(((int64_t)len_fp * sin_v) / TRIG_MAX_RATIO);
-  int32_t dy_outer = (int32_t)(((int64_t)len_fp * cos_v) / TRIG_MAX_RATIO);
-  int32_t dx_back  = (int32_t)(((int64_t)back_fp * sin_v) / TRIG_MAX_RATIO);
-  int32_t dy_back  = (int32_t)(((int64_t)back_fp * cos_v) / TRIG_MAX_RATIO);
-
-  FGPoint outer = fgpoint_new(center.x + dx_outer, center.y - dy_outer);
-  FGPoint inner = fgpoint_new(center.x - dx_back,  center.y + dy_back);
-
-  *inner_out = inner;
-  *outer_out = outer;
-  *half_w_out = half_w_fp;
-
-  int32_t dx_w = (int32_t)(((int64_t)half_w_fp * cos_v) / TRIG_MAX_RATIO);
-  int32_t dy_w = (int32_t)(((int64_t)half_w_fp * sin_v) / TRIG_MAX_RATIO);
-
-  if (cfg->style == 1) { // triangle
-    points[0] = fgpoint_new(inner.x - dx_w, inner.y - dy_w);
-    points[1] = fgpoint_new(inner.x + dx_w, inner.y + dy_w);
-    points[2] = outer;
-    return 3;
-  }
-
-  // dot / square body
-  points[0] = fgpoint_new(inner.x - dx_w, inner.y - dy_w);
-  points[1] = fgpoint_new(inner.x + dx_w, inner.y + dy_w);
-  points[2] = fgpoint_new(outer.x + dx_w, outer.y + dy_w);
-  points[3] = fgpoint_new(outer.x - dx_w, outer.y - dy_w);
-  return 4;
 }
+
 // Draws just the hand's shape (no outline underlay) in `color`, at
 // `center`. `dithered` selects a genuine ~50% stipple fill (see
 // fill_polygon_dithered() above) instead of a solid one -- this is
@@ -71,27 +274,21 @@ static int compute_hand_geometry_fp(FGPoint center, int32_t angle, const HandCon
 // stroke-only look an earlier version of this file used.
 static void draw_hand_shape_once_fp(GContext *ctx, FGPoint center, int32_t angle, const HandConfig *cfg,
                                      GColor color, bool dithered) {
-  FGPoint points[4], inner, outer;
-  int32_t half_w;
-  int n = compute_hand_geometry_fp(center, angle, cfg, points, &inner, &outer, &half_w);
-  bool thin = cfg->width < 3; // see subpixel.h's own comment on fill_polygon_thin_fp() for why
+  HandGeometry geo;
+  compute_hand_geometry_fp(center, angle, cfg, &geo);
 
-  if (dithered) fill_polygon_dithered_fp(ctx, points, n, color);
-  else if (cfg->hollow) stroke_polygon_fp(ctx, points, n, color, false);
-  else if (thin) fill_polygon_thin_fp(ctx, points, n, color);
-  else fill_polygon_fp(ctx, points, n, color);
-
-  if (n == 4 && cfg->style == 0) { // dot style round caps
-    if (cfg->hollow && !dithered) {
-      stroke_circle_fp(ctx, inner, half_w, color, false);
-      stroke_circle_fp(ctx, outer, half_w, color, false);
-    } else if (thin && !dithered) {
-      fill_circle_thin_fp(ctx, inner, half_w, color);
-      fill_circle_thin_fp(ctx, outer, half_w, color);
-    } else {
-      fill_circle_fp(ctx, inner, half_w, color, dithered);
-      fill_circle_fp(ctx, outer, half_w, color, dithered);
-    }
+  for (int i = 0; i < geo.n_polys; i++) {
+    HandPoly *p = &geo.polys[i];
+    if (dithered) fill_polygon_dithered_fp(ctx, p->pts, p->n, color);
+    else if (cfg->hollow) stroke_polygon_fp(ctx, p->pts, p->n, color, false);
+    else if (p->thin) fill_polygon_thin_fp(ctx, p->pts, p->n, color);
+    else fill_polygon_fp(ctx, p->pts, p->n, color);
+  }
+  for (int i = 0; i < geo.n_circles; i++) {
+    HandCircle *c = &geo.circles[i];
+    if (cfg->hollow && !dithered) stroke_circle_fp(ctx, c->center, c->radius_fp, color, false);
+    else if (c->thin && !dithered) fill_circle_thin_fp(ctx, c->center, c->radius_fp, color);
+    else fill_circle_fp(ctx, c->center, c->radius_fp, color, dithered);
   }
 }
 // A genuine perimeter outline for hand_layer_draw()'s outline_enabled
@@ -107,9 +304,8 @@ static void draw_hand_shape_once_fp(GContext *ctx, FGPoint center, int32_t angle
 // the shape.
 static void draw_hand_outline_once_fp(GContext *ctx, FGPoint center, int32_t angle, const HandConfig *cfg,
                                        GColor color, bool dithered) {
-  FGPoint points[4], inner, outer;
-  int32_t half_w;
-  int n = compute_hand_geometry_fp(center, angle, cfg, points, &inner, &outer, &half_w);
+  HandGeometry geo;
+  compute_hand_geometry_fp(center, angle, cfg, &geo);
 
   // "On shake" gradient mode: a true per-pixel screen-space sweep
   // instead of one fixed color for the whole outline -- see
@@ -121,19 +317,20 @@ static void draw_hand_outline_once_fp(GContext *ctx, FGPoint center, int32_t ang
   // -- a translucent hand's outline just doesn't gradient-shift.
   uint8_t shake_shift;
   if (!dithered && shake_gradient_active(&shake_shift)) {
-    stroke_polygon_gradient_fp(ctx, points, n, shake_shift);
-    if (n == 4 && cfg->style == 0) {
-      stroke_circle_gradient_fp(ctx, inner, half_w, shake_shift);
-      stroke_circle_gradient_fp(ctx, outer, half_w, shake_shift);
+    for (int i = 0; i < geo.n_polys; i++) {
+      stroke_polygon_gradient_fp(ctx, geo.polys[i].pts, geo.polys[i].n, shake_shift);
+    }
+    for (int i = 0; i < geo.n_circles; i++) {
+      stroke_circle_gradient_fp(ctx, geo.circles[i].center, geo.circles[i].radius_fp, shake_shift);
     }
     return;
   }
 
-  stroke_polygon_fp(ctx, points, n, color, dithered);
-
-  if (n == 4 && cfg->style == 0) {
-    stroke_circle_fp(ctx, inner, half_w, color, dithered);
-    stroke_circle_fp(ctx, outer, half_w, color, dithered);
+  for (int i = 0; i < geo.n_polys; i++) {
+    stroke_polygon_fp(ctx, geo.polys[i].pts, geo.polys[i].n, color, dithered);
+  }
+  for (int i = 0; i < geo.n_circles; i++) {
+    stroke_circle_fp(ctx, geo.circles[i].center, geo.circles[i].radius_fp, color, dithered);
   }
 }
 
@@ -216,32 +413,29 @@ static void draw_hand_shadow_once_fp(GContext *ctx, FGPoint center, int32_t angl
   int32_t dy = -(int32_t)(((int64_t)dist_fp * cos_lookup(shadow_native_angle)) / TRIG_MAX_RATIO);
   FGPoint shadow_center = fgpoint_new(center.x + dx, center.y + dy);
 
-  FGPoint points[4], inner, outer;
-  int32_t half_w;
-  int n = compute_hand_geometry_fp(shadow_center, angle, cfg, points, &inner, &outer, &half_w);
+  HandGeometry geo;
+  compute_hand_geometry_fp(shadow_center, angle, cfg, &geo);
 
   if (!shadow_translucent_style) {
-    if (cfg->width < 3) {
-      fill_polygon_thin_fp(ctx, points, n, GColorBlack);
-      if (n == 4 && cfg->style == 0) {
-        fill_circle_thin_fp(ctx, inner, half_w, GColorBlack);
-        fill_circle_thin_fp(ctx, outer, half_w, GColorBlack);
-      }
-    } else {
-      fill_polygon_fp(ctx, points, n, GColorBlack);
-      if (n == 4 && cfg->style == 0) {
-        fill_circle_fp(ctx, inner, half_w, GColorBlack, false);
-        fill_circle_fp(ctx, outer, half_w, GColorBlack, false);
-      }
+    for (int i = 0; i < geo.n_polys; i++) {
+      HandPoly *p = &geo.polys[i];
+      if (p->thin) fill_polygon_thin_fp(ctx, p->pts, p->n, GColorBlack);
+      else fill_polygon_fp(ctx, p->pts, p->n, GColorBlack);
+    }
+    for (int i = 0; i < geo.n_circles; i++) {
+      HandCircle *c = &geo.circles[i];
+      if (c->thin) fill_circle_thin_fp(ctx, c->center, c->radius_fp, GColorBlack);
+      else fill_circle_fp(ctx, c->center, c->radius_fp, GColorBlack, false);
     }
     return;
   }
 
   uint8_t threshold = cfg->translucent ? 4 : 8; // ~25% vs ~50% Bayer density
-  fill_polygon_dithered_level_fp(ctx, points, n, GColorBlack, threshold);
-  if (n == 4 && cfg->style == 0) {
-    fill_circle_dithered_level_fp(ctx, inner, half_w, GColorBlack, threshold);
-    fill_circle_dithered_level_fp(ctx, outer, half_w, GColorBlack, threshold);
+  for (int i = 0; i < geo.n_polys; i++) {
+    fill_polygon_dithered_level_fp(ctx, geo.polys[i].pts, geo.polys[i].n, GColorBlack, threshold);
+  }
+  for (int i = 0; i < geo.n_circles; i++) {
+    fill_circle_dithered_level_fp(ctx, geo.circles[i].center, geo.circles[i].radius_fp, GColorBlack, threshold);
   }
 }
 

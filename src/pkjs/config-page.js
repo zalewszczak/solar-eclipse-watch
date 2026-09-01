@@ -511,12 +511,15 @@ function schemeColorOptionsHtml(selected) {
 function handHiddenInputsHtml(current) {
   var d = {
     handHourStyle: '1', handHourWidth: '12', handHourLength: '51', handHourBackOffset: '0',
+    handHourMiddleOffset: '0', handHourSecondaryWidth: '6',
     handHourColor: '0', handHourOutlineEnabled: 'false', handHourOutlineColor: '0', handHourTranslucent: 'false',
     handHourShadowEnabled: 'false', handHourShadowDistance: '2',
     handMinStyle: '1', handMinWidth: '18', handMinLength: '78', handMinBackOffset: '0',
+    handMinMiddleOffset: '0', handMinSecondaryWidth: '6',
     handMinColor: '0', handMinOutlineEnabled: 'false', handMinOutlineColor: '0', handMinTranslucent: 'false',
     handMinShadowEnabled: 'false', handMinShadowDistance: '2',
     handSecStyle: '0', handSecWidth: '2', handSecLength: '85', handSecBackOffset: '0',
+    handSecMiddleOffset: '0', handSecSecondaryWidth: '6',
     handSecColor: '1', handSecOutlineEnabled: 'false', handSecOutlineColor: '0', handSecTranslucent: 'false',
     handSecShadowEnabled: 'false', handSecShadowDistance: '2'
   };
@@ -546,10 +549,15 @@ function handEditorModalHtml(kind, title) {
 '    <div class="modal-scroll-body">' +
 
 '    <label for="' + p + 'Style">Shape</label>' +
-'    <select id="' + p + 'Style">' +
+'    <select id="' + p + 'Style" onchange="onCustomHandStyleChange(\'' + kind + '\')">' +
 '      <option value="0">Dot (round caps)</option>' +
 '      <option value="1">Triangle</option>' +
 '      <option value="2">Square (flat caps)</option>' +
+'      <option value="3">Dauphine</option>' +
+'      <option value="4">Sword</option>' +
+'      <option value="5">Pomme</option>' +
+'      <option value="6">Spade</option>' +
+'      <option value="7">Arrow</option>' +
 '    </select>' +
 
 '    <div class="slider-row">' +
@@ -577,6 +585,24 @@ function handEditorModalHtml(kind, title) {
 '      </div>' +
 '    </div>' +
 '    <div class="help">Positive extends a tail behind the pivot; negative starts the hand short of center (a detached gap).</div>' +
+
+'    <div class="slider-row" id="' + p + 'MiddleOffsetRow">' +
+'      <label for="' + p + 'MiddleOffset">Middle offset <span class="val" id="' + p + 'MiddleOffsetVal"></span></label>' +
+'      <div class="slider-with-buttons">' +
+'      <button type="button" class="slider-step-btn" onclick="stepSlider(\'' + p + 'MiddleOffset\', -1)">&minus;</button>' +
+'      <input type="range" id="' + p + 'MiddleOffset" min="-40" max="40" step="1" oninput="onHandSliderInput(\'' + kind + '\')">' +
+'      <button type="button" class="slider-step-btn" onclick="stepSlider(\'' + p + 'MiddleOffset\', 1)">+</button>' +
+'      </div>' +
+'    </div>' +
+'    <div class="slider-row" id="' + p + 'SecondaryWidthRow">' +
+'      <label for="' + p + 'SecondaryWidth">Secondary width <span class="val" id="' + p + 'SecondaryWidthVal"></span></label>' +
+'      <div class="slider-with-buttons">' +
+'      <button type="button" class="slider-step-btn" onclick="stepSlider(\'' + p + 'SecondaryWidth\', -1)">&minus;</button>' +
+'      <input type="range" id="' + p + 'SecondaryWidth" min="1" max="40" step="1" oninput="onHandSliderInput(\'' + kind + '\')">' +
+'      <button type="button" class="slider-step-btn" onclick="stepSlider(\'' + p + 'SecondaryWidth\', 1)">+</button>' +
+'      </div>' +
+'    </div>' +
+'    <div class="help" id="' + p + 'MiddleSecondaryHelp">Only used by Dauphine/Sword/Pomme/Spade/Arrow: Dauphine\'s side points and back-point floor; Sword\'s mid-bulge position and width; Pomme\'s thick/thin joint and tail width; Spade\'s droplet point height and diameter; Arrow\'s tip-triangle height and width.</div>' +
 
 '    <label for="' + p + 'Color">Color</label>' +
 '    <select id="' + p + 'Color">' + schemeColorOptionsHtml('0') + '<option value="3">None (don\'t fill)</option></select>' +
@@ -2591,8 +2617,12 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '}' +
 
 // ---- custom hour/minute/second hand popups ----------------------------
-'var HE_FIELDS = ["Style", "Width", "Length", "BackOffset", "Color", "OutlineEnabled", "OutlineColor", "Translucent", "ShadowEnabled", "ShadowDistance"];' +
+'var HE_FIELDS = ["Style", "Width", "Length", "BackOffset", "MiddleOffset", "SecondaryWidth", "Color", "OutlineEnabled", "OutlineColor", "Translucent", "ShadowEnabled", "ShadowDistance"];' +
 'var HE_CHECKBOX_FIELDS = ["OutlineEnabled", "Translucent", "ShadowEnabled"];' +
+// Which HandConfig.style values (0-7) actually use MiddleOffset/
+// SecondaryWidth -- 0-2 (dot/triangle/square) ignore both, same as
+// the C side. Drives updateHandFieldVisibility() below.
+'var HAND_STYLES_WITH_MIDDLE_SECONDARY = ["3", "4", "5", "6", "7"];' +
 'var HAND_COPY_SOURCE = { hour: "min", min: "hour", sec: "min" };' +
 'function heHiddenPrefix(kind) { return kind === "hour" ? "handHour" : (kind === "min" ? "handMin" : "handSec"); }' +
 'function hePopupPrefix(kind) { return "he" + kind.charAt(0).toUpperCase() + kind.slice(1); }' +
@@ -2832,11 +2862,29 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '}' +
 'function updateHandValLabels(kind) {' +
 '  var p = hePopupPrefix(kind);' +
-'  ["Width", "Length", "BackOffset", "ShadowDistance"].forEach(function (f) {' +
+'  ["Width", "Length", "BackOffset", "MiddleOffset", "SecondaryWidth", "ShadowDistance"].forEach(function (f) {' +
 '    var el = document.getElementById(p + f);' +
 '    var out = document.getElementById(p + f + "Val");' +
 '    if (el && out) out.textContent = el.value + "px";' +
 '  });' +
+'}' +
+// Shows Middle offset/Secondary width only for the 5 styles that
+// actually use them (see HAND_STYLES_WITH_MIDDLE_SECONDARY) -- 0-2
+// (dot/triangle/square) just leave the popup\'s last-set values alone,
+// unused, same as the C side already ignores them for those styles.
+'function updateHandFieldVisibility(kind) {' +
+'  var p = hePopupPrefix(kind);' +
+'  var styleEl = document.getElementById(p + "Style");' +
+'  if (!styleEl) return;' +
+'  var show = HAND_STYLES_WITH_MIDDLE_SECONDARY.indexOf(styleEl.value) !== -1;' +
+'  ["MiddleOffsetRow", "SecondaryWidthRow", "MiddleSecondaryHelp"].forEach(function (id) {' +
+'    var el = document.getElementById(p + id);' +
+'    if (el) el.style.display = show ? "" : "none";' +
+'  });' +
+'}' +
+'function onCustomHandStyleChange(kind) {' +
+'  updateHandFieldVisibility(kind);' +
+'  updatePreview();' +
 '}' +
 'function onHandSliderInput(kind) {' +
 '  updateHandValLabels(kind);' +
@@ -2853,6 +2901,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    if (HE_CHECKBOX_FIELDS.indexOf(f) !== -1) { popupEl.checked = hidden.value === "true"; } else { popupEl.value = hidden.value; }' +
 '  });' +
 '  updateHandValLabels(kind);' +
+'  updateHandFieldVisibility(kind);' +
 '  document.getElementById("handEditorModal-" + kind).className = "modal-overlay open";' +
 '}' +
 'function closeHandEditor(kind) {' +
@@ -2882,6 +2931,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    if (HE_CHECKBOX_FIELDS.indexOf(f) !== -1) { dst.checked = src.value === "true"; } else { dst.value = src.value; }' +
 '  });' +
 '  updateHandValLabels(kind);' +
+'  updateHandFieldVisibility(kind);' +
 '}' +
 
 'function onCornerFontChange() {' +
@@ -3159,6 +3209,8 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    CONFIG_HAND_HOUR_WIDTH: document.getElementById("handHourWidth").value,' +
 '    CONFIG_HAND_HOUR_LENGTH: document.getElementById("handHourLength").value,' +
 '    CONFIG_HAND_HOUR_BACK_OFFSET: document.getElementById("handHourBackOffset").value,' +
+'    CONFIG_HAND_HOUR_MIDDLE_OFFSET: document.getElementById("handHourMiddleOffset").value,' +
+'    CONFIG_HAND_HOUR_SECONDARY_WIDTH: document.getElementById("handHourSecondaryWidth").value,' +
 '    CONFIG_HAND_HOUR_COLOR: document.getElementById("handHourColor").value,' +
 '    CONFIG_HAND_HOUR_OUTLINE_ENABLED: document.getElementById("handHourOutlineEnabled").value,' +
 '    CONFIG_HAND_HOUR_OUTLINE_COLOR: document.getElementById("handHourOutlineColor").value,' +
@@ -3169,6 +3221,8 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    CONFIG_HAND_MIN_WIDTH: document.getElementById("handMinWidth").value,' +
 '    CONFIG_HAND_MIN_LENGTH: document.getElementById("handMinLength").value,' +
 '    CONFIG_HAND_MIN_BACK_OFFSET: document.getElementById("handMinBackOffset").value,' +
+'    CONFIG_HAND_MIN_MIDDLE_OFFSET: document.getElementById("handMinMiddleOffset").value,' +
+'    CONFIG_HAND_MIN_SECONDARY_WIDTH: document.getElementById("handMinSecondaryWidth").value,' +
 '    CONFIG_HAND_MIN_COLOR: document.getElementById("handMinColor").value,' +
 '    CONFIG_HAND_MIN_OUTLINE_ENABLED: document.getElementById("handMinOutlineEnabled").value,' +
 '    CONFIG_HAND_MIN_OUTLINE_COLOR: document.getElementById("handMinOutlineColor").value,' +
@@ -3179,6 +3233,8 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    CONFIG_HAND_SEC_WIDTH: document.getElementById("handSecWidth").value,' +
 '    CONFIG_HAND_SEC_LENGTH: document.getElementById("handSecLength").value,' +
 '    CONFIG_HAND_SEC_BACK_OFFSET: document.getElementById("handSecBackOffset").value,' +
+'    CONFIG_HAND_SEC_MIDDLE_OFFSET: document.getElementById("handSecMiddleOffset").value,' +
+'    CONFIG_HAND_SEC_SECONDARY_WIDTH: document.getElementById("handSecSecondaryWidth").value,' +
 '    CONFIG_HAND_SEC_COLOR: document.getElementById("handSecColor").value,' +
 '    CONFIG_HAND_SEC_OUTLINE_ENABLED: document.getElementById("handSecOutlineEnabled").value,' +
 '    CONFIG_HAND_SEC_OUTLINE_COLOR: document.getElementById("handSecOutlineColor").value,' +

@@ -16,7 +16,8 @@
 // minute hand every minute), so there's no fixed set of pixels to
 // precompute once and reuse; the rotation itself IS the per-tick work.
 // What this file actually separates out is the SHAPE math (dot/triangle/
-// square, from the width/length/back_offset/outline settings) into its
+// square/dauphine/sword/spade/arrow/pomme, from the width/length/
+// back_offset/middle_offset/secondary_width settings) into its
 // own reusable unit, used identically for all three hands and both the
 // custom and (now) procedural-preset paths.
 //
@@ -29,12 +30,27 @@
 
 
 typedef struct {
-  uint8_t style;        // 0=dot (round caps), 1=triangle (tapers to a point), 2=square (flat caps)
+  uint8_t style;        // 0=dot (round caps), 1=triangle (tapers to a point), 2=square (flat caps),
+                          // 3=dauphine, 4=sword, 5=spade, 6=arrow, 7=pomme -- see HandGeometry/
+                          // compute_hand_geometry_fp() in hand_layer.c for what each shape does with
+                          // middle_offset/secondary_width below.
   uint8_t width;         // 1-40 px, thickness across the hand (ignored -- tip only -- for triangle's tip)
   uint8_t length;         // 10-100 px, how far the hand extends outward from center
   int8_t back_offset;      // -40..40 px, extension on the far side of center, opposite the hand's
                              // direction. Positive = a tail sticking out behind the pivot; negative =
                              // the hand starts that far short of center instead (a detached gap).
+  // Both only meaningful for styles 3-7 (dauphine/sword/spade/arrow/
+  // pomme) -- ignored entirely by styles 0-2, same as width is already
+  // ignored by triangle's tip. Same ranges/units as back_offset and
+  // width respectively (a position along the hand's own axis, and a
+  // sideways thickness) -- what each one actually controls is
+  // style-specific, see compute_hand_geometry_fp() in hand_layer.c.
+  int8_t middle_offset;    // -40..40 px, axial position of a style's "middle" feature (dauphine's
+                             // side points, sword's side bulge, spade/arrow's tip-ornament height,
+                             // pomme's thick/thin joint) -- measured from center like back_offset,
+                             // positive = toward the tip.
+  uint8_t secondary_width;  // 1-40 px, a style's secondary thickness (sword's mid-bulge width,
+                              // spade's droplet/arrow's tip-triangle width, pomme's thin-tail width)
   uint8_t color;            // 0=main, 1=accent, 2=background (from the active color scheme),
                               // 3=none -- skips drawing the hand's fill entirely (the outline, if
                               // enabled, still draws -- a way to get a "hollow" or ghosted look

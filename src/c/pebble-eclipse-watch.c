@@ -1644,6 +1644,8 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   if ((t = dict_find(iter, MESSAGE_KEY_HAND_HOUR_WIDTH))) s_data.hand_hour.width = t->value->uint8;
   if ((t = dict_find(iter, MESSAGE_KEY_HAND_HOUR_LENGTH))) s_data.hand_hour.length = t->value->uint8;
   if ((t = dict_find(iter, MESSAGE_KEY_HAND_HOUR_BACK_OFFSET))) s_data.hand_hour.back_offset = (int8_t)t->value->int16;
+  if ((t = dict_find(iter, MESSAGE_KEY_HAND_HOUR_MIDDLE_OFFSET))) s_data.hand_hour.middle_offset = (int8_t)t->value->int16;
+  if ((t = dict_find(iter, MESSAGE_KEY_HAND_HOUR_SECONDARY_WIDTH))) s_data.hand_hour.secondary_width = t->value->uint8;
   if ((t = dict_find(iter, MESSAGE_KEY_HAND_HOUR_COLOR))) s_data.hand_hour.color = t->value->uint8;
   if ((t = dict_find(iter, MESSAGE_KEY_HAND_HOUR_OUTLINE_ENABLED))) s_data.hand_hour.outline_enabled = t->value->uint8 != 0;
   if ((t = dict_find(iter, MESSAGE_KEY_HAND_HOUR_OUTLINE_COLOR))) s_data.hand_hour.outline_color = t->value->uint8;
@@ -1654,6 +1656,8 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   if ((t = dict_find(iter, MESSAGE_KEY_HAND_MIN_WIDTH))) s_data.hand_minute.width = t->value->uint8;
   if ((t = dict_find(iter, MESSAGE_KEY_HAND_MIN_LENGTH))) s_data.hand_minute.length = t->value->uint8;
   if ((t = dict_find(iter, MESSAGE_KEY_HAND_MIN_BACK_OFFSET))) s_data.hand_minute.back_offset = (int8_t)t->value->int16;
+  if ((t = dict_find(iter, MESSAGE_KEY_HAND_MIN_MIDDLE_OFFSET))) s_data.hand_minute.middle_offset = (int8_t)t->value->int16;
+  if ((t = dict_find(iter, MESSAGE_KEY_HAND_MIN_SECONDARY_WIDTH))) s_data.hand_minute.secondary_width = t->value->uint8;
   if ((t = dict_find(iter, MESSAGE_KEY_HAND_MIN_COLOR))) s_data.hand_minute.color = t->value->uint8;
   if ((t = dict_find(iter, MESSAGE_KEY_HAND_MIN_OUTLINE_ENABLED))) s_data.hand_minute.outline_enabled = t->value->uint8 != 0;
   if ((t = dict_find(iter, MESSAGE_KEY_HAND_MIN_OUTLINE_COLOR))) s_data.hand_minute.outline_color = t->value->uint8;
@@ -1664,6 +1668,8 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   if ((t = dict_find(iter, MESSAGE_KEY_HAND_SEC_WIDTH))) s_data.hand_second.width = t->value->uint8;
   if ((t = dict_find(iter, MESSAGE_KEY_HAND_SEC_LENGTH))) s_data.hand_second.length = t->value->uint8;
   if ((t = dict_find(iter, MESSAGE_KEY_HAND_SEC_BACK_OFFSET))) s_data.hand_second.back_offset = (int8_t)t->value->int16;
+  if ((t = dict_find(iter, MESSAGE_KEY_HAND_SEC_MIDDLE_OFFSET))) s_data.hand_second.middle_offset = (int8_t)t->value->int16;
+  if ((t = dict_find(iter, MESSAGE_KEY_HAND_SEC_SECONDARY_WIDTH))) s_data.hand_second.secondary_width = t->value->uint8;
   if ((t = dict_find(iter, MESSAGE_KEY_HAND_SEC_COLOR))) s_data.hand_second.color = t->value->uint8;
   if ((t = dict_find(iter, MESSAGE_KEY_HAND_SEC_OUTLINE_ENABLED))) s_data.hand_second.outline_enabled = t->value->uint8 != 0;
   if ((t = dict_find(iter, MESSAGE_KEY_HAND_SEC_OUTLINE_COLOR))) s_data.hand_second.outline_color = t->value->uint8;

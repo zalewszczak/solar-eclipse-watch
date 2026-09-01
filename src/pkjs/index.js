@@ -110,13 +110,16 @@ var KEY_TYPE_MAP = (function () {
     'CUSTOM_SEC_INNER_BORDER', 'CUSTOM_SEC_OUTER_BORDER', 'CUSTOM_SEC_TRANSLUCENT', 'CUSTOM_SEC_COLOR',
     'MARKER_TEXT_TARGET', 'MARKER_TEXT_FONT', 'MARKER_TEXT_OFFSET',
     'MARKER_TEXT_HOUR_MASK', 'MARKER_TEXT_SEC_MASK', 'MARKER_TEXT_ROMAN',
-    'HAND_HOUR_STYLE', 'HAND_HOUR_WIDTH', 'HAND_HOUR_LENGTH', 'HAND_HOUR_BACK_OFFSET', 'HAND_HOUR_COLOR',
+    'HAND_HOUR_STYLE', 'HAND_HOUR_WIDTH', 'HAND_HOUR_LENGTH', 'HAND_HOUR_BACK_OFFSET',
+    'HAND_HOUR_MIDDLE_OFFSET', 'HAND_HOUR_SECONDARY_WIDTH', 'HAND_HOUR_COLOR',
     'HAND_HOUR_OUTLINE_ENABLED', 'HAND_HOUR_OUTLINE_COLOR', 'HAND_HOUR_TRANSLUCENT',
     'HAND_HOUR_SHADOW_ENABLED', 'HAND_HOUR_SHADOW_DISTANCE',
-    'HAND_MIN_STYLE', 'HAND_MIN_WIDTH', 'HAND_MIN_LENGTH', 'HAND_MIN_BACK_OFFSET', 'HAND_MIN_COLOR',
+    'HAND_MIN_STYLE', 'HAND_MIN_WIDTH', 'HAND_MIN_LENGTH', 'HAND_MIN_BACK_OFFSET',
+    'HAND_MIN_MIDDLE_OFFSET', 'HAND_MIN_SECONDARY_WIDTH', 'HAND_MIN_COLOR',
     'HAND_MIN_OUTLINE_ENABLED', 'HAND_MIN_OUTLINE_COLOR', 'HAND_MIN_TRANSLUCENT',
     'HAND_MIN_SHADOW_ENABLED', 'HAND_MIN_SHADOW_DISTANCE',
-    'HAND_SEC_STYLE', 'HAND_SEC_WIDTH', 'HAND_SEC_LENGTH', 'HAND_SEC_BACK_OFFSET', 'HAND_SEC_COLOR',
+    'HAND_SEC_STYLE', 'HAND_SEC_WIDTH', 'HAND_SEC_LENGTH', 'HAND_SEC_BACK_OFFSET',
+    'HAND_SEC_MIDDLE_OFFSET', 'HAND_SEC_SECONDARY_WIDTH', 'HAND_SEC_COLOR',
     'HAND_SEC_OUTLINE_ENABLED', 'HAND_SEC_OUTLINE_COLOR', 'HAND_SEC_TRANSLUCENT',
     'HAND_SEC_SHADOW_ENABLED', 'HAND_SEC_SHADOW_DISTANCE',
     'CENTER_CIRCLE_RADIUS', 'CENTER_CIRCLE_COLOR'
@@ -577,8 +580,10 @@ function markerTextSecMaskCode() { return clampInt(getSetting('CONFIG_MARKER_TEX
 function markerTextRomanCode() { return getSetting('CONFIG_MARKER_TEXT_ROMAN', 'false') === 'true' ? 1 : 0; }
 
 // Custom hour/minute/second hand system (bigAnalogHandStyleCode() === 4) --
-// see HandConfig in hand_layer.h for what each field means.
-function handStyleFieldCode(key, fallback) { return clampInt(getSetting(key, fallback), 0, 2, fallback); }
+// see HandConfig in hand_layer.h for what each field means. Style 0-2 are
+// the original dot/triangle/square; 3-7 are dauphine/sword/spade/arrow/
+// pomme, which additionally use middle_offset/secondary_width below.
+function handStyleFieldCode(key, fallback) { return clampInt(getSetting(key, fallback), 0, 7, fallback); }
 function handColorFieldCode(key, fallback) { return clampInt(getSetting(key, fallback), 0, 2, fallback); }
 // A hand's own color additionally allows 3 = "none" (skip the fill) --
 // outline color and the center circle color don't get that option.
@@ -589,11 +594,19 @@ function handShadowEnabledCode(key) { return getSetting(key, 'false') === 'true'
 // 0-359 degrees, same "0 = 12 o'clock, clockwise" convention as every
 // other angle sent to the watch.
 function handShadowDistanceCode(key) { return clampInt(getSetting(key, '2'), 1, 5, 2); }
+// Same ranges as back_offset and width respectively -- only meaningful
+// for styles 3-7 (dauphine/sword/spade/arrow/pomme), ignored by 0-2,
+// but always sent/clamped the same way regardless of the hand's
+// current style so switching styles doesn't need its own save/reset.
+function handMiddleOffsetCode(key) { return clampInt(getSetting(key, '0'), -40, 40, 0); }
+function handSecondaryWidthCode(key) { return clampInt(getSetting(key, '6'), 1, 40, 6); }
 
 function handHourStyleCode() { return handStyleFieldCode('CONFIG_HAND_HOUR_STYLE', 1); }
 function handHourWidthCode() { return clampInt(getSetting('CONFIG_HAND_HOUR_WIDTH', '12'), 1, 40, 12); }
 function handHourLengthCode() { return clampInt(getSetting('CONFIG_HAND_HOUR_LENGTH', '51'), 10, 100, 51); }
 function handHourBackOffsetCode() { return clampInt(getSetting('CONFIG_HAND_HOUR_BACK_OFFSET', '0'), -40, 40, 0); }
+function handHourMiddleOffsetCode() { return handMiddleOffsetCode('CONFIG_HAND_HOUR_MIDDLE_OFFSET'); }
+function handHourSecondaryWidthCode() { return handSecondaryWidthCode('CONFIG_HAND_HOUR_SECONDARY_WIDTH'); }
 function handHourColorCode() { return handMainColorFieldCode('CONFIG_HAND_HOUR_COLOR', 0); }
 function handHourOutlineEnabledCode() { return handOutlineEnabledCode('CONFIG_HAND_HOUR_OUTLINE_ENABLED'); }
 function handHourOutlineColorCode() { return handColorFieldCode('CONFIG_HAND_HOUR_OUTLINE_COLOR', 0); }
@@ -605,6 +618,8 @@ function handMinStyleCode() { return handStyleFieldCode('CONFIG_HAND_MIN_STYLE',
 function handMinWidthCode() { return clampInt(getSetting('CONFIG_HAND_MIN_WIDTH', '18'), 1, 40, 18); }
 function handMinLengthCode() { return clampInt(getSetting('CONFIG_HAND_MIN_LENGTH', '78'), 10, 100, 78); }
 function handMinBackOffsetCode() { return clampInt(getSetting('CONFIG_HAND_MIN_BACK_OFFSET', '0'), -40, 40, 0); }
+function handMinMiddleOffsetCode() { return handMiddleOffsetCode('CONFIG_HAND_MIN_MIDDLE_OFFSET'); }
+function handMinSecondaryWidthCode() { return handSecondaryWidthCode('CONFIG_HAND_MIN_SECONDARY_WIDTH'); }
 function handMinColorCode() { return handMainColorFieldCode('CONFIG_HAND_MIN_COLOR', 0); }
 function handMinOutlineEnabledCode() { return handOutlineEnabledCode('CONFIG_HAND_MIN_OUTLINE_ENABLED'); }
 function handMinOutlineColorCode() { return handColorFieldCode('CONFIG_HAND_MIN_OUTLINE_COLOR', 0); }
@@ -616,6 +631,8 @@ function handSecStyleCode() { return handStyleFieldCode('CONFIG_HAND_SEC_STYLE',
 function handSecWidthCode() { return clampInt(getSetting('CONFIG_HAND_SEC_WIDTH', '2'), 1, 40, 2); }
 function handSecLengthCode() { return clampInt(getSetting('CONFIG_HAND_SEC_LENGTH', '85'), 10, 100, 85); }
 function handSecBackOffsetCode() { return clampInt(getSetting('CONFIG_HAND_SEC_BACK_OFFSET', '0'), -40, 40, 0); }
+function handSecMiddleOffsetCode() { return handMiddleOffsetCode('CONFIG_HAND_SEC_MIDDLE_OFFSET'); }
+function handSecSecondaryWidthCode() { return handSecondaryWidthCode('CONFIG_HAND_SEC_SECONDARY_WIDTH'); }
 function handSecColorCode() { return handMainColorFieldCode('CONFIG_HAND_SEC_COLOR', 1); }
 function handSecOutlineEnabledCode() { return handOutlineEnabledCode('CONFIG_HAND_SEC_OUTLINE_ENABLED'); }
 function handSecOutlineColorCode() { return handColorFieldCode('CONFIG_HAND_SEC_OUTLINE_COLOR', 0); }
@@ -836,6 +853,8 @@ function sendFlatDict(dict) {
   dict['HAND_HOUR_WIDTH'] = handHourWidthCode();
   dict['HAND_HOUR_LENGTH'] = handHourLengthCode();
   dict['HAND_HOUR_BACK_OFFSET'] = handHourBackOffsetCode();
+  dict['HAND_HOUR_MIDDLE_OFFSET'] = handHourMiddleOffsetCode();
+  dict['HAND_HOUR_SECONDARY_WIDTH'] = handHourSecondaryWidthCode();
   dict['HAND_HOUR_COLOR'] = handHourColorCode();
   dict['HAND_HOUR_OUTLINE_ENABLED'] = handHourOutlineEnabledCode();
   dict['HAND_HOUR_OUTLINE_COLOR'] = handHourOutlineColorCode();
@@ -846,6 +865,8 @@ function sendFlatDict(dict) {
   dict['HAND_MIN_WIDTH'] = handMinWidthCode();
   dict['HAND_MIN_LENGTH'] = handMinLengthCode();
   dict['HAND_MIN_BACK_OFFSET'] = handMinBackOffsetCode();
+  dict['HAND_MIN_MIDDLE_OFFSET'] = handMinMiddleOffsetCode();
+  dict['HAND_MIN_SECONDARY_WIDTH'] = handMinSecondaryWidthCode();
   dict['HAND_MIN_COLOR'] = handMinColorCode();
   dict['HAND_MIN_OUTLINE_ENABLED'] = handMinOutlineEnabledCode();
   dict['HAND_MIN_OUTLINE_COLOR'] = handMinOutlineColorCode();
@@ -856,6 +877,8 @@ function sendFlatDict(dict) {
   dict['HAND_SEC_WIDTH'] = handSecWidthCode();
   dict['HAND_SEC_LENGTH'] = handSecLengthCode();
   dict['HAND_SEC_BACK_OFFSET'] = handSecBackOffsetCode();
+  dict['HAND_SEC_MIDDLE_OFFSET'] = handSecMiddleOffsetCode();
+  dict['HAND_SEC_SECONDARY_WIDTH'] = handSecSecondaryWidthCode();
   dict['HAND_SEC_COLOR'] = handSecColorCode();
   dict['HAND_SEC_OUTLINE_ENABLED'] = handSecOutlineEnabledCode();
   dict['HAND_SEC_OUTLINE_COLOR'] = handSecOutlineColorCode();
@@ -2174,6 +2197,8 @@ Pebble.addEventListener('showConfiguration', function () {
     handHourWidth: getSetting('CONFIG_HAND_HOUR_WIDTH', '12'),
     handHourLength: getSetting('CONFIG_HAND_HOUR_LENGTH', '51'),
     handHourBackOffset: getSetting('CONFIG_HAND_HOUR_BACK_OFFSET', '0'),
+    handHourMiddleOffset: getSetting('CONFIG_HAND_HOUR_MIDDLE_OFFSET', '0'),
+    handHourSecondaryWidth: getSetting('CONFIG_HAND_HOUR_SECONDARY_WIDTH', '6'),
     handHourColor: getSetting('CONFIG_HAND_HOUR_COLOR', '0'),
     handHourOutlineEnabled: getSetting('CONFIG_HAND_HOUR_OUTLINE_ENABLED', 'false'),
     handHourOutlineColor: getSetting('CONFIG_HAND_HOUR_OUTLINE_COLOR', '0'),
@@ -2184,6 +2209,8 @@ Pebble.addEventListener('showConfiguration', function () {
     handMinWidth: getSetting('CONFIG_HAND_MIN_WIDTH', '18'),
     handMinLength: getSetting('CONFIG_HAND_MIN_LENGTH', '78'),
     handMinBackOffset: getSetting('CONFIG_HAND_MIN_BACK_OFFSET', '0'),
+    handMinMiddleOffset: getSetting('CONFIG_HAND_MIN_MIDDLE_OFFSET', '0'),
+    handMinSecondaryWidth: getSetting('CONFIG_HAND_MIN_SECONDARY_WIDTH', '6'),
     handMinColor: getSetting('CONFIG_HAND_MIN_COLOR', '0'),
     handMinOutlineEnabled: getSetting('CONFIG_HAND_MIN_OUTLINE_ENABLED', 'false'),
     handMinOutlineColor: getSetting('CONFIG_HAND_MIN_OUTLINE_COLOR', '0'),
@@ -2194,6 +2221,8 @@ Pebble.addEventListener('showConfiguration', function () {
     handSecWidth: getSetting('CONFIG_HAND_SEC_WIDTH', '2'),
     handSecLength: getSetting('CONFIG_HAND_SEC_LENGTH', '85'),
     handSecBackOffset: getSetting('CONFIG_HAND_SEC_BACK_OFFSET', '0'),
+    handSecMiddleOffset: getSetting('CONFIG_HAND_SEC_MIDDLE_OFFSET', '0'),
+    handSecSecondaryWidth: getSetting('CONFIG_HAND_SEC_SECONDARY_WIDTH', '6'),
     handSecColor: getSetting('CONFIG_HAND_SEC_COLOR', '1'),
     handSecOutlineEnabled: getSetting('CONFIG_HAND_SEC_OUTLINE_ENABLED', 'false'),
     handSecOutlineColor: getSetting('CONFIG_HAND_SEC_OUTLINE_COLOR', '0'),
@@ -2354,6 +2383,8 @@ Pebble.addEventListener('webviewclosed', function (e) {
   setSetting('CONFIG_HAND_HOUR_WIDTH', settings.CONFIG_HAND_HOUR_WIDTH || '12');
   setSetting('CONFIG_HAND_HOUR_LENGTH', settings.CONFIG_HAND_HOUR_LENGTH || '51');
   setSetting('CONFIG_HAND_HOUR_BACK_OFFSET', settings.CONFIG_HAND_HOUR_BACK_OFFSET || '0');
+  setSetting('CONFIG_HAND_HOUR_MIDDLE_OFFSET', settings.CONFIG_HAND_HOUR_MIDDLE_OFFSET || '0');
+  setSetting('CONFIG_HAND_HOUR_SECONDARY_WIDTH', settings.CONFIG_HAND_HOUR_SECONDARY_WIDTH || '6');
   setSetting('CONFIG_HAND_HOUR_COLOR', settings.CONFIG_HAND_HOUR_COLOR || '0');
   setSetting('CONFIG_HAND_HOUR_OUTLINE_ENABLED', settings.CONFIG_HAND_HOUR_OUTLINE_ENABLED || 'false');
   setSetting('CONFIG_HAND_HOUR_OUTLINE_COLOR', settings.CONFIG_HAND_HOUR_OUTLINE_COLOR || '0');
@@ -2364,6 +2395,8 @@ Pebble.addEventListener('webviewclosed', function (e) {
   setSetting('CONFIG_HAND_MIN_WIDTH', settings.CONFIG_HAND_MIN_WIDTH || '18');
   setSetting('CONFIG_HAND_MIN_LENGTH', settings.CONFIG_HAND_MIN_LENGTH || '78');
   setSetting('CONFIG_HAND_MIN_BACK_OFFSET', settings.CONFIG_HAND_MIN_BACK_OFFSET || '0');
+  setSetting('CONFIG_HAND_MIN_MIDDLE_OFFSET', settings.CONFIG_HAND_MIN_MIDDLE_OFFSET || '0');
+  setSetting('CONFIG_HAND_MIN_SECONDARY_WIDTH', settings.CONFIG_HAND_MIN_SECONDARY_WIDTH || '6');
   setSetting('CONFIG_HAND_MIN_COLOR', settings.CONFIG_HAND_MIN_COLOR || '0');
   setSetting('CONFIG_HAND_MIN_OUTLINE_ENABLED', settings.CONFIG_HAND_MIN_OUTLINE_ENABLED || 'false');
   setSetting('CONFIG_HAND_MIN_OUTLINE_COLOR', settings.CONFIG_HAND_MIN_OUTLINE_COLOR || '0');
@@ -2374,6 +2407,8 @@ Pebble.addEventListener('webviewclosed', function (e) {
   setSetting('CONFIG_HAND_SEC_WIDTH', settings.CONFIG_HAND_SEC_WIDTH || '2');
   setSetting('CONFIG_HAND_SEC_LENGTH', settings.CONFIG_HAND_SEC_LENGTH || '85');
   setSetting('CONFIG_HAND_SEC_BACK_OFFSET', settings.CONFIG_HAND_SEC_BACK_OFFSET || '0');
+  setSetting('CONFIG_HAND_SEC_MIDDLE_OFFSET', settings.CONFIG_HAND_SEC_MIDDLE_OFFSET || '0');
+  setSetting('CONFIG_HAND_SEC_SECONDARY_WIDTH', settings.CONFIG_HAND_SEC_SECONDARY_WIDTH || '6');
   setSetting('CONFIG_HAND_SEC_COLOR', settings.CONFIG_HAND_SEC_COLOR || '1');
   setSetting('CONFIG_HAND_SEC_OUTLINE_ENABLED', settings.CONFIG_HAND_SEC_OUTLINE_ENABLED || 'false');
   setSetting('CONFIG_HAND_SEC_OUTLINE_COLOR', settings.CONFIG_HAND_SEC_OUTLINE_COLOR || '0');
