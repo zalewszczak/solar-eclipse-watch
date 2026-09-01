@@ -57,6 +57,7 @@ static bool small_font_custom = false;
 static int get_small_font_height_offset(void);
 static int get_clock_font_height_offset(void);
 static bool use_small_seconds_for_digital_clock(void);
+static void tick_handler(struct tm *tick_time, TimeUnits units_changed);
 
 // ---- color schemes ------------------------------------------------------
 
@@ -1418,6 +1419,29 @@ static void apply_clock_font(void) {
   if (s_bottom_layer) layer_mark_dirty(s_bottom_layer);
 }
 
+// Battery-saving tick granularity: SECOND_UNIT only when the second
+// hand / digital clock's own seconds are actually shown (show_seconds),
+// MINUTE_UNIT otherwise -- tick_handler() just calls
+// refresh_status_and_maybe_canvas(), which has no per-second-specific
+// behavior of its own, so firing once a minute instead of once a
+// second when nothing on screen needs live seconds is free correctness,
+// not a tradeoff. Corner/edge content types that show seconds (Time:
+// second, Time: full H:M:S, etc.) don't factor in here -- those already
+// refresh on the features layer's own independent 5s timer
+// (CORNERS_REFRESH_MS), never tied to this subscription at all.
+// tick_timer_service_subscribe() itself replaces any existing
+// subscription, so no explicit unsubscribe is needed before switching.
+static bool s_tick_subscribed = false;    // has any subscription happened yet
+static bool s_tick_unit_is_seconds = false; // if so, at which granularity
+
+static void update_tick_subscription(void) {
+  bool need_seconds = s_data.show_seconds;
+  if (s_tick_subscribed && need_seconds == s_tick_unit_is_seconds) return; // already at the right granularity
+  s_tick_subscribed = true;
+  s_tick_unit_is_seconds = need_seconds;
+  tick_timer_service_subscribe(need_seconds ? SECOND_UNIT : MINUTE_UNIT, tick_handler);
+}
+
 static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   Tuple *t;
 
@@ -1936,6 +1960,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   if ((t = dict_find(iter, MESSAGE_KEY_ISS_COMPUTED_AT))) s_data.iss_computed_at = (time_t)t->value->int32;
   if ((t = dict_find(iter, MESSAGE_KEY_ISS_NEXT_PASS))) s_data.iss_next_pass = (time_t)(int32_t)t->value->int32;
 
+  update_tick_subscription(); // re-checks show_seconds -- switches SECOND_UNIT/MINUTE_UNIT if this settings update actually changed it
   save_data();
   refresh_status_and_maybe_canvas(true);
 }
@@ -2217,7 +2242,7 @@ static void init(void) {
   });
   window_stack_push(s_window, true);
 
-  tick_timer_service_subscribe(SECOND_UNIT, tick_handler);
+  update_tick_subscription();
   accel_tap_service_subscribe(tap_handler);
   unobstructed_area_service_subscribe(s_unobstructed_handlers, NULL);
   s_corners_timer = app_timer_register(CORNERS_REFRESH_MS, corners_timer_callback, NULL);
