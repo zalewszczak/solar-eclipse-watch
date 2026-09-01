@@ -502,12 +502,38 @@ bool shake_gradient_active(uint8_t *out_shift) {
 // running every SHAKE_ANIM_FRAME_MS while planet seek is active) just
 // reads whatever s_planet_seek_heading_deg currently holds each time
 // it redraws, rather than the two needing to be tightly synchronized.
-static int32_t s_planet_seek_heading_deg = 0; // 0-359, true north-relative
+static int32_t s_planet_seek_heading_deg = 0; // 0-359, true north-relative, CLOCKWISE (see below)
+// True whenever the compass isn't fully calibrated yet (or has no
+// reading at all) -- see planet_seek_compass_handler()'s own comment.
+// Starts true (not false) since there's no reading at all until the
+// first callback fires, and "we don't know the heading yet" is exactly
+// the "don't trust this" state the low-accuracy warning is for.
+static bool s_planet_seek_compass_low_accuracy = true;
 
 static void planet_seek_compass_handler(CompassHeadingData data) {
-  if (data.compass_status != CompassStatusDataInvalid) {
-    s_planet_seek_heading_deg = (int32_t)(((int64_t)data.true_heading * 360) / TRIG_MAX_ANGLE);
-  }
+  // CompassHeading (both magnetic_heading and true_heading -- the
+  // latter is currently just an alias for the former, see Pebble's
+  // own CompassService docs) increases COUNTER-clockwise from north:
+  // https://developer.rebble.io/docs/c/Foundation/Event_Service/CompassService/
+  // "Measured angle that increases counter-clockwise from magnetic
+  // north (use int clockwise_heading = TRIG_MAX_ANGLE -
+  // heading_data.magnetic_heading ... to find your heading clockwise
+  // from magnetic north)." Every other bearing in this app -- the
+  // az_decideg samples PKJS sends (0=north, 90=east, ...) and the
+  // compass-rose math in draw_compass_icon() below -- assumes the
+  // usual CLOCKWISE-from-north convention instead, so without this
+  // flip, "heading" here was actually the mirror image of the
+  // wearer's real facing direction: turning right (clockwise) made
+  // the stored value swing as if the wearer had turned left, which is
+  // exactly the "objects move away instead of towards me" symptom.
+  CompassHeading clockwise = TRIG_MAX_ANGLE - data.true_heading;
+  s_planet_seek_heading_deg = (int32_t)(((int64_t)clockwise * 360) / TRIG_MAX_ANGLE) % 360;
+  // Calibrated = high confidence; Calibrating = a reading exists but
+  // is still being refined; DataInvalid/Unavailable = no usable
+  // reading at all. Anything short of Calibrated is worth flagging to
+  // the wearer, per the compass guide's own "tell the user whether
+  // this can be trusted" framing.
+  s_planet_seek_compass_low_accuracy = (data.compass_status != CompassStatusCalibrated);
 }
 
 // Exposed for background_layer.c's future rendering code -- see
@@ -515,6 +541,10 @@ static void planet_seek_compass_handler(CompassHeadingData data) {
 // of what's actually implemented here.
 int32_t planet_seek_heading_deg(void) {
   return s_planet_seek_heading_deg;
+}
+
+bool planet_seek_compass_low_accuracy(void) {
+  return s_planet_seek_compass_low_accuracy;
 }
 
 // ---- Compass feature (corner/edge content, "Compass" under Utilities) --
@@ -535,7 +565,10 @@ static int32_t s_compass_feature_heading_deg = 0;
 
 static void compass_feature_handler(CompassHeadingData data) {
   if (data.compass_status != CompassStatusDataInvalid) {
-    s_compass_feature_heading_deg = (int32_t)(((int64_t)data.true_heading * 360) / TRIG_MAX_ANGLE);
+    // Same counter-clockwise-vs-clockwise fix as
+    // planet_seek_compass_handler() above -- see its comment.
+    CompassHeading clockwise = TRIG_MAX_ANGLE - data.true_heading;
+    s_compass_feature_heading_deg = (int32_t)(((int64_t)clockwise * 360) / TRIG_MAX_ANGLE) % 360;
   }
 }
 
@@ -580,6 +613,36 @@ static void maybe_start_compass_feature(void) {
   compass_service_subscribe(compass_feature_handler);
 }
 
+// While Planet seek (shake_anim_mode 4) is active, the countdown label
+// at the top of the screen would otherwise just sit hidden (per
+// countdown_layer_update_proc's own comment, it only ever shows
+// eclipse-phase text, and Planet seek never runs on an eclipse day --
+// see maybe_start_shake_animation() below) -- so it's free real estate
+// for a compass accuracy warning instead. Shown only while genuinely
+// needed (compass not yet Calibrated) and only for as long as Planet
+// seek itself is on screen; reverted to its normal eclipse-countdown
+// state (blank/hidden, since there's no eclipse today) the instant
+// either the low-accuracy condition clears (the wearer finished
+// calibrating mid-animation) or the animation itself ends, rather
+// than leaving a stale warning up.
+static void update_planet_seek_accuracy_label(bool active) {
+  if (!s_countdown_layer) return;
+  if (active && planet_seek_compass_low_accuracy()) {
+    snprintf(s_countdown_buf, sizeof(s_countdown_buf), "Low compass accuracy");
+    s_countdown_text_color = eclipse_sky_is_bright(&s_data, time(NULL)) ? GColorBlack : GColorWhite;
+    layer_set_hidden(s_countdown_layer, false);
+  } else {
+    // Same condition countdown_layer_update_proc/refresh_status_and_maybe_canvas
+    // already use elsewhere: hidden whenever there's confirmed to be
+    // no eclipse today. Planet seek only ever runs on a non-eclipse
+    // day, so this always resolves to "hidden" in practice here, but
+    // spelling it out the same way keeps this in sync if that ever
+    // changes.
+    eclipse_get_status_text(&s_data, time(NULL), s_countdown_buf, sizeof(s_countdown_buf));
+    layer_set_hidden(s_countdown_layer, s_data.valid && !s_data.has_eclipse);
+  }
+}
+
 static void shake_anim_timer_callback(void *data) {
   s_shake_anim_elapsed_ms += SHAKE_ANIM_FRAME_MS;
   bool still_active = s_labels_visible && s_shake_anim_elapsed_ms < s_shake_anim_duration_ms;
@@ -591,6 +654,7 @@ static void shake_anim_timer_callback(void *data) {
     s_shake_gradient_shift = (uint8_t)((s_shake_gradient_shift + 1) % SHAKE_RAINBOW_LUT_SIZE);
     s_shake_anim_timer = app_timer_register(SHAKE_ANIM_FRAME_MS, shake_anim_timer_callback, NULL);
   }
+  if (s_data.shake_anim_mode == 4) update_planet_seek_accuracy_label(still_active);
   if (s_hands_layer) layer_mark_dirty(s_hands_layer);
   if (s_features_layer) layer_mark_dirty(s_features_layer);
   if (s_countdown_layer) layer_mark_dirty(s_countdown_layer);

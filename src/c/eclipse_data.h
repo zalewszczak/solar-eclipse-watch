@@ -662,11 +662,20 @@ GColor shake_outline_color(GColor normal_color, int16_t screen_x);
 bool shake_gradient_active(uint8_t *out_shift);
 
 // Also defined in pebble-eclipse-watch.c -- the watch's current compass
-// heading (0-359, true-north-relative), as of the most recent reading
-// while planet seek's own compass subscription is active. Meaningless
-// (and not kept fresh) outside that window -- see shake_anim_mode's own
-// comment for what's actually implemented here so far.
+// heading (0-359, true-north-relative, clockwise -- 0=N, 90=E, 180=S,
+// 270=W, matching every other bearing in this app), as of the most
+// recent reading while planet seek's own compass subscription is
+// active. Meaningless (and not kept fresh) outside that window -- see
+// shake_anim_mode's own comment for what's actually implemented here
+// so far.
 int32_t planet_seek_heading_deg(void);
+
+// Also defined in pebble-eclipse-watch.c -- true whenever the compass
+// backing planet_seek_heading_deg() above isn't (yet) fully calibrated,
+// i.e. CompassStatus is anything other than CompassStatusCalibrated.
+// Meaningless outside planet seek's own compass-subscription window,
+// same as planet_seek_heading_deg() itself.
+bool planet_seek_compass_low_accuracy(void);
 
 // Also defined in pebble-eclipse-watch.c -- the Compass corner/edge
 // content's own compass state, independent of planet_seek_heading_deg
