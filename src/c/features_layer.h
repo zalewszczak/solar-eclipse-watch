@@ -66,6 +66,7 @@ void features_draw_item(GContext *ctx, GRect bounds, const EclipseData *data,
                          uint8_t content, uint8_t color_mode,
                          GColor main_color, GColor accent_color, GColor bg_color,
                          bool is_top, bool is_left, bool is_middle, int16_t top_offset, int16_t bottom_shift,
+                         int16_t middle_inset,
                          bool center_horizontal, bool center_vertical, bool allow_outline);
 
 // Loads/unloads the shared corner/edge custom font on demand -- cheap to

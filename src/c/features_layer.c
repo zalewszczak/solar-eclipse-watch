@@ -1115,6 +1115,7 @@ void features_draw_item(GContext *ctx, GRect bounds, const EclipseData *data,
                               uint8_t content, uint8_t color_mode,
                               GColor main_color, GColor accent_color, GColor bg_color,
                               bool is_top, bool is_left, bool is_middle, int16_t top_offset, int16_t bottom_shift,
+                              int16_t middle_inset,
                               bool center_horizontal, bool center_vertical, bool allow_outline) {
   if (content == 0) return;
 
@@ -1827,9 +1828,9 @@ void features_draw_item(GContext *ctx, GRect bounds, const EclipseData *data,
   
   if (is_middle) {
     if (is_left) {
-      box_x += 30;
+      box_x += middle_inset;
     } else {
-      box_x -= 30;
+      box_x -= middle_inset;
     }
   }
 
@@ -2212,6 +2213,11 @@ typedef struct {
   bool is_middle;
   int16_t top_offset;
   int16_t bottom_shift;
+  int16_t middle_inset;    // how far in from the screen edge a middle-left/right slot sits --
+                             // defaults to 30 (the fixed inset every non-custom marker style
+                             // always used); custom markers (style 8) compute this dynamically
+                             // instead, from where the ring's own inner boundary actually lands
+                             // at 3/9 o'clock -- see features_recompute_slots()'s own comment.
   bool center_horizontal;
   bool center_vertical;
   bool allow_outline;
@@ -2266,6 +2272,42 @@ static void features_recompute_slots(FeaturesState *state) {
     }
   }
 
+  // Custom markers (style 8) can have their inner ring boundary sit
+  // anywhere at all -- unlike the procedural presets (which never
+  // reach far enough in to threaten the middle-edge slots' normal
+  // fixed position), a custom ring's own inner_border_pct might be set
+  // large enough to actually overlap where upper/bottom/left/right-
+  // middle content would otherwise sit. Rather than the fixed 44/40/30
+  // margins every other style uses, compute where the ring's own inner
+  // edge actually lands at each of the 4 cardinal marks (12/3/6/9
+  // o'clock -- same point_on_ring() the ring itself is drawn with, see
+  // its own comment in background_layer.c for why it's exposed here),
+  // and use whichever of "the normal fixed margin" or "just past the
+  // ring's own inner edge" is larger -- so a small/central ring still
+  // leaves everything at its normal position, and only a ring that
+  // genuinely reaches into that space pushes the affected slot(s)
+  // further in to clear it.
+  int16_t dyn_upper_offset = 44, dyn_bottom_shift = 40, dyn_middle_inset = 30;
+  if (marker_style == 8) {
+    GRect screen = GRect(0, 0, 200, 228); // full, unshrunk screen -- same dimensions full_bounds
+                                            // itself always is (this app targets emery only), which
+                                            // is what the marker ring is actually drawn against
+    GPoint center = GPoint(screen.size.w / 2, screen.size.h / 2);
+    uint8_t pct = d->custom_hour_marker.inner_border_pct;
+    uint8_t ecc = d->custom_hour_marker.inner_eccentricity;
+    GPoint top_pt = point_on_ring(center, screen, 0, pct, ecc);
+    GPoint right_pt = point_on_ring(center, screen, TRIG_MAX_ANGLE / 4, pct, ecc);
+    GPoint bottom_pt = point_on_ring(center, screen, TRIG_MAX_ANGLE / 2, pct, ecc);
+    GPoint left_pt = point_on_ring(center, screen, (TRIG_MAX_ANGLE * 3) / 4, pct, ecc);
+    int16_t margin = 4; // a few px of breathing room past the ring's own inner edge, not flush against it
+    if (top_pt.y + margin > dyn_upper_offset) dyn_upper_offset = top_pt.y + margin;
+    if (screen.size.h - bottom_pt.y + margin > dyn_bottom_shift) dyn_bottom_shift = screen.size.h - bottom_pt.y + margin;
+    int16_t left_inset = left_pt.x + margin;
+    int16_t right_inset = screen.size.w - right_pt.x + margin;
+    int16_t dyn_side_inset = (left_inset > right_inset) ? left_inset : right_inset; // one shared inset for both sides, same as the fixed-30 default already was
+    if (dyn_side_inset > dyn_middle_inset) dyn_middle_inset = dyn_side_inset;
+  }
+
   // Upper-middle sits further down (34px, was 4px) than the old
   // single-slot version -- too close to the top edge on the modern mask's
   // actual artwork. Bottom-middle mirrors that same ~30px margin up from
@@ -2275,36 +2317,36 @@ static void features_recompute_slots(FeaturesState *state) {
   // position with an empty gap below/above it.
   if (show_upper) {
     bool has_line2 = d->upper_middle_line2_content != 0;
-    int16_t line1_offset = has_line2 ? 44 : 44 + CORNER_ROW_H / 2;
+    int16_t line1_offset = has_line2 ? dyn_upper_offset : dyn_upper_offset + CORNER_ROW_H / 2;
     state->slots[SLOT_UPPER_L1] = (FeatureSlot){
       .active = true, .content = d->upper_middle_line1_content, .color_mode = d->upper_middle_line1_color_mode,
       .is_top = true, .is_left = true, .is_middle = false,
-      .top_offset = line1_offset, .bottom_shift = 0,
+      .top_offset = line1_offset, .bottom_shift = 0, .middle_inset = 0,
       .center_horizontal = true, .center_vertical = false, .allow_outline = true,
     };
     if (has_line2) {
       state->slots[SLOT_UPPER_L2] = (FeatureSlot){
         .active = true, .content = d->upper_middle_line2_content, .color_mode = d->upper_middle_line2_color_mode,
         .is_top = true, .is_left = true, .is_middle = false,
-        .top_offset = 44 + CORNER_ROW_H, .bottom_shift = 0,
+        .top_offset = dyn_upper_offset + CORNER_ROW_H, .bottom_shift = 0, .middle_inset = 0,
         .center_horizontal = true, .center_vertical = false, .allow_outline = true,
       };
     }
   }
   if (show_bottom) {
     bool has_line2 = d->bottom_middle_line2_content != 0;
-    int16_t line1_shift = has_line2 ? 40 + CORNER_ROW_H : 40 + CORNER_ROW_H / 2;
+    int16_t line1_shift = has_line2 ? dyn_bottom_shift + CORNER_ROW_H : dyn_bottom_shift + CORNER_ROW_H / 2;
     state->slots[SLOT_BOTTOM_L1] = (FeatureSlot){
       .active = true, .content = d->bottom_middle_line1_content, .color_mode = d->bottom_middle_line1_color_mode,
       .is_top = false, .is_left = true, .is_middle = false,
-      .top_offset = 0, .bottom_shift = line1_shift,
+      .top_offset = 0, .bottom_shift = line1_shift, .middle_inset = 0,
       .center_horizontal = true, .center_vertical = false, .allow_outline = true,
     };
     if (has_line2) {
       state->slots[SLOT_BOTTOM_L2] = (FeatureSlot){
         .active = true, .content = d->bottom_middle_line2_content, .color_mode = d->bottom_middle_line2_color_mode,
         .is_top = false, .is_left = true, .is_middle = false,
-        .top_offset = 0, .bottom_shift = 40,
+        .top_offset = 0, .bottom_shift = dyn_bottom_shift, .middle_inset = 0,
         .center_horizontal = true, .center_vertical = false, .allow_outline = true,
       };
     }
@@ -2315,14 +2357,14 @@ static void features_recompute_slots(FeaturesState *state) {
     state->slots[SLOT_LEFT_L1] = (FeatureSlot){
       .active = true, .content = d->middle_left_line1_content, .color_mode = d->middle_left_line1_color_mode,
       .is_top = false, .is_left = true, .is_middle = true,
-      .top_offset = line1_offset, .bottom_shift = 0,
+      .top_offset = line1_offset, .bottom_shift = 0, .middle_inset = dyn_middle_inset,
       .center_horizontal = false, .center_vertical = true, .allow_outline = true,
     };
     if (has_line2) {
       state->slots[SLOT_LEFT_L2] = (FeatureSlot){
         .active = true, .content = d->middle_left_line2_content, .color_mode = d->middle_left_line2_color_mode,
         .is_top = false, .is_left = true, .is_middle = true,
-        .top_offset = CORNER_ROW_H / 2, .bottom_shift = 0,
+        .top_offset = CORNER_ROW_H / 2, .bottom_shift = 0, .middle_inset = dyn_middle_inset,
         .center_horizontal = false, .center_vertical = true, .allow_outline = true,
       };
     }
@@ -2333,14 +2375,14 @@ static void features_recompute_slots(FeaturesState *state) {
     state->slots[SLOT_RIGHT_L1] = (FeatureSlot){
       .active = true, .content = d->middle_right_line1_content, .color_mode = d->middle_right_line1_color_mode,
       .is_top = false, .is_left = false, .is_middle = true,
-      .top_offset = line1_offset, .bottom_shift = 0,
+      .top_offset = line1_offset, .bottom_shift = 0, .middle_inset = dyn_middle_inset,
       .center_horizontal = false, .center_vertical = true, .allow_outline = true,
     };
     if (has_line2) {
       state->slots[SLOT_RIGHT_L2] = (FeatureSlot){
         .active = true, .content = d->middle_right_line2_content, .color_mode = d->middle_right_line2_color_mode,
         .is_top = false, .is_left = false, .is_middle = true,
-        .top_offset = CORNER_ROW_H / 2, .bottom_shift = 0,
+        .top_offset = CORNER_ROW_H / 2, .bottom_shift = 0, .middle_inset = dyn_middle_inset,
         .center_horizontal = false, .center_vertical = true, .allow_outline = true,
       };
     }
@@ -2414,6 +2456,7 @@ static void features_layer_update_proc(Layer *layer, GContext *ctx) {
     features_draw_item(ctx, bounds, state->data, s->content, s->color_mode,
                         main_color, accent_color, bg,
                         s->is_top, s->is_left, s->is_middle, s->top_offset, s->bottom_shift,
+                        s->middle_inset,
                         s->center_horizontal, s->center_vertical, s->allow_outline);
   }
 }

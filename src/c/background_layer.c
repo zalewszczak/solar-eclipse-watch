@@ -1752,9 +1752,14 @@ static FGPoint point_on_ring_fp(FGPoint center, GRect screen, int32_t sin_v, int
 // Thin GPoint-returning wrapper for draw_text_markers() below, which
 // only ever needs a final whole-pixel position for a numeral -- looks
 // up sin/cos from `angle` itself since it doesn't already have them
-// the way draw_marker_ring() does.
-static GPoint point_on_ring(GPoint center, GRect screen, int32_t angle,
-                             uint8_t pct, uint8_t eccentricity_pct) {
+// the way draw_marker_ring() does. Not static -- also called from
+// features_layer.c to find where the custom marker ring's own inner
+// boundary sits at the 4 cardinal points, so the middle-edge feature
+// slots can shift inside it -- see that file's own comment near
+// features_recompute_slots() (or wherever the slot layout actually
+// gets built) for how.
+GPoint point_on_ring(GPoint center, GRect screen, int32_t angle,
+                      uint8_t pct, uint8_t eccentricity_pct) {
   int32_t norm_angle = angle & 0xFFFF; // mask to prevent trig table lookup overflow/underflow
   int32_t sin_v = sin_lookup(norm_angle), cos_v = cos_lookup(norm_angle);
   FGPoint center_fp = fgpoint_from_gpoint(center);

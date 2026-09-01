@@ -909,7 +909,7 @@ static void bottom_canvas_update_proc(Layer *layer, GContext *ctx) {
       int16_t row_top = i * line_h + (line_h - CORNER_ROW_H) / 2;
       features_draw_item(ctx, feature_bounds, &s_data, feature_content[i], feature_color_mode[i],
                           text_color, accent_color, bg,
-                          true, true, false, row_top, 0, false, false, false);
+                          true, true, false, row_top, 0, 0, false, false, false);
     }
   } else {
     // ---- digital: big time, small date/week below ----

@@ -87,3 +87,10 @@ const char *moon_phase_short_name(uint8_t pct, bool waxing);
 // visible" corner content -- purely a re-read of data already being
 // sent every refresh, no new phone-side computation.
 uint8_t background_count_visible_planets(const EclipseData *d, time_t now);
+
+// Where a mark on a ring (custom or preset) actually lands, given the
+// ring's own inner/outer border percentage and eccentricity -- see the
+// .c file's own comment on this function for why it's exposed here.
+// angle is in native TRIG_MAX_ANGLE units, 0 = 12 o'clock, clockwise.
+GPoint point_on_ring(GPoint center, GRect screen, int32_t angle,
+                      uint8_t pct, uint8_t eccentricity_pct);
