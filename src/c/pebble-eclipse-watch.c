@@ -516,6 +516,69 @@ int32_t planet_seek_heading_deg(void) {
   return s_planet_seek_heading_deg;
 }
 
+// ---- Compass feature (corner/edge content, "Compass" under Utilities) --
+// Independent of Planet seek's own compass use above -- this one is
+// tied to whichever corner/edge slot has "Compass" (content 85)
+// assigned, not to shake_anim_mode. Active (compass subscribed,
+// redrawing) for exactly 15s after a shake, then sleeps (unsubscribed,
+// shows "Z z" and three dashes instead of a heading) until the next
+// one -- see compass_feature_is_asleep()/compass_feature_heading_deg()
+// in features_layer.c's own content-85 case for how this gets drawn.
+#define COMPASS_FEATURE_DURATION_MS 15000
+#define COMPASS_FEATURE_FRAME_MS 300 // ~3fps -- plenty for a heading readout; far cheaper than the 30fps shake-gradient system, which needs to look like continuous motion and this doesn't
+
+static AppTimer *s_compass_feature_timer = NULL;
+static bool s_compass_feature_active = false;
+static uint32_t s_compass_feature_elapsed_ms = 0;
+static int32_t s_compass_feature_heading_deg = 0;
+
+static void compass_feature_handler(CompassHeadingData data) {
+  if (data.compass_status != CompassStatusDataInvalid) {
+    s_compass_feature_heading_deg = (int32_t)(((int64_t)data.true_heading * 360) / TRIG_MAX_ANGLE);
+  }
+}
+
+// Both exposed for features_layer.c's content-85 case.
+int32_t compass_feature_heading_deg(void) { return s_compass_feature_heading_deg; }
+bool compass_feature_is_asleep(void) { return !s_compass_feature_active; }
+
+// True if any corner/edge slot actually has "Compass" (content 85)
+// assigned -- checked before powering the magnetometer on a shake, so
+// it doesn't run for 15s on every shake when nothing on screen would
+// even show it.
+static bool corner_content_in_use(uint8_t content) {
+  for (int i = 0; i < 4; i++) {
+    if (s_data.corner_content[i] == content) return true;
+  }
+  return s_data.upper_middle_line1_content == content || s_data.upper_middle_line2_content == content
+      || s_data.bottom_middle_line1_content == content || s_data.bottom_middle_line2_content == content
+      || s_data.middle_left_line1_content == content || s_data.middle_left_line2_content == content
+      || s_data.middle_right_line1_content == content || s_data.middle_right_line2_content == content;
+}
+
+static void compass_feature_timer_callback(void *data) {
+  s_compass_feature_elapsed_ms += COMPASS_FEATURE_FRAME_MS;
+  if (s_compass_feature_elapsed_ms >= COMPASS_FEATURE_DURATION_MS) {
+    s_compass_feature_active = false;
+    s_compass_feature_timer = NULL;
+    compass_service_unsubscribe();
+  } else {
+    s_compass_feature_timer = app_timer_register(COMPASS_FEATURE_FRAME_MS, compass_feature_timer_callback, NULL);
+  }
+  if (s_features_layer) layer_mark_dirty(s_features_layer);
+}
+
+// Called from tap_handler() below, once per shake -- restarts the
+// window fresh each time, same shape as maybe_start_shake_animation().
+static void maybe_start_compass_feature(void) {
+  if (!corner_content_in_use(85)) return;
+  s_compass_feature_active = true;
+  s_compass_feature_elapsed_ms = 0;
+  if (s_compass_feature_timer) app_timer_cancel(s_compass_feature_timer);
+  s_compass_feature_timer = app_timer_register(COMPASS_FEATURE_FRAME_MS, compass_feature_timer_callback, NULL);
+  compass_service_subscribe(compass_feature_handler);
+}
+
 static void shake_anim_timer_callback(void *data) {
   s_shake_anim_elapsed_ms += SHAKE_ANIM_FRAME_MS;
   bool still_active = s_labels_visible && s_shake_anim_elapsed_ms < s_shake_anim_duration_ms;
@@ -1918,6 +1981,7 @@ static void tap_handler(AccelAxisType axis, int32_t direction) {
     s_label_timer = app_timer_register(reveal_ms, hide_labels_callback, NULL);
   }
   maybe_start_shake_animation();
+  maybe_start_compass_feature();
 }
 
 // ---- corners overlay's own independent refresh cycle ----------------------
@@ -2196,6 +2260,10 @@ static void deinit(void) {
   if (s_shake_anim_timer) {
     app_timer_cancel(s_shake_anim_timer);
     s_shake_anim_timer = NULL;
+  }
+  if (s_compass_feature_timer) {
+    app_timer_cancel(s_compass_feature_timer);
+    s_compass_feature_timer = NULL;
   }
   window_destroy(s_window);
 }

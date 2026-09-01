@@ -612,6 +612,12 @@ bool shake_gradient_active(uint8_t *out_shift);
 // comment for what's actually implemented here so far.
 int32_t planet_seek_heading_deg(void);
 
+// Also defined in pebble-eclipse-watch.c -- the Compass corner/edge
+// content's own compass state, independent of planet_seek_heading_deg
+// above (see compass_feature_is_asleep()'s own comment there for why).
+int32_t compass_feature_heading_deg(void);
+bool compass_feature_is_asleep(void);
+
 // Also defined in pebble-eclipse-watch.c, declared here for the same reason:
 // features_layer.c's "current conditions" and sunrise/sunset corner content
 // reuse the digital bottom panel's own sunrise/sunset row logic rather than

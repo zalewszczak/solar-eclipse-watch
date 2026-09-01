@@ -229,7 +229,8 @@ var CORNER_CONTENT_OPTIONS = [
   { id: 81, label: 'Saturn ring angle' },
   { id: 82, label: 'Next planet rise' },
   { id: 83, label: 'Next ISS pass' },
-  { id: 84, label: 'Aurora Kp index' }
+  { id: 84, label: 'Aurora Kp index' },
+  { id: 85, label: 'Compass' }
 ];
 // Must match draw_corner_item()'s color_mode switch exactly.
 var CORNER_COLOR_MODE_LABELS = ['MONO', 'ACC', 'SEMI', 'COLOR'];
@@ -1731,7 +1732,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  56: "NYC 07:34", 57: "CHI 06:34", 58: "DEN 05:34", 59: "LAX 04:34", 60: "ANC 03:34", 61: "HNL 02:34", 62: "SAO 09:34",' +
 '  63: "14:32:07", 64: "07", 65: "7", 66: "7", 67: "5", 68: "05", 69: "8", 70: "08", 71: "3", 72: "8",' +
 '  73: "22C", 74: "H 28C", 75: "L 11C", 76: "22 H28 L11C", 77: "FL 20C", 78: "(bt)",' +
-'  79: "3 planets", 80: "Perseids", 81: "Rings 12%", 82: "VEN 18:32", 83: "22:47", 84: "Kp 4.3"' +
+'  79: "3 planets", 80: "Perseids", 81: "Rings 12%", 82: "VEN 18:32", 83: "22:47", 84: "Kp 4.3", 85: "NNW"' +
 '};' +
 
 'function hasPreviewContent(contentId) {' +
@@ -2139,7 +2140,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 // CORNER_PREVIEW_LABELS below is its own separate runtime copy rather
 // than reusing the generator-side labels). Keep in sync with
 // CORNER_CONTENT_OPTIONS/CORNER_CATEGORIES above by hand -- every
-// content id 0-83 must appear in exactly one category\'s items list.
+// content id 0-85 must appear in exactly one category\'s items list.
 'var CONTENT_SELECT_IDS = ["cornerTL", "cornerTR", "cornerBL", "cornerBR", ' +
 '  "upperMiddleLine1Content", "upperMiddleLine2Content", "bottomMiddleLine1Content", "bottomMiddleLine2Content", ' +
 '  "middleLeftLine1Content", "middleLeftLine2Content", "middleRightLine1Content", "middleRightLine2Content"];' +
@@ -2147,7 +2148,8 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  { id: "none", label: "None", items: [{ id: 0, label: "None" }] },' +
 '  { id: "utilities", label: "Utilities", items: [' +
 '    { id: 10, label: "Battery" }, { id: 13, label: "Location" }, { id: 17, label: "Pebble logo /w battery bar" },' +
-'    { id: 20, label: "Bluetooth connection" }, { id: 78, label: "Bluetooth status (icon only)" }, { id: 38, label: "Altitude" }' +
+'    { id: 20, label: "Bluetooth connection" }, { id: 78, label: "Bluetooth status (icon only)" }, { id: 38, label: "Altitude" },' +
+'    { id: 85, label: "Compass" }' +
 '  ] },' +
 '  { id: "health", label: "Health", items: [' +
 '    { id: 1, label: "Heart rate" }, { id: 2, label: "Steps today" }, { id: 3, label: "Step goal %" },' +

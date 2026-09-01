@@ -760,6 +760,63 @@ static void draw_wind_direction_icon(GContext *ctx, GPoint top_left, int16_t fro
 
 // A simple two-peak mountain silhouette, drawn as two filled triangles
 // -- used by the "Altitude" corner content.
+
+// Compass rose for the "Compass" corner/edge content (id 85) -- 4
+// arrows from center, rotated so they point toward their true compass
+// direction given the watch's current heading (0deg = the watch's own
+// "up" is pointing true north, so nothing needs to rotate; as heading
+// increases, true north swings counterclockwise relative to the
+// watch's own "up", hence the (360-heading_deg) below). North gets
+// its own longer arrow with a distinct head, drawn in north_color;
+// the other 3 (E/S/W) are shorter, plainer, and share other_color --
+// for the outline pass both params are just the same flat outline
+// color, same as every other multi-part icon here.
+static void draw_compass_icon(GContext *ctx, GPoint top_left, int16_t heading_deg,
+                               GColor north_color, GColor other_color) {
+  GPoint center = GPoint(top_left.x + 6, top_left.y + 6);
+  int32_t north_angle = (int32_t)((((360 - (heading_deg % 360)) % 360) * TRIG_MAX_ANGLE)) / 360;
+
+  for (int k = 0; k < 4; k++) {
+    int32_t angle = north_angle + (int32_t)((int64_t)k * TRIG_MAX_ANGLE / 4);
+    bool is_north = (k == 0);
+    int16_t len = is_north ? 6 : 4;
+    GColor color = is_north ? north_color : other_color;
+    GPoint tip = GPoint(center.x + (len * sin_lookup(angle)) / TRIG_MAX_RATIO,
+                         center.y - (len * cos_lookup(angle)) / TRIG_MAX_RATIO);
+    graphics_context_set_stroke_color(ctx, color);
+    graphics_context_set_stroke_width(ctx, 1);
+    graphics_draw_line(ctx, center, tip);
+    int32_t head_len = is_north ? 3 : 2;
+    int32_t back_angle1 = angle + (TRIG_MAX_ANGLE * 150) / 360;
+    int32_t back_angle2 = angle - (TRIG_MAX_ANGLE * 150) / 360;
+    GPoint h1 = GPoint(tip.x + (head_len * sin_lookup(back_angle1)) / TRIG_MAX_RATIO, tip.y - (head_len * cos_lookup(back_angle1)) / TRIG_MAX_RATIO);
+    GPoint h2 = GPoint(tip.x + (head_len * sin_lookup(back_angle2)) / TRIG_MAX_RATIO, tip.y - (head_len * cos_lookup(back_angle2)) / TRIG_MAX_RATIO);
+    graphics_draw_line(ctx, tip, h1);
+    graphics_draw_line(ctx, tip, h2);
+  }
+}
+
+// The compass's own "sleep mode" replacement icon -- two simple
+// zigzag "Z"/"z" shapes (a bigger one upper-left, a smaller one
+// lower-right, like a comic-strip "sleeping" indicator) rather than
+// the rose above, shown whenever compass_feature_is_asleep() is true.
+static void draw_compass_sleep_icon(GContext *ctx, GPoint top_left, GColor color) {
+  graphics_context_set_stroke_color(ctx, color);
+  graphics_context_set_stroke_width(ctx, 1);
+  // Big Z, roughly 7x7, upper-left of the icon box.
+  GPoint bz[4] = { GPoint(top_left.x, top_left.y), GPoint(top_left.x + 6, top_left.y),
+                    GPoint(top_left.x, top_left.y + 6), GPoint(top_left.x + 6, top_left.y + 6) };
+  graphics_draw_line(ctx, bz[0], bz[1]);
+  graphics_draw_line(ctx, bz[1], bz[2]);
+  graphics_draw_line(ctx, bz[2], bz[3]);
+  // Small z, roughly 4x4, lower-right, overlapping the big one's tail like a real "Zz" sleep glyph.
+  GPoint sz_origin = GPoint(top_left.x + 5, top_left.y + 6);
+  GPoint sz[4] = { sz_origin, GPoint(sz_origin.x + 4, sz_origin.y), GPoint(sz_origin.x, sz_origin.y + 4), GPoint(sz_origin.x + 4, sz_origin.y + 4) };
+  graphics_draw_line(ctx, sz[0], sz[1]);
+  graphics_draw_line(ctx, sz[1], sz[2]);
+  graphics_draw_line(ctx, sz[2], sz[3]);
+}
+
 static void draw_mountain_icon(GContext *ctx, GPoint top_left, GColor color) {
   graphics_context_set_fill_color(ctx, color);
   GPoint peak1[3] = {
@@ -1697,6 +1754,29 @@ void features_draw_item(GContext *ctx, GRect bounds, const EclipseData *data,
       dynamic_color = white_to_red_gradient(data->aurora_kp_x10);
       break;
     }
+    case 85: { // Compass -- active (real heading, redrawing) for 15s after a shake,
+               // then asleep (shows "Z z" and three dashes) until the next one -- see
+               // compass_feature_is_asleep()/compass_feature_heading_deg() in
+               // pebble-eclipse-watch.c. Its own multi-color north-arrow/other-arrows
+               // split is handled separately, right after this switch, rather than
+               // through dynamic_color like every other content here -- see that code's
+               // own comment for why.
+      icon_kind = 27;
+      if (compass_feature_is_asleep()) {
+        snprintf(buf, sizeof(buf), "---");
+      } else {
+        static const char *COMPASS_DIRS[16] = {
+          "N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE",
+          "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"
+        };
+        int32_t heading = compass_feature_heading_deg();
+        int idx = (int)(((heading * 2 + 22) / 45) % 16);
+        if (idx < 0) idx += 16;
+        snprintf(buf, sizeof(buf), "%s", COMPASS_DIRS[idx]);
+      }
+      dynamic_color = main_color; // unused in practice -- see the north/other split below
+      break;
+    }
     default:
       return;
   }
@@ -1709,6 +1789,22 @@ void features_draw_item(GContext *ctx, GRect bounds, const EclipseData *data,
     case 3: color = dynamic_color; break;
     case 0:
     default: color = main_color; break;
+  }
+  // Compass (85) needs 2 colors at once (see draw_compass_icon()'s own
+  // comment) rather than the single flat `color` every other content
+  // uses -- "mono" (color_mode 0) and "acc"/"semi" (1/2) still just
+  // mean one flat color for the whole icon, same as `color` above
+  // already resolved; only "color" mode (3) is actually special here,
+  // splitting into an accent north arrow + main-color other 3 rather
+  // than picking one value-driven gradient the way every other
+  // content's dynamic_color does. Translucent dithering (color_mode 2)
+  // isn't applied to the compass -- its icon is line-drawn, not
+  // filled, and Bayer-dithering individual 1px strokes wouldn't read
+  // as translucency the way it does on a filled shape.
+  GColor compass_north_color = color, compass_other_color = color;
+  if (content == 85 && color_mode == 3) {
+    compass_north_color = accent_color;
+    compass_other_color = main_color;
   }
   // Bluetooth status (78) only ever means anything as its dynamic
   // connected/disconnected color -- MONO/ACC/SEMI would just make it
@@ -1948,6 +2044,22 @@ void features_draw_item(GContext *ctx, GRect bounds, const EclipseData *data,
         }
       }
       draw_tiny_icon(ctx, pos, AURORA_ICON, ICON_ROWS, ICON_WIDTH, color);
+      break;
+    }
+    case 27: { // Compass -- see draw_compass_icon()/draw_compass_sleep_icon()'s
+               // own comments, and content-85's own case in the switch above for
+               // where compass_north_color/compass_other_color come from.
+      GPoint pos = GPoint(icon_x, box_y + (CORNER_ROW_H - 12) / 2);
+      bool asleep = compass_feature_is_asleep();
+      if (do_icon_outline) {
+        for (int i = 0; i < 4; i++) {
+          GPoint shifted = GPoint(pos.x + OUTLINE_OFFSETS[i].x, pos.y + OUTLINE_OFFSETS[i].y);
+          if (asleep) draw_compass_sleep_icon(ctx, shifted, icon_outline_color);
+          else draw_compass_icon(ctx, shifted, compass_feature_heading_deg(), icon_outline_color, icon_outline_color);
+        }
+      }
+      if (asleep) draw_compass_sleep_icon(ctx, pos, color);
+      else draw_compass_icon(ctx, pos, compass_feature_heading_deg(), compass_north_color, compass_other_color);
       break;
     }
     case 11: {
