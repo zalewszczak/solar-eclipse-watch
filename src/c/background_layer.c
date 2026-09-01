@@ -103,6 +103,8 @@ typedef struct {
   // section for how they're actually used.
   GPoint cached_sun_center, cached_moon_center, cached_planet_center[PLANET_COUNT];
   bool cached_sun_up, cached_moon_visible, cached_planet_visible[PLANET_COUNT];
+  GColor cached_sun_fill_color; // the Sun's own altitude-dependent color (see sun_color_for_altitude()) -- cached alongside its position for the same reason: a "Planets" bg-anim overlay frame needs it and has no other way to re-derive it without redoing the whole altitude/sky_now computation above
+  int16_t cached_sun_r, cached_moon_r; // the REAL (sun_moon_size_pct-scaled) radii, not SUN_R_NORMAL/MOON_R_NORMAL directly -- same caching reason as everything else here
 
   // Bitmap marker styles (big_analog_marker_style 3-7) -- moved in from
   // pebble-eclipse-watch.c along with the rest of marker drawing, so the
@@ -2315,6 +2317,37 @@ static int32_t planet_seek_eased_t_1000(const CanvasState *state, const EclipseD
   return 1000;
 }
 
+// ---- "Planets" background-on-start animation (bg_anim_mode 2) ---------
+// Same "keep it out of the cache, paint it fresh every frame instead"
+// fix Planet seek already uses (see cached_sun_center's own comment) --
+// this is the plainer version: no FOV mapping, no off-screen labels,
+// just the Sun/Moon/planets at their already-computed, already-cached
+// normal positions (which sweep on their own between frames, since
+// they were computed from the animated sky_now substitution further up
+// in canvas_update_proc, not this function). moon_visible here means
+// "not itself the eclipsing moon" too, same as the normal paint code's
+// own moon_visible flag -- eclipse mode never reaches this animation at
+// all (bg_anim_mode is a Style-section setting with no eclipse-time
+// relevance), but the flag's meaning carries over regardless.
+static void draw_bg_anim_planets_overlay(GContext *ctx, CanvasState *state, const EclipseData *d, GRect bounds) {
+  if (state->cached_sun_up) {
+    graphics_context_set_fill_color(ctx, state->cached_sun_fill_color);
+    graphics_fill_circle(ctx, state->cached_sun_center, state->cached_sun_r);
+  }
+  if (state->cached_moon_visible) {
+    draw_moon_phase(ctx, bounds, state->cached_moon_center, state->cached_moon_r, d->moon_phase_pct, d->moon_waxing, GColorWhite);
+  }
+  for (int p = 0; p < PLANET_COUNT; p++) {
+    if (!state->cached_planet_visible[p]) continue;
+    if (p == PLANET_SATURN) {
+      draw_saturn(ctx, state->cached_planet_center[p], d->saturn_ring_open_pct);
+    } else {
+      graphics_context_set_fill_color(ctx, planet_color((PlanetId)p));
+      graphics_fill_circle(ctx, state->cached_planet_center[p], PLANET_R);
+    }
+  }
+}
+
 static void draw_planet_seek_overlay(GContext *ctx, CanvasState *state, const EclipseData *d,
                                       GRect bounds, time_t now, int32_t eased_t_1000, GColor main_color) {
   int32_t heading_deg = state->planet_seek_heading_deg;
@@ -2410,6 +2443,22 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
     center = GPoint(bounds.size.w / 2, bounds.size.h / 2);
   }
 
+  // Shared by every Sun/Moon/planet paint call below: skip painting
+  // the body into this frame (it still gets fully positioned/sized as
+  // normal, just not drawn) whenever something else is going to draw
+  // it separately, on top of whatever gets cached here, instead --
+  // Planet seek (see its own cached_sun_center comment above) and now
+  // "Planets" background-on-start mode too, which had the same
+  // "duplicate" bug Planet seek was built to avoid: painting the
+  // Sun/Moon/planets straight into the frame that becomes sky_cache
+  // meant the LAST animated frame's positions stayed baked into that
+  // cache, and every SUBSEQUENT blit-from-cache redraw (this canvas's
+  // normal once-a-minute throttle) kept showing them there even as
+  // real time moved the bodies elsewhere -- a second, stale copy
+  // wherever they'd been mid-sweep, alongside the real one. See
+  // draw_bg_anim_planets_overlay() below for the actual fix.
+  bool skip_body_paint = state->planet_seek_active || (state->bg_anim_active && d->bg_anim_mode == 2);
+
   int current_phase = compute_eclipse_phase(d, now);
   bool current_iss_visible = compute_iss_visible(d, now, sky_dark_for_bodies);
   bool phase_just_changed = current_phase != state->last_eclipse_phase;
@@ -2491,6 +2540,9 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
       GColor bg, main_color, accent_color;
       get_active_color_scheme(d, now, &bg, &main_color, &accent_color);
       draw_planet_seek_overlay(ctx, state, d, bounds, now, planet_seek_eased_t_1000(state, d), main_color);
+    }
+    if (state->bg_anim_active && d->bg_anim_mode == 2) {
+      draw_bg_anim_planets_overlay(ctx, state, d, bounds);
     }
     return;
   }
@@ -2708,7 +2760,7 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
     sun_up = body_screen_y(sun_alt_y, d->sun_rise, d->sun_set, now, horizon_y, sun_r, &sun_y);
     sun_center = GPoint(bounds.size.w / 2, sun_y);
   }
-  if (sun_up && !state->planet_seek_active) {
+  if (sun_up && !skip_body_paint) {
     RGB8 sun_rgb = sun_color_for_altitude(alt);
     GColor sun_fill = GColorFromRGB(sun_rgb.r, sun_rgb.g, sun_rgb.b);
     // A darker rim in the same hue, rather than a fixed color -- keeps
@@ -2740,7 +2792,7 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
     GPoint offset = moon_offset_px(d, now, sun_r, moon_r);
     moon_center = GPoint(sun_center.x + offset.x, sun_center.y + offset.y);
     moon_visible = true;
-    if (!state->planet_seek_active) {
+    if (!skip_body_paint) {
       graphics_context_set_fill_color(ctx, GColorDarkGray);
       graphics_fill_circle(ctx, moon_center, moon_r);
       graphics_context_set_stroke_color(ctx, GColorBlack);
@@ -2767,7 +2819,7 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
         moon_center = enforce_min_separation(sun_center, moon_center, min_dist);
       }
       moon_visible = true;
-      if (!state->planet_seek_active) {
+      if (!skip_body_paint) {
         draw_moon_phase(ctx, bounds, moon_center, moon_r, d->moon_phase_pct, d->moon_waxing, GColorWhite);
       }
     }
@@ -2793,7 +2845,7 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
       GPoint c = GPoint((bounds.size.w * PLANET_COLUMN_PCT[p]) / 100, p_y);
       planet_visible[p] = true;
       planet_center[p] = c;
-      if (!state->planet_seek_active) {
+      if (!skip_body_paint) {
         if (p == PLANET_SATURN) {
           draw_saturn(ctx, c, d->saturn_ring_open_pct);
         } else {
@@ -2811,6 +2863,10 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
   // altitude math above just to get it again.
   state->cached_sun_center = sun_center;
   state->cached_sun_up = sun_up;
+  RGB8 cached_sun_rgb = sun_color_for_altitude(alt);
+  state->cached_sun_fill_color = GColorFromRGB(cached_sun_rgb.r, cached_sun_rgb.g, cached_sun_rgb.b);
+  state->cached_sun_r = sun_r;
+  state->cached_moon_r = moon_r;
   state->cached_moon_center = moon_center;
   state->cached_moon_visible = moon_visible;
   for (int p = 0; p < PLANET_COUNT; p++) {
@@ -3007,6 +3063,9 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
     GColor bg, main_color, accent_color;
     get_active_color_scheme(d, now, &bg, &main_color, &accent_color);
     draw_planet_seek_overlay(ctx, state, d, bounds, now, planet_seek_eased_t_1000(state, d), main_color);
+  }
+  if (state->bg_anim_active && d->bg_anim_mode == 2) {
+    draw_bg_anim_planets_overlay(ctx, state, d, bounds);
   }
 }
 
