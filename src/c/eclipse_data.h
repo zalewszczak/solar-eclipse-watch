@@ -53,9 +53,13 @@ typedef struct {
   uint8_t target;       // 0=off, 1=numerals on the hour ring, 2=numerals on the second ring
                           // (every 5s, drawn at the same 12 angular slots hour numerals use)
   uint8_t font_choice;   // 0-2: system GOTHIC_14 / GOTHIC_14_BOLD / GOTHIC_18_BOLD (all <25px)
-                          // 3-6: custom Digital/Minecraft/Pixelate/Miso (all <25px) --
+                          // 3-6: custom Digital/Minecraft/Pixelate/Miso (all <25px)
+                          // 7-14: more system (Leco/Droid Serif/Roboto Condensed/Bitham) + Bebas
+                          // 15-35: every clock_font (see CLOCK_FONTS in config-page.js) at its
+                          // own "big" (~48px) size, custom-resource or system as appropriate --
                           // same encoding as corner_custom_font/corner_font_size combined,
-                          // see marker_text_font_resource_id() in background_layer.c
+                          // see marker_text_font_resource_id()/get_marker_text_font() in
+                          // background_layer.c
   int8_t offset_px;      // -50..50 -- radial nudge of the text away from (positive) or
                           // towards (negative) the line/dot/square marker it's paired with,
                           // so the two can be visually independent instead of overlapping.

@@ -342,7 +342,34 @@ var MARKER_TEXT_FONTS = [
   { id: 11, label: 'Roboto Condensed' },
   { id: 12, label: 'Bitham bold' },
   { id: 13, label: 'Bitham M' },
-  { id: 14, label: 'Bebas' }
+  { id: 14, label: 'Bebas' },
+  // 15-35: every font from the main Clock font picker (CLOCK_FONTS
+  // above), at its own "big" (~48px) size, in the same order --
+  // labeled "<name> (big)" throughout so none of these collide with
+  // an existing same-family entry above (7-14 already cover Leco/
+  // Miso/Bebas at smaller marker-appropriate sizes; these are the
+  // full-size clock versions instead, not replacements for those).
+  { id: 15, label: 'Leco (big)' },
+  { id: 16, label: 'ClockForge (big)' },
+  { id: 17, label: 'SF Pixelate (big)' },
+  { id: 18, label: 'Radioland (big)' },
+  { id: 19, label: 'Mini System (big)' },
+  { id: 20, label: 'Minecrafter (big)' },
+  { id: 21, label: 'Kitchen Police (big)' },
+  { id: 22, label: 'DS Digital (big)' },
+  { id: 23, label: 'Distant Galaxy (big)' },
+  { id: 24, label: 'Dimitri (big)' },
+  { id: 25, label: 'Digital Dream (big)' },
+  { id: 26, label: 'Blackout (big)' },
+  { id: 27, label: 'Audiowide (big)' },
+  { id: 28, label: 'Formation (big)' },
+  { id: 29, label: 'Komika (big)' },
+  { id: 30, label: 'Miso (big)' },
+  { id: 31, label: 'Pricedown (big)' },
+  { id: 32, label: 'Roboto (big)' },
+  { id: 33, label: 'Bitham Light (big)' },
+  { id: 34, label: 'Bitham Bold (big)' },
+  { id: 35, label: 'Bebas (big)' }
 ];
 // Fonts known not to render Roman numerals correctly (missing/wrong
 // glyphs for some of the letters int_to_roman() needs) -- the Roman
@@ -734,7 +761,7 @@ function handEditorModalHtml(kind, title) {
  *     customSecOuterEcc: '0'-'100', customHourInnerBorder/customHourOuterBorder/
  *     customSecInnerBorder/customSecOuterBorder: '0'-'100' (% reach, see marker_reach_px()
  *     in marker_layer.c -- each mark spans directly between its inner/outer border points),
- *     markerTextTarget: '0'(off)|'1'(hour)|'2'(second), markerTextFont: '0'-'6', markerTextOffset: '-50'-'50',
+ *     markerTextTarget: '0'(off)|'1'(hour)|'2'(second), markerTextFont: '0'-'35', markerTextOffset: '-50'-'50',
  *     markerTextHourMask/markerTextSecMask: 0-4095 (12-bit),
  *     testMode, testDateTime }
  */
