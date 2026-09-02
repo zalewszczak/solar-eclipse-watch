@@ -921,6 +921,19 @@ function sendFlatDict(dict) {
 
   try {
     localStorage.setItem('LAST_COMPUTED_DICT', JSON.stringify(dict));
+    // Separate from the general snapshot above: this one is ONLY
+    // overwritten when `dict` is a genuine full-data send (from
+    // sendEclipseData()/sendNoEclipseToday(), which both always set
+    // C1_TIME -- 0 for "no eclipse today", a real epoch otherwise --
+    // vs. the cosmetic-only sendFlatDict({}) push settings-only saves
+    // trigger, or sendInvalid()'s {DATA_VALID:0,...}, neither of
+    // which ever sets it). Cosmetic-only saves are frequent enough
+    // (any settings change triggers one) that LAST_COMPUTED_DICT
+    // itself is often NOT full data -- refreshAndSend()'s skip-path
+    // resend below needs something that's reliably the real thing.
+    if (Object.prototype.hasOwnProperty.call(dict, 'C1_TIME')) {
+      localStorage.setItem('LAST_FULL_COMPUTED_DICT', JSON.stringify(dict));
+    }
     if (s_captureNextAsFullRefresh) {
       localStorage.setItem('LAST_FULL_REFRESH_DICT', JSON.stringify(dict));
       s_captureNextAsFullRefresh = false;
@@ -1926,7 +1939,12 @@ function markRefreshDone(lat, lon) {
 // there's nothing meaningful to gain from hitting the network again.
 // A location change bypasses this regardless of how recently we
 // fetched, since that's exactly the case where stale data would
-// actually be wrong rather than just slightly dated.
+// actually be wrong rather than just slightly dated. Works the same
+// way whether lat/lon came from GPS or the manual-coordinates setting
+// -- both flow through getLocation() into refreshAndSend() as plain
+// numbers before either shouldSkipRefresh() or markRefreshDone() ever
+// see them, so there's nothing location-source-specific for this
+// distance check to get wrong or needs to special-case.
 function shouldSkipRefresh(lat, lon) {
   var lastTs = parseInt(getSetting('CACHE_LAST_FETCH_TS', '0'), 10);
   var lastLat = parseFloat(getSetting('CACHE_LAST_FETCH_LAT', ''));
@@ -1938,6 +1956,37 @@ function shouldSkipRefresh(lat, lon) {
   if (Date.now() - lastTs >= mins * 60000) return false;
 
   return haversineKm(lat, lon, lastLat, lastLon) < 10;
+}
+
+// Called instead of a real refetch whenever shouldSkipRefresh() above
+// says there's nothing new worth fetching -- but "nothing new to
+// fetch" and "the watch already has this" are NOT the same thing: the
+// watch's own persisted data can go missing independently of
+// anything PKJS tracks (most commonly right after a watch app update
+// changes its data struct's layout, which invalidates whatever was
+// saved under the old one -- see EclipseData's own persistence
+// comment in eclipse_data.h). When that happens the watch shows "No
+// data yet, waiting for phone" and starts asking for a resend via
+// REQUEST_UPDATE (see request_retry_callback() in
+// pebble-eclipse-watch.c) -- and before this existed, that request
+// landed right back on this same shouldSkipRefresh() check and got
+// silently dropped, since from PKJS's side nothing had changed since
+// the last successful fetch. Resending the last full computed result
+// (cheap -- no network involved) instead of nothing at all is what
+// actually answers that request. Returns true if there was something
+// to resend, false if the cache was empty/corrupt (in which case the
+// caller should fall through to a real fetch instead).
+function resendLastFullData() {
+  try {
+    var raw = localStorage.getItem('LAST_FULL_COMPUTED_DICT');
+    if (!raw) return false;
+    var dict = JSON.parse(raw);
+    if (!dict || typeof dict !== 'object') return false;
+    enqueueFlatDict(dict);
+    return true;
+  } catch (e) {
+    return false;
+  }
 }
 
 // Only fetches ISS elements when the user has explicitly opted in
@@ -2033,8 +2082,11 @@ function refreshAndSend(force) {
       (altitudeMeters ? (', altitude ' + Math.round(altitudeMeters) + 'm') : ''));
 
     if (!force && shouldSkipRefresh(lat, lon)) {
-      console.log('eclipse-watch: skipping refresh - fetched recently and location unchanged (<10km)');
-      return;
+      if (resendLastFullData()) {
+        console.log('eclipse-watch: fetched recently and location unchanged (<10km) - resent last known data to the watch instead of refetching');
+        return;
+      }
+      console.log('eclipse-watch: fetched recently and location unchanged (<10km), but nothing cached to resend - fetching after all');
     }
 
     var now = getEffectiveNow();
@@ -2154,7 +2206,13 @@ Pebble.addEventListener('appmessage', function (e) {
     // The watch sends this both on every app launch/relaunch and on
     // a deliberate select-button press -- we can't tell which, so
     // this respects the smart-refresh skip too rather than treating
-    // every watchface start as a reason to hit the network.
+    // every watchface start as a reason to hit the network. That skip
+    // still means "don't refetch," not "send nothing" though -- see
+    // resendLastFullData()/shouldSkipRefresh's own comments in
+    // refreshAndSend() for why a plain do-nothing skip here used to
+    // leave the watch stuck on "No data yet, waiting for phone" (most
+    // visibly right after a watch app update wipes its persisted
+    // data) until the skip window itself expired.
     refreshAndSend(false);
   }
 });
