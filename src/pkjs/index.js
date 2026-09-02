@@ -1960,24 +1960,42 @@ function shouldSkipRefresh(lat, lon) {
   return haversineKm(lat, lon, lastLat, lastLon) < 10;
 }
 
-// Called instead of a real refetch whenever shouldSkipRefresh() above
-// says there's nothing new worth fetching -- but "nothing new to
-// fetch" and "the watch already has this" are NOT the same thing: the
-// watch's own persisted data can go missing independently of
-// anything PKJS tracks (most commonly right after a watch app update
-// changes its data struct's layout, which invalidates whatever was
-// saved under the old one -- see EclipseData's own persistence
-// comment in eclipse_data.h). When that happens the watch shows "No
-// data yet, waiting for phone" and starts asking for a resend via
-// REQUEST_UPDATE (see request_retry_callback() in
-// pebble-eclipse-watch.c) -- and before this existed, that request
-// landed right back on this same shouldSkipRefresh() check and got
-// silently dropped, since from PKJS's side nothing had changed since
-// the last successful fetch. Resending the last full computed result
-// (cheap -- no network involved) instead of nothing at all is what
-// actually answers that request. Returns true if there was something
-// to resend, false if the cache was empty/corrupt (in which case the
-// caller should fall through to a real fetch instead).
+// Called instead of a real refetch when refreshAndSend() was given
+// resendOnSkip=true AND shouldSkipRefresh() says there's nothing new
+// worth fetching -- but "nothing new to fetch" and "the watch already
+// has this" are NOT the same thing: the watch's own persisted data
+// can go missing independently of anything PKJS tracks (most commonly
+// right after a watch app update changes its data struct's layout,
+// which invalidates whatever was saved under the old one -- see
+// EclipseData's own persistence comment in eclipse_data.h). When that
+// happens the watch shows "No data yet, waiting for phone" and starts
+// asking for a resend via REQUEST_UPDATE (see request_retry_callback()
+// in pebble-eclipse-watch.c) -- and before this existed, that request
+// landed right back on shouldSkipRefresh() and got silently dropped,
+// since from PKJS's side nothing had changed since the last
+// successful fetch. Resending the last full computed result (cheap --
+// no network involved) instead of nothing at all is what actually
+// answers that request.
+//
+// resendOnSkip is deliberately NOT the default, and this function is
+// deliberately not called unconditionally on every skip -- it used to
+// be, which was itself a real bug: a settings save also goes through
+// refreshAndSend(), and its own skip (nothing location/weather-wise
+// needs refetching) would resend this cache anyway -- but the cache
+// only updates on a genuine full refresh, not the cosmetic-only push
+// a save already sends immediately (see sendFlatDict()'s own
+// LAST_FULL_COMPUTED_DICT comment), so it'd be resending whatever was
+// cached from BEFORE the save. From the watch's side that looked like
+// "I just changed a setting, and a few seconds later it reverted" --
+// every one of the 7 full-refresh chunks arriving right on the heels
+// of the save's own 2 cosmetic ones, carrying the old values. Only
+// the REQUEST_UPDATE handler passes resendOnSkip=true now, since
+// that's the one caller actually asking "does the watch have
+// anything at all," not "did anything change."
+//
+// Returns true if there was something to resend, false if the cache
+// was empty/corrupt (in which case the caller should fall through to
+// a real fetch instead).
 function resendLastFullData() {
   try {
     var raw = localStorage.getItem('LAST_FULL_COMPUTED_DICT');
@@ -2063,7 +2081,21 @@ function fetchAuroraIfEnabled(lat, lon, cb) {
 
 // ---- main refresh cycle --------------------------------------------------
 
-function refreshAndSend(force) {
+// resendOnSkip: only true from the REQUEST_UPDATE handler below --
+// see its own comment for why that specific trigger needs the skip
+// path to still push something to the watch. Every other caller
+// (a settings save, the periodic timer, PKJS's own startup) defaults
+// to false, so a skip there really does mean "send nothing" the way
+// it always did -- see resendLastFullData()'s own comment for why
+// resending unconditionally on every skip was itself a bug: a settings
+// save already pushes its own fresh cosmetic-only chunk immediately
+// (see sendFlatDict()), and if THIS call then skipped-with-resend, it
+// would fire moments later with whatever full data was cached from
+// BEFORE the save -- silently overwriting the save's own fresh
+// settings with stale ones, which is exactly what it looked like from
+// the watch's side: "I just changed something, and a few seconds
+// later it reverted."
+function refreshAndSend(force, resendOnSkip) {
   console.log('eclipse-watch: refresh starting' + (force ? ' (forced)' : ''));
   s_refreshGeneration++;
   var myGeneration = s_refreshGeneration;
@@ -2084,6 +2116,10 @@ function refreshAndSend(force) {
       (altitudeMeters ? (', altitude ' + Math.round(altitudeMeters) + 'm') : ''));
 
     if (!force && shouldSkipRefresh(lat, lon)) {
+      if (!resendOnSkip) {
+        console.log('eclipse-watch: fetched recently and location unchanged (<10km) - nothing to do');
+        return;
+      }
       if (resendLastFullData()) {
         console.log('eclipse-watch: fetched recently and location unchanged (<10km) - resent last known data to the watch instead of refetching');
         return;
@@ -2192,14 +2228,14 @@ function scheduleRefresh() {
   if (refreshTimer) clearInterval(refreshTimer);
   var mins = parseInt(getSetting('CONFIG_UPDATE_MINS', '20'), 10);
   if (isNaN(mins) || mins < 5) mins = 20;
-  refreshTimer = setInterval(refreshAndSend, mins * 60000);
+  refreshTimer = setInterval(function () { refreshAndSend(false, false); }, mins * 60000);
 }
 
 // ---- Pebble lifecycle --------------------------------------------------
 
 Pebble.addEventListener('ready', function () {
   console.log('eclipse-watch: PKJS ready, capabilities OK, starting first refresh');
-  refreshAndSend(false);
+  refreshAndSend(false, false);
   scheduleRefresh();
 });
 
@@ -2209,13 +2245,15 @@ Pebble.addEventListener('appmessage', function (e) {
     // a deliberate select-button press -- we can't tell which, so
     // this respects the smart-refresh skip too rather than treating
     // every watchface start as a reason to hit the network. That skip
-    // still means "don't refetch," not "send nothing" though -- see
-    // resendLastFullData()/shouldSkipRefresh's own comments in
-    // refreshAndSend() for why a plain do-nothing skip here used to
-    // leave the watch stuck on "No data yet, waiting for phone" (most
-    // visibly right after a watch app update wipes its persisted
-    // data) until the skip window itself expired.
-    refreshAndSend(false);
+    // still means "don't refetch," not "send nothing" though -- the
+    // one true resendOnSkip caller: see resendLastFullData()/
+    // refreshAndSend()'s own comments for why a plain do-nothing skip
+    // here used to leave the watch stuck on "No data yet, waiting for
+    // phone" (most visibly right after a watch app update wipes its
+    // persisted data) until the skip window itself expired -- and for
+    // why every OTHER caller of refreshAndSend() deliberately leaves
+    // resendOnSkip false instead of also passing true here.
+    refreshAndSend(false, true);
   }
 });
 
@@ -2575,5 +2613,16 @@ Pebble.addEventListener('webviewclosed', function (e) {
   // silently wiping the watch's last known-good weather. A plain
   // save still gets a refresh if one is actually due (moved far
   // enough, or the interval elapsed) via this same normal check.
-  refreshAndSend(!!settings.CONFIG_FORCE_REFRESH);
+  //
+  // resendOnSkip is deliberately false here (not just omitted) -- a
+  // skip means nothing needs refetching, and the cosmetic-only
+  // sendFlatDict({}) two lines up already just pushed this save's own
+  // fresh settings/features chunks. Resending the cached FULL dict on
+  // top of that would mean resending whatever full data was cached
+  // from BEFORE this save (LAST_FULL_COMPUTED_DICT only updates on a
+  // genuine full refresh, not a cosmetic-only push) -- overwriting the
+  // save that just happened with stale settings a few seconds later.
+  // That was a real bug: resendOnSkip used to be unconditional on
+  // every skip, which is exactly what made it fire here too.
+  refreshAndSend(!!settings.CONFIG_FORCE_REFRESH, false);
 });
