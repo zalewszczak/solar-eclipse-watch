@@ -481,6 +481,22 @@ typedef struct {
                                 // per-slot), sent like any other setting since the watch has no other way
                                 // to know it.
   int16_t weather_temp_c;    // current temperature, whole degrees Celsius (converted to F on-watch if the user prefers)
+  // Robust per-service error reporting -- see servicelog.js's
+  // classifyError() on the PKJS side for what these values mean (an
+  // HTTP status if the fetch got a response at all, one of a handful
+  // of small ERR_* codes otherwise). 0 = this refresh's weather fetch
+  // was fine. weather_error_streak counts consecutive refreshes that
+  // arrived with a nonzero code (reset to 0 the moment one arrives
+  // with 0), capped well below 255 so it can never wrap around.
+  // weather_ever_valid latches true the first time a real weather
+  // reading is ever received, and never goes back to false -- see
+  // weather_should_show_error() in pebble-eclipse-watch.c for how the
+  // three combine to decide whether a corner slot shows "ERR ###"
+  // instead of the (possibly stale, but still real) last-known
+  // reading.
+  uint8_t weather_error_code;
+  uint8_t weather_error_streak;
+  bool weather_ever_valid;
   char location_name[32];    // reverse-geocoded place name, e.g. "Innsbruck, Austria"
 
   uint8_t timezone_id;       // index into the TIMEZONES[] table in pebble-eclipse-watch.c --
@@ -609,6 +625,10 @@ typedef struct {
                                   // by the "Next ISS pass" corner content; independent of iss_alt_deg/
                                   // iss_az_deg/show_iss above, which are the separate "draw it on the sky
                                   // view right now" snapshot and its own on/off setting.
+  uint8_t iss_error_code;       // 0 = this refresh's ISS fetch was fine (or ISS wasn't in use at all).
+                                  // See weather_error_code's own comment above for what a nonzero value
+                                  // means -- ISS doesn't get the same 10-refresh grace/streak treatment,
+                                  // just a code available for diagnostics/future use.
 
   bool aurora_enabled;          // user setting ("Astronomy" section): whether auroras are fetched/shown
                                   // at all -- gates both the "Aurora Kp index" corner content option
@@ -623,6 +643,8 @@ typedef struct {
                                   // sky view's aurora glow actually draws (still also needs a dark sky);
                                   // the Kp index itself is shown/colored regardless, since a Kp reading
                                   // is informative on its own even when the estimate says "not from here".
+  uint8_t aurora_error_code;    // 0 = this refresh's aurora fetch was fine (or aurora_enabled is off).
+                                  // Same meaning/source as weather_error_code and iss_error_code above.
 } EclipseData;
 
 // Defined in pebble-eclipse-watch.c, declared here (rather than a new
@@ -640,6 +662,17 @@ void get_active_color_scheme(const EclipseData *d, time_t now, GColor *bg, GColo
 // get_active_color_scheme() above, both of which need to do the same
 // unpacking.
 GColor gcolor_from_packed(uint8_t packed);
+
+// Also defined in pebble-eclipse-watch.c, declared here so
+// features_layer.c's weather-derived corner content cases can call it.
+// True when a weather corner slot should show "ERR ###" (see
+// weather_error_code above) instead of its normal reading: either
+// there's been no good weather data at all yet (so there's nothing
+// worth falling back to), or the last 10+ consecutive refreshes have
+// all come back as errors (so this isn't just a blip -- see
+// weather_error_streak's own comment for the reasoning and the
+// request that led to it).
+bool weather_should_show_error(const EclipseData *d);
 
 // Also defined in pebble-eclipse-watch.c, declared here for the same reason:
 // the "on shake" animation's outline gradient effect is driven by state

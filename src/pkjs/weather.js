@@ -112,8 +112,13 @@ function fetchOpenWeatherMap(lat, lon, apiKey, fromDate, toDate, cb) {
  * @param {Date} fromDate  start of the window worth checking (e.g. C1)
  * @param {Date} toDate    end of the window (e.g. C4)
  * @param {function(object)} cb  called with {cloudCoverPct, visScorePct, sourceCount}
+ * @param {function(string, Error|null)} [onSourceResult]  optional,
+ *   called once per source actually attempted ('openmeteo' always,
+ *   'openweathermap' only if owmApiKey is set) with that source's own
+ *   error (or null on success) -- lets callers log/report each
+ *   upstream service individually rather than just the merged result.
  */
-function getEclipseWeather(lat, lon, owmApiKey, fromDate, toDate, cb) {
+function getEclipseWeather(lat, lon, owmApiKey, fromDate, toDate, cb, onSourceResult) {
   var results = [];
   var pending = owmApiKey ? 2 : 1;
 
@@ -133,12 +138,14 @@ function getEclipseWeather(lat, lon, owmApiKey, fromDate, toDate, cb) {
   }
 
   fetchOpenMeteo(lat, lon, fromDate, toDate, function (err, pct) {
+    if (onSourceResult) onSourceResult('openmeteo', err);
     if (!err) results.push(pct);
     finish();
   });
 
   if (owmApiKey) {
     fetchOpenWeatherMap(lat, lon, owmApiKey, fromDate, toDate, function (err, pct) {
+      if (onSourceResult) onSourceResult('openweathermap', err);
       if (!err) results.push(pct);
       finish();
     });

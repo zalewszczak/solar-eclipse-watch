@@ -76,6 +76,12 @@ GColor gcolor_from_packed(uint8_t packed) {
   return c;
 }
 
+bool weather_should_show_error(const EclipseData *d) {
+  if (d->weather_error_code == 0) return false; // this refresh's fetch was fine
+  if (!d->weather_ever_valid) return true;       // nothing to fall back to -- show it right away
+  return d->weather_error_streak >= 10;
+}
+
 // Picks the day or night set of colors based on the Sun's altitude
 // (reusing eclipse_sky_is_bright()'s existing civil-twilight threshold
 // rather than a second definition of "night") -- falls back to the day
@@ -1868,6 +1874,16 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   if ((t = dict_find(iter, MESSAGE_KEY_CLOUD_COVER))) s_data.cloud_cover_pct = t->value->uint8;
   if ((t = dict_find(iter, MESSAGE_KEY_VIS_SCORE))) s_data.vis_score_pct = t->value->uint8;
   if ((t = dict_find(iter, MESSAGE_KEY_WEATHER_SOURCES))) s_data.weather_sources = t->value->uint8;
+  if ((t = dict_find(iter, MESSAGE_KEY_WEATHER_ERROR_CODE))) {
+    s_data.weather_error_code = t->value->uint8;
+    if (s_data.weather_error_code == 0) {
+      s_data.weather_error_streak = 0;
+      s_data.weather_ever_valid = true;
+    } else if (s_data.weather_error_streak < 250) { // saturate well clear of overflow -- only ">= 10" is ever checked
+      s_data.weather_error_streak++;
+    }
+    if (s_features_layer) layer_mark_dirty(s_features_layer);
+  }
   if ((t = dict_find(iter, MESSAGE_KEY_WEATHER_CONDITION))) s_data.weather_condition = t->value->uint8;
   if ((t = dict_find(iter, MESSAGE_KEY_WEATHER_ICON_STYLE))) {
     s_data.weather_icon_style = t->value->uint8;
@@ -1885,6 +1901,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   }
   if ((t = dict_find(iter, MESSAGE_KEY_ALTITUDE_M))) s_data.altitude_m = t->value->int16;
   if ((t = dict_find(iter, MESSAGE_KEY_AURORA_KP_X10))) s_data.aurora_kp_x10 = t->value->uint8;
+  if ((t = dict_find(iter, MESSAGE_KEY_AURORA_ERROR_CODE))) s_data.aurora_error_code = t->value->uint8;
   if ((t = dict_find(iter, MESSAGE_KEY_AURORA_VISIBILITY_PCT))) {
     s_data.aurora_visibility_pct = t->value->uint8;
     if (s_canvas_layer) eclipse_canvas_set_data(s_canvas_layer, &s_data); // force immediately -- affects whether the sky glow draws at all
@@ -2048,6 +2065,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   if ((t = dict_find(iter, MESSAGE_KEY_ISS_AZ))) s_data.iss_az_deg = t->value->uint16;
   if ((t = dict_find(iter, MESSAGE_KEY_ISS_COMPUTED_AT))) s_data.iss_computed_at = (time_t)t->value->int32;
   if ((t = dict_find(iter, MESSAGE_KEY_ISS_NEXT_PASS))) s_data.iss_next_pass = (time_t)(int32_t)t->value->int32;
+  if ((t = dict_find(iter, MESSAGE_KEY_ISS_ERROR_CODE))) s_data.iss_error_code = t->value->uint8;
 
   update_tick_subscription(); // re-checks whether live seconds are actually needed -- switches SECOND_UNIT/MINUTE_UNIT if this settings update changed that (show_seconds, or which content a corner/edge slot now shows)
   save_data();

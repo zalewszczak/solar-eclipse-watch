@@ -25,6 +25,8 @@
  * what you see here is exactly what you'll get.
  */
 
+var servicelog = require('./servicelog.js');
+
 function esc(str) {
   return String(str == null ? '' : str)
     .replace(/&/g, '&amp;')
@@ -550,9 +552,9 @@ function handEditorModalHtml(kind, title) {
 
 '    <label for="' + p + 'Style">Shape</label>' +
 '    <select id="' + p + 'Style" onchange="onCustomHandStyleChange(\'' + kind + '\')">' +
-'      <option value="0">Dot (round caps)</option>' +
-'      <option value="1">Triangle</option>' +
-'      <option value="2">Square (flat caps)</option>' +
+'      <option value="0">Baton</option>' +
+'      <option value="1">Galba</option>' +
+'      <option value="2">Pencil</option>' +
 '      <option value="3">Dauphine</option>' +
 '      <option value="4">Sword</option>' +
 '      <option value="5">Pomme</option>' +
@@ -668,6 +670,52 @@ function handEditorModalHtml(kind, title) {
  *     markerTextHourMask/markerTextSecMask: 0-4095 (12-bit),
  *     testMode, testDateTime }
  */
+// One quick-recall Style Presets row (apply button, rename input, save/
+// rename icon buttons) plus its two backing hidden inputs -- called for
+// n = 1..6 from buildConfigHtml below, same "templated, not copy-pasted
+// per slot" pattern as handEditorModalHtml() uses for the 3 hands.
+function presetSlotHtml(current, n) {
+  var name = current['presetSlot' + n + 'Name'] || ('Preset ' + n);
+  var json = current['presetSlot' + n + 'Json'] || '';
+  return (
+'    <div class="preset-slot-row">' +
+'      <button type="button" class="preset-apply-btn" id="presetApplyBtn' + n + '" onclick="applyPresetSlot(' + n + ')" ' + (json ? '' : 'disabled') + '>' + esc(name) + '</button>' +
+'      <input type="text" class="preset-name-input" id="presetNameInput' + n + '" style="display:none;" onblur="commitRenamePresetSlot(' + n + ')" onkeydown="if (event.key === \'Enter\') this.blur();">' +
+'      <button type="button" class="preset-icon-btn" onclick="savePresetSlot(' + n + ')" title="Save current design here">&#128190;</button>' +
+'      <button type="button" class="preset-icon-btn" onclick="startRenamePresetSlot(' + n + ')" title="Rename">&#9998;</button>' +
+'    </div>' +
+'    <input type="hidden" id="presetSlot' + n + 'Name" value="' + esc(name) + '">' +
+'    <input type="hidden" id="presetSlot' + n + 'Json" value="' + esc(json) + '">'
+  );
+}
+// One "Update section" status row (colored dot + service name + an
+// info button when there's something worth showing) per external
+// service servicelog.js tracks -- gray/never attempted, green/last
+// attempt worked, yellow/red per serviceStatus()'s own comment. The
+// info button (only shown for yellow/red, where there's an actual
+// problem worth digging into) opens the shared #serviceLogModal via
+// openServiceLog(), passing this service's own last-10-attempts log
+// baked in as JSON at page-build time -- see serviceLogsJson below and
+// this file's own top comment for why that has to be a snapshot
+// rather than a live link into PKJS's servicelog.js.
+function serviceStatusRowsHtml(current) {
+  var logs = (current && current.serviceLogs) || {};
+  return servicelog.SERVICES.map(function (service) {
+    var label = servicelog.SERVICE_LABELS[service] || service;
+    var status = (logs[service] && logs[service].status) || 'gray';
+    var infoBtn = (status === 'yellow' || status === 'red')
+      ? '<button type="button" class="service-info-btn" onclick="openServiceLog(\'' + service + '\', \'' + esc(label) + '\')" title="Last 10 results">i</button>'
+      : '';
+    return (
+'    <div class="service-status-row">' +
+'      <span class="service-dot service-dot-' + status + '"></span>' +
+'      <span class="service-name">' + esc(label) + '</span>' +
+      infoBtn +
+'    </div>'
+    );
+  }).join('');
+}
+
 function buildConfigHtml(current) {
   var autoLocChecked = current.autoLoc ? 'checked' : '';
   var manualDisabled = current.autoLoc ? 'disabled' : '';
@@ -827,6 +875,15 @@ function buildConfigHtml(current) {
 '  .color-role-btn:active { background: var(--border-light); }' +
 '  .color-role-swatch { width: 36px; height: 36px; border-radius: 50%; border: 2px solid var(--border); box-sizing: border-box; }' +
 '  .color-role-label { font-size: 11px; color: var(--text-faint2); }' +
+'  .service-status-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; }' +
+'  .service-dot { width: 12px; height: 12px; border-radius: 50%; flex: 0 0 auto; border: 1px solid var(--border); }' +
+'  .service-dot-gray { background: #999; }' +
+'  .service-dot-green { background: #2ecc71; }' +
+'  .service-dot-yellow { background: #f1c40f; }' +
+'  .service-dot-red { background: #e74c3c; }' +
+'  .service-name { flex: 1 1 auto; font-size: 13px; color: var(--text); }' +
+'  .service-info-btn { width: 20px; height: 20px; border-radius: 50%; border: 1px solid var(--border); background: var(--btn-bg); color: var(--text-faint2); font-size: 12px; font-style: italic; font-weight: 700; line-height: 18px; text-align: center; padding: 0; flex: 0 0 auto; }' +
+'  .service-log-line { font-family: monospace; font-size: 11px; white-space: pre-wrap; word-break: break-word; padding: 3px 0; border-bottom: 1px solid var(--border-light); color: var(--text); }' +
 '  .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: none; align-items: flex-end; justify-content: center; z-index: 100; }' +
 '  .modal-overlay.open { display: flex; }' +
 '  .modal-box { background: var(--card-bg); border-radius: 12px 12px 0 0; padding: 16px; width: 100%; max-width: 400px; max-height: 80vh; box-sizing: border-box; display: flex; flex-direction: column; overflow: hidden; }' +
@@ -985,6 +1042,19 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    <div class="help" id="confirmModalMessage" style="text-align:center;"></div>' +
 '    <button type="button" class="modal-confirm-btn" onclick="confirmModalYes()">Confirm</button>' +
 '    <button type="button" class="modal-cancel-btn" onclick="closeConfirmModal()">Cancel</button>' +
+'  </div>' +
+'</div>' +
+
+// Shared by every service's (i) button in the Updates section -- one
+// modal, repopulated per tap by openServiceLog() from that service's
+// own slice of serviceLogsJson (see serviceStatusRowsHtml() above).
+// Console-style: newest first, one line per attempt with its date,
+// time, OK/ERR ###, and (for errors) the message.
+'<div class="modal-overlay" id="serviceLogModal" onclick="if (event.target === this) closeServiceLogModal();">' +
+'  <div class="modal-box">' +
+'    <div class="modal-title" id="serviceLogModalTitle"></div>' +
+'    <div class="modal-scroll-body" id="serviceLogModalBody"></div>' +
+'    <button type="button" class="modal-cancel-btn" onclick="closeServiceLogModal()">Close</button>' +
 '  </div>' +
 '</div>' +
 
@@ -1381,32 +1451,9 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  <fieldset>' +
 '    <div class="section-legend" onclick="toggleSection(\'presets\')">Style Presets <span class="chevron" id="chev-presets">&#9656;</span></div>' +
 '    <div class="section-body" id="section-presets" style="display:none;">' +
-'    <div class="help">Save up to 3 quick-recall snapshots of your whole Style + Colors + Features design below, or export/import it as JSON to back it up or share it.</div>' +
+'    <div class="help">Save up to 6 quick-recall snapshots of your whole Style + Colors + Features design below, or export/import it as JSON to back it up or share it.</div>' +
 
-'    <div class="preset-slot-row">' +
-'      <button type="button" class="preset-apply-btn" id="presetApplyBtn1" onclick="applyPresetSlot(1)" ' + (current.presetSlot1Json ? '' : 'disabled') + '>' + esc(current.presetSlot1Name || "Preset 1") + '</button>' +
-'      <input type="text" class="preset-name-input" id="presetNameInput1" style="display:none;" onblur="commitRenamePresetSlot(1)" onkeydown="if (event.key === \'Enter\') this.blur();">' +
-'      <button type="button" class="preset-icon-btn" onclick="savePresetSlot(1)" title="Save current design here">&#128190;</button>' +
-'      <button type="button" class="preset-icon-btn" onclick="startRenamePresetSlot(1)" title="Rename">&#9998;</button>' +
-'    </div>' +
-'    <input type="hidden" id="presetSlot1Name" value="' + esc(current.presetSlot1Name || "Preset 1") + '">' +
-'    <input type="hidden" id="presetSlot1Json" value="' + esc(current.presetSlot1Json || "") + '">' +
-'    <div class="preset-slot-row">' +
-'      <button type="button" class="preset-apply-btn" id="presetApplyBtn2" onclick="applyPresetSlot(2)" ' + (current.presetSlot2Json ? '' : 'disabled') + '>' + esc(current.presetSlot2Name || "Preset 2") + '</button>' +
-'      <input type="text" class="preset-name-input" id="presetNameInput2" style="display:none;" onblur="commitRenamePresetSlot(2)" onkeydown="if (event.key === \'Enter\') this.blur();">' +
-'      <button type="button" class="preset-icon-btn" onclick="savePresetSlot(2)" title="Save current design here">&#128190;</button>' +
-'      <button type="button" class="preset-icon-btn" onclick="startRenamePresetSlot(2)" title="Rename">&#9998;</button>' +
-'    </div>' +
-'    <input type="hidden" id="presetSlot2Name" value="' + esc(current.presetSlot2Name || "Preset 2") + '">' +
-'    <input type="hidden" id="presetSlot2Json" value="' + esc(current.presetSlot2Json || "") + '">' +
-'    <div class="preset-slot-row">' +
-'      <button type="button" class="preset-apply-btn" id="presetApplyBtn3" onclick="applyPresetSlot(3)" ' + (current.presetSlot3Json ? '' : 'disabled') + '>' + esc(current.presetSlot3Name || "Preset 3") + '</button>' +
-'      <input type="text" class="preset-name-input" id="presetNameInput3" style="display:none;" onblur="commitRenamePresetSlot(3)" onkeydown="if (event.key === \'Enter\') this.blur();">' +
-'      <button type="button" class="preset-icon-btn" onclick="savePresetSlot(3)" title="Save current design here">&#128190;</button>' +
-'      <button type="button" class="preset-icon-btn" onclick="startRenamePresetSlot(3)" title="Rename">&#9998;</button>' +
-'    </div>' +
-'    <input type="hidden" id="presetSlot3Name" value="' + esc(current.presetSlot3Name || "Preset 3") + '">' +
-'    <input type="hidden" id="presetSlot3Json" value="' + esc(current.presetSlot3Json || "") + '">' +
+'    ' + [1, 2, 3, 4, 5, 6].map(function (n) { return presetSlotHtml(current, n); }).join('') +
 
 '    <label for="presetExportBox" style="margin-top:12px;">Export current design</label>' +
 '    <button type="button" class="secondary-btn" onclick="exportDesignJson()">Generate JSON</button>' +
@@ -1550,6 +1597,10 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    <button type="button" class="secondary-btn" onclick="save(true)">Force refresh now</button>' +
 '    <button type="button" class="secondary-btn" onclick="save(true, true)">Force full refresh</button>' +
 '    <div class="help">"Force refresh now" fetches fresh data on the same terms as a normal refresh. "Force full refresh" forces a complete resend of every field in one message (not just whatever changed), and saves a copy of it in the Testing section below as "Last Full Refresh Raw Data" -- useful for confirming a full resync actually works, e.g. after a watch app update.</div>' +
+
+'    <div class="help" style="margin-top:14px;">Service status, as of when this page was opened -- gray: never used yet; green: last fetch worked; yellow: last fetch failed but some of the last 10 worked; red: last 10 all failed. Tap the (i) on yellow/red for details.</div>' +
+      serviceStatusRowsHtml(current) +
+'    <input type="hidden" id="serviceLogsJson" value="' + esc(JSON.stringify(current.serviceLogs || {})) + '">' +
 '    </div>' +
 '  </fieldset>' +
 
@@ -2769,6 +2820,37 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  closeConfirmModal();' +
 '  if (action) action();' +
 '}' +
+// One console-style line per logged attempt (newest first), reading
+// straight from serviceLogsJson's snapshot of that service's own
+// entries -- see servicelog.js's recordAttempt() on the PKJS side for
+// exactly what {t, ok, code, label} holds.
+'function openServiceLog(service, label) {' +
+'  var all = {};' +
+'  try { all = JSON.parse(document.getElementById("serviceLogsJson").value || "{}"); } catch (e) {}' +
+'  document.getElementById("serviceLogModalTitle").textContent = label + " \\u2014 last attempts";' +
+'  var entries = (all[service] && all[service].log) || [];' +
+'  var body = document.getElementById("serviceLogModalBody");' +
+'  body.innerHTML = "";' +
+'  if (entries.length === 0) {' +
+'    var empty = document.createElement("div");' +
+'    empty.className = "help";' +
+'    empty.textContent = "No attempts logged yet.";' +
+'    body.appendChild(empty);' +
+'  } else {' +
+'    entries.slice().reverse().forEach(function (e) {' +
+'      var d = new Date(e.t);' +
+'      var line = document.createElement("div");' +
+'      line.className = "service-log-line";' +
+'      var status = e.ok ? "OK" : ("ERR " + e.code + " - " + e.label);' +
+'      line.textContent = d.toLocaleDateString() + " " + d.toLocaleTimeString() + "  " + label + "  " + status;' +
+'      body.appendChild(line);' +
+'    });' +
+'  }' +
+'  document.getElementById("serviceLogModal").className = "modal-overlay open";' +
+'}' +
+'function closeServiceLogModal() {' +
+'  document.getElementById("serviceLogModal").className = "modal-overlay";' +
+'}' +
 'function applyPresetSlot(n) {' +
 '  var jsonEl = document.getElementById("presetSlot" + n + "Json");' +
 '  if (!jsonEl || !jsonEl.value) return;' +
@@ -3249,7 +3331,13 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    CONFIG_PRESET_2_NAME: document.getElementById("presetSlot2Name").value,' +
 '    CONFIG_PRESET_2_JSON: document.getElementById("presetSlot2Json").value,' +
 '    CONFIG_PRESET_3_NAME: document.getElementById("presetSlot3Name").value,' +
-'    CONFIG_PRESET_3_JSON: document.getElementById("presetSlot3Json").value' +
+'    CONFIG_PRESET_3_JSON: document.getElementById("presetSlot3Json").value,' +
+'    CONFIG_PRESET_4_NAME: document.getElementById("presetSlot4Name").value,' +
+'    CONFIG_PRESET_4_JSON: document.getElementById("presetSlot4Json").value,' +
+'    CONFIG_PRESET_5_NAME: document.getElementById("presetSlot5Name").value,' +
+'    CONFIG_PRESET_5_JSON: document.getElementById("presetSlot5Json").value,' +
+'    CONFIG_PRESET_6_NAME: document.getElementById("presetSlot6Name").value,' +
+'    CONFIG_PRESET_6_JSON: document.getElementById("presetSlot6Json").value' +
 '  };' +
 // Transient, one-shot -- read once by index.js's webviewclosed
 // handler to decide whether this save should force an immediate

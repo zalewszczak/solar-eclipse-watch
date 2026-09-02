@@ -3,6 +3,7 @@ var weather = require('./weather');
 var configPage = require('./config-page');
 var geocode = require('./geocode');
 var iss = require('./iss');
+var servicelog = require('./servicelog');
 
 var TYPE_CODE = { none: 0, partial: 1, total: 2, annular: 3 };
 
@@ -54,7 +55,7 @@ var KEY_TYPE_MAP = (function () {
   ]);
 
   assign(MSG_TYPE.WEATHER, [
-    'CLOUD_COVER', 'VIS_SCORE', 'WEATHER_SOURCES', 'WEATHER_CONDITION',
+    'CLOUD_COVER', 'VIS_SCORE', 'WEATHER_SOURCES', 'WEATHER_ERROR_CODE', 'WEATHER_CONDITION',
     'WEATHER_TEMP_C', 'WEATHER_TEMP_HIGH_C', 'WEATHER_TEMP_LOW_C',
     'UV_INDEX_X10', 'RAIN_CHANCE_PCT', 'HUMIDITY_PCT', 'WIND_SPEED_KMH',
     'WIND_DIR_DEG', 'DEW_POINT_C', 'PRESSURE_HPA', 'PRESSURE_TREND',
@@ -73,9 +74,9 @@ var KEY_TYPE_MAP = (function () {
   ]);
 
   assign(MSG_TYPE.SKY_EFFECTS, [
-    'AURORA_KP_X10', 'AURORA_VISIBILITY_PCT',
+    'AURORA_KP_X10', 'AURORA_VISIBILITY_PCT', 'AURORA_ERROR_CODE',
     'METEOR_INTENSITY', 'METEOR_SHOWER_NAME',
-    'ISS_ALT', 'ISS_AZ', 'ISS_COMPUTED_AT', 'ISS_NEXT_PASS'
+    'ISS_ALT', 'ISS_AZ', 'ISS_COMPUTED_AT', 'ISS_NEXT_PASS', 'ISS_ERROR_CODE'
   ]);
 
   assign(MSG_TYPE.FEATURES, [
@@ -1644,12 +1645,17 @@ function sendInvalid(errorCode) {
   sendFlatDict({ 'DATA_VALID': 0, 'ERROR_CODE': errorCode || 0 });
 }
 
-function issFieldsDict(issPos) {
+function issFieldsDict(issPos, issErrorCode) {
   return {
     'ISS_ALT': issPos ? Math.round(issPos.alt) : 0,
     'ISS_AZ': issPos ? Math.round(issPos.az) : 0,
     'ISS_COMPUTED_AT': issPos ? Math.floor(Date.now() / 1000) : 0,
-    'ISS_NEXT_PASS': (issPos && issPos.nextPass) ? toEpoch(issPos.nextPass) : 0
+    'ISS_NEXT_PASS': (issPos && issPos.nextPass) ? toEpoch(issPos.nextPass) : 0,
+    // Always sent (0 = this cycle's fetch was fine, or ISS wasn't in
+    // use at all) -- unlike the fields above, this is the signal the
+    // watch actually needs every cycle to know whether to trust them,
+    // so it can't be omitted the way a stale-data-preserving field can.
+    'ISS_ERROR_CODE': issErrorCode || 0
   };
 }
 
@@ -1695,6 +1701,8 @@ function extraWeatherFieldsDict(extra) {
   // sending it as a plain 0-9 integer.
   if (typeof extra.auroraKpX10 === 'number') dict['AURORA_KP_X10'] = extra.auroraKpX10;
   if (typeof extra.auroraVisibilityPct === 'number') dict['AURORA_VISIBILITY_PCT'] = extra.auroraVisibilityPct;
+  // Always sent, same reasoning as ISS_ERROR_CODE above.
+  dict['AURORA_ERROR_CODE'] = extra.auroraErrorCode || 0;
   return dict;
 }
 
@@ -1707,7 +1715,16 @@ function extraWeatherFieldsDict(extra) {
 // saves occasionally "zeroing out" weather: a save used to force an
 // immediate refetch, and if that particular refetch hit a transient
 // failure, the resulting all-zeros dict got sent and applied anyway.
-function sendNoEclipseToday(sky, cloudGrid, headlineCloud, headlineSources, locationName, moonPhase, riseSet, weatherCondition, weatherTempC, meteorShower, cloudAltitudePct, tempHighC, tempLowC, issPos, uvIndexMax, rainChancePct, humidityPct, windSpeedKmh, currentCloudPct, sunRiseTomorrow, extraWeather, stars, weatherOk) {
+// weatherErrorCode/issErrorCode: unlike the data fields, these ARE
+// always sent (0 = this cycle's fetch was fine) -- see
+// servicelog.js's classifyError() for what a nonzero value means (an
+// HTTP status, or one of its own small ERR_* codes for a failure that
+// never got an HTTP response at all). The watch uses
+// WEATHER_ERROR_CODE specifically to decide when a run of failures is
+// long enough to actually show "ERR ###" instead of quietly keeping
+// last known-good data on screen -- see weather_should_show_error()
+// in pebble-eclipse-watch.c.
+function sendNoEclipseToday(sky, cloudGrid, headlineCloud, headlineSources, locationName, moonPhase, riseSet, weatherCondition, weatherTempC, meteorShower, cloudAltitudePct, tempHighC, tempLowC, issPos, uvIndexMax, rainChancePct, humidityPct, windSpeedKmh, currentCloudPct, sunRiseTomorrow, extraWeather, stars, weatherOk, weatherErrorCode, issErrorCode) {
   // CLOUD_COVER/VIS_SCORE prefer currentCloudPct (same-source as the
   // sky canvas's own CLOUD_SAMPLES grid) but fall back to the
   // separate eclipse-window headline average if that's all that
@@ -1725,7 +1742,8 @@ function sendNoEclipseToday(sky, cloudGrid, headlineCloud, headlineSources, loca
     'SEP_SAMPLES': [0, 0],
     'MAG_SAMPLES': [0, 0],
     'RADIUS_RATIO_PCT': 0,
-    'LOCATION_NAME': locationName || ''
+    'LOCATION_NAME': locationName || '',
+    'WEATHER_ERROR_CODE': weatherErrorCode || 0
   };
   if (haveCloudData) {
     dict['CLOUD_COVER'] = displayCloudPct;
@@ -1746,14 +1764,14 @@ function sendNoEclipseToday(sky, cloudGrid, headlineCloud, headlineSources, loca
   Object.keys(sky_).forEach(function (k) { dict[k] = sky_[k]; });
   var extraW_ = extraWeatherFieldsDict(extraWeather);
   Object.keys(extraW_).forEach(function (k) { dict[k] = extraW_[k]; });
-  var iss_ = issFieldsDict(issPos);
+  var iss_ = issFieldsDict(issPos, issErrorCode);
   Object.keys(iss_).forEach(function (k) { dict[k] = iss_[k]; });
   sendFlatDict(dict);
 }
 
-// weatherOk: see sendNoEclipseToday's own comment above -- same
-// omit-rather-than-zero treatment, same reason.
-function sendEclipseData(result, sky, cloudGrid, headlineCloud, headlineSources, locationName, moonPhase, riseSet, weatherCondition, weatherTempC, meteorShower, cloudAltitudePct, tempHighC, tempLowC, issPos, uvIndexMax, rainChancePct, humidityPct, windSpeedKmh, currentCloudPct, sunRiseTomorrow, extraWeather, stars, weatherOk) {
+// weatherOk/weatherErrorCode/issErrorCode: see sendNoEclipseToday's
+// own comment above -- same reasoning, same treatment.
+function sendEclipseData(result, sky, cloudGrid, headlineCloud, headlineSources, locationName, moonPhase, riseSet, weatherCondition, weatherTempC, meteorShower, cloudAltitudePct, tempHighC, tempLowC, issPos, uvIndexMax, rainChancePct, humidityPct, windSpeedKmh, currentCloudPct, sunRiseTomorrow, extraWeather, stars, weatherOk, weatherErrorCode, issErrorCode) {
   var haveCloudData = (typeof currentCloudPct === 'number') || headlineSources > 0;
   var displayCloudPct = (typeof currentCloudPct === 'number') ? currentCloudPct : (headlineCloud || 0);
   var dict = {
@@ -1773,7 +1791,8 @@ function sendEclipseData(result, sky, cloudGrid, headlineCloud, headlineSources,
     'SEP_SAMPLES': u16ArrayToBytes(result.sepSamplesCentideg),
     'MAG_SAMPLES': result.magPctSamples,
     'RADIUS_RATIO_PCT': result.radiusRatioPct,
-    'LOCATION_NAME': locationName || ''
+    'LOCATION_NAME': locationName || '',
+    'WEATHER_ERROR_CODE': weatherErrorCode || 0
   };
   if (haveCloudData) {
     dict['CLOUD_COVER'] = displayCloudPct;
@@ -1794,7 +1813,7 @@ function sendEclipseData(result, sky, cloudGrid, headlineCloud, headlineSources,
   Object.keys(sky_).forEach(function (k) { dict[k] = sky_[k]; });
   var extraW_ = extraWeatherFieldsDict(extraWeather);
   Object.keys(extraW_).forEach(function (k) { dict[k] = extraW_[k]; });
-  var iss_ = issFieldsDict(issPos);
+  var iss_ = issFieldsDict(issPos, issErrorCode);
   Object.keys(iss_).forEach(function (k) { dict[k] = iss_[k]; });
   sendFlatDict(dict);
 }
@@ -1823,6 +1842,7 @@ function getLocationName(lat, lon, cb) {
   }
 
   geocode.reverseGeocode(lat, lon, function (err, name) {
+    servicelog.recordAttempt('geocode', err);
     if (err) {
       console.log('eclipse-watch: reverse geocode failed - ' + err.message);
       cb(cachedName || ''); // fall back to a stale name rather than nothing
@@ -1933,14 +1953,15 @@ function shouldSkipRefresh(lat, lon) {
 function fetchIssIfEnabled(lat, lon, cb) {
   var nextPassInUse = AQI_SLOT_CONTENT_KEYS.some(function (key) { return getSetting(key, '0') === '83'; });
   if (getSetting('CONFIG_SHOW_ISS', 'false') !== 'true' && !nextPassInUse) {
-    return cb(null);
+    return cb(null, 0);
   }
   iss.getIssPosition(lat, lon, function (err, pos) {
+    var cls = servicelog.recordAttempt('iss', err);
     if (err) {
       console.log('eclipse-watch: ISS fetch failed - ' + err.message);
-      return cb(null);
+      return cb(null, cls.code);
     }
-    cb(pos);
+    cb(pos, 0);
   });
 }
 
@@ -1957,6 +1978,7 @@ function fetchAirQualityIfEnabled(lat, lon, cb) {
   var inUse = AQI_SLOT_CONTENT_KEYS.some(function (key) { return getSetting(key, '0') === '36'; });
   if (!inUse) return cb({ aqiUs: null, aqiEu: null });
   weather.fetchAirQuality(lat, lon, function (err, aqi) {
+    servicelog.recordAttempt('airquality', err);
     if (err) {
       console.log('eclipse-watch: air quality fetch failed - ' + err.message);
       return cb({ aqiUs: null, aqiEu: null });
@@ -1972,18 +1994,19 @@ function fetchAirQualityIfEnabled(lat, lon, cb) {
 // just means no aurora reading this cycle (score 0), not a hard
 // refresh failure.
 function fetchAuroraIfEnabled(lat, lon, cb) {
-  if (getSetting('CONFIG_AURORA_ENABLED', 'false') !== 'true') return cb({ kp: null, visibilityPct: 0 });
+  if (getSetting('CONFIG_AURORA_ENABLED', 'false') !== 'true') return cb({ kp: null, visibilityPct: 0 }, 0);
   weather.fetchAuroraKp(function (err, kp) {
+    var cls = servicelog.recordAttempt('aurora', err || (typeof kp !== 'number' ? new Error('no data') : null));
     if (err || typeof kp !== 'number') {
       console.log('eclipse-watch: aurora Kp fetch failed - ' + (err ? err.message : 'no data'));
       // null (not 0) -- distinguishes "fetch failed, don't touch the
       // watch's last reading" from a genuine 0% visibility estimate,
       // same as every other network-sourced field in extraWeatherFieldsDict.
-      return cb({ kp: null, visibilityPct: null });
+      return cb({ kp: null, visibilityPct: null }, cls.code);
     }
     var geomagLat = Math.abs(astro.geomagneticLatitudeDeg(lat, lon));
     var score = astro.auroraVisibilityScore(kp, geomagLat);
-    cb({ kp: kp, visibilityPct: score });
+    cb({ kp: kp, visibilityPct: score }, 0);
   });
 }
 
@@ -2064,6 +2087,7 @@ function refreshAndSend(force) {
 
     getLocationName(lat, lon, function (locationName) {
       weather.getDailyCloudGrid(lat, lon, sky.times, now, function (gridErr, cloudGrid, extras) {
+        var weatherCls = servicelog.recordAttempt('weather', gridErr);
         if (gridErr) console.log('eclipse-watch: sky cloud grid fetch failed - ' + gridErr.message);
 
         // Open-Meteo's own sunrise/sunset accounts for standard
@@ -2083,27 +2107,28 @@ function refreshAndSend(force) {
           var headlineCloud = (w.cloudCoverPct === 255) ? 0 : w.cloudCoverPct;
           var headlineSources = w.sourceCount;
 
-          fetchIssIfEnabled(lat, lon, function (issPos) {
+          fetchIssIfEnabled(lat, lon, function (issPos, issErrorCode) {
             fetchAirQualityIfEnabled(lat, lon, function (aqi) {
-              fetchAuroraIfEnabled(lat, lon, function (aurora) {
+              fetchAuroraIfEnabled(lat, lon, function (aurora, auroraErrorCode) {
                 if (isStale()) { console.log('eclipse-watch: refresh superseded, discarding (final step)'); return; }
                 var extraWeather = {
                   windDirDeg: extras.windDirDeg, dewPointC: extras.dewPointC,
                   pressureHpa: extras.pressureHpa, pressureTrend: extras.pressureTrend,
                   aqiUs: aqi.aqiUs, aqiEu: aqi.aqiEu, altitudeMeters: altitudeMeters,
                   auroraKpX10: (typeof aurora.kp === 'number') ? Math.round(aurora.kp * 10) : null,
-                  auroraVisibilityPct: (typeof aurora.visibilityPct === 'number') ? aurora.visibilityPct : null
+                  auroraVisibilityPct: (typeof aurora.visibilityPct === 'number') ? aurora.visibilityPct : null,
+                  auroraErrorCode: auroraErrorCode
                 };
                 if (result.hasEclipse) {
-                  sendEclipseData(result, sky, cloudGrid, headlineCloud, headlineSources, locationName, moonPhase, riseSet, extras.condition, extras.tempC, meteorShower, extras.cloudAltitudePct, extras.tempHighC, extras.tempLowC, issPos, extras.uvIndexMax, extras.rainChancePct, extras.humidityPct, extras.windSpeedKmh, extras.currentCloudPct, sunRiseTomorrow, extraWeather, stars, !gridErr);
+                  sendEclipseData(result, sky, cloudGrid, headlineCloud, headlineSources, locationName, moonPhase, riseSet, extras.condition, extras.tempC, meteorShower, extras.cloudAltitudePct, extras.tempHighC, extras.tempLowC, issPos, extras.uvIndexMax, extras.rainChancePct, extras.humidityPct, extras.windSpeedKmh, extras.currentCloudPct, sunRiseTomorrow, extraWeather, stars, !gridErr, weatherCls.code, issErrorCode);
                 } else {
-                  sendNoEclipseToday(sky, cloudGrid, headlineCloud, headlineSources, locationName, moonPhase, riseSet, extras.condition, extras.tempC, meteorShower, extras.cloudAltitudePct, extras.tempHighC, extras.tempLowC, issPos, extras.uvIndexMax, extras.rainChancePct, extras.humidityPct, extras.windSpeedKmh, extras.currentCloudPct, sunRiseTomorrow, extraWeather, stars, !gridErr);
+                  sendNoEclipseToday(sky, cloudGrid, headlineCloud, headlineSources, locationName, moonPhase, riseSet, extras.condition, extras.tempC, meteorShower, extras.cloudAltitudePct, extras.tempHighC, extras.tempLowC, issPos, extras.uvIndexMax, extras.rainChancePct, extras.humidityPct, extras.windSpeedKmh, extras.currentCloudPct, sunRiseTomorrow, extraWeather, stars, !gridErr, weatherCls.code, issErrorCode);
                 }
                 markRefreshDone(lat, lon);
               });
             });
           });
-        });
+        }, function (source, srcErr) { servicelog.recordAttempt(source, srcErr); });
       });
     });
   });
@@ -2287,12 +2312,19 @@ Pebble.addEventListener('showConfiguration', function () {
     })(),
     debugOverrideEnabled: getSetting('CONFIG_DEBUG_OVERRIDE_ENABLED', 'false') === 'true',
     debugOverrideData: getSetting('CONFIG_DEBUG_OVERRIDE_DATA', ''),
+    serviceLogs: servicelog.snapshotAll(),
     presetSlot1Name: getSetting('CONFIG_PRESET_1_NAME', ''),
     presetSlot1Json: getSetting('CONFIG_PRESET_1_JSON', ''),
     presetSlot2Name: getSetting('CONFIG_PRESET_2_NAME', ''),
     presetSlot2Json: getSetting('CONFIG_PRESET_2_JSON', ''),
     presetSlot3Name: getSetting('CONFIG_PRESET_3_NAME', ''),
-    presetSlot3Json: getSetting('CONFIG_PRESET_3_JSON', '')
+    presetSlot3Json: getSetting('CONFIG_PRESET_3_JSON', ''),
+    presetSlot4Name: getSetting('CONFIG_PRESET_4_NAME', ''),
+    presetSlot4Json: getSetting('CONFIG_PRESET_4_JSON', ''),
+    presetSlot5Name: getSetting('CONFIG_PRESET_5_NAME', ''),
+    presetSlot5Json: getSetting('CONFIG_PRESET_5_JSON', ''),
+    presetSlot6Name: getSetting('CONFIG_PRESET_6_NAME', ''),
+    presetSlot6Json: getSetting('CONFIG_PRESET_6_JSON', '')
   });
   // Classic no-server config page: the whole thing is a data: URI, no
   // hosting required. The page reads a `return_to` query param that
@@ -2463,6 +2495,12 @@ Pebble.addEventListener('webviewclosed', function (e) {
   setSetting('CONFIG_PRESET_2_JSON', settings.CONFIG_PRESET_2_JSON || '');
   setSetting('CONFIG_PRESET_3_NAME', settings.CONFIG_PRESET_3_NAME || '');
   setSetting('CONFIG_PRESET_3_JSON', settings.CONFIG_PRESET_3_JSON || '');
+  setSetting('CONFIG_PRESET_4_NAME', settings.CONFIG_PRESET_4_NAME || '');
+  setSetting('CONFIG_PRESET_4_JSON', settings.CONFIG_PRESET_4_JSON || '');
+  setSetting('CONFIG_PRESET_5_NAME', settings.CONFIG_PRESET_5_NAME || '');
+  setSetting('CONFIG_PRESET_5_JSON', settings.CONFIG_PRESET_5_JSON || '');
+  setSetting('CONFIG_PRESET_6_NAME', settings.CONFIG_PRESET_6_NAME || '');
+  setSetting('CONFIG_PRESET_6_JSON', settings.CONFIG_PRESET_6_JSON || '');
 
   // The clock font / weather-readout toggle / colors are purely
   // cosmetic and phone-local -- send them immediately rather than

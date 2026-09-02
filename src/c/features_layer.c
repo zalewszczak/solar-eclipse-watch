@@ -972,6 +972,37 @@ static void to_upper_str(char *s) {
 // and never get one regardless of the outline_enabled setting --
 // there's nothing there for it to contrast against.
 
+// Weather-derived corner content (see weather_should_show_error()'s own
+// comment in eclipse_data.h for the 10-refresh-streak/never-had-data
+// reasoning) shows "ERR ###" instead of its normal reading once
+// that's true -- checked once here, after the big content switch
+// above has already built its normal buf/dynamic_color/icon_kind,
+// rather than duplicating the check in all 16 cases that touch
+// weather data below.
+static bool content_is_weather_derived(uint8_t content) {
+  switch (content) {
+    case 4:  // high/low temperature
+    case 5:  // current conditions
+    case 6:  // UV index
+    case 7:  // rain chance
+    case 8:  // humidity
+    case 9:  // wind speed
+    case 14: // visibility score
+    case 15: // cloud cover
+    case 31: // weather icon only
+    case 32: // temp + weather icon
+    case 34: // pressure
+    case 35: // wind direction
+    case 37: // dew point
+    case 73: // current temp only
+    case 76: // weather icon + current/high/low
+    case 77: // feels-like temp
+      return true;
+    default:
+      return false;
+  }
+}
+
 void features_draw_item(GContext *ctx, GRect bounds, const EclipseData *data,
                               uint8_t content, uint8_t color_mode,
                               GColor main_color, GColor accent_color, GColor bg_color,
@@ -1651,6 +1682,20 @@ void features_draw_item(GContext *ctx, GRect bounds, const EclipseData *data,
     case 3: color = dynamic_color; break;
     case 0:
     default: color = main_color; break;
+  }
+
+  // See content_is_weather_derived()'s own comment above -- overrides
+  // whatever the switch above built, uniformly, for any of the 16
+  // weather-sourced content ids at once. A deliberately plain, fixed
+  // red rather than anything mode/gradient-driven: this is reporting a
+  // fetch problem, not a weather reading, so it shouldn't try to blend
+  // in as one -- and skips translucent/dithering for the same reason
+  // (an error needs to stay legible, not fade like normal content can).
+  if (content_is_weather_derived(content) && weather_should_show_error(data)) {
+    snprintf(buf, sizeof(buf), "ERR %d", data->weather_error_code);
+    color = GColorRed;
+    translucent = false;
+    icon_kind = 0;
   }
   // Compass (85) needs 2 colors at once (see draw_compass_icon()'s own
   // comment) rather than the single flat `color` every other content
