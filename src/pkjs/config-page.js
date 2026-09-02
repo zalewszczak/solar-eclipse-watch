@@ -1149,6 +1149,38 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  </div>' +
 '</div>' +
 
+// Shadow style/angle apply to every hand's shadow at once (preset or
+// custom, see their own help text below) -- not hand-specific the way
+// the per-hand editors above are, so this is its own standalone modal
+// rather than another field inside openHandEditor()'s. Same "changes
+// apply live via onchange, no separate save step" behavior these two
+// fields already had inline before moving in here -- just decluttering
+// the main page, not changing how they work.
+'<div class="modal-overlay" id="shadowStyleModal" onclick="if (event.target === this) closeShadowStyleEditor();">' +
+'  <div class="modal-box">' +
+'    <div class="modal-title">Shadow style</div>' +
+
+'    <label for="shadowTranslucent">Shadow style</label>' +
+'    <select id="shadowTranslucent" onchange="updatePreview()">' +
+'      <option value="true"' + (current.shadowTranslucent !== 'false' ? ' selected' : '') + '>Translucent</option>' +
+'      <option value="false"' + (current.shadowTranslucent === 'false' ? ' selected' : '') + '>Solid</option>' +
+'    </select>' +
+'    <div class="help">Applies to every hand\'s shadow, preset or custom -- translucent dithers to ~50% (~25% for a hand that\'s itself semi-transparent), solid is fully opaque black.</div>' +
+
+'    <div class="slider-row">' +
+'      <label for="shadowAngle">Shadow angle <span class="val" id="shadowAngleVal">' + (current.shadowAngle || '120') + '&deg;</span></label>' +
+'      <div class="slider-with-buttons">' +
+'      <button type="button" class="slider-step-btn" onclick="stepSlider(\'shadowAngle\', -1)">&minus;</button>' +
+'      <input type="range" id="shadowAngle" min="0" max="359" step="1" value="' + (current.shadowAngle || '120') + '" oninput="onShadowAngleInput()">' +
+'      <button type="button" class="slider-step-btn" onclick="stepSlider(\'shadowAngle\', 1)">+</button>' +
+'      </div>' +
+'    </div>' +
+'    <div class="help">One shared light-source direction for every hand\'s shadow, preset or custom -- separate angles per hand would just be confusing since they all come from the same light.</div>' +
+
+'    <button type="button" class="modal-cancel-btn" onclick="closeShadowStyleEditor()" style="margin-top:14px;">Close</button>' +
+'  </div>' +
+'</div>' +
+
 '<div class="modal-overlay" id="donateModal">' +
 '  <div class="modal-box">' +
 '    <div class="modal-title">Support this project</div>' +
@@ -1270,24 +1302,6 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      <div class="help">Only applies to the 5 hand styles above (Classic/Modern/etc, not Custom) -- "Contrasting outline" auto-picks black or white against each hand\'s own color; "Background color outline" (the default, and the only look this had before this setting existed) traces the scheme\'s background color instead; "Shadow" drops a solid black 1px offset (down and right) rather than an outline at all. Icons, text features, and the Custom hand style all keep using the separate "Outline text, icons, and hands" checkbox above instead.</div>' +
 '      </div>' +
 
-'      <label for="shadowTranslucent" style="margin-top:12px;">Shadow style</label>' +
-'      <select id="shadowTranslucent" onchange="updatePreview()">' +
-'        <option value="true"' + (current.shadowTranslucent !== 'false' ? ' selected' : '') + '>Translucent</option>' +
-'        <option value="false"' + (current.shadowTranslucent === 'false' ? ' selected' : '') + '>Solid</option>' +
-'      </select>' +
-'      <div class="help">Applies to every hand\'s shadow, preset or custom -- translucent dithers to ~50% (~25% for a hand that\'s itself semi-transparent), solid is fully opaque black.</div>' +
-
-'      <div class="slider-row">' +
-'        <label for="shadowAngle">Shadow angle <span class="val" id="shadowAngleVal">' + (current.shadowAngle || '120') + '&deg;</span></label>' +
-'        <div class="slider-with-buttons">' +
-'        <button type="button" class="slider-step-btn" onclick="stepSlider(\'shadowAngle\', -1)">&minus;</button>' +
-'        <input type="range" id="shadowAngle" min="0" max="359" step="1" value="' + (current.shadowAngle || '120') + '" oninput="onShadowAngleInput()">' +
-'        <button type="button" class="slider-step-btn" onclick="stepSlider(\'shadowAngle\', 1)">+</button>' +
-'        </div>' +
-'      </div>' +
-'      <div class="help">One shared light-source direction for every hand\'s shadow, preset or custom -- separate angles per hand would just be confusing since they all come from the same light.</div>' +
-
-
 '      <div id="customHandSection" style="' + (current.bigAnalogHandStyle === '4' ? '' : 'display:none;') + '">' +
 '        <button type="button" class="marker-edit-btn" onclick="openHandEditor(\'hour\')">Edit hour hand &rsaquo;</button>' +
 '        <button type="button" class="marker-edit-btn" onclick="openHandEditor(\'min\')">Edit minute hand &rsaquo;</button>' +
@@ -1295,6 +1309,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '        <button type="button" class="marker-edit-btn" onclick="openCenterCircleEditor()">Edit center circle &rsaquo;</button>' +
           handHiddenInputsHtml(current) +
 '      </div>' +
+'      <button type="button" class="marker-edit-btn" onclick="openShadowStyleEditor()">Edit shadow style &rsaquo;</button>' +
 
 '      <label for="bigAnalogMarkerStyle" style="margin-top:12px;">Hour/second marker style</label>' +
 '      <select id="bigAnalogMarkerStyle" onchange="onMarkerStyleChange()">' +
@@ -1709,7 +1724,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    <input type="number" id="updateMins" min="5" max="60" step="5" value="' + esc(current.updateMins) + '">' +
 '    <div class="help">The watch won\'t re-fetch more often than this unless your location changes by more than ~10km.</div>' +
 '    <button type="button" class="secondary-btn" onclick="save(true)">Force refresh now</button>' +
-'    <div class="help">Fetches fresh data on the same terms as a normal refresh, bypassing the "don\'t refetch if recent and unmoved" skip. See the Testing section below to inspect exactly what gets sent.</div>' +
+'    <div class="help">Fetches fresh data on the same terms as a normal refresh, bypassing the "don\'t refetch if recent and unmoved" skip. See the Debug section below to inspect exactly what gets sent.</div>' +
 
 '    <div class="help" style="margin-top:14px;">Service status, as of when this page was opened -- gray: never used yet; green: last fetch worked; yellow: last fetch failed but some of the last 10 worked; red: last 10 all failed. Tap the (i) on yellow/red for details.</div>' +
       serviceStatusRowsHtml(current) +
@@ -1718,7 +1733,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  </fieldset>' +
 
 '  <fieldset>' +
-'    <div class="section-legend" onclick="toggleSection(\'testing\')">Testing <span class="chevron" id="chev-testing">&#9656;</span></div>' +
+'    <div class="section-legend" onclick="toggleSection(\'testing\')">Debug <span class="chevron" id="chev-testing">&#9656;</span></div>' +
 '    <div class="section-body" id="section-testing" style="display:none;">' +
 '    <div class="checkbox-row">' +
 '      <input type="checkbox" id="testMode" ' + testModeChecked + ' onchange="toggleTestMode()">' +
@@ -2764,6 +2779,12 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '}' +
 'function closeCenterCircleEditor() {' +
 '  document.getElementById("centerCircleModal").className = "modal-overlay";' +
+'}' +
+'function openShadowStyleEditor() {' +
+'  document.getElementById("shadowStyleModal").className = "modal-overlay open";' +
+'}' +
+'function closeShadowStyleEditor() {' +
+'  document.getElementById("shadowStyleModal").className = "modal-overlay";' +
 '}' +
 'function toggleMarkBtn(kind, i) {' +
 '  var hiddenId = kind === "hour" ? "markerTextHourMask" : "markerTextSecMask";' +

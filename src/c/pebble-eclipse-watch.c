@@ -1932,7 +1932,20 @@ static void hide_labels_callback(void *data) {
 }
 
 static void tap_handler(AccelAxisType axis, int32_t direction) {
-  eclipse_canvas_set_show_labels(s_canvas_layer, true);
+  // Planet seek (shake_anim_mode 4) draws its own dynamic label next
+  // to each body, tracking its live compass-relative position as the
+  // watch turns (see draw_planet_seek_body() in background_layer.c) --
+  // turning on the regular, fixed-position shake-to-reveal labels too
+  // would show both at once for the same body: one stuck at the plain
+  // eclipse-time position, one actually moving with the seek
+  // animation, laid right on top of each other. Skipped only for the
+  // canvas's own per-body labels (eclipse_canvas_set_show_labels) --
+  // the reveal window itself (s_labels_visible, the small-analog
+  // panel's layout shift, the shake_anim burst) still needs to open
+  // normally regardless of which mode is active.
+  if (s_data.shake_anim_mode != 4) {
+    eclipse_canvas_set_show_labels(s_canvas_layer, true);
+  }
   s_labels_visible = true;
   if (s_features_layer) features_layer_set_labels_visible(s_features_layer, true);
   uint8_t seconds = s_data.shake_label_seconds > 0 ? s_data.shake_label_seconds : 3;

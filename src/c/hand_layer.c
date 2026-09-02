@@ -39,7 +39,18 @@ static GColor resolve_scheme_color(uint8_t choice, GColor main_color, GColor acc
 // below for its exact point layout.
 #define HAND_MAX_POLY_PTS 5
 #define HAND_MAX_POLYS 2
-#define HAND_MAX_CIRCLES 2
+// 3, not 2 -- style 6/spade needs its rounded-line base's own 2 round
+// caps (from append_capsule_fp(..., round_caps=true)) PLUS its own
+// separate droplet-tip circle, 3 circles total in the one hand. Every
+// other style needs at most 2 (the round-capped base styles) or 0.
+// This used to be 2, silently overflowing HandGeometry.circles[] by
+// one entry on every single Spade redraw (regardless of preset --
+// unconditional, not something a particular slider combination
+// triggered) and corrupting whatever stack memory followed it, which
+// is what actually crashed the watch -- not a divide-by-zero (ARM's
+// integer divide instructions just return 0 on divide-by-zero, they
+// don't trap), a genuine out-of-bounds write.
+#define HAND_MAX_CIRCLES 3
 
 typedef struct {
   FGPoint pts[HAND_MAX_POLY_PTS];
@@ -219,15 +230,24 @@ static void compute_hand_geometry_fp(FGPoint center, int32_t angle, const HandCo
               // length, regular width, round-capped, i.e. exactly style
               // 0's own shape) plus a droplet tip ornament: a circle
               // (secondary_width) sitting at the very tip, topped with a
-              // triangular point when middle_offset is bigger than
-              // secondary_width (measured from the circle's own center --
-              // i.e. from the tip point) -- otherwise just the circle
-              // alone, which already looks like a rounded droplet top.
+              // triangular point once it's requested to extend past that
+              // circle -- otherwise just the circle alone, which already
+              // looks like a rounded droplet top.
       append_capsule_fp(geo, center, sin_v, cos_v, back_fp, len_fp, half_w_fp, thin_w, true);
       FGPoint tip = point_at_axial_fp(center, sin_v, cos_v, len_fp);
       geo->circles[geo->n_circles++] = (HandCircle){ .center = tip, .radius_fp = half_sw_fp, .thin = thin_sw };
-      if (cfg->middle_offset > cfg->secondary_width) {
-        FGPoint apex = point_at_axial_fp(center, sin_v, cos_v, len_fp + mid_fp);
+      // middle_offset is measured from the hand's own length-center --
+      // the midpoint between back_offset and length -- not from the
+      // tip, so middle_offset=0 lands exactly on that center rather
+      // than right at the circle. The triangular point only actually
+      // draws once it would extend past the circle (i.e. past the
+      // tip) -- any closer than that and it'd be entirely hidden
+      // inside/behind the circle anyway, so there's nothing to gain
+      // by drawing it.
+      int32_t center_axial_fp = (len_fp + back_fp) / 2;
+      int32_t apex_axial_fp = center_axial_fp + mid_fp;
+      if (apex_axial_fp > len_fp) {
+        FGPoint apex = point_at_axial_fp(center, sin_v, cos_v, apex_axial_fp);
         int32_t dx_sw, dy_sw;
         perp_offset_fp(sin_v, cos_v, half_sw_fp, &dx_sw, &dy_sw);
         HandPoly *poly = &geo->polys[geo->n_polys++];
