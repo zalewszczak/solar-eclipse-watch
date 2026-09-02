@@ -83,6 +83,40 @@ static int32_t round_div(int32_t num, int32_t denom) {
   return -((-num + denom / 2) / denom);
 }
 
+// Plain integer square root (binary/digit-by-digit method, same
+// approach as background_layer.c's own isqrt32) for 64-bit inputs --
+// needed here (rather than reusing that 32-bit one) because squared
+// sub-pixel (Q24.8) lengths overflow int32 well before the lengths
+// themselves get interesting (a ~100px edge is already ~25600 in fp
+// units, and 25600^2 alone is > INT32_MAX). Used by
+// inset_convex_polygon_fp() below (hollow-thickness ring fills) and
+// by hand_layer.c's serpentine style (per-vertex tangent
+// normalization) -- both need a real Euclidean length from fp
+// dx/dy, not just a comparison.
+static uint32_t isqrt64_fp(int64_t v) {
+  if (v <= 0) return 0;
+  uint64_t x = (uint64_t)v;
+  uint64_t res = 0;
+  uint64_t bit = (uint64_t)1 << 62; // highest even power of 4 <= any 64-bit value
+  while (bit > x) bit >>= 2;
+  while (bit != 0) {
+    if (x >= res + bit) {
+      x -= res + bit;
+      res = (res >> 1) + bit;
+    } else {
+      res >>= 1;
+    }
+    bit >>= 2;
+  }
+  return (uint32_t)res;
+}
+
+// Shared cap on how many points a caller may pass into
+// inset_convex_polygon_fp()/fill_polygon_ring_fp() below -- these two
+// need their own fixed-size local (stack) arrays, independent of
+// hand_layer.c's own HAND_MAX_POLY_PTS (which must stay <= this).
+#define SUBPIXEL_MAX_RING_PTS 16
+
 // 4x4 ordered-dither matrix + ~50% threshold, shared by every dithered
 // fill/stroke below.
 static const uint8_t BAYER4[4][4] = {
@@ -505,6 +539,171 @@ static void stroke_circle_fp(GContext *ctx, FGPoint center, int32_t radius_fp, G
     y++;
     if (err <= 0) err += 2 * y + 1;
     if (err > 0) { x--; err -= 2 * x + 1; }
+  }
+}
+
+// ---- inline ("hollow thickness") stroke fills ------------------------
+//
+// stroke_polygon_fp()/stroke_circle_fp() above trace a genuine but
+// always-1px perimeter. The "hollow thickness" hand feature (see
+// HandConfig.hollow_thickness in hand_layer.h) needs an inline stroke
+// of arbitrary width instead -- drawn WITHIN the shape's own outline,
+// unlike outline_enabled's perimeter trace which sits OUTSIDE it. The
+// two functions below build that by shrinking the shape inward by the
+// requested thickness (a standard convex polygon erosion for
+// polygons; a plain smaller radius for circles) and filling the ring
+// between the original boundary and the shrunk one.
+
+// Shrinks a convex polygon inward by `d_fp` along every edge. Works
+// for any convex n-gon (any of this file's callers build their
+// points in whichever order was convenient for that particular
+// shape), by testing per-edge which of its two perpendiculars points
+// toward the polygon's own centroid rather than assuming a fixed
+// winding order.
+//
+// For each edge, offsets it inward by exactly d_fp, then re-
+// intersects each pair of consecutive offset edges to get the new
+// vertex (standard line-line intersection, all math kept in int64 so
+// the intersection's own fractional position isn't lost to integer
+// truncation the way a naive "t = t_num/denom" split into two steps
+// would lose it).
+//
+// Returns false (out_pts left untouched) if d_fp is too large for
+// this particular polygon -- offsetting every edge inward by more
+// than the shape's own narrowest span inverts the winding instead of
+// shrinking it, detected here by comparing the eroded shape's own
+// signed area sign against the original's. Callers should fall back
+// to a plain solid fill in that case.
+static bool inset_convex_polygon_fp(const FGPoint *pts, int n, int32_t d_fp, FGPoint *out_pts) {
+  if (d_fp <= 0 || n < 3 || n > SUBPIXEL_MAX_RING_PTS) return false;
+
+  FGPoint centroid = fgpoint_new(0, 0);
+  for (int i = 0; i < n; i++) { centroid.x += pts[i].x; centroid.y += pts[i].y; }
+  centroid.x /= n; centroid.y /= n;
+
+  FGPoint offset_a[SUBPIXEL_MAX_RING_PTS]; // each edge's own offset start point
+  int32_t dir_x[SUBPIXEL_MAX_RING_PTS], dir_y[SUBPIXEL_MAX_RING_PTS]; // and direction (B - A)
+
+  for (int i = 0; i < n; i++) {
+    FGPoint a = pts[i], b = pts[(i + 1) % n];
+    int32_t ex = b.x - a.x, ey = b.y - a.y;
+    int64_t len_sq = (int64_t)ex * ex + (int64_t)ey * ey;
+    if (len_sq == 0) return false; // degenerate (coincident) edge -- bail to a solid fallback
+    int32_t elen = (int32_t)isqrt64_fp(len_sq);
+
+    // two candidate perpendiculars; pick whichever points toward the centroid
+    int32_t nx = -ey, ny = ex;
+    int32_t mx = a.x + ex / 2, my = a.y + ey / 2; // edge midpoint
+    int64_t dot = (int64_t)(centroid.x - mx) * nx + (int64_t)(centroid.y - my) * ny;
+    if (dot < 0) { nx = -nx; ny = -ny; }
+
+    int32_t off_x = round_div(nx * d_fp, elen);
+    int32_t off_y = round_div(ny * d_fp, elen);
+    offset_a[i] = fgpoint_new(a.x + off_x, a.y + off_y);
+    dir_x[i] = ex; dir_y[i] = ey;
+  }
+
+  for (int i = 0; i < n; i++) {
+    int prev = (i - 1 + n) % n;
+    int64_t ex = (int64_t)offset_a[i].x - offset_a[prev].x;
+    int64_t ey = (int64_t)offset_a[i].y - offset_a[prev].y;
+    // line(prev): offset_a[prev] + t*dir[prev]; line(i): offset_a[i] + s*dir[i]
+    int64_t det = (int64_t)dir_x[i] * dir_y[prev] - (int64_t)dir_x[prev] * dir_y[i];
+    if (det == 0) {
+      out_pts[i] = offset_a[i]; // parallel edges -- fall back to the offset edge's own start point
+      continue;
+    }
+    int64_t t_num = (int64_t)dir_x[i] * ey - (int64_t)dir_y[i] * ex;
+    out_pts[i] = fgpoint_new(
+      offset_a[prev].x + (int32_t)((t_num * dir_x[prev]) / det),
+      offset_a[prev].y + (int32_t)((t_num * dir_y[prev]) / det)
+    );
+  }
+
+  int64_t area_out = 0, area_in = 0;
+  for (int i = 0; i < n; i++) {
+    FGPoint a = pts[i], b = pts[(i + 1) % n];
+    area_out += (int64_t)a.x * b.y - (int64_t)b.x * a.y;
+    FGPoint ia = out_pts[i], ib = out_pts[(i + 1) % n];
+    area_in += (int64_t)ia.x * ib.y - (int64_t)ib.x * ia.y;
+  }
+  if ((area_out > 0) != (area_in > 0)) return false;
+
+  return true;
+}
+
+// Fills the ring between a convex polygon and its own d_fp-inset
+// (i.e. an inline stroke of thickness d_fp, drawn just inside the
+// polygon's boundary) -- or, if the inset failed (thickness too large
+// for this shape -- see inset_convex_polygon_fp() above), just fills
+// the whole polygon solid instead of leaving it empty.
+static void fill_polygon_ring_fp(GContext *ctx, const FGPoint *pts, int n, int32_t thickness_fp, GColor color, bool dithered) {
+  FGPoint inner[SUBPIXEL_MAX_RING_PTS];
+  bool have_inner = inset_convex_polygon_fp(pts, n, thickness_fp, inner);
+
+  if (!have_inner) {
+    if (dithered) fill_polygon_dithered_fp(ctx, pts, n, color);
+    else fill_polygon_fp(ctx, pts, n, color);
+    return;
+  }
+
+  int32_t min_x_fp = pts[0].x, max_x_fp = pts[0].x;
+  int32_t min_y_fp = pts[0].y, max_y_fp = pts[0].y;
+  for (int i = 1; i < n; i++) {
+    if (pts[i].x < min_x_fp) min_x_fp = pts[i].x;
+    if (pts[i].x > max_x_fp) max_x_fp = pts[i].x;
+    if (pts[i].y < min_y_fp) min_y_fp = pts[i].y;
+    if (pts[i].y > max_y_fp) max_y_fp = pts[i].y;
+  }
+  int16_t min_x = (int16_t)(min_x_fp >> SUBPIXEL_BITS);
+  int16_t max_x = (int16_t)((max_x_fp + SUBPIXEL_MASK) >> SUBPIXEL_BITS);
+  int16_t min_y = (int16_t)(min_y_fp >> SUBPIXEL_BITS);
+  int16_t max_y = (int16_t)((max_y_fp + SUBPIXEL_MASK) >> SUBPIXEL_BITS);
+
+  graphics_context_set_fill_color(ctx, color);
+  for (int16_t y = min_y; y <= max_y; y++) {
+    int32_t sample_y = ((int32_t)y << SUBPIXEL_BITS) + SUBPIXEL_HALF;
+    for (int16_t x = min_x; x <= max_x; x++) {
+      if (dithered && BAYER4[y & 3][x & 3] >= 8) continue;
+      int32_t sample_x = ((int32_t)x << SUBPIXEL_BITS) + SUBPIXEL_HALF;
+      FGPoint sample = fgpoint_new(sample_x, sample_y);
+      if (point_in_convex_polygon_fp(pts, n, sample) && !point_in_convex_polygon_fp(inner, n, sample)) {
+        graphics_fill_rect(ctx, GRect(x, y, 1, 1), 0, GCornerNone);
+      }
+    }
+  }
+}
+
+// Same idea for a circle -- the ring between radius outer_r_fp and
+// outer_r_fp - thickness_fp, or a plain solid disc if that inner
+// radius would be <= 0 (thickness covers the whole circle).
+static void fill_circle_ring_fp(GContext *ctx, FGPoint center, int32_t outer_r_fp, int32_t thickness_fp, GColor color, bool dithered) {
+  int32_t inner_r_fp = outer_r_fp - thickness_fp;
+  if (inner_r_fp <= 0) {
+    fill_circle_fp(ctx, center, outer_r_fp, color, dithered);
+    return;
+  }
+
+  int16_t min_x = (int16_t)((center.x - outer_r_fp) >> SUBPIXEL_BITS);
+  int16_t max_x = (int16_t)((center.x + outer_r_fp + SUBPIXEL_MASK) >> SUBPIXEL_BITS);
+  int16_t min_y = (int16_t)((center.y - outer_r_fp) >> SUBPIXEL_BITS);
+  int16_t max_y = (int16_t)((center.y + outer_r_fp + SUBPIXEL_MASK) >> SUBPIXEL_BITS);
+
+  int64_t r_out_sq = (int64_t)outer_r_fp * outer_r_fp;
+  int64_t r_in_sq = (int64_t)inner_r_fp * inner_r_fp;
+  graphics_context_set_fill_color(ctx, color);
+
+  for (int16_t y = min_y; y <= max_y; y++) {
+    int64_t dy = (((int32_t)y << SUBPIXEL_BITS) + SUBPIXEL_HALF) - center.y;
+    int64_t dy_sq = dy * dy;
+    for (int16_t x = min_x; x <= max_x; x++) {
+      if (dithered && BAYER4[y & 3][x & 3] >= 8) continue;
+      int64_t dx = (((int32_t)x << SUBPIXEL_BITS) + SUBPIXEL_HALF) - center.x;
+      int64_t d_sq = dx * dx + dy_sq;
+      if (d_sq <= r_out_sq && d_sq >= r_in_sq) {
+        graphics_fill_rect(ctx, GRect(x, y, 1, 1), 0, GCornerNone);
+      }
+    }
   }
 }
 

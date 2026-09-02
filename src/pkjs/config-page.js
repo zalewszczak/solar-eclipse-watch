@@ -614,7 +614,7 @@ function schemeColorOptionsHtml(selected) {
   );
 }
 
-// The 7 fields per hand (hour/min/sec -- 21 total) that get sent to the
+// The 14 fields per hand (hour/min/sec -- 42 total) that get sent to the
 // watch, kept as hidden inputs edited via the 3 popups below, same
 // pattern as customMarkerHiddenInputsHtml(). Defaults approximate the
 // "Pointy" procedural style so hands are visible immediately, rather
@@ -625,14 +625,17 @@ function handHiddenInputsHtml(current) {
     handHourMiddleOffset: '0', handHourSecondaryWidth: '6',
     handHourColor: '0', handHourOutlineEnabled: 'false', handHourOutlineColor: '0', handHourTranslucent: 'false',
     handHourShadowEnabled: 'false', handHourShadowDistance: '2',
+    handHourHollow: 'false', handHourHollowThickness: '1',
     handMinStyle: '1', handMinWidth: '18', handMinLength: '78', handMinBackOffset: '0',
     handMinMiddleOffset: '0', handMinSecondaryWidth: '6',
     handMinColor: '0', handMinOutlineEnabled: 'false', handMinOutlineColor: '0', handMinTranslucent: 'false',
     handMinShadowEnabled: 'false', handMinShadowDistance: '2',
+    handMinHollow: 'false', handMinHollowThickness: '1',
     handSecStyle: '0', handSecWidth: '2', handSecLength: '85', handSecBackOffset: '0',
     handSecMiddleOffset: '0', handSecSecondaryWidth: '6',
     handSecColor: '1', handSecOutlineEnabled: 'false', handSecOutlineColor: '0', handSecTranslucent: 'false',
-    handSecShadowEnabled: 'false', handSecShadowDistance: '2'
+    handSecShadowEnabled: 'false', handSecShadowDistance: '2',
+    handSecHollow: 'false', handSecHollowThickness: '1'
   };
   var html = '';
   for (var key in d) {
@@ -669,6 +672,9 @@ function handEditorModalHtml(kind, title) {
 '      <option value="5">Pomme</option>' +
 '      <option value="6">Spade</option>' +
 '      <option value="7">Arrow</option>' +
+'      <option value="8">Leaf</option>' +
+'      <option value="9">Syringe</option>' +
+'      <option value="10">Serpentine</option>' +
 '    </select>' +
 
 '    <div class="slider-row">' +
@@ -713,7 +719,7 @@ function handEditorModalHtml(kind, title) {
 '      <button type="button" class="slider-step-btn" onclick="stepSlider(\'' + p + 'SecondaryWidth\', 1)">+</button>' +
 '      </div>' +
 '    </div>' +
-'    <div class="help" id="' + p + 'MiddleSecondaryHelp">Only used by Dauphine/Sword/Pomme/Spade/Arrow: Dauphine\'s side points and back-point floor; Sword\'s mid-bulge position and width; Pomme\'s thick/thin joint and tail width; Spade\'s droplet point height and diameter; Arrow\'s tip-triangle height and width.</div>' +
+'    <div class="help" id="' + p + 'MiddleSecondaryHelp">Middle offset: Dauphine\'s side points, Sword\'s mid-bulge position, Pomme\'s thick/thin joint, Spade\'s droplet point height, Arrow\'s tip-triangle height, Leaf\'s peak position, Syringe\'s needle corner position, Serpentine\'s curve diameter/direction. Secondary width (all except Leaf): Sword\'s mid-bulge width, Pomme\'s tail width, Spade\'s droplet diameter, Arrow\'s tip-triangle width, Syringe\'s needle-tip width, Serpentine\'s squiggle envelope.</div>' +
 
 '    <label for="' + p + 'Color">Color</label>' +
 '    <select id="' + p + 'Color">' + schemeColorOptionsHtml('0') + '<option value="3">None (don\'t fill)</option></select>' +
@@ -724,6 +730,20 @@ function handEditorModalHtml(kind, title) {
 '      <label for="' + p + 'Translucent" style="margin:0;">Semi-transparent</label>' +
 '    </div>' +
 '    <div class="help">Dithers the fill (and outline, if enabled) to ~50% so the sky shows through.</div>' +
+
+'    <div class="checkbox-row" style="margin-top:12px;">' +
+'      <input type="checkbox" id="' + p + 'Hollow" onchange="onHandHollowChange(\'' + kind + '\')">' +
+'      <label for="' + p + 'Hollow" style="margin:0;">Hollow</label>' +
+'    </div>' +
+'    <div class="help">Draws a thick inline stroke of the shape\'s own outline instead of a solid fill -- within the shape\'s bounds, unlike Outline below which marks it from the outside.</div>' +
+'    <div class="slider-row" id="' + p + 'HollowThicknessRow">' +
+'      <label for="' + p + 'HollowThickness">Hollow thickness <span class="val" id="' + p + 'HollowThicknessVal"></span></label>' +
+'      <div class="slider-with-buttons">' +
+'      <button type="button" class="slider-step-btn" onclick="stepSlider(\'' + p + 'HollowThickness\', -1)">&minus;</button>' +
+'      <input type="range" id="' + p + 'HollowThickness" min="1" max="40" step="1" oninput="onHandSliderInput(\'' + kind + '\')">' +
+'      <button type="button" class="slider-step-btn" onclick="stepSlider(\'' + p + 'HollowThickness\', 1)">+</button>' +
+'      </div>' +
+'    </div>' +
 
 '    <div class="checkbox-row" style="margin-top:12px;">' +
 '      <input type="checkbox" id="' + p + 'OutlineEnabled">' +
@@ -2824,12 +2844,16 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '}' +
 
 // ---- custom hour/minute/second hand popups ----------------------------
-'var HE_FIELDS = ["Style", "Width", "Length", "BackOffset", "MiddleOffset", "SecondaryWidth", "Color", "OutlineEnabled", "OutlineColor", "Translucent", "ShadowEnabled", "ShadowDistance"];' +
-'var HE_CHECKBOX_FIELDS = ["OutlineEnabled", "Translucent", "ShadowEnabled"];' +
-// Which HandConfig.style values (0-7) actually use MiddleOffset/
-// SecondaryWidth -- 0-2 (dot/triangle/square) ignore both, same as
-// the C side. Drives updateHandFieldVisibility() below.
-'var HAND_STYLES_WITH_MIDDLE_SECONDARY = ["3", "4", "5", "6", "7"];' +
+'var HE_FIELDS = ["Style", "Width", "Length", "BackOffset", "MiddleOffset", "SecondaryWidth", "Color", "OutlineEnabled", "OutlineColor", "Translucent", "ShadowEnabled", "ShadowDistance", "Hollow", "HollowThickness"];' +
+'var HE_CHECKBOX_FIELDS = ["OutlineEnabled", "Translucent", "ShadowEnabled", "Hollow"];' +
+// Which HandConfig.style values actually use MiddleOffset -- 0-2
+// (dot/triangle/square) ignore it, same as the C side; every other
+// style (3-10) uses it. SecondaryWidth is used by the same set MINUS
+// Leaf (8), which only has a single Width slider (its own peak is
+// always exactly `width` wide -- see hand_layer.c's own comment).
+// Drives updateHandFieldVisibility() below.
+'var HAND_STYLES_WITH_MIDDLE = ["3", "4", "5", "6", "7", "8", "9", "10"];' +
+'var HAND_STYLES_WITH_SECONDARY = ["3", "4", "5", "6", "7", "9", "10"];' +
 'var HAND_COPY_SOURCE = { hour: "min", min: "hour", sec: "min" };' +
 'function heHiddenPrefix(kind) { return kind === "hour" ? "handHour" : (kind === "min" ? "handMin" : "handSec"); }' +
 'function hePopupPrefix(kind) { return "he" + kind.charAt(0).toUpperCase() + kind.slice(1); }' +
@@ -3101,25 +3125,42 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '}' +
 'function updateHandValLabels(kind) {' +
 '  var p = hePopupPrefix(kind);' +
-'  ["Width", "Length", "BackOffset", "MiddleOffset", "SecondaryWidth", "ShadowDistance"].forEach(function (f) {' +
+'  ["Width", "Length", "BackOffset", "MiddleOffset", "SecondaryWidth", "ShadowDistance", "HollowThickness"].forEach(function (f) {' +
 '    var el = document.getElementById(p + f);' +
 '    var out = document.getElementById(p + f + "Val");' +
 '    if (el && out) out.textContent = el.value + "px";' +
 '  });' +
 '}' +
-// Shows Middle offset/Secondary width only for the 5 styles that
-// actually use them (see HAND_STYLES_WITH_MIDDLE_SECONDARY) -- 0-2
-// (dot/triangle/square) just leave the popup\'s last-set values alone,
-// unused, same as the C side already ignores them for those styles.
+// Shows Middle offset for the 8 styles that use it and Secondary
+// width for the 7 that do (see HAND_STYLES_WITH_MIDDLE/
+// HAND_STYLES_WITH_SECONDARY) -- independently, since Leaf uses only
+// the former. The shared help text tags along with Middle offset
+// (the superset of the two).
 'function updateHandFieldVisibility(kind) {' +
 '  var p = hePopupPrefix(kind);' +
 '  var styleEl = document.getElementById(p + "Style");' +
 '  if (!styleEl) return;' +
-'  var show = HAND_STYLES_WITH_MIDDLE_SECONDARY.indexOf(styleEl.value) !== -1;' +
-'  ["MiddleOffsetRow", "SecondaryWidthRow", "MiddleSecondaryHelp"].forEach(function (id) {' +
+'  var showMiddle = HAND_STYLES_WITH_MIDDLE.indexOf(styleEl.value) !== -1;' +
+'  var showSecondary = HAND_STYLES_WITH_SECONDARY.indexOf(styleEl.value) !== -1;' +
+'  ["MiddleOffsetRow", "MiddleSecondaryHelp"].forEach(function (id) {' +
 '    var el = document.getElementById(p + id);' +
-'    if (el) el.style.display = show ? "" : "none";' +
+'    if (el) el.style.display = showMiddle ? "" : "none";' +
 '  });' +
+'  var secEl = document.getElementById(p + "SecondaryWidthRow");' +
+'  if (secEl) secEl.style.display = showSecondary ? "" : "none";' +
+'}' +
+// Shows/hides the Hollow thickness slider based on the Hollow
+// checkbox -- called both on the checkbox's own onchange and once up
+// front when the popup opens/gets prefilled.
+'function updateHandHollowVisibility(kind) {' +
+'  var p = hePopupPrefix(kind);' +
+'  var box = document.getElementById(p + "Hollow");' +
+'  var row = document.getElementById(p + "HollowThicknessRow");' +
+'  if (row) row.style.display = (box && box.checked) ? "" : "none";' +
+'}' +
+'function onHandHollowChange(kind) {' +
+'  updateHandHollowVisibility(kind);' +
+'  updatePreview();' +
 '}' +
 'function onCustomHandStyleChange(kind) {' +
 '  updateHandFieldVisibility(kind);' +
@@ -3141,6 +3182,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  });' +
 '  updateHandValLabels(kind);' +
 '  updateHandFieldVisibility(kind);' +
+'  updateHandHollowVisibility(kind);' +
 '  document.getElementById("handEditorModal-" + kind).className = "modal-overlay open";' +
 '}' +
 'function closeHandEditor(kind) {' +
@@ -3171,6 +3213,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  });' +
 '  updateHandValLabels(kind);' +
 '  updateHandFieldVisibility(kind);' +
+'  updateHandHollowVisibility(kind);' +
 '}' +
 
 'function onCornerFontChange() {' +
@@ -3458,6 +3501,8 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    CONFIG_HAND_HOUR_TRANSLUCENT: document.getElementById("handHourTranslucent").value === "true",' +
 '    CONFIG_HAND_HOUR_SHADOW_ENABLED: document.getElementById("handHourShadowEnabled").value === "true",' +
 '    CONFIG_HAND_HOUR_SHADOW_DISTANCE: document.getElementById("handHourShadowDistance").value,' +
+'    CONFIG_HAND_HOUR_HOLLOW: document.getElementById("handHourHollow").value === "true",' +
+'    CONFIG_HAND_HOUR_HOLLOW_THICKNESS: document.getElementById("handHourHollowThickness").value,' +
 '    CONFIG_HAND_MIN_STYLE: document.getElementById("handMinStyle").value,' +
 '    CONFIG_HAND_MIN_WIDTH: document.getElementById("handMinWidth").value,' +
 '    CONFIG_HAND_MIN_LENGTH: document.getElementById("handMinLength").value,' +
@@ -3470,6 +3515,8 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    CONFIG_HAND_MIN_TRANSLUCENT: document.getElementById("handMinTranslucent").value === "true",' +
 '    CONFIG_HAND_MIN_SHADOW_ENABLED: document.getElementById("handMinShadowEnabled").value === "true",' +
 '    CONFIG_HAND_MIN_SHADOW_DISTANCE: document.getElementById("handMinShadowDistance").value,' +
+'    CONFIG_HAND_MIN_HOLLOW: document.getElementById("handMinHollow").value === "true",' +
+'    CONFIG_HAND_MIN_HOLLOW_THICKNESS: document.getElementById("handMinHollowThickness").value,' +
 '    CONFIG_HAND_SEC_STYLE: document.getElementById("handSecStyle").value,' +
 '    CONFIG_HAND_SEC_WIDTH: document.getElementById("handSecWidth").value,' +
 '    CONFIG_HAND_SEC_LENGTH: document.getElementById("handSecLength").value,' +
@@ -3482,6 +3529,8 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    CONFIG_HAND_SEC_TRANSLUCENT: document.getElementById("handSecTranslucent").value === "true",' +
 '    CONFIG_HAND_SEC_SHADOW_ENABLED: document.getElementById("handSecShadowEnabled").value === "true",' +
 '    CONFIG_HAND_SEC_SHADOW_DISTANCE: document.getElementById("handSecShadowDistance").value,' +
+'    CONFIG_HAND_SEC_HOLLOW: document.getElementById("handSecHollow").value === "true",' +
+'    CONFIG_HAND_SEC_HOLLOW_THICKNESS: document.getElementById("handSecHollowThickness").value,' +
 '    CONFIG_CENTER_CIRCLE_RADIUS: document.getElementById("centerCircleRadius").value,' +
 '    CONFIG_CENTER_CIRCLE_COLOR: document.getElementById("centerCircleColor").value,' +
 '    CONFIG_DEBUG_OVERRIDE_DATA: document.getElementById("debugData").value,' +

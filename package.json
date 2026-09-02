@@ -230,7 +230,13 @@
       "LOCATION_NAME",
       "DATA_VALID",
       "ERROR_CODE",
-      "REQUEST_UPDATE"
+      "REQUEST_UPDATE",
+      "HAND_HOUR_HOLLOW",
+      "HAND_HOUR_HOLLOW_THICKNESS",
+      "HAND_MIN_HOLLOW",
+      "HAND_MIN_HOLLOW_THICKNESS",
+      "HAND_SEC_HOLLOW",
+      "HAND_SEC_HOLLOW_THICKNESS"
     ],
     "resources": {
       "media": [

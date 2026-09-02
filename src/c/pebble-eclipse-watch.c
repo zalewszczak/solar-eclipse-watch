@@ -1479,6 +1479,8 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   if ((t = dict_find(iter, MESSAGE_KEY_HAND_HOUR_TRANSLUCENT))) s_data.hand_hour.translucent = t->value->uint8 != 0;
   if ((t = dict_find(iter, MESSAGE_KEY_HAND_HOUR_SHADOW_ENABLED))) s_data.hand_hour.shadow_enabled = t->value->uint8 != 0;
   if ((t = dict_find(iter, MESSAGE_KEY_HAND_HOUR_SHADOW_DISTANCE))) s_data.hand_hour.shadow_distance_px = t->value->uint8;
+  if ((t = dict_find(iter, MESSAGE_KEY_HAND_HOUR_HOLLOW))) s_data.hand_hour.hollow = t->value->uint8 != 0;
+  if ((t = dict_find(iter, MESSAGE_KEY_HAND_HOUR_HOLLOW_THICKNESS))) s_data.hand_hour.hollow_thickness = t->value->uint8;
   if ((t = dict_find(iter, MESSAGE_KEY_HAND_MIN_STYLE))) s_data.hand_minute.style = t->value->uint8;
   if ((t = dict_find(iter, MESSAGE_KEY_HAND_MIN_WIDTH))) s_data.hand_minute.width = t->value->uint8;
   if ((t = dict_find(iter, MESSAGE_KEY_HAND_MIN_LENGTH))) s_data.hand_minute.length = t->value->uint8;
@@ -1491,6 +1493,8 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   if ((t = dict_find(iter, MESSAGE_KEY_HAND_MIN_TRANSLUCENT))) s_data.hand_minute.translucent = t->value->uint8 != 0;
   if ((t = dict_find(iter, MESSAGE_KEY_HAND_MIN_SHADOW_ENABLED))) s_data.hand_minute.shadow_enabled = t->value->uint8 != 0;
   if ((t = dict_find(iter, MESSAGE_KEY_HAND_MIN_SHADOW_DISTANCE))) s_data.hand_minute.shadow_distance_px = t->value->uint8;
+  if ((t = dict_find(iter, MESSAGE_KEY_HAND_MIN_HOLLOW))) s_data.hand_minute.hollow = t->value->uint8 != 0;
+  if ((t = dict_find(iter, MESSAGE_KEY_HAND_MIN_HOLLOW_THICKNESS))) s_data.hand_minute.hollow_thickness = t->value->uint8;
   if ((t = dict_find(iter, MESSAGE_KEY_HAND_SEC_STYLE))) s_data.hand_second.style = t->value->uint8;
   if ((t = dict_find(iter, MESSAGE_KEY_HAND_SEC_WIDTH))) s_data.hand_second.width = t->value->uint8;
   if ((t = dict_find(iter, MESSAGE_KEY_HAND_SEC_LENGTH))) s_data.hand_second.length = t->value->uint8;
@@ -1503,6 +1507,8 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   if ((t = dict_find(iter, MESSAGE_KEY_HAND_SEC_TRANSLUCENT))) s_data.hand_second.translucent = t->value->uint8 != 0;
   if ((t = dict_find(iter, MESSAGE_KEY_HAND_SEC_SHADOW_ENABLED))) s_data.hand_second.shadow_enabled = t->value->uint8 != 0;
   if ((t = dict_find(iter, MESSAGE_KEY_HAND_SEC_SHADOW_DISTANCE))) s_data.hand_second.shadow_distance_px = t->value->uint8;
+  if ((t = dict_find(iter, MESSAGE_KEY_HAND_SEC_HOLLOW))) s_data.hand_second.hollow = t->value->uint8 != 0;
+  if ((t = dict_find(iter, MESSAGE_KEY_HAND_SEC_HOLLOW_THICKNESS))) s_data.hand_second.hollow_thickness = t->value->uint8;
   if ((t = dict_find(iter, MESSAGE_KEY_CENTER_CIRCLE_RADIUS))) s_data.center_circle_radius = t->value->uint8;
   if ((t = dict_find(iter, MESSAGE_KEY_CENTER_CIRCLE_COLOR))) s_data.center_circle_color = t->value->uint8;
   if ((t = dict_find(iter, MESSAGE_KEY_BIG_ANALOG_MARKER_STYLE))) {

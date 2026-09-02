@@ -593,8 +593,9 @@ function markerTextRomanCode() { return getSetting('CONFIG_MARKER_TEXT_ROMAN', '
 // Custom hour/minute/second hand system (bigAnalogHandStyleCode() === 4) --
 // see HandConfig in hand_layer.h for what each field means. Style 0-2 are
 // the original dot/triangle/square; 3-7 are dauphine/sword/spade/arrow/
-// pomme, which additionally use middle_offset/secondary_width below.
-function handStyleFieldCode(key, fallback) { return clampInt(getSetting(key, fallback), 0, 7, fallback); }
+// pomme, and 8-10 are leaf/syringe/serpentine -- all of 3-10 additionally
+// use middle_offset (leaf only middle_offset, the rest also secondary_width).
+function handStyleFieldCode(key, fallback) { return clampInt(getSetting(key, fallback), 0, 10, fallback); }
 function handColorFieldCode(key, fallback) { return clampInt(getSetting(key, fallback), 0, 2, fallback); }
 // A hand's own color additionally allows 3 = "none" (skip the fill) --
 // outline color and the center circle color don't get that option.
@@ -611,6 +612,11 @@ function handShadowDistanceCode(key) { return clampInt(getSetting(key, '2'), 1, 
 // current style so switching styles doesn't need its own save/reset.
 function handMiddleOffsetCode(key) { return clampInt(getSetting(key, '0'), -40, 40, 0); }
 function handSecondaryWidthCode(key) { return clampInt(getSetting(key, '6'), 1, 40, 6); }
+// hollow_thickness: same 1-40 range as width -- <= 1 draws the original
+// plain 1px perimeter trace, see HandConfig.hollow's own comment in
+// hand_layer.h.
+function handHollowCode(key) { return getSetting(key, 'false') === 'true' ? 1 : 0; }
+function handHollowThicknessCode(key) { return clampInt(getSetting(key, '1'), 1, 40, 1); }
 
 function handHourStyleCode() { return handStyleFieldCode('CONFIG_HAND_HOUR_STYLE', 1); }
 function handHourWidthCode() { return clampInt(getSetting('CONFIG_HAND_HOUR_WIDTH', '12'), 1, 40, 12); }
@@ -624,6 +630,8 @@ function handHourOutlineColorCode() { return handColorFieldCode('CONFIG_HAND_HOU
 function handHourTranslucentCode() { return handTranslucentCode('CONFIG_HAND_HOUR_TRANSLUCENT'); }
 function handHourShadowEnabledCode() { return handShadowEnabledCode('CONFIG_HAND_HOUR_SHADOW_ENABLED'); }
 function handHourShadowDistanceCode() { return handShadowDistanceCode('CONFIG_HAND_HOUR_SHADOW_DISTANCE'); }
+function handHourHollowCode() { return handHollowCode('CONFIG_HAND_HOUR_HOLLOW'); }
+function handHourHollowThicknessCode() { return handHollowThicknessCode('CONFIG_HAND_HOUR_HOLLOW_THICKNESS'); }
 
 function handMinStyleCode() { return handStyleFieldCode('CONFIG_HAND_MIN_STYLE', 1); }
 function handMinWidthCode() { return clampInt(getSetting('CONFIG_HAND_MIN_WIDTH', '18'), 1, 40, 18); }
@@ -637,6 +645,8 @@ function handMinOutlineColorCode() { return handColorFieldCode('CONFIG_HAND_MIN_
 function handMinTranslucentCode() { return handTranslucentCode('CONFIG_HAND_MIN_TRANSLUCENT'); }
 function handMinShadowEnabledCode() { return handShadowEnabledCode('CONFIG_HAND_MIN_SHADOW_ENABLED'); }
 function handMinShadowDistanceCode() { return handShadowDistanceCode('CONFIG_HAND_MIN_SHADOW_DISTANCE'); }
+function handMinHollowCode() { return handHollowCode('CONFIG_HAND_MIN_HOLLOW'); }
+function handMinHollowThicknessCode() { return handHollowThicknessCode('CONFIG_HAND_MIN_HOLLOW_THICKNESS'); }
 
 function handSecStyleCode() { return handStyleFieldCode('CONFIG_HAND_SEC_STYLE', 0); }
 function handSecWidthCode() { return clampInt(getSetting('CONFIG_HAND_SEC_WIDTH', '2'), 1, 40, 2); }
@@ -650,6 +660,8 @@ function handSecOutlineColorCode() { return handColorFieldCode('CONFIG_HAND_SEC_
 function handSecTranslucentCode() { return handTranslucentCode('CONFIG_HAND_SEC_TRANSLUCENT'); }
 function handSecShadowEnabledCode() { return handShadowEnabledCode('CONFIG_HAND_SEC_SHADOW_ENABLED'); }
 function handSecShadowDistanceCode() { return handShadowDistanceCode('CONFIG_HAND_SEC_SHADOW_DISTANCE'); }
+function handSecHollowCode() { return handHollowCode('CONFIG_HAND_SEC_HOLLOW'); }
+function handSecHollowThicknessCode() { return handHollowThicknessCode('CONFIG_HAND_SEC_HOLLOW_THICKNESS'); }
 
 function centerCircleRadiusCode() { return clampInt(getSetting('CONFIG_CENTER_CIRCLE_RADIUS', '3'), 0, 30, 3); }
 function centerCircleColorCode() { return handColorFieldCode('CONFIG_CENTER_CIRCLE_COLOR', 0); }
@@ -868,6 +880,8 @@ function sendFlatDict(dict) {
   dict['HAND_HOUR_TRANSLUCENT'] = handHourTranslucentCode();
   dict['HAND_HOUR_SHADOW_ENABLED'] = handHourShadowEnabledCode();
   dict['HAND_HOUR_SHADOW_DISTANCE'] = handHourShadowDistanceCode();
+  dict['HAND_HOUR_HOLLOW'] = handHourHollowCode();
+  dict['HAND_HOUR_HOLLOW_THICKNESS'] = handHourHollowThicknessCode();
   dict['HAND_MIN_STYLE'] = handMinStyleCode();
   dict['HAND_MIN_WIDTH'] = handMinWidthCode();
   dict['HAND_MIN_LENGTH'] = handMinLengthCode();
@@ -880,6 +894,8 @@ function sendFlatDict(dict) {
   dict['HAND_MIN_TRANSLUCENT'] = handMinTranslucentCode();
   dict['HAND_MIN_SHADOW_ENABLED'] = handMinShadowEnabledCode();
   dict['HAND_MIN_SHADOW_DISTANCE'] = handMinShadowDistanceCode();
+  dict['HAND_MIN_HOLLOW'] = handMinHollowCode();
+  dict['HAND_MIN_HOLLOW_THICKNESS'] = handMinHollowThicknessCode();
   dict['HAND_SEC_STYLE'] = handSecStyleCode();
   dict['HAND_SEC_WIDTH'] = handSecWidthCode();
   dict['HAND_SEC_LENGTH'] = handSecLengthCode();
@@ -892,6 +908,8 @@ function sendFlatDict(dict) {
   dict['HAND_SEC_TRANSLUCENT'] = handSecTranslucentCode();
   dict['HAND_SEC_SHADOW_ENABLED'] = handSecShadowEnabledCode();
   dict['HAND_SEC_SHADOW_DISTANCE'] = handSecShadowDistanceCode();
+  dict['HAND_SEC_HOLLOW'] = handSecHollowCode();
+  dict['HAND_SEC_HOLLOW_THICKNESS'] = handSecHollowThicknessCode();
   dict['CENTER_CIRCLE_RADIUS'] = centerCircleRadiusCode();
   dict['CENTER_CIRCLE_COLOR'] = centerCircleColorCode();
   dict['UPPER_MIDDLE_LINE1_CONTENT'] = upperMiddleLine1ContentCode();
@@ -2329,6 +2347,8 @@ Pebble.addEventListener('showConfiguration', function () {
     handHourTranslucent: getSetting('CONFIG_HAND_HOUR_TRANSLUCENT', 'false'),
     handHourShadowEnabled: getSetting('CONFIG_HAND_HOUR_SHADOW_ENABLED', 'false'),
     handHourShadowDistance: getSetting('CONFIG_HAND_HOUR_SHADOW_DISTANCE', '2'),
+    handHourHollow: getSetting('CONFIG_HAND_HOUR_HOLLOW', 'false'),
+    handHourHollowThickness: getSetting('CONFIG_HAND_HOUR_HOLLOW_THICKNESS', '1'),
     handMinStyle: getSetting('CONFIG_HAND_MIN_STYLE', '1'),
     handMinWidth: getSetting('CONFIG_HAND_MIN_WIDTH', '18'),
     handMinLength: getSetting('CONFIG_HAND_MIN_LENGTH', '78'),
@@ -2341,6 +2361,8 @@ Pebble.addEventListener('showConfiguration', function () {
     handMinTranslucent: getSetting('CONFIG_HAND_MIN_TRANSLUCENT', 'false'),
     handMinShadowEnabled: getSetting('CONFIG_HAND_MIN_SHADOW_ENABLED', 'false'),
     handMinShadowDistance: getSetting('CONFIG_HAND_MIN_SHADOW_DISTANCE', '2'),
+    handMinHollow: getSetting('CONFIG_HAND_MIN_HOLLOW', 'false'),
+    handMinHollowThickness: getSetting('CONFIG_HAND_MIN_HOLLOW_THICKNESS', '1'),
     handSecStyle: getSetting('CONFIG_HAND_SEC_STYLE', '0'),
     handSecWidth: getSetting('CONFIG_HAND_SEC_WIDTH', '2'),
     handSecLength: getSetting('CONFIG_HAND_SEC_LENGTH', '85'),
@@ -2353,6 +2375,8 @@ Pebble.addEventListener('showConfiguration', function () {
     handSecTranslucent: getSetting('CONFIG_HAND_SEC_TRANSLUCENT', 'false'),
     handSecShadowEnabled: getSetting('CONFIG_HAND_SEC_SHADOW_ENABLED', 'false'),
     handSecShadowDistance: getSetting('CONFIG_HAND_SEC_SHADOW_DISTANCE', '2'),
+    handSecHollow: getSetting('CONFIG_HAND_SEC_HOLLOW', 'false'),
+    handSecHollowThickness: getSetting('CONFIG_HAND_SEC_HOLLOW_THICKNESS', '1'),
     centerCircleRadius: getSetting('CONFIG_CENTER_CIRCLE_RADIUS', '3'),
     centerCircleColor: getSetting('CONFIG_CENTER_CIRCLE_COLOR', '0'),
     upperMiddleLine1Content: getSetting('CONFIG_UPPER_MIDDLE_LINE1_CONTENT', '0'),
@@ -2519,6 +2543,8 @@ Pebble.addEventListener('webviewclosed', function (e) {
   setSetting('CONFIG_HAND_HOUR_TRANSLUCENT', settings.CONFIG_HAND_HOUR_TRANSLUCENT || 'false');
   setSetting('CONFIG_HAND_HOUR_SHADOW_ENABLED', settings.CONFIG_HAND_HOUR_SHADOW_ENABLED || 'false');
   setSetting('CONFIG_HAND_HOUR_SHADOW_DISTANCE', settings.CONFIG_HAND_HOUR_SHADOW_DISTANCE || '2');
+  setSetting('CONFIG_HAND_HOUR_HOLLOW', settings.CONFIG_HAND_HOUR_HOLLOW || 'false');
+  setSetting('CONFIG_HAND_HOUR_HOLLOW_THICKNESS', settings.CONFIG_HAND_HOUR_HOLLOW_THICKNESS || '1');
   setSetting('CONFIG_HAND_MIN_STYLE', settings.CONFIG_HAND_MIN_STYLE || '1');
   setSetting('CONFIG_HAND_MIN_WIDTH', settings.CONFIG_HAND_MIN_WIDTH || '18');
   setSetting('CONFIG_HAND_MIN_LENGTH', settings.CONFIG_HAND_MIN_LENGTH || '78');
@@ -2531,6 +2557,8 @@ Pebble.addEventListener('webviewclosed', function (e) {
   setSetting('CONFIG_HAND_MIN_TRANSLUCENT', settings.CONFIG_HAND_MIN_TRANSLUCENT || 'false');
   setSetting('CONFIG_HAND_MIN_SHADOW_ENABLED', settings.CONFIG_HAND_MIN_SHADOW_ENABLED || 'false');
   setSetting('CONFIG_HAND_MIN_SHADOW_DISTANCE', settings.CONFIG_HAND_MIN_SHADOW_DISTANCE || '2');
+  setSetting('CONFIG_HAND_MIN_HOLLOW', settings.CONFIG_HAND_MIN_HOLLOW || 'false');
+  setSetting('CONFIG_HAND_MIN_HOLLOW_THICKNESS', settings.CONFIG_HAND_MIN_HOLLOW_THICKNESS || '1');
   setSetting('CONFIG_HAND_SEC_STYLE', settings.CONFIG_HAND_SEC_STYLE || '0');
   setSetting('CONFIG_HAND_SEC_WIDTH', settings.CONFIG_HAND_SEC_WIDTH || '2');
   setSetting('CONFIG_HAND_SEC_LENGTH', settings.CONFIG_HAND_SEC_LENGTH || '85');
@@ -2543,6 +2571,8 @@ Pebble.addEventListener('webviewclosed', function (e) {
   setSetting('CONFIG_HAND_SEC_TRANSLUCENT', settings.CONFIG_HAND_SEC_TRANSLUCENT || 'false');
   setSetting('CONFIG_HAND_SEC_SHADOW_ENABLED', settings.CONFIG_HAND_SEC_SHADOW_ENABLED || 'false');
   setSetting('CONFIG_HAND_SEC_SHADOW_DISTANCE', settings.CONFIG_HAND_SEC_SHADOW_DISTANCE || '2');
+  setSetting('CONFIG_HAND_SEC_HOLLOW', settings.CONFIG_HAND_SEC_HOLLOW || 'false');
+  setSetting('CONFIG_HAND_SEC_HOLLOW_THICKNESS', settings.CONFIG_HAND_SEC_HOLLOW_THICKNESS || '1');
   setSetting('CONFIG_CENTER_CIRCLE_RADIUS', settings.CONFIG_CENTER_CIRCLE_RADIUS || '3');
   setSetting('CONFIG_CENTER_CIRCLE_COLOR', settings.CONFIG_CENTER_CIRCLE_COLOR || '0');
   setSetting('CONFIG_UPPER_MIDDLE_LINE1_CONTENT', settings.CONFIG_UPPER_MIDDLE_LINE1_CONTENT || '0');

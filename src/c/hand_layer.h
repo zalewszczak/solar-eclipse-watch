@@ -31,9 +31,12 @@
 
 typedef struct {
   uint8_t style;        // 0=dot (round caps), 1=triangle (tapers to a point), 2=square (flat caps),
-                          // 3=dauphine, 4=sword, 5=spade, 6=arrow, 7=pomme -- see HandGeometry/
-                          // compute_hand_geometry_fp() in hand_layer.c for what each shape does with
-                          // middle_offset/secondary_width below.
+                          // 3=dauphine, 4=sword, 5=spade, 6=arrow, 7=pomme, 8=leaf, 9=syringe,
+                          // 10=serpentine -- see HandGeometry/compute_hand_geometry_fp() in
+                          // hand_layer.c for what each shape does with middle_offset/secondary_width
+                          // below. leaf (8) only uses middle_offset (its peak position), not
+                          // secondary_width; syringe (9) and serpentine (10) use both, same as
+                          // 3-7.
   uint8_t width;         // 1-40 px, thickness across the hand (ignored -- tip only -- for triangle's tip)
   uint8_t length;         // 10-100 px, how far the hand extends outward from center
   int8_t back_offset;      // -40..40 px, extension on the far side of center, opposite the hand's
@@ -81,11 +84,22 @@ typedef struct {
                                 // priority over hollow below when both are set, same as the original
                                 // procedural hands did (transparent always won over style==2's hollow
                                 // rendering).
-  bool hollow;                 // draw the shape's own 1px stroke outline instead of a filled shape,
-                                 // in `color` -- distinct from outline_enabled's shifted-copy underlay,
-                                 // which still layers normally underneath a hollow shape if both are on.
-                                 // Used by the "modern" procedural hand preset (see pebble-eclipse-watch.c),
-                                 // which always rendered hollow when not transparent.
+  bool hollow;                 // draw an INLINE stroke of the shape's own outline instead of a filled
+                                 // shape, in `color` -- i.e. within the shape's own bounds, as opposed
+                                 // to outline_enabled's shifted-copy underlay which marks the hand
+                                 // OUTSIDE its bounds and still layers normally underneath a hollow
+                                 // shape if both are on. hollow_thickness below sets how wide that
+                                 // inline stroke is; hollow_thickness <= 1 draws the original plain
+                                 // 1px perimeter trace (stroke_polygon_fp()/stroke_circle_fp() in
+                                 // hand_layer.c), same as this flag always did before hollow_thickness
+                                 // existed -- including for the "modern" procedural hand preset (see
+                                 // pebble-eclipse-watch.c), which sets hollow=true and leaves
+                                 // hollow_thickness at its zero default, so it keeps its original
+                                 // look unchanged. A thickness too large for the shape to actually
+                                 // contain just fills it solid instead (see
+                                 // inset_convex_polygon_fp()'s own comment in subpixel.h).
+  uint8_t hollow_thickness;    // 1-40 px, width of the inline stroke above when hollow is set and
+                                 // this is > 1. Ignored otherwise.
   bool shadow_enabled;          // draws a drop shadow of the hand's own shape (translated, not rotated,
                                   // by shadow_distance_px in a single global direction shared by every
                                   // hand -- see EclipseData's shadow_angle_deg, not this struct)
