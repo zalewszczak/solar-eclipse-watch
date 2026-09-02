@@ -1,6 +1,7 @@
 #include "background_layer.h"
 #include "subpixel.h"
 #include "features_layer.h"
+#include "font_lookup.h"
 
 // ---------------------------------------------------------------------------
 // Markers merged in (formerly marker_layer.c): the hour/second marker ring,
@@ -120,10 +121,8 @@ typedef struct {
   bool marker_bitmap_tint_transparent;
 
   // Custom text-marker numerals' font (big_analog_marker_style == 8) --
-  // same lazy load/unload lifecycle as the corner text font in
-  // pebble-eclipse-watch.c, just scoped to this layer instead of file-static.
-  GFont marker_text_font;
-  uint8_t marker_text_font_loaded_choice; // 255 = none loaded
+  // resolved via font_lookup_resolve(), this canvas's own slot.
+  FontSlot marker_text_font_slot;
 } CanvasState;
 
 // ---- hour/second markers (sub-pixel & rotation fix) --------------------
@@ -1921,127 +1920,10 @@ static const MarkerRingConfig MARKER_STYLE_SECOND_PRESETS[3] = {
   { .style = 1, .thickness = 1, .inner_eccentricity = 0, .outer_eccentricity = 0, .inner_border_pct = 65, .outer_border_pct = 85 }, // 2: big
 };
 
-static uint32_t marker_text_font_resource_id(uint8_t choice) {
-  switch (choice) {
-    case 3: return RESOURCE_ID_DIGITALDREAM_FONT_12;
-    case 4: return RESOURCE_ID_MINECRAFTER_FONT_12;
-    case 5: return RESOURCE_ID_SFPIXELATE_FONT_14;
-    case 6: return RESOURCE_ID_MISO_FONT_19;
-    case 14: return RESOURCE_ID_BEBAS_FONT_20; // already loaded for clock_font's own small-readout companion; reused as-is here
-    // 16-31, 35: the "big" (48px) clock_font resources, reused as-is
-    // here too -- same 1:1 mapping as apply_clock_font()'s own
-    // s_data.clock_font switch in pebble-eclipse-watch.c (clock_font
-    // value N-1 here, since clock_font's own default/"leco" case is
-    // 0 and has no custom resource -- see choice 15 in
-    // get_marker_text_font() below instead). Added so every clock
-    // font is available for marker text too, not just the handful
-    // above that happened to get their own small-size marker variant.
-    case 16: return RESOURCE_ID_CLOCKFORGE_FONT_48;
-    case 17: return RESOURCE_ID_SFPIXELATE_FONT_48;
-    case 18: return RESOURCE_ID_RADIOLAND_FONT_48;
-    case 19: return RESOURCE_ID_MINISYSTEM_FONT_48;
-    case 20: return RESOURCE_ID_MINECRAFTER_FONT_48;
-    case 21: return RESOURCE_ID_KITCHENPOLICE_FONT_48;
-    case 22: return RESOURCE_ID_DSDIGIB_FONT_48;
-    case 23: return RESOURCE_ID_DISTGRG_FONT_48;
-    case 24: return RESOURCE_ID_DIMITRI_FONT_48;
-    case 25: return RESOURCE_ID_DIGITALDREAM_FONT_48;
-    case 26: return RESOURCE_ID_BLACKOUT_FONT_48;
-    case 27: return RESOURCE_ID_AUDIOWIDE_FONT_48;
-    case 28: return RESOURCE_ID_FORMATION_FONT_48;
-    case 29: return RESOURCE_ID_KOMIKAHB_FONT_48;
-    case 30: return RESOURCE_ID_MISO_FONT_48;
-    case 31: return RESOURCE_ID_PRICEDOWN_FONT_48;
-    case 35: return RESOURCE_ID_BEBAS_FONT_48;
-    default: return 0; // 0-2, 7-13, and 15/32-34 are all fonts_get_system_font() calls -- see get_marker_text_font() below
-  }
-}
-
-// Rough export heights for each font_choice (0-2 system, 3-6 custom,
-// 7-13 more system, 14 custom again, 15/32-34 more system, 16-31+35
-// custom -- the "big" 48px clock_font resources), used only to
-// size/vertically-center each numeral's text box. The custom-resource
-// entries follow the same pattern the original 3-6/14 entries already
-// established (height roughly equal to the resource's own nominal
-// point size -- DIGITALDREAM_FONT_12 -> 12, BEBAS_FONT_20 -> 20, etc.),
-// so 16-31/35 use ~40 for their nominal 48; the system-font entries
-// (15/32-34) follow THAT group's own pattern instead (roughly 60-65%
-// of nominal -- e.g. LECO_36_BOLD_NUMBERS -> 23), so 42-49pt system
-// fonts land around 26-30. Still just estimates, same as the rest of
-// this table -- see MARKER_FONT_Y_OFFSET's own TODO below.
-static const uint8_t MARKER_FONT_HEIGHTS[36] = {
-  14, 16, 20,       // 0-2: system S/M/L
-  12, 12, 14, 19,   // 3-6: Digital/Minecraft/Pixelate/Miso
-  17, 20, 23, 17,   // 7-10: Leco/Leco L/Leco XL/Droid Serif
-  15, 19, 21,       // 11-13: Roboto Condensed/Bitham bold/Bitham M
-  20,               // 14: Bebas
-  26,               // 15: Leco (big)
-  40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, // 16-31: ClockForge/SF Pixelate (big)/Radioland/
-                                                                     // Mini System/Minecrafter (big)/Kitchen Police/
-                                                                     // DS Digital/Distant Galaxy/Dimitri/
-                                                                     // Digital Dream (big)/Blackout/Audiowide/
-                                                                     // Formation/Komika/Miso (big)/Pricedown
-  30, 26, 26,       // 32-34: Roboto (big)/Bitham Light (big)/Bitham Bold (big)
-  40                // 35: Bebas (big)
-};
-// Per-font vertical fine-tune, added to MARKER_FONT_HEIGHTS when placing
-// the text box -- all still 0 (unmeasured on a real watch yet) for
-// every entry, including the new ones added alongside choices 7-14
-// and, now, 15-35.
-//TODO: This needs manual tweaking and looks like fonts are not matching the settings page - investigate
-static const int8_t MARKER_FONT_Y_OFFSET[36] = {
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-};
-
-static GFont get_marker_text_font(CanvasState *state, uint8_t choice) {
-  // Values 7-13 are all fonts_get_system_font() -- no load lifecycle
-  // needed, so they're resolved directly here rather than going
-  // through marker_text_font_resource_id()'s custom-font path below
-  // (which is only for resource-backed fonts: 3-6 and 14). Still need
-  // to unload whatever custom font might already be loaded first,
-  // though, or switching from e.g. Digital straight to Leco would
-  // leave DigitalDream's font resource loaded in memory forever.
-  switch (choice) {
-    case 7: case 8: case 9: case 10: case 11: case 12: case 13:
-    case 15: case 32: case 33: case 34:
-      if (state->marker_text_font) {
-        fonts_unload_custom_font(state->marker_text_font);
-        state->marker_text_font = NULL;
-      }
-      state->marker_text_font_loaded_choice = choice;
-      switch (choice) {
-        case 7: return fonts_get_system_font(FONT_KEY_LECO_28_LIGHT_NUMBERS);
-        case 8: return fonts_get_system_font(FONT_KEY_LECO_32_BOLD_NUMBERS);
-        case 9: return fonts_get_system_font(FONT_KEY_LECO_36_BOLD_NUMBERS);
-        case 10: return fonts_get_system_font(FONT_KEY_DROID_SERIF_28_BOLD);
-        case 11: return fonts_get_system_font(FONT_KEY_ROBOTO_CONDENSED_21);
-        case 12: return fonts_get_system_font(FONT_KEY_BITHAM_30_BLACK);
-        case 13: return fonts_get_system_font(FONT_KEY_BITHAM_34_MEDIUM_NUMBERS);
-        // Same 3 system-font "big" clock fonts apply_clock_font() uses
-        // for s_data.clock_font 17/18/19 (Roboto/Bitham Light/Bitham
-        // Bold), plus clock_font's own default/"leco" case (0, no
-        // custom resource) as choice 15 -- see this function's own
-        // switch(choice) case list above for where 16 onward (the
-        // resource-backed clock fonts) are handled instead.
-        case 15: return fonts_get_system_font(FONT_KEY_LECO_42_NUMBERS);
-        case 32: return fonts_get_system_font(FONT_KEY_ROBOTO_BOLD_SUBSET_49);
-        case 33: return fonts_get_system_font(FONT_KEY_BITHAM_42_LIGHT);
-        default: return fonts_get_system_font(FONT_KEY_BITHAM_42_BOLD); // 34
-      }
-    default: break;
-  }
-  if (choice != state->marker_text_font_loaded_choice) {
-    if (state->marker_text_font) { fonts_unload_custom_font(state->marker_text_font); state->marker_text_font = NULL; }
-    uint32_t res_id = marker_text_font_resource_id(choice);
-    if (res_id != 0) state->marker_text_font = fonts_load_custom_font(resource_get_handle(res_id));
-    state->marker_text_font_loaded_choice = choice;
-  }
-  if (state->marker_text_font) return state->marker_text_font;
-  if (choice == 2) return fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD);
-  if (choice == 1) return fonts_get_system_font(FONT_KEY_GOTHIC_14_BOLD);
-  return fonts_get_system_font(FONT_KEY_GOTHIC_14); // 0, and fallback for an unrecognized choice
-}
+// Marker text's own font is resolved via font_lookup_resolve()
+// (state->marker_text_font_slot) directly at each call site now --
+// see font_lookup.c for the shared table every font-selecting system
+// in this app draws from.
 
 // Converts 1-59 (our only actual range: hour labels 1-12, second labels
 // 0/5.../55) to a Roman numeral string. 0 has no traditional Roman
@@ -2079,8 +1961,8 @@ static void draw_text_markers(GContext *ctx, GPoint center, GRect screen, Canvas
   // animate in either, regardless of what the caller passed in.
   if (!is_hour) { anim_active = false; anim_overall_progress_1000 = 0; }
 
-  GFont font = get_marker_text_font(state, text_cfg->font_choice);
-  int16_t fh = MARKER_FONT_HEIGHTS[text_cfg->font_choice] + MARKER_FONT_Y_OFFSET[text_cfg->font_choice];
+  GFont font = font_lookup_resolve(&state->marker_text_font_slot, text_cfg->font_choice);
+  int16_t fh = font_lookup_height(text_cfg->font_choice) + font_lookup_y_offset(text_cfg->font_choice);
 
   graphics_context_set_text_color(ctx, color);
 
@@ -3243,8 +3125,7 @@ Layer *eclipse_canvas_create(GRect frame) {
   state->marker_bitmap = NULL;
   state->marker_bitmap_style = 255; // sentinel: none loaded yet
   state->marker_bitmap_tinted = false;
-  state->marker_text_font = NULL;
-  state->marker_text_font_loaded_choice = 255;
+  state->marker_text_font_slot = FONT_SLOT_EMPTY;
   layer_set_update_proc(layer, canvas_update_proc);
   return layer;
 }
@@ -3259,10 +3140,7 @@ void eclipse_canvas_destroy(Layer *layer) {
     gbitmap_destroy(state->marker_bitmap);
     state->marker_bitmap = NULL;
   }
-  if (state->marker_text_font) {
-    fonts_unload_custom_font(state->marker_text_font);
-    state->marker_text_font = NULL;
-  }
+  font_lookup_release(&state->marker_text_font_slot);
   layer_destroy(layer);
 }
 

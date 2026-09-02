@@ -80,7 +80,7 @@ var KEY_TYPE_MAP = (function () {
   ]);
 
   assign(MSG_TYPE.FEATURES, [
-    'CORNER_FONT_SIZE', 'CORNER_CUSTOM_FONT', 'CORNER_CONTENT', 'CORNER_COLOR_MODE',
+    'CORNER_FONT', 'CORNER_CONTENT', 'CORNER_COLOR_MODE',
     'UPPER_MIDDLE_LINE1_CONTENT', 'UPPER_MIDDLE_LINE1_COLOR_MODE',
     'UPPER_MIDDLE_LINE2_CONTENT', 'UPPER_MIDDLE_LINE2_COLOR_MODE',
     'BOTTOM_MIDDLE_LINE1_CONTENT', 'BOTTOM_MIDDLE_LINE1_COLOR_MODE',
@@ -94,7 +94,7 @@ var KEY_TYPE_MAP = (function () {
   ]);
 
   assign(MSG_TYPE.SETTINGS, [
-    'CLOCK_FONT', 'TEMP_UNIT', 'WIND_SPEED_UNIT', 'SHOW_SECONDS',
+    'CLOCK_FONT', 'CLOCK_FONT_SMALL', 'TEMP_UNIT', 'WIND_SPEED_UNIT', 'SHOW_SECONDS',
     'CUSTOM_BG', 'CUSTOM_TEXT', 'CUSTOM_ACCENT',
     'NIGHT_SCHEME_ENABLED', 'NIGHT_CUSTOM_BG', 'NIGHT_CUSTOM_TEXT', 'NIGHT_CUSTOM_ACCENT',
     'BOTTOM_STYLE', 'ANALOG_STYLE', 'SUN_MOON_SIZE_PCT', 'CLOUD_RENDER_STYLE',
@@ -374,41 +374,21 @@ function skyFieldsDict(sky, cloudGrid, moonPhase, riseSet, meteorShower, cloudAl
   };
 }
 
-// Must match apply_clock_font()'s code numbers in
-// pebble-eclipse-watch.c exactly.
-const CLOCK_STYLE_IDS = {
-  leco: 0,
-  clockforge: 1,
-  sfpixelate: 2,
-  radioland: 3,
-  minisystem: 4,
-  minecrafter: 5,
-  kitchenpolice: 6,
-  dsdigib: 7,
-  distgrg: 8,
-  dimitri: 9,
-  digitaldream: 10,
-  blackout: 11,
-  audiowide: 12,
-  formation: 13,
-  komikahb: 14,
-  miso: 15,
-  pricedown: 16,
-  roboto: 17,
-  bithamlight: 18,
-  bithambold: 19,
-  bebas: 20
-};
-
-function mapToFontCode(font) {
-  if (CLOCK_STYLE_IDS[font] === undefined) {
-    return 0;
-  }
-  return CLOCK_STYLE_IDS[font];
-}
+// Unified font ids (see font_lookup.h) -- CONFIG_CLOCK_FONT/
+// CONFIG_CLOCK_FONT_SMALL/CONFIG_CORNER_FONT/CONFIG_MARKER_TEXT_FONT
+// are all just the numeric id as a string now, straight from
+// config-page.js's <select> value, so there's no string-to-code
+// mapping layer needed here anymore -- clamped to FONT_LOOKUP's own
+// 0-37 range (see FONT_LOOKUP in config-page.js) rather than trusting
+// whatever the webview sent.
+function clampFontId(v) { return clampInt(v, 0, 37, 8); } // 8 = Leco XL, the main clock's own default
 
 function clockFontCode() {
-  return mapToFontCode(getSetting('CONFIG_CLOCK_FONT', 'leco'));
+  return clampFontId(getSetting('CONFIG_CLOCK_FONT', '8'));
+}
+
+function clockFontSmallCode() {
+  return clampInt(getSetting('CONFIG_CLOCK_FONT_SMALL', '0'), 0, 37, 0);
 }
 
 function tempUnitCode() {
@@ -427,9 +407,7 @@ function windSpeedUnitCode() {
 }
 
 function showSecondsCode() {
-  var font = getSetting('CONFIG_CLOCK_FONT', 'leco');
-  var wanted = getSetting('CONFIG_SHOW_SECONDS', 'false') === 'true';
-  return (wanted) ? 1 : 0;
+  return (getSetting('CONFIG_SHOW_SECONDS', 'false') === 'true') ? 1 : 0;
 }
 
 // Custom colors are stored as raw packed GColor argb bytes (0-255) --
@@ -783,13 +761,8 @@ function handPresetContrastStyleCode() {
   var v = parseInt(getSetting('CONFIG_HAND_PRESET_CONTRAST_STYLE', '2'), 10);
   return [0, 1, 2, 3].indexOf(v) === -1 ? 2 : v;
 }
-function cornerFontSizeCode() {
-  var v = parseInt(getSetting('CONFIG_CORNER_FONT_SIZE', '1'), 10);
-  return [0, 1, 2, 3, 4].indexOf(v) === -1 ? 1 : v;
-}
-function cornerCustomFontCode() {
-  var v = parseInt(getSetting('CONFIG_CORNER_CUSTOM_FONT', '0'), 10);
-  return [0, 1, 2, 3, 4, 5, 6].indexOf(v) === -1 ? 0 : v;
+function cornerFontCode() {
+  return clampInt(getSetting('CONFIG_CORNER_FONT', '1'), 0, 37, 1); // 1 = System Medium, the old default
 }
 
 // Corners: 4 slots (0=top-left, 1=top-right, 2=bottom-left,
@@ -831,6 +804,7 @@ function sendFlatDict(dict) {
   // phone-local preferences, not eclipse data, so there's no reason
   // to gate them behind DATA_VALID or wait for a full refresh cycle.
   dict['CLOCK_FONT'] = clockFontCode();
+  dict['CLOCK_FONT_SMALL'] = clockFontSmallCode();
   dict['TEMP_UNIT'] = tempUnitCode();
   dict['WIND_SPEED_UNIT'] = windSpeedUnitCode();
   dict['SHOW_SECONDS'] = showSecondsCode();
@@ -945,8 +919,7 @@ function sendFlatDict(dict) {
   dict['SHAKE_ANIM_MODE'] = shakeAnimModeCode();
   dict['OUTLINE_ENABLED'] = outlineEnabledCode();
   dict['HAND_PRESET_CONTRAST_STYLE'] = handPresetContrastStyleCode();
-  dict['CORNER_FONT_SIZE'] = cornerFontSizeCode();
-  dict['CORNER_CUSTOM_FONT'] = cornerCustomFontCode();
+  dict['CORNER_FONT'] = cornerFontCode();
   dict['CORNER_CONTENT'] = cornerContentBytes();
   dict['CORNER_COLOR_MODE'] = cornerColorModeBytes();
   dict['DAILY_STEP_GOAL'] = dailyStepGoalValue();
@@ -1523,7 +1496,8 @@ function sendFlatDict(dict) {
 '  "ISS_AZ": 0,'+
 '  "ISS_COMPUTED_AT": 0,'+
 '  "ISS_NEXT_PASS": 0,'+
-'  "CLOCK_FONT": 3,'+
+'  "CLOCK_FONT": 8,'+
+'  "CLOCK_FONT_SMALL": 0,'+
 '  "TEMP_UNIT": 0,'+
 '  "WIND_SPEED_UNIT": 0,'+
 '  "SHOW_SECONDS": 1,'+
@@ -1638,8 +1612,7 @@ function sendFlatDict(dict) {
 '  "SHAKE_ANIM_MODE": 0,'+
 '  "OUTLINE_ENABLED": 1,'+
 '  "HAND_PRESET_CONTRAST_STYLE": 2,'+
-'  "CORNER_FONT_SIZE": 1,'+
-'  "CORNER_CUSTOM_FONT": 5,'+
+'  "CORNER_FONT": 1,'+
 '  "CORNER_CONTENT": ['+
 '    10,'+
 '    12,'+
@@ -2253,7 +2226,8 @@ Pebble.addEventListener('showConfiguration', function () {
     lon: getSetting('CONFIG_LON', ''),
     owmKey: getSetting('CONFIG_OWM_KEY', ''),
     updateMins: getSetting('CONFIG_UPDATE_MINS', '20'),
-    clockFont: getSetting('CONFIG_CLOCK_FONT', 'leco'),
+    clockFont: getSetting('CONFIG_CLOCK_FONT', '8'),
+    clockFontSmall: getSetting('CONFIG_CLOCK_FONT_SMALL', '0'),
     tempUnit: getSetting('CONFIG_TEMP_UNIT', 'C'),
     windSpeedUnit: getSetting('CONFIG_WIND_SPEED_UNIT', 'kmh'),
     showSeconds: getSetting('CONFIG_SHOW_SECONDS', 'false') === 'true',
@@ -2377,8 +2351,7 @@ Pebble.addEventListener('showConfiguration', function () {
     shakeAnimMode: getSetting('CONFIG_SHAKE_ANIM_MODE', '0'),
     outlineEnabled: getSetting('CONFIG_OUTLINE_ENABLED', 'true') === 'true',
     handPresetContrastStyle: getSetting('CONFIG_HAND_PRESET_CONTRAST_STYLE', '2'),
-    cornerFontSize: getSetting('CONFIG_CORNER_FONT_SIZE', '1'),
-    cornerCustomFont: getSetting('CONFIG_CORNER_CUSTOM_FONT', '0'),
+    cornerFont: getSetting('CONFIG_CORNER_FONT', '1'),
     testMode: getSetting('CONFIG_TEST_MODE', 'false') === 'true',
     testDateTime: getSetting('CONFIG_TEST_DATETIME', ''),
     // Last RAW_MESSAGE_LOG_MAX individual chunks actually sent -- see
@@ -2444,6 +2417,7 @@ Pebble.addEventListener('webviewclosed', function (e) {
   setSetting('CONFIG_OWM_KEY', settings.CONFIG_OWM_KEY || '');
   setSetting('CONFIG_UPDATE_MINS', settings.CONFIG_UPDATE_MINS || '20');
   setSetting('CONFIG_CLOCK_FONT', settings.CONFIG_CLOCK_FONT);
+  setSetting('CONFIG_CLOCK_FONT_SMALL', settings.CONFIG_CLOCK_FONT_SMALL || '0');
   setSetting('CONFIG_TEMP_UNIT', (settings.CONFIG_TEMP_UNIT === 'F' || settings.CONFIG_TEMP_UNIT === 'K') ? settings.CONFIG_TEMP_UNIT : 'C');
   setSetting('CONFIG_WIND_SPEED_UNIT', settings.CONFIG_WIND_SPEED_UNIT || 'kmh');
   setSetting('CONFIG_SHOW_SECONDS', settings.CONFIG_SHOW_SECONDS ? 'true' : 'false');
@@ -2567,8 +2541,7 @@ Pebble.addEventListener('webviewclosed', function (e) {
   setSetting('CONFIG_SHAKE_ANIM_MODE', settings.CONFIG_SHAKE_ANIM_MODE || '0');
   setSetting('CONFIG_OUTLINE_ENABLED', settings.CONFIG_OUTLINE_ENABLED ? 'true' : 'false');
   setSetting('CONFIG_HAND_PRESET_CONTRAST_STYLE', settings.CONFIG_HAND_PRESET_CONTRAST_STYLE || '2');
-  setSetting('CONFIG_CORNER_FONT_SIZE', settings.CONFIG_CORNER_FONT_SIZE || '1');
-  setSetting('CONFIG_CORNER_CUSTOM_FONT', settings.CONFIG_CORNER_CUSTOM_FONT || '0');
+  setSetting('CONFIG_CORNER_FONT', settings.CONFIG_CORNER_FONT || '1');
   setSetting('CONFIG_TEST_MODE', settings.CONFIG_TEST_MODE ? 'true' : 'false');
   setSetting('CONFIG_TEST_DATETIME', settings.CONFIG_TEST_DATETIME || '');
   setSetting('CONFIG_DEBUG_OVERRIDE_ENABLED', settings.CONFIG_DEBUG_OVERRIDE_ENABLED ? 'true' : 'false');

@@ -151,40 +151,96 @@ var EXAMPLE_STYLE_COUNT = 9;
 var EXAMPLE_STYLE_IMAGES = require('./example-style-images');
 var EXAMPLE_STYLE_PRESETS = require('./example-style-presets');
 
-// Must match CLOCK_STYLE_IDS in index.js / apply_clock_font()'s code
-// numbers in pebble-eclipse-watch.c. `preview` is inline CSS applied
-// to the "88:88" sample so each option looks distinct even without
-// the real (custom, resource-loaded) font available in this webview.
-var CLOCK_FONTS = [
-  { id: 'leco', label: 'Leco (default)', preview: 'font-family: Arial, sans-serif; font-weight: 700;' },
-  { id: 'clockforge', label: 'ClockForge', preview: "font-family: Impact, sans-serif; font-weight: 700; letter-spacing: 1px;" },
-  { id: 'sfpixelate', label: 'SF Pixelate', preview: "font-family: 'Courier New', monospace; letter-spacing: 2px;" },
-  { id: 'radioland', label: 'Radioland', preview: "font-family: 'Courier New', monospace; font-weight: 700;" },
-  { id: 'minisystem', label: 'Mini System', preview: "font-family: 'Courier New', monospace;" },
-  { id: 'minecrafter', label: 'Minecrafter', preview: "font-family: 'Courier New', monospace; letter-spacing: 3px;" },
-  { id: 'kitchenpolice', label: 'Kitchen Police', preview: "font-family: Impact, 'Arial Narrow', sans-serif;" },
-  { id: 'dsdigib', label: 'DS Digital', preview: "font-family: 'Courier New', monospace; font-weight: 700; letter-spacing: 2px;" },
-  { id: 'distgrg', label: 'Distant Galaxy', preview: "font-family: 'Arial Narrow', sans-serif; letter-spacing: 3px; font-weight: 700;" },
-  { id: 'dimitri', label: 'Dimitri', preview: "font-family: Georgia, serif; font-weight: 700;" },
-  { id: 'digitaldream', label: 'Digital Dream', preview: "font-family: 'Courier New', monospace; letter-spacing: 4px; font-weight: 700;" },
-  { id: 'blackout', label: 'Blackout', preview: "font-family: Impact, sans-serif; font-weight: 900;" },
-  { id: 'audiowide', label: 'Audiowide', preview: "font-family: 'Arial Black', sans-serif; letter-spacing: 1px;" },
-  { id: 'formation', label: 'Formation', preview: "font-family: Verdana, sans-serif; font-weight: 700;" },
-  { id: 'komikahb', label: 'Komika', preview: "font-family: 'Comic Sans MS', cursive; font-weight: 700;" },
-  { id: 'miso', label: 'Miso', preview: "font-family: 'Century Gothic', sans-serif; font-weight: 600;" },
-  { id: 'pricedown', label: 'Pricedown', preview: "font-family: Impact, 'Arial Narrow', sans-serif; font-style: italic; letter-spacing: 1px;" },
-  { id: 'roboto', label: 'Roboto', preview: "font-family: 'Roboto', Arial, sans-serif; font-weight: 700;" },
-  { id: 'bithamlight', label: 'Bitham Light', preview: "font-family: 'Futura', 'Century Gothic', sans-serif; font-weight: 300; letter-spacing: 1px;" },
-  { id: 'bithambold', label: 'Bitham Bold', preview: "font-family: 'Futura', 'Century Gothic', sans-serif; font-weight: 700; letter-spacing: 1px;" },
-  { id: 'bebas', label: 'Bebas', preview: "font-family: 'Bebas', 'Century Gothic', sans-serif; font-weight: 700; letter-spacing: 1px;" }
+// One canonical font table, id-for-id identical to font_lookup.c's
+// FONT_TABLE on the watch -- every font this app uses anywhere,
+// custom-resource or system, all four font pickers (main clock,
+// clock's small companion readout, marker text, corner/edge content)
+// draw their <option>s from this SAME list now, so picking (for
+// example) "Bebas" in any of them always means the same id, the same
+// resource, everywhere -- see font_lookup.c's own top comment for the
+// three separate, uncoordinated numbering schemes this replaced.
+//
+// `mainClock: true` marks the subset offered in the Clock font picker
+// specifically (the "big", ~48px-scale fonts a full clock display
+// actually reads well in) -- the smaller companion variants (Digital
+// Dream Small, Minecrafter Small, etc.) exist for marker text/corner
+// content/the clock's own small-readout companion, not as a serious
+// main-clock choice, so they're left out of that one dropdown. Every
+// id is still selectable in the other three pickers regardless.
+// `pairedSmallId` (mainClock entries only) is which small font this
+// big one defaults to pairing with for the clock's own small-readout
+// companion (seconds digits, sunrise/sunset, the date line) --
+// auto-selected on change, still independently overridable after.
+// `wide: true` marks a font that runs too wide for a full HH:MM:SS
+// digital readout at its normal size, matching font_lookup.c's own
+// `wide` column exactly -- grays out the Show Seconds checkbox in
+// digital mode (see secondsUnsupported below), same reasoning
+// font_lookup_is_wide()/use_small_seconds_for_digital_clock() apply
+// on the watch itself.
+var FONT_LOOKUP = [
+  { id: 0,  label: 'System Small',        height: 14, preview: "font-family: Arial, sans-serif;" },
+  { id: 1,  label: 'System Medium',       height: 18, preview: "font-family: Arial, sans-serif; font-weight: 700;" },
+  { id: 2,  label: 'System Large',        height: 24, preview: "font-family: Arial, sans-serif; font-weight: 700;" },
+  { id: 3,  label: 'System XL',           height: 32, preview: "font-family: Arial, sans-serif; font-weight: 700;" },
+  { id: 4,  label: 'System XXL',          height: 36, preview: "font-family: Arial, sans-serif; font-weight: 700;" },
+  { id: 5,  label: 'Leco Small',          height: 17, preview: "font-family: Arial, sans-serif; font-weight: 300;" },
+  { id: 6,  label: 'Leco Medium',         height: 20, preview: "font-family: Arial, sans-serif; font-weight: 700;" },
+  { id: 7,  label: 'Leco Large',          height: 23, preview: "font-family: Arial, sans-serif; font-weight: 700;" },
+  { id: 8,  label: 'Leco XL',             height: 26, preview: "font-family: Arial, sans-serif; font-weight: 700;", mainClock: true, pairedSmallId: 0 },
+  { id: 9,  label: 'Droid Serif',         height: 17, preview: "font-family: Georgia, serif; font-weight: 700;" },
+  { id: 10, label: 'Roboto Condensed',    height: 15, preview: "font-family: 'Roboto Condensed', Arial, sans-serif;" },
+  { id: 11, label: 'Roboto Bold',         height: 30, preview: "font-family: 'Roboto', Arial, sans-serif; font-weight: 700;", mainClock: true, pairedSmallId: 10 },
+  { id: 12, label: 'Bitham Bold 30',      height: 19, preview: "font-family: 'Futura', 'Century Gothic', sans-serif; font-weight: 700;" },
+  { id: 13, label: 'Bitham Medium 34',    height: 21, preview: "font-family: 'Futura', 'Century Gothic', sans-serif; font-weight: 500;" },
+  { id: 14, label: 'Bitham Light',        height: 26, preview: "font-family: 'Futura', 'Century Gothic', sans-serif; font-weight: 300; letter-spacing: 1px;", mainClock: true, pairedSmallId: 0 },
+  { id: 15, label: 'Bitham Bold',         height: 26, preview: "font-family: 'Futura', 'Century Gothic', sans-serif; font-weight: 700; letter-spacing: 1px;", mainClock: true, pairedSmallId: 0 },
+  { id: 16, label: 'Digital Dream Small', height: 12, preview: "font-family: 'Courier New', monospace; letter-spacing: 2px; font-weight: 700;" },
+  { id: 17, label: 'Digital Dream',       height: 40, preview: "font-family: 'Courier New', monospace; letter-spacing: 4px; font-weight: 700;", mainClock: true, pairedSmallId: 16 },
+  { id: 18, label: 'Minecrafter Small',   height: 12, preview: "font-family: 'Courier New', monospace; letter-spacing: 2px;" },
+  { id: 19, label: 'Minecrafter',         height: 40, preview: "font-family: 'Courier New', monospace; letter-spacing: 3px;", mainClock: true, pairedSmallId: 18, wide: true },
+  { id: 20, label: 'SF Pixelate Small',   height: 14, preview: "font-family: 'Courier New', monospace; letter-spacing: 1px;" },
+  { id: 21, label: 'SF Pixelate',         height: 40, preview: "font-family: 'Courier New', monospace; letter-spacing: 2px;", mainClock: true, pairedSmallId: 0, wide: true },
+  { id: 22, label: 'Miso Small',          height: 19, preview: "font-family: 'Century Gothic', sans-serif; font-weight: 600;" },
+  { id: 23, label: 'Miso',                height: 40, preview: "font-family: 'Century Gothic', sans-serif; font-weight: 600;", mainClock: true, pairedSmallId: 22 },
+  { id: 24, label: 'Bebas Small',         height: 20, preview: "font-family: 'Bebas', 'Century Gothic', sans-serif; font-weight: 700; letter-spacing: 1px;" },
+  { id: 25, label: 'Bebas',               height: 40, preview: "font-family: 'Bebas', 'Century Gothic', sans-serif; font-weight: 700; letter-spacing: 1px;", mainClock: true, pairedSmallId: 24 },
+  { id: 26, label: 'ClockForge',          height: 40, preview: "font-family: Impact, sans-serif; font-weight: 700; letter-spacing: 1px;", mainClock: true, pairedSmallId: 16 },
+  { id: 27, label: 'Radioland',           height: 40, preview: "font-family: 'Courier New', monospace; font-weight: 700;", mainClock: true, pairedSmallId: 16, wide: true },
+  { id: 28, label: 'Mini System',         height: 40, preview: "font-family: 'Courier New', monospace;", mainClock: true, pairedSmallId: 16, wide: true },
+  { id: 29, label: 'Kitchen Police',      height: 40, preview: "font-family: Impact, 'Arial Narrow', sans-serif;", mainClock: true, pairedSmallId: 0, wide: true },
+  { id: 30, label: 'DS Digital',          height: 40, preview: "font-family: 'Courier New', monospace; font-weight: 700; letter-spacing: 2px;", mainClock: true, pairedSmallId: 16 },
+  { id: 31, label: 'Distant Galaxy',      height: 40, preview: "font-family: 'Arial Narrow', sans-serif; letter-spacing: 3px; font-weight: 700;", mainClock: true, pairedSmallId: 24 },
+  { id: 32, label: 'Dimitri',             height: 40, preview: "font-family: Georgia, serif; font-weight: 700;", mainClock: true, pairedSmallId: 18 },
+  { id: 33, label: 'Blackout',            height: 40, preview: "font-family: Impact, sans-serif; font-weight: 900;", mainClock: true, pairedSmallId: 24 },
+  { id: 34, label: 'Audiowide',           height: 40, preview: "font-family: 'Arial Black', sans-serif; letter-spacing: 1px;", mainClock: true, pairedSmallId: 24, wide: true },
+  { id: 35, label: 'Formation',           height: 40, preview: "font-family: Verdana, sans-serif; font-weight: 700;", mainClock: true, pairedSmallId: 24 },
+  { id: 36, label: 'Komika',              height: 40, preview: "font-family: 'Comic Sans MS', cursive; font-weight: 700;", mainClock: true, pairedSmallId: 22, wide: true },
+  { id: 37, label: 'Pricedown',           height: 40, preview: "font-family: Impact, 'Arial Narrow', sans-serif; font-style: italic; letter-spacing: 1px;", mainClock: true, pairedSmallId: 18 }
 ];
 
-// Fonts too wide to fit a seconds readout next to them by default in
-// digital mode (analog mode's seconds hand has no such issue) -- the
-// seconds checkbox is grayed out accordingly (but not silently
-// ignored: index.js's showSecondsCode() double-checks this same rule
-// server-side regardless of what the checkbox holds).
-var FONTS_WITHOUT_SECONDS = { digitaldream: true, minecrafter: true};
+// Fastest way to go from an id to its entry -- every font picker
+// needs this (rendering the current selection, gating Show Seconds,
+// auto-pairing the small companion, etc.).
+function fontLookupEntry(id) {
+  for (var i = 0; i < FONT_LOOKUP.length; i++) {
+    if (FONT_LOOKUP[i].id === id) return FONT_LOOKUP[i];
+  }
+  return FONT_LOOKUP[0];
+}
+
+// Renders <option>s for one of the four font pickers. `onlyMainClock`
+// restricts to the Clock font picker's own subset (see FONT_LOOKUP's
+// own comment above); the other three pickers (clock's small
+// companion, marker text, corner/edge content) get every font.
+function fontOptionsHtml(selectedId, onlyMainClock) {
+  return FONT_LOOKUP.filter(function (f) {
+    return !onlyMainClock || f.mainClock;
+  }).map(function (f) {
+    return '<option value="' + f.id + '" data-preview="' + esc(f.preview) + '" data-seconds="' +
+      (f.wide ? '0' : '1') + '" data-height="' + f.height + '" data-paired-small="' + (f.pairedSmallId !== undefined ? f.pairedSmallId : 0) + '"' +
+      (selectedId === f.id ? ' selected' : '') + '>' + esc(f.label) + '</option>';
+  }).join('');
+}
 
 // Must match get_color_scheme() in pebble-eclipse-watch.c exactly --
 // same order, same id, same colors.
@@ -316,75 +372,15 @@ function cornerContentOptionsHtml(selected, auroraEnabled) {
   }).join('');
 }
 
-// Same encoding as corner_custom_font/corner_font_size combined -- see
-// marker_text_font_resource_id() in marker_layer.c.
-// Must match get_marker_text_font()/marker_text_font_resource_id() in
-// background_layer.c exactly -- same id, same font. This used to be
-// badly out of sync with that switch (wrong labels on the wrong ids,
-// two ids -- 3 and 8 -- that didn't exist on the watch at all and
-// silently fell back to the small system font instead), which is why
-// picking most of the custom options here never actually looked like
-// what the label said. ROMAN_INCOMPATIBLE_FONTS below flags entries
-// whose glyphs don't include the extra characters roman numerals
-// need.
-var MARKER_TEXT_FONTS = [
-  { id: 0, label: 'System - small' },
-  { id: 1, label: 'System - medium' },
-  { id: 2, label: 'System - large' },
-  { id: 3, label: 'Digital' },
-  { id: 4, label: 'Minecraft' },
-  { id: 5, label: 'Pixelate' },
-  { id: 6, label: 'Miso' },
-  { id: 7, label: 'Leco' },
-  { id: 8, label: 'Leco L' },
-  { id: 9, label: 'Leco XL' },
-  { id: 10, label: 'Droid Serif' },
-  { id: 11, label: 'Roboto Condensed' },
-  { id: 12, label: 'Bitham bold' },
-  { id: 13, label: 'Bitham M' },
-  { id: 14, label: 'Bebas' },
-  // 15-35: every font from the main Clock font picker (CLOCK_FONTS
-  // above), at its own "big" (~48px) size, in the same order --
-  // labeled "<name> (big)" throughout so none of these collide with
-  // an existing same-family entry above (7-14 already cover Leco/
-  // Miso/Bebas at smaller marker-appropriate sizes; these are the
-  // full-size clock versions instead, not replacements for those).
-  { id: 15, label: 'Leco (big)' },
-  { id: 16, label: 'ClockForge (big)' },
-  { id: 17, label: 'SF Pixelate (big)' },
-  { id: 18, label: 'Radioland (big)' },
-  { id: 19, label: 'Mini System (big)' },
-  { id: 20, label: 'Minecrafter (big)' },
-  { id: 21, label: 'Kitchen Police (big)' },
-  { id: 22, label: 'DS Digital (big)' },
-  { id: 23, label: 'Distant Galaxy (big)' },
-  { id: 24, label: 'Dimitri (big)' },
-  { id: 25, label: 'Digital Dream (big)' },
-  { id: 26, label: 'Blackout (big)' },
-  { id: 27, label: 'Audiowide (big)' },
-  { id: 28, label: 'Formation (big)' },
-  { id: 29, label: 'Komika (big)' },
-  { id: 30, label: 'Miso (big)' },
-  { id: 31, label: 'Pricedown (big)' },
-  { id: 32, label: 'Roboto (big)' },
-  { id: 33, label: 'Bitham Light (big)' },
-  { id: 34, label: 'Bitham Bold (big)' },
-  { id: 35, label: 'Bebas (big)' }
-];
 // Fonts known not to render Roman numerals correctly (missing/wrong
 // glyphs for some of the letters int_to_roman() needs) -- the Roman
 // numerals checkbox gets disabled (and, if it was checked, force-
 // unchecked) whenever one of these is selected for marker text. Only
-// verified for these three so far; add more here as they're checked
-// -- see int_to_roman() in background_layer.c for what it actually
-// needs (I, V, X, L, C, D, M).
-var ROMAN_INCOMPATIBLE_FONTS = { 8: true, 9: true, 13: true }; // Leco L, Leco XL, Bitham M
-function markerTextFontOptionsHtml(selected) {
-  var sel = selected || '0';
-  return MARKER_TEXT_FONTS.map(function (f) {
-    return '<option value="' + f.id + '"' + (String(sel) === String(f.id) ? ' selected' : '') + '>' + esc(f.label) + '</option>';
-  }).join('');
-}
+// verified for these three so far (Leco Medium, Leco Large, Bitham
+// Medium 34 in FONT_LOOKUP's own ids) -- add more here as they're
+// checked -- see int_to_roman() in background_layer.c for what it
+// actually needs (I, V, X, L, C, D, M).
+var ROMAN_INCOMPATIBLE_FONTS = { 6: true, 7: true, 13: true };
 
 // A 12-button grid for picking which hour numerals (kind='hour', labels
 // 12,1..11) or which every-5-second slots (kind='sec', labels 0,5..55)
@@ -554,7 +550,7 @@ function textMarkerModalHtml(current) {
 
 '    <div id="markerTextOptions" style="' + (current.markerTextTarget && current.markerTextTarget !== '0' ? '' : 'display:none;') + '">' +
 '      <label for="markerTextFont" style="margin-top:10px;">Font</label>' +
-'      <select id="markerTextFont" onchange="onMarkerTextFontChange()">' + markerTextFontOptionsHtml(current.markerTextFont) + '</select>' +
+'      <select id="markerTextFont" onchange="onMarkerTextFontChange()">' + fontOptionsHtml(parseInt(current.markerTextFont || '0', 10), false) + '</select>' +
 
 '      <div class="checkbox-row" style="margin-top:12px;">' +
 '        <input type="checkbox" id="markerTextRoman" ' + (current.markerTextRoman === 'true' && !ROMAN_INCOMPATIBLE_FONTS[current.markerTextFont] ? 'checked' : '') + ' ' + (ROMAN_INCOMPATIBLE_FONTS[current.markerTextFont] ? 'disabled' : '') + '>' +
@@ -863,7 +859,9 @@ function buildConfigHtml(current) {
   ].some(function (key) { return current[key] === '31' || current[key] === '32'; });
   var isAnalog = bottomStyleVal === 'analog';
   var isBigAnalog = bottomStyleVal === 'biganalog';
-  var secondsUnsupported = (bottomStyleVal === 'digital') && !!FONTS_WITHOUT_SECONDS[current.clockFont];
+  var clockFontId = parseInt(current.clockFont || '8', 10);
+  var clockFontSmallId = parseInt(current.clockFontSmall || '0', 10);
+  var secondsUnsupported = (bottomStyleVal === 'digital') && fontLookupEntry(clockFontId).wide;
   var secondsChecked = (current.showSeconds && !secondsUnsupported) ? 'checked' : '';
   var secondsDisabled = secondsUnsupported ? 'disabled' : '';
 
@@ -903,11 +901,8 @@ function buildConfigHtml(current) {
       edgeAvail = { upper: true, bottom: false, left: false, right: false, cornersGrayed: true };
     }
   }
-  var fontOptions = CLOCK_FONTS.map(function (f) {
-    return '<option value="' + f.id + '" data-preview="' + esc(f.preview) + '" data-seconds="' +
-      (FONTS_WITHOUT_SECONDS[f.id] ? '0' : '1') + '"' +
-      (current.clockFont === f.id ? ' selected' : '') + '>' + esc(f.label) + '</option>';
-  }).join('');
+  var fontOptions = fontOptionsHtml(clockFontId, true);
+  var clockFontSmallOptions = fontOptionsHtml(clockFontSmallId, false);
 
   function schemeOptionsHtml() {
     var opts = '<option value="" selected>Choose a preset...</option>';
@@ -1229,6 +1224,9 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    <div id="digitalOnlySettings" class="subsection" style="' + (bottomStyleVal === 'digital' ? '' : 'display:none;') + '">' +
 '      <label for="clockFont">Clock font</label>' +
 '      <select id="clockFont" onchange="onFontChange()">' + fontOptions + '</select>' +
+'      <label for="clockFontSmall" style="margin-top:10px;">Small companion font</label>' +
+'      <select id="clockFontSmall" onchange="updatePreview()">' + clockFontSmallOptions + '</select>' +
+'      <div class="help">Used for the seconds digits, sunrise/sunset time, and date line next to the clock -- picking a Clock font above suggests a matching one here automatically, but you can override it.</div>' +
 '    </div>' +
 
 '    <div id="analogOnlySettings" class="subsection" style="' + (isAnalog ? '' : 'display:none;') + '">' +
@@ -1476,25 +1474,9 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      </div>' +
 '    </div>' +
 
-'    <label for="cornerCustomFont">Font</label>' +
-'    <select id="cornerCustomFont" onchange="onCornerFontChange()">' +
-'      <option value="0"' + (current.cornerCustomFont === '0' || !current.cornerCustomFont ? ' selected' : '') + '>Default (allows size below)</option>' +
-'      <option value="1"' + (current.cornerCustomFont === '1' ? ' selected' : '') + '>Digital</option>' +
-'      <option value="2"' + (current.cornerCustomFont === '2' ? ' selected' : '') + '>Minecraft</option>' +
-'      <option value="3"' + (current.cornerCustomFont === '3' ? ' selected' : '') + '>Pixelate</option>' +
-'      <option value="4"' + (current.cornerCustomFont === '4' ? ' selected' : '') + '>Miso</option>' +
-'      <option value="5"' + (current.cornerCustomFont === '5' ? ' selected' : '') + '>Bebas</option>' +
-'      <option value="6"' + (current.cornerCustomFont === '6' ? ' selected' : '') + '>Roboto</option>' +
-'    </select>' +
-'    <label for="cornerFontSize">Font size</label>' +
-'    <select id="cornerFontSize" onchange="onCornerFontSizeChange()" ' + (current.cornerCustomFont && current.cornerCustomFont !== '0' ? 'disabled' : '') + '>' +
-'      <option value="0"' + (current.cornerFontSize === '0' ? ' selected' : '') + '>S</option>' +
-'      <option value="1"' + (current.cornerFontSize === '1' || !current.cornerFontSize ? ' selected' : '') + '>M</option>' +
-'      <option value="2"' + (current.cornerFontSize === '2' ? ' selected' : '') + '>L</option>' +
-'      <option value="3"' + (current.cornerFontSize === '3' ? ' selected' : '') + '>XL</option>' +
-'      <option value="4"' + (current.cornerFontSize === '4' ? ' selected' : '') + '>XXL</option>' +
-'    </select>' +
-'    <div class="help">Applies to corner/edge feature text and the big-analog date. A custom font has its own fixed size, so the size option above only applies to "Default".</div>' +
+'    <label for="cornerFont">Font</label>' +
+'    <select id="cornerFont" onchange="onCornerFontChange()">' + fontOptionsHtml(parseInt(current.cornerFont || '1', 10), false) + '</select>' +
+'    <div class="help">Applies to corner/edge feature text and the big-analog date.</div>' +
 
 '    <div id="weatherIconStyleRow" style="' + (weatherIconFeatureInUse ? '' : 'display:none;') + '">' +
 '      <label for="weatherIconStyle">Weather icon style</label>' +
@@ -2241,13 +2223,11 @@ handEditorModalHtml('sec', 'Edit second hand') +
 // keep the two in sync. Also used by computeSlotAvailability() to
 // gray out the 4th "Feature" slot button when it wouldn't fit.
 'function computeSmallAnalogFeatureCount() {' +
-'  var customFontEl = document.getElementById("cornerCustomFont");' +
-'  var fontSizeEl = document.getElementById("cornerFontSize");' +
-'  var customFont = customFontEl ? customFontEl.value : "0";' +
-'  var fontSize = fontSizeEl ? fontSizeEl.value : "1";' +
-'  if (customFont && customFont !== "0") return 3;' +
-'  if (fontSize === "2" || fontSize === "3" || fontSize === "4" || fontSize === "5") return 3;' +
-'  return 4;' +
+'  var cornerFontEl = document.getElementById("cornerFont");' +
+'  if (!cornerFontEl) return 4;' +
+'  var opt = cornerFontEl.options[cornerFontEl.selectedIndex];' +
+'  var height = parseInt(opt.getAttribute("data-height"), 10) || 14;' +
+'  return height > 18 ? 3 : 4;' +
 '}' +
 
 // The small-analog info panel's rows -- same 4 fields the big-analog
@@ -2872,7 +2852,6 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  onMarkerStyleChange();' +
 '  onHandStyleChange();' +
 '  onCornerFontChange();' +
-'  onCornerFontSizeChange();' +
 '  onSkyModeChange();' +
 '  onShowSecondsChange();' +
 '  updateColorRoleButtons();' +
@@ -3145,12 +3124,6 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '}' +
 
 'function onCornerFontChange() {' +
-'  var custom = document.getElementById("cornerCustomFont").value;' +
-'  document.getElementById("cornerFontSize").disabled = (custom !== "0");' +
-'  renderSlotPicker();' +
-'  updatePreview();' +
-'}' +
-'function onCornerFontSizeChange() {' +
 '  renderSlotPicker();' +
 '  updatePreview();' +
 '}' +
@@ -3170,6 +3143,10 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  onBottomStyleChange();' +
 '}' +
 'function onFontChange() {' +
+'  var fontSel = document.getElementById("clockFont");' +
+'  var opt = fontSel.options[fontSel.selectedIndex];' +
+'  var pairedSmallId = opt.getAttribute("data-paired-small");' +
+'  if (pairedSmallId !== null) document.getElementById("clockFontSmall").value = pairedSmallId;' +
 '  onBottomStyleChange();' +
 '}' +
 'function onAnalogStyleChange() { updatePreview(); }' +
@@ -3325,6 +3302,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    CONFIG_OWM_KEY: document.getElementById("owmKey").value,' +
 '    CONFIG_UPDATE_MINS: mins,' +
 '    CONFIG_CLOCK_FONT: document.getElementById("clockFont").value,' +
+'    CONFIG_CLOCK_FONT_SMALL: document.getElementById("clockFontSmall").value,' +
 '    CONFIG_TEMP_UNIT: document.getElementById("tempUnit").value,' +
 '    CONFIG_WIND_SPEED_UNIT: document.getElementById("windSpeedUnit").value,' +
 '    CONFIG_AQI_UNIT: document.getElementById("aqiUnit").value,' +
@@ -3375,8 +3353,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    CONFIG_SHAKE_ANIM_MODE: radioValue("shakeAnimMode", "0"),' +
 '    CONFIG_OUTLINE_ENABLED: document.getElementById("outlineEnabled").checked,' +
 '    CONFIG_HAND_PRESET_CONTRAST_STYLE: document.getElementById("handPresetContrastStyle").value,' +
-'    CONFIG_CORNER_FONT_SIZE: document.getElementById("cornerFontSize").value,' +
-'    CONFIG_CORNER_CUSTOM_FONT: document.getElementById("cornerCustomFont").value,' +
+'    CONFIG_CORNER_FONT: document.getElementById("cornerFont").value,' +
 '    CONFIG_CORNER_TL: document.getElementById("cornerTL").value,' +
 '    CONFIG_CORNER_TR: document.getElementById("cornerTR").value,' +
 '    CONFIG_CORNER_BL: document.getElementById("cornerBL").value,' +

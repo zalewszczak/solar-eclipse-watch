@@ -2,6 +2,7 @@
 #include "eclipse_data.h"
 #include "background_layer.h"
 #include "features_layer.h"
+#include "font_lookup.h"
 
 // EclipseData is well past Pebble's 256-byte-per-key persist limit
 // (PERSIST_DATA_MAX_LENGTH), so it's split across several keys here
@@ -49,13 +50,11 @@ static EclipseData s_data;
 
 // Declare a file-scope variable
 static GFont clock_font;
-static bool clock_font_custom = false;
+static FontSlot s_clock_font_slot = FONT_SLOT_EMPTY;
 static GFont small_font;
-static bool small_font_custom = false;
+static FontSlot s_clock_small_font_slot = FONT_SLOT_EMPTY;
 
 // static declarations:
-static int get_small_font_height_offset(void);
-static int get_clock_font_height_offset(void);
 static bool use_small_seconds_for_digital_clock(void);
 static void tick_handler(struct tm *tick_time, TimeUnits units_changed);
 
@@ -269,12 +268,11 @@ static const HandConfig HAND_STYLE_SEC_PRESET = {
   .style = 1, .width = 2, .length = 85, .back_offset = 6, .color = 1,
 };
 
-// s_corner_custom_font state + corner_custom_font_resource_id()/
-// ensure_corner_custom_font()/get_corner_font()/corner_font_height_estimate()/
-// small_analog_feature_count() moved to features_layer.c (also used there
-// for the corners/edges overlay itself); the latter two are exposed via
-// features_layer.h since this file's hands layer and bottom panel still
-// need them.
+// Corner/edge/date font resolution is now font_lookup_resolve() plus a
+// shared FontSlot (see font_lookup.h) owned by features_layer.c, whose
+// ensure_corner_custom_font()/small_analog_feature_count() are exposed
+// via features_layer.h since this file's hands layer and bottom panel
+// still need them.
 
 
 
@@ -709,7 +707,7 @@ static void hands_layer_update_proc(Layer *layer, GContext *ctx) {
   // redraw now (background_layer.c), composited once per its own
   // once-a-minute/force-redraw cadence rather than every tick this
   // always-on-top hands layer runs.
-  ensure_corner_custom_font(s_data.corner_custom_font);
+  ensure_corner_custom_font(s_data.corner_font);
 
   int32_t hour_angle = (int32_t)(((int64_t)((t->tm_hour % 12) * 3600 + t->tm_min * 60 + t->tm_sec) * TRIG_MAX_ANGLE) / (12 * 3600));
 
@@ -960,7 +958,7 @@ static void bottom_canvas_update_proc(Layer *layer, GContext *ctx) {
     // sits on its own solid background color, not over the busy sky
     // view, so it never needs the contrasting outline the corners/
     // edges rely on.
-    ensure_corner_custom_font(s_data.corner_custom_font);
+    ensure_corner_custom_font(s_data.corner_font);
     uint8_t feature_count = small_analog_feature_count(&s_data);
     const uint8_t feature_content[4] = {
       s_data.upper_middle_line1_content, s_data.upper_middle_line2_content,
@@ -987,15 +985,15 @@ static void bottom_canvas_update_proc(Layer *layer, GContext *ctx) {
     graphics_context_set_text_color(ctx, text_color);
     if (s_data.show_seconds && use_small_seconds_for_digital_clock()) {
       graphics_draw_text(ctx, time_buf, clock_font,
-                          GRect(bounds.origin.x, bounds.origin.y + get_clock_font_height_offset(), bounds.size.w - 20, 60),
+                          GRect(bounds.origin.x, bounds.origin.y + font_lookup_y_offset(s_data.clock_font), bounds.size.w - 20, 60),
                           GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
       graphics_context_set_text_color(ctx, accent_color);
       graphics_draw_text(ctx, sec_buf, small_font,
-                         GRect(bounds.origin.x + bounds.size.w - 22, bounds.origin.y + 15 + get_small_font_height_offset() * 2, 20, 50),
+                         GRect(bounds.origin.x + bounds.size.w - 22, bounds.origin.y + 15 + font_lookup_y_offset(s_data.clock_font_small) * 2, 20, 50),
                           GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft, NULL);
     } else {
       graphics_draw_text(ctx, time_buf, clock_font,
-                          GRect(bounds.origin.x, bounds.origin.y + get_clock_font_height_offset(), bounds.size.w, 60),
+                          GRect(bounds.origin.x, bounds.origin.y + font_lookup_y_offset(s_data.clock_font), bounds.size.w, 60),
                           GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
     }
 
@@ -1018,14 +1016,14 @@ static void bottom_canvas_update_proc(Layer *layer, GContext *ctx) {
 
       int16_t left_w = (bounds.size.w * 55) / 100;
       graphics_draw_text(ctx, main_buf, small_font,
-                          GRect(bounds.origin.x, bounds.origin.y + 60 + get_small_font_height_offset(), left_w, 16),
+                          GRect(bounds.origin.x, bounds.origin.y + 60 + font_lookup_y_offset(s_data.clock_font_small), left_w, 16),
                           GTextOverflowModeTrailingEllipsis, GTextAlignmentRight, NULL);
       int16_t icon_x = bounds.origin.x + left_w + 6;
       int16_t icon_y = bounds.origin.y + 60 + 5;
       int16_t icon_w = draw_sun_time_icon(ctx, GPoint(icon_x, icon_y), sun_event_is_rise, text_color, bg);
       graphics_context_set_text_color(ctx, text_color);
       graphics_draw_text(ctx, sun_time_buf, small_font,
-                          GRect(icon_x + icon_w + 3, bounds.origin.y + 60 + get_small_font_height_offset(), bounds.size.w - (icon_x + icon_w + 3), 16),
+                          GRect(icon_x + icon_w + 3, bounds.origin.y + 60 + font_lookup_y_offset(s_data.clock_font_small), bounds.size.w - (icon_x + icon_w + 3), 16),
                           GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft, NULL);
     } else {
       char week_buf[8];
@@ -1033,7 +1031,7 @@ static void bottom_canvas_update_proc(Layer *layer, GContext *ctx) {
       char date_buf[40];
       snprintf(date_buf, sizeof(date_buf), "%s  -  Wk%s", main_buf, week_buf);
       graphics_draw_text(ctx, date_buf, small_font,
-                          GRect(bounds.origin.x, bounds.origin.y + 60 + get_small_font_height_offset(), bounds.size.w, 16),
+                          GRect(bounds.origin.x, bounds.origin.y + 60 + font_lookup_y_offset(s_data.clock_font_small), bounds.size.w, 16),
                           GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
     }
   }
@@ -1253,6 +1251,30 @@ static void bg_anim_timer_callback(void *data) {
 
 static void maybe_start_startup_background_animation(void) {
   if (s_bg_anim_played || s_data.bg_anim_mode == 0) return;
+  // Marker animation (bg_anim_mode 3) has no actual visual effect for
+  // bitmap marker styles (Modern/Swiss/Tally/Bell/Brown -- the PNG-
+  // backed marker backgrounds, big_analog_marker_style 3-7):
+  // draw_marker_bitmap() in background_layer.c already draws them
+  // immediately regardless of anim_active/anim_progress_1000, since a
+  // real circular-reveal effect for an arbitrary bitmap isn't
+  // implemented (see that function's own comment for why -- Pebble's
+  // graphics API has no per-context clip-rect or arbitrary-shape
+  // compositing to build one from). Running the 35-frame, 25fps
+  // full-canvas redraw burst below anyway -- right at startup, the
+  // same moment the marker bitmap's own first-ever PNG decode is ALSO
+  // happening for the first time, on top of everything else the app
+  // is doing at launch -- was capable of pushing heap pressure high
+  // enough to fail that PNG decode outright ("PNG memory allocation
+  // failed" / "Failed to load PNG" in the logs, marker not drawn at
+  // all as a result). Skipping the animation burst entirely for this
+  // combination avoids that: a bitmap marker style still gets its one
+  // normal, un-animated redraw, exactly as if bg_anim_mode were off --
+  // which is all it was ever visually doing anyway.
+  bool bitmap_marker_active = s_data.big_analog_marker_style >= 3 && s_data.big_analog_marker_style <= 7;
+  if (s_data.bg_anim_mode == 3 && bitmap_marker_active) {
+    s_bg_anim_played = true;
+    return;
+  }
   s_bg_anim_played = true;
   s_bg_anim_active = true;
   s_bg_anim_elapsed_ms = 0;
@@ -1261,231 +1283,27 @@ static void maybe_start_startup_background_animation(void) {
 }
 
 static bool use_small_seconds_for_digital_clock() {
-  switch (s_data.clock_font) {
-    case 2: // RESOURCE_ID_SFPIXELATE_FONT_48
-    case 3: // RESOURCE_ID_RADIOLAND_FONT_48
-    case 4: // RESOURCE_ID_MINISYSTEM_FONT_48
-    case 5: // RESOURCE_ID_MINECRAFTER_FONT_48
-    case 6: // RESOURCE_ID_KITCHENPOLICE_FONT_48
-    case 12: // RESOURCE_ID_AUDIOWIDE_FONT_48 // good
-    case 14: // RESOURCE_ID_KOMIKAHB_FONT_48 // great one
-      return true;
-    case 1: //RESOURCE_ID_CLOCKFORGE_FONT_48
-    case 7: // RESOURCE_ID_DSDIGIB_FONT_48
-    case 8: // RESOURCE_ID_DISTGRG_FONT_48
-    case 9: // RESOURCE_ID_DIMITRI_FONT_48
-    case 10: // RESOURCE_ID_DIGITALDREAM_FONT_48
-    case 11: // RESOURCE_ID_BLACKOUT_FONT_48 // i like this
-    case 13: // RESOURCE_ID_FORMATION_FONT_48 // looks ok
-    case 15: // RESOURCE_ID_MISO_FONT_48 // good one
-    case 16: // RESOURCE_ID_PRICEDOWN_FONT_48 // gta vibes, good one
-    case 17: // FONT_KEY_ROBOTO_BOLD_SUBSET_49 // roboto
-    case 18: // FONT_KEY_BITHAM_42_LIGHT // bitham light
-    case 19: // FONT_KEY_BITHAM_42_BOLD // bitham bold
-    case 20: // RESOURCE_ID_BEBAS_FONT_48 // tally font
-    default: // FONT_KEY_LECO_42_NUMBERS
-      return false;
-  }
+  return font_lookup_is_wide(s_data.clock_font);
 }
 
-static int get_small_font_height_offset() {
-  switch (s_data.clock_font) {
-    case 1: // RESOURCE_ID_DIGITALDREAM_FONT_12
-      return 0;
-    case 2: // FONT_KEY_GOTHIC_14
-      return 0;
-    case 3: // RESOURCE_ID_DIGITALDREAM_FONT_12
-      return -2;
-    case 4: // RESOURCE_ID_DIGITALDREAM_FONT_12
-      return -2;
-    case 5: // RESOURCE_ID_MINECRAFTER_FONT_12
-      return 0;
-    case 6: // FONT_KEY_GOTHIC_14
-      return 0;
-    case 7: // RESOURCE_ID_DIGITALDREAM_FONT_12
-      return -2;
-    case 8: // RESOURCE_ID_BEBAS_FONT_20
-      return -6;
-    case 9: // FONT_KEY_GOTHIC_14
-      return -2;
-    case 10: // RESOURCE_ID_DIGITALDREAM_FONT_12
-      return 0;
-    case 11: // RESOURCE_ID_BEBAS_FONT_20
-      return -6;
-    case 12: // RESOURCE_ID_BEBAS_FONT_20
-      return -6;
-    case 13: // RESOURCE_ID_BEBAS_FONT_20
-      return -6;
-    case 14: // RESOURCE_ID_MISO_FONT_19
-      return -4;
-    case 15: // RESOURCE_ID_MISO_FONT_19
-      return -4;
-    case 16: // RESOURCE_ID_MINECRAFTER_FONT_12
-      return -2;
-    case 17: // FONT_KEY_ROBOTO_CONDENSED_21
-      return -2;
-    case 18: // FONT_KEY_GOTHIC_14
-      return 0;
-    case 19: // FONT_KEY_GOTHIC_14
-      return 0;
-    case 20: // RESOURCE_ID_BEBAS_FONT_20
-      return -6;
-    default: // FONT_KEY_GOTHIC_14
-      return 0;
-  }
-}
-
-static int get_clock_font_height_offset() {
-  switch (s_data.clock_font) {
-    case 5: // RESOURCE_ID_MINECRAFTER_FONT_48
-      return 4;
-    case 8: // RESOURCE_ID_DISTGRG_FONT_48
-      return -6;
-    case 9: // RESOURCE_ID_DIMITRI_FONT_48
-    case 11: // RESOURCE_ID_BLACKOUT_FONT_48 // i like this
-    case 12: // RESOURCE_ID_AUDIOWIDE_FONT_48 // good
-    case 13: // RESOURCE_ID_FORMATION_FONT_48 // looks ok
-    case 17: // FONT_KEY_ROBOTO_BOLD_SUBSET_49 // roboto
-    case 10: // RESOURCE_ID_DIGITALDREAM_FONT_48
-      return -2;
-    case 15: // RESOURCE_ID_MISO_FONT_48 // good one
-    case 7: // RESOURCE_ID_DSDIGIB_FONT_48
-      return -4;
-    case 1: //RESOURCE_ID_CLOCKFORGE_FONT_48
-    case 2: // RESOURCE_ID_SFPIXELATE_FONT_48
-    case 3: // RESOURCE_ID_RADIOLAND_FONT_48
-    case 4: // RESOURCE_ID_MINISYSTEM_FONT_48
-    case 6: // RESOURCE_ID_KITCHENPOLICE_FONT_48
-    case 14: // RESOURCE_ID_KOMIKAHB_FONT_48 // great one
-    case 16: // RESOURCE_ID_PRICEDOWN_FONT_48 // gta vibes, good one
-    case 18: // FONT_KEY_BITHAM_42_LIGHT // bitham light
-    case 19: // FONT_KEY_BITHAM_42_BOLD // bitham bold
-    case 20: // RESOURCE_ID_BEBAS_FONT_48 // tally font
-    default: // FONT_KEY_LECO_42_NUMBERS
-      return 0;
-  }
-}
+// get_small_font_height_offset()/get_clock_font_height_offset() used
+// to live here as hand-tuned per-clock_font-value switches -- both
+// folded into font_lookup.c's shared FONT_TABLE (its y_offset column)
+// now, called directly as font_lookup_y_offset(s_data.clock_font) /
+// font_lookup_y_offset(s_data.clock_font_small) at each call site.
 
 static void apply_clock_font(void) {
-  if (clock_font_custom) {
-    fonts_unload_custom_font(clock_font);
-  }
-  if (small_font_custom) {
-    fonts_unload_custom_font(small_font);
-  }
-  
-  if (s_data.bottom_style == 1) { // small analog + 4 data rows
-    clock_font = fonts_get_system_font(FONT_KEY_LECO_42_NUMBERS);
-    small_font = fonts_get_system_font(FONT_KEY_GOTHIC_14);
-    clock_font_custom = false;
-    small_font_custom = false;
-  } else if (s_data.clock_font == 1) {
-    clock_font = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_CLOCKFORGE_FONT_48)); // looks kinda good
-    small_font = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_DIGITALDREAM_FONT_12));
-    clock_font_custom = true;
-    small_font_custom = true;
-  } else if (s_data.clock_font == 2) {
-    clock_font = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_SFPIXELATE_FONT_48)); // looks good
-    small_font = fonts_get_system_font(FONT_KEY_GOTHIC_14);
-    clock_font_custom = true;
-    small_font_custom = false;
-  } else if (s_data.clock_font == 3) {
-    clock_font = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_RADIOLAND_FONT_48)); // looks good
-    small_font = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_DIGITALDREAM_FONT_12));
-    clock_font_custom = true;
-    small_font_custom = true;
-  } else if (s_data.clock_font == 4) {
-    clock_font = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_MINISYSTEM_FONT_48)); // looks kinda interesting
-    small_font = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_DIGITALDREAM_FONT_12));
-    clock_font_custom = true;
-    small_font_custom = true;
-  } else if (s_data.clock_font == 5) {
-    clock_font = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_MINECRAFTER_FONT_48)); // weird, but ok
-    small_font = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_MINECRAFTER_FONT_12));
-    clock_font_custom = true;
-    small_font_custom = true;
-  } else if (s_data.clock_font == 6) {
-    clock_font = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_KITCHENPOLICE_FONT_48)); // good
-    small_font = fonts_get_system_font(FONT_KEY_GOTHIC_14);
-    clock_font_custom = true;
-    small_font_custom = false;
-  } else if (s_data.clock_font == 7) {
-    clock_font = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_DSDIGIB_FONT_48)); // very good
-    small_font = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_DIGITALDREAM_FONT_12));
-    clock_font_custom = true;
-    small_font_custom = true;
-  } else if (s_data.clock_font == 8) {
-    clock_font = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_DISTGRG_FONT_48)); // good, star wars wibes
-    small_font = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_BEBAS_FONT_20));
-    clock_font_custom = true;
-    small_font_custom = true;
-  } else if (s_data.clock_font == 9) {
-    clock_font = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_DIMITRI_FONT_48)); // good
-    small_font = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_MINECRAFTER_FONT_12));
-    clock_font_custom = true;
-    small_font_custom = true;
-  } else if (s_data.clock_font == 10) {
-    clock_font = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_DIGITALDREAM_FONT_48)); // wideee but good!
-    small_font = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_DIGITALDREAM_FONT_12));
-    clock_font_custom = true;
-    small_font_custom = true;
-  } else if (s_data.clock_font == 11) {
-    clock_font = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_BLACKOUT_FONT_48)); // i like this
-    small_font = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_BEBAS_FONT_20));
-    clock_font_custom = true;
-    small_font_custom = true;
-  } else if (s_data.clock_font == 12) {
-    clock_font = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_AUDIOWIDE_FONT_48)); // good
-    small_font = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_BEBAS_FONT_20));
-    clock_font_custom = true;
-    small_font_custom = true;
-  } else if (s_data.clock_font == 13) {
-    clock_font = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FORMATION_FONT_48)); // looks ok
-    small_font = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_BEBAS_FONT_20));
-    clock_font_custom = true;
-    small_font_custom = true;
-  } else if (s_data.clock_font == 14) {
-    clock_font = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_KOMIKAHB_FONT_48)); // great one
-    small_font = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_MISO_FONT_19));
-    clock_font_custom = true;
-    small_font_custom = true;
-  } else if (s_data.clock_font == 15) {
-    clock_font = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_MISO_FONT_48)); // good one
-    small_font = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_MISO_FONT_19));
-    clock_font_custom = true;
-    small_font_custom = true;
-  } else if (s_data.clock_font == 16) {
-    clock_font = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_PRICEDOWN_FONT_48)); // gta vibes, good one
-    small_font = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_MINECRAFTER_FONT_12));
-    clock_font_custom = true;
-    small_font_custom = true;
-  } else if (s_data.clock_font == 17) {
-    clock_font = fonts_get_system_font(FONT_KEY_ROBOTO_BOLD_SUBSET_49); // roboto
-    small_font = fonts_get_system_font(FONT_KEY_ROBOTO_CONDENSED_21);
-    clock_font_custom = false;
-    small_font_custom = false;
-  } else if (s_data.clock_font == 18) {
-    clock_font = fonts_get_system_font(FONT_KEY_BITHAM_42_LIGHT); // bitham light
-    small_font = fonts_get_system_font(FONT_KEY_GOTHIC_14);
-    clock_font_custom = false;
-    small_font_custom = false;
-  } else if (s_data.clock_font == 19) {
-    clock_font = fonts_get_system_font(FONT_KEY_BITHAM_42_BOLD); // bitham bold
-    small_font = fonts_get_system_font(FONT_KEY_GOTHIC_14);
-    clock_font_custom = false;
-    small_font_custom = false;
-  } else if (s_data.clock_font == 20) {
-    clock_font = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_BEBAS_FONT_48)); // tally font
-    small_font = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_BEBAS_FONT_20));
-    clock_font_custom = true;
-    small_font_custom = true;
+  if (s_data.bottom_style == 1) {
+    // Small analog + 4 data rows -- the digital clock font choice
+    // doesn't apply here at all (there's no room for anything but the
+    // plain default), so this always resolves to Leco XL/System Small
+    // regardless of clock_font/clock_font_small.
+    clock_font = font_lookup_resolve(&s_clock_font_slot, 8);
+    small_font = font_lookup_resolve(&s_clock_small_font_slot, 0);
   } else {
-    clock_font = fonts_get_system_font(FONT_KEY_LECO_42_NUMBERS);
-    small_font = fonts_get_system_font(FONT_KEY_GOTHIC_14);
-    clock_font_custom = false;
-    small_font_custom = false;
+    clock_font = font_lookup_resolve(&s_clock_font_slot, s_data.clock_font);
+    small_font = font_lookup_resolve(&s_clock_small_font_slot, s_data.clock_font_small);
   }
-
   if (s_bottom_layer) layer_mark_dirty(s_bottom_layer);
 }
 
@@ -1549,10 +1367,16 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   // Parsed (and applied) before the early-return below so a
   // font-only settings update still takes effect even if the watch
   // hasn't received a valid eclipse payload yet.
+  bool clock_font_changed = false;
   if ((t = dict_find(iter, MESSAGE_KEY_CLOCK_FONT))) {
     s_data.clock_font = t->value->uint8;
-    apply_clock_font();
+    clock_font_changed = true;
   }
+  if ((t = dict_find(iter, MESSAGE_KEY_CLOCK_FONT_SMALL))) {
+    s_data.clock_font_small = t->value->uint8;
+    clock_font_changed = true;
+  }
+  if (clock_font_changed) apply_clock_font();
   if ((t = dict_find(iter, MESSAGE_KEY_TEMP_UNIT))) {
     s_data.temp_unit = t->value->uint8;
   }
@@ -1615,11 +1439,8 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
     uint8_t v = t->value->uint8;
     s_data.hand_preset_contrast_style = (v <= 3) ? v : 2; // clamped -- used as a raw comparison, not a safely-defaulting switch, and 2 (background outline) matches the old fixed pre-this-setting behavior
   }
-  if ((t = dict_find(iter, MESSAGE_KEY_CORNER_FONT_SIZE))) {
-    s_data.corner_font_size = t->value->uint8;
-  }
-  if ((t = dict_find(iter, MESSAGE_KEY_CORNER_CUSTOM_FONT))) {
-    s_data.corner_custom_font = t->value->uint8;
+  if ((t = dict_find(iter, MESSAGE_KEY_CORNER_FONT))) {
+    s_data.corner_font = t->value->uint8;
   }
   if ((t = dict_find(iter, MESSAGE_KEY_BIG_ANALOG_HAND_STYLE))) {
     s_data.big_analog_hand_style = t->value->uint8;
@@ -1713,12 +1534,11 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   if ((t = dict_find(iter, MESSAGE_KEY_BITMAP_MARKER_TRANSPARENT))) s_data.bitmap_marker_transparent = t->value->uint8 != 0;
   if ((t = dict_find(iter, MESSAGE_KEY_MARKER_TEXT_TARGET))) s_data.marker_text.target = t->value->uint8;
   if ((t = dict_find(iter, MESSAGE_KEY_MARKER_TEXT_FONT))) {
-    // Clamped, unlike most other enum-ish fields here -- this one's
-    // used as a raw array index (MARKER_FONT_HEIGHTS/_Y_OFFSET in
-    // background_layer.c), not a switch with a safe default, so an
-    // out-of-range value would be a real out-of-bounds read.
-    uint8_t v = t->value->uint8;
-    s_data.marker_text.font_choice = (v <= 14) ? v : 0;
+    // No manual clamp needed (unlike before font resolution moved to
+    // font_lookup.c) -- font_lookup_resolve()/_height()/_y_offset()
+    // all defend against an out-of-range id themselves now, same as
+    // clock_font/clock_font_small/corner_font already rely on below.
+    s_data.marker_text.font_choice = t->value->uint8;
   }
   if ((t = dict_find(iter, MESSAGE_KEY_MARKER_TEXT_OFFSET))) s_data.marker_text.offset_px = (int8_t)t->value->int16;
   if ((t = dict_find(iter, MESSAGE_KEY_MARKER_TEXT_HOUR_MASK))) s_data.marker_text.hour_mask = t->value->uint16;
@@ -2349,6 +2169,8 @@ static void window_unload(Window *window) {
   if (s_hands_layer) layer_destroy(s_hands_layer);
   if (s_features_layer) features_layer_destroy(s_features_layer);
   features_layer_unload_fonts();
+  font_lookup_release(&s_clock_font_slot);
+  font_lookup_release(&s_clock_small_font_slot);
 }
 
 static void init(void) {

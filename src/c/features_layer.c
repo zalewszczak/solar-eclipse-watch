@@ -1,5 +1,6 @@
 #include "features_layer.h"
 #include "background_layer.h"
+#include "font_lookup.h"
 #include <string.h>
 
 // See features_layer.h for the module-level design note (metadata cache
@@ -101,100 +102,28 @@ void draw_text_outlined(GContext *ctx, const char *text, GFont font, GRect box,
 
 
 
-// Custom font for corner/edge feature text and the big-analog date --
-// a single slot since only one custom font can be selected at a time,
-// swapped (or unloaded entirely, for "default") whenever the setting
-// changes. Same lazy load/unload lifecycle as apply_clock_font() uses
-// for the main clock typeface.
-static GFont s_corner_custom_font = NULL;
-static uint8_t s_corner_custom_font_loaded_choice = 255; // 255 = nothing loaded yet
+// Corner/edge feature text and the big-analog date's own font slot --
+// resolved via font_lookup_resolve() (see font_lookup.h for the
+// shared table every font-selecting system in this app draws from).
+static FontSlot s_corner_font_slot = FONT_SLOT_EMPTY;
 
-static uint32_t corner_custom_font_resource_id(uint8_t choice) {
-  switch (choice) {
-    case 1: return RESOURCE_ID_DIGITALDREAM_FONT_12;
-    case 2: return RESOURCE_ID_MINECRAFTER_FONT_12;
-    case 3: return RESOURCE_ID_SFPIXELATE_FONT_14;
-    case 4: return RESOURCE_ID_MISO_FONT_19;
-    case 5: return RESOURCE_ID_BEBAS_FONT_20;
-    default: return 0; // 0 = default (corner_font_size applies instead); 6 = Roboto also falls
-                         // here -- it's a system font (FONT_KEY_ROBOTO_CONDENSED_21), not a
-                         // loaded custom one, so there's no resource to load for it either;
-                         // see get_corner_font()'s own early check for choice 6.
-  }
+void ensure_corner_custom_font(uint8_t font_id) {
+  font_lookup_resolve(&s_corner_font_slot, font_id);
 }
 
-void ensure_corner_custom_font(uint8_t choice) {
-  if (choice == s_corner_custom_font_loaded_choice) return; // already correct
-  if (s_corner_custom_font) {
-    fonts_unload_custom_font(s_corner_custom_font);
-    s_corner_custom_font = NULL;
-  }
-  uint32_t res_id = corner_custom_font_resource_id(choice);
-  if (res_id != 0) {
-    s_corner_custom_font = fonts_load_custom_font(resource_get_handle(res_id));
-  }
-  s_corner_custom_font_loaded_choice = choice;
-}
-
-// Resolves to whichever font corner/edge text and the big-analog date
-// should currently draw with -- the custom font if one's selected
-// (ensure_corner_custom_font() must have already been called this
-// cycle so it's actually loaded), otherwise a system font sized per
-// corner_font_size.
-static GFont get_corner_font(const EclipseData *data) {
-  // Roboto -- a real system font (moved out of the S/M/L/XL/XXL size
-  // dropdown, where it was wrongly listed as if it were just another
-  // size, and into this project's own "Font" dropdown alongside
-  // Digital/Minecraft/Pixelate/Miso/Bebas, where it actually belongs)
-  // -- checked before s_corner_custom_font below since there's no
-  // custom font resource loaded for it (see corner_custom_font_
-  // resource_id()'s own comment).
-  if (data->corner_custom_font == 6) return fonts_get_system_font(FONT_KEY_ROBOTO_CONDENSED_21);
-  if (s_corner_custom_font) return s_corner_custom_font;
-  if (data->corner_font_size == 0) return fonts_get_system_font(FONT_KEY_GOTHIC_14);
-  if (data->corner_font_size == 2) return fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD);
-  if (data->corner_font_size == 3) return fonts_get_system_font(FONT_KEY_GOTHIC_24_BOLD);
-  if (data->corner_font_size == 4) return fonts_get_system_font(FONT_KEY_GOTHIC_28_BOLD);
-  return fonts_get_system_font(FONT_KEY_GOTHIC_14_BOLD); // 1 = M, also the fallback
-}
-
-// A rough height estimate for whatever get_corner_font() currently
-// resolves to, used only for sizing/centering text boxes -- doesn't
-// need to be pixel-exact, just enough to keep each option's text
-// reasonably positioned rather than clipped or badly off-center.
-static int16_t corner_font_height_estimate(const EclipseData *data) {
-  if (data->corner_custom_font == 1) return 12;
-  if (data->corner_custom_font == 2) return 12;
-  if (data->corner_custom_font == 3) return 14;
-  if (data->corner_custom_font == 4) return 19;
-  if (data->corner_custom_font == 5) return 24;
-  if (data->corner_custom_font == 6) return 24; // Roboto
-  if (data->corner_font_size == 0) return 14;
-  if (data->corner_font_size == 2) return 24;
-  if (data->corner_font_size == 3) return 32;
-  if (data->corner_font_size == 4) return 36;
-  return 18;
-}
-
-// How many of the small-analog info panel's rows actually fit,
-// given the currently-selected corner/edge font. Any custom font
-// (which carries its own fixed size the user didn't pick for this
-// purpose) or the larger system sizes (L/XL/XXL/Roboto) only leave
-// room for 3 rows before they'd start overlapping; S and M both stay
-// short enough for the full 4. Mirrors the equivalent check in
+// How many of the small-analog info panel's rows actually fit, given
+// the currently-selected corner/edge font -- anything taller than
+// System Medium (the old default) only leaves room for 3 rows before
+// they'd start overlapping; System Small and Medium both stay short
+// enough for the full 4. Mirrors the equivalent check in
 // config-page.js's computeSlotAvailability() (used to gray out the
 // 4th feature button there) -- keep the two in sync.
 uint8_t small_analog_feature_count(const EclipseData *data) {
-  if (data->corner_custom_font != 0) return 3;
-  if (data->corner_font_size >= 2) return 3;
-  return 4;
+  return font_lookup_height(data->corner_font) > 18 ? 3 : 4;
 }
 
 void features_layer_unload_fonts(void) {
-  if (s_corner_custom_font) {
-    fonts_unload_custom_font(s_corner_custom_font);
-    s_corner_custom_font = NULL;
-  }
+  font_lookup_release(&s_corner_font_slot);
 }
 
 // ---- corners overlay -------------------------------------------------
@@ -1753,8 +1682,8 @@ void features_draw_item(GContext *ctx, GRect bounds, const EclipseData *data,
     fill_polygon_dithered(ctx, plate_pts, 4, color);
   }
 
-  GFont font = get_corner_font(data);
-  int16_t font_h = corner_font_height_estimate(data);
+  GFont font = font_lookup_resolve(&s_corner_font_slot, data->corner_font);
+  int16_t font_h = font_lookup_height(data->corner_font);
   GSize text_size = graphics_text_layout_get_content_size(buf, font, GRect(0, 0, 200, font_h + 10),
                                                             GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft);
   int16_t icon_gap_w = icon_plus_gap_width(icon_kind);
@@ -2347,7 +2276,7 @@ static void features_layer_update_proc(Layer *layer, GContext *ctx) {
   time_t now = time(NULL);
   GColor bg, main_color, accent_color;
   get_active_color_scheme(state->data, now, &bg, &main_color, &accent_color);
-  ensure_corner_custom_font(state->data->corner_custom_font);
+  ensure_corner_custom_font(state->data->corner_font);
 
   for (int i = 0; i < FEATURES_MAX_SLOTS; i++) {
     FeatureSlot *s = &state->slots[i];

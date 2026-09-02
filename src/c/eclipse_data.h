@@ -52,14 +52,9 @@ typedef struct {
 typedef struct {
   uint8_t target;       // 0=off, 1=numerals on the hour ring, 2=numerals on the second ring
                           // (every 5s, drawn at the same 12 angular slots hour numerals use)
-  uint8_t font_choice;   // 0-2: system GOTHIC_14 / GOTHIC_14_BOLD / GOTHIC_18_BOLD (all <25px)
-                          // 3-6: custom Digital/Minecraft/Pixelate/Miso (all <25px)
-                          // 7-14: more system (Leco/Droid Serif/Roboto Condensed/Bitham) + Bebas
-                          // 15-35: every clock_font (see CLOCK_FONTS in config-page.js) at its
-                          // own "big" (~48px) size, custom-resource or system as appropriate --
-                          // same encoding as corner_custom_font/corner_font_size combined,
-                          // see marker_text_font_resource_id()/get_marker_text_font() in
-                          // background_layer.c
+  uint8_t font_choice;   // unified font id (see font_lookup.h) -- same table and ids as
+                          // clock_font/clock_font_small/corner_font, so e.g. picking "Bebas"
+                          // anywhere in the settings page always means the same id here too
   int8_t offset_px;      // -50..50 -- radial nudge of the text away from (positive) or
                           // towards (negative) the line/dot/square marker it's paired with,
                           // so the two can be visually independent instead of overlapping.
@@ -179,7 +174,13 @@ typedef struct {
   bool valid;              // has the watch ever received a good payload?
   uint8_t error_code;       // 0=none, 1=no location, 2=calc error, 3=send failed
   bool has_eclipse;         // is there any eclipse today at this location?
-  uint8_t clock_font;         // user's chosen clock typeface code, applies regardless of data validity
+  uint8_t clock_font;         // unified font id (see font_lookup.h) for the main clock digits, applies
+                                // regardless of data validity
+  uint8_t clock_font_small;   // unified font id for the smaller companion readout next to the clock
+                                // (seconds digits in digital mode, sunrise/sunset time, the date line) --
+                                // a separate id rather than something derived from clock_font, since
+                                // PKJS is what decides which small font looks good paired with which
+                                // big one (see CLOCK_FONTS_BIG in config-page.js)
   uint8_t temp_unit;          // user setting: 0=Celsius, 1=Fahrenheit, 2=Kelvin
   uint8_t wind_speed_unit;    // user setting: 0=km/h, 1=mph, 2=m/s, 3=knots
   bool show_seconds;          // user setting: show seconds (grayed out in settings for wide fonts)
@@ -354,12 +355,9 @@ typedef struct {
                                         // setting existed), 3=Shadow (a solid black copy of the
                                         // hand shifted 1px right+down, NOT a traced outline at
                                         // all -- see HandConfig's own hard_shadow comment).
-  uint8_t corner_font_size; // user setting: 0=small (GOTHIC_14), 1=medium (GOTHIC_14_BOLD),
-                              // 2=large (GOTHIC_18_BOLD) -- ignored when corner_custom_font != 0,
-                              // since a custom font has its own fixed baked-in size
-  uint8_t corner_custom_font; // user setting: 0=default (system font, corner_font_size applies),
-                                // 1=Digital, 2=Minecraft, 3=Pixelate, 4=Miso -- applies to
-                                // corner/edge feature text AND the big-analog date text
+  uint8_t corner_font; // unified font id (see font_lookup.h) for corner/edge feature text and the
+                         // big-analog date text; default (1 = System Medium) matches the old
+                         // corner_font_size default
 
   // bottom_style==2 (big analogue) settings -- hands/markings render
   // in their own always-on-top layer (see pebble-eclipse-watch.c),
