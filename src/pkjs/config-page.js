@@ -811,14 +811,48 @@ function serviceStatusRowsHtml(current) {
   }).join('');
 }
 
+// One button per logged raw AppMessage chunk (see recordRawMessage()
+// in index.js -- newest first here, though they're stored oldest-
+// first), labeled "HH:MM:SS.mmm chunk X/Y" -- X/Y being that chunk's
+// 1-based position and total count within whichever enqueueFlatDict()
+// batch produced it (e.g. a full refresh's STATUS/ECLIPSE/WEATHER/
+// ASTRONOMY/SKY_EFFECTS/FEATURES/SETTINGS chunks show as 1/6..6/6, a
+// cosmetic-only settings push's smaller FEATURES/SETTINGS batch as
+// 1/2 and 2/2). Clicking one loads that exact chunk's JSON into the
+// "Raw data (editable)" textarea below via loadRawMessage().
+function rawMessageLogButtonsHtml(current) {
+  var entries = (current && current.rawMessageLog) || [];
+  if (entries.length === 0) {
+    return '<div class="help">Nothing sent yet this session -- send/save something first.</div>';
+  }
+  var buttons = entries.map(function (e, i) {
+    var d = new Date(e.t);
+    function pad(n, len) { var s = String(n); while (s.length < (len || 2)) s = '0' + s; return s; }
+    var label = pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds()) + '.' + pad(d.getMilliseconds(), 3) +
+      ' chunk ' + e.batchIndex + '/' + e.batchTotal;
+    return { i: i, label: label };
+  }).reverse(); // newest first
+  return '<div class="raw-log-btn-grid" id="rawLogBtnGrid">' +
+    buttons.map(function (b) {
+      return '<button type="button" class="raw-log-btn" id="rawLogBtn' + b.i + '" onclick="loadRawMessage(' + b.i + ')">' + esc(b.label) + '</button>';
+    }).join('') +
+    '</div>';
+}
+
 function buildConfigHtml(current) {
   var autoLocChecked = current.autoLoc ? 'checked' : '';
   var manualDisabled = current.autoLoc ? 'disabled' : '';
   var testModeChecked = current.testMode ? 'checked' : '';
   var testDisabled = current.testMode ? '' : 'disabled';
+  // Falls back to the most recently sent raw chunk (see
+  // rawMessageLogButtonsHtml() above) rather than the old single
+  // LAST_COMPUTED_DICT snapshot -- same as clicking the newest of the
+  // buttons below would load, just done automatically on page open.
+  var rawLogEntries = current.rawMessageLog || [];
+  var mostRecentRawChunk = rawLogEntries.length ? rawLogEntries[rawLogEntries.length - 1].dict : null;
   var debugTextareaInitial = (current.debugOverrideEnabled && current.debugOverrideData)
     ? current.debugOverrideData
-    : (current.lastSentData || '');
+    : (mostRecentRawChunk ? JSON.stringify(mostRecentRawChunk, null, 2) : '');
   var bottomStyleVal = current.bottomStyle === 'biganalog' ? 'biganalog' : (current.bottomStyle === 'analog' ? 'analog' : 'digital');
   // Drives whether the "Weather icon style" dropdown in the Weather
   // section starts visible -- true if any of the 12 corner/edge slots
@@ -1010,6 +1044,9 @@ function buildConfigHtml(current) {
 '  .mark-btn-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; margin-top: 6px; }' +
 '  .mark-btn { padding: 8px 0; font-size: 12px; font-weight: 700; color: var(--text-strong); background: var(--btn-bg); border: 1px solid var(--border); border-radius: 6px; }' +
 '  .mark-btn.active { background: #ff9200; color: #fff; border-color: #ff9200; }' +
+'  .raw-log-btn-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px; margin-top: 6px; }' +
+'  .raw-log-btn { padding: 8px 2px; font-size: 11px; font-weight: 600; font-family: monospace; color: var(--text-strong); background: var(--btn-bg); border: 1px solid var(--border); border-radius: 6px; }' +
+'  .raw-log-btn.active { background: #ff9200; color: #fff; border-color: #ff9200; }' +
 '  .preset-btn-row { display: flex; gap: 6px; margin-top: 8px; }' +
 '  .preset-btn-row button { flex: 1; padding: 8px 0; font-size: 11px; font-weight: 700; color: var(--text-strong); background: var(--btn-bg); border: 1px solid var(--border); border-radius: 6px; }' +
 '  .marker-edit-btn { width: 100%; box-sizing: border-box; padding: 12px; font-size: 14px; font-weight: 600; color: var(--text-strong); background: var(--btn-bg); border: 1px solid var(--border); border-radius: 8px; margin-top: 8px; text-align: left; }' +
@@ -1690,8 +1727,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    <input type="number" id="updateMins" min="5" max="60" step="5" value="' + esc(current.updateMins) + '">' +
 '    <div class="help">The watch won\'t re-fetch more often than this unless your location changes by more than ~10km.</div>' +
 '    <button type="button" class="secondary-btn" onclick="save(true)">Force refresh now</button>' +
-'    <button type="button" class="secondary-btn" onclick="save(true, true)">Force full refresh</button>' +
-'    <div class="help">"Force refresh now" fetches fresh data on the same terms as a normal refresh. "Force full refresh" forces a complete resend of every field in one message (not just whatever changed), and saves a copy of it in the Testing section below as "Last Full Refresh Raw Data" -- useful for confirming a full resync actually works, e.g. after a watch app update.</div>' +
+'    <div class="help">Fetches fresh data on the same terms as a normal refresh, bypassing the "don\'t refetch if recent and unmoved" skip. See the Testing section below to inspect exactly what gets sent.</div>' +
 
 '    <div class="help" style="margin-top:14px;">Service status, as of when this page was opened -- gray: never used yet; green: last fetch worked; yellow: last fetch failed but some of the last 10 worked; red: last 10 all failed. Tap the (i) on yellow/red for details.</div>' +
       serviceStatusRowsHtml(current) +
@@ -1711,22 +1747,18 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    <div class="help">Overrides "now" for the eclipse calculation only (e.g. a known historical/future eclipse date), so you can preview the watchface without waiting for one. Set your watch\'s own clock to this same date/time too, so the countdown on-screen lines up with the data sent over.</div>' +
 
 '    <div class="subsection">' +
-'      <label for="debugData">Raw data sent to watch (editable)</label>' +
+'      <label>Last 10 raw messages sent to watch</label>' +
+'      <div class="help">Chunking (see AppMessage chunking) means one refresh/save now sends several small messages instead of one big one -- these are the individual chunks, most recent first. Tap one to load it below.</div>' +
+      rawMessageLogButtonsHtml(current) +
+'      <input type="hidden" id="rawMessageLogJson" value="' + esc(JSON.stringify(current.rawMessageLog || [])) + '">' +
+'      <label for="debugData" style="margin-top:10px;">Raw data (editable)</label>' +
 '      <textarea id="debugData" rows="12" style="width:100%; box-sizing:border-box; font-family:monospace; font-size:11px;">' + esc(debugTextareaInitial) + '</textarea>' +
-'      <button type="button" class="secondary-btn" style="width:auto; margin-top:6px; padding:6px 12px;" onclick="reloadDebugData()">Reload last sent data</button>' +
-'      <button type="button" class="secondary-btn" id="copyDebugDataBtn" style="width:auto; margin-top:6px; margin-left:6px; padding:6px 12px;" onclick="copyDebugData()">Copy</button>' +
+'      <button type="button" class="secondary-btn" id="copyDebugDataBtn" style="width:auto; margin-top:6px; padding:6px 12px;" onclick="copyDebugData()">Copy</button>' +
 '      <div class="checkbox-row" style="margin-top:8px;">' +
 '        <input type="checkbox" id="debugOverrideEnabled" ' + (current.debugOverrideEnabled ? 'checked' : '') + '>' +
 '        <label for="debugOverrideEnabled" style="margin:0;">Override data sent to watch with the text above</label>' +
 '      </div>' +
-'      <div class="help">Shows the full JSON payload the app last computed and sent to the watch (weather, location, eclipse timing, every setting). Edit it freely; enabling the checkbox sends exactly this text instead of the normally-computed data on every future refresh, useful for testing specific values without needing real conditions to match. Invalid JSON is ignored and the app falls back to normal data rather than failing to send anything.</div>' +
-'    </div>' +
-
-'    <div class="subsection">' +
-'      <label for="lastFullRefreshData">Last Full Refresh Raw Data</label>' +
-'      <textarea id="lastFullRefreshData" readonly rows="12" style="width:100%; box-sizing:border-box; font-family:monospace; font-size:11px;">' + esc(current.lastFullRefreshData || '') + '</textarea>' +
-'      <button type="button" class="secondary-btn" id="copyFullRefreshDataBtn" style="width:auto; margin-top:6px; padding:6px 12px;" onclick="copyFullRefreshData()">Copy</button>' +
-'      <div class="help">Only set by the "Force full refresh" button in the Updates section above -- a snapshot of that specific complete resend, kept separate from the general "last sent data" above it (which reflects whatever was sent most recently, of any kind). Empty until you\'ve used that button at least once.</div>' +
+'      <div class="help">Pick a chunk above to load its exact JSON payload here, or edit it freely. Enabling the checkbox sends exactly this text (as one message, unchunked) instead of the normally-computed data on every future refresh, useful for testing specific values without needing real conditions to match. Invalid JSON is ignored and the app falls back to normal data rather than failing to send anything.</div>' +
 '    </div>' +
 '    </div>' +
 '  </fieldset>' +
@@ -1776,8 +1808,23 @@ handEditorModalHtml('sec', 'Edit second hand') +
 'function toggleTestMode() {' +
 '  document.getElementById("testDateTime").disabled = !document.getElementById("testMode").checked;' +
 '}' +
-'function reloadDebugData() {' +
-'  document.getElementById("debugData").value = ' + JSON.stringify(current.lastSentData || '') + ';' +
+// Loads raw message log entry `i` (index into rawMessageLogJson, same
+// oldest-first order rawMessageLogButtonsHtml() built its button ids
+// from) into the debugData textarea, and highlights the button that
+// was tapped.
+'function loadRawMessage(i) {' +
+'  var all = [];' +
+'  try { all = JSON.parse(document.getElementById("rawMessageLogJson").value || "[]"); } catch (e) {}' +
+'  var entry = all[i];' +
+'  if (!entry) return;' +
+'  document.getElementById("debugData").value = JSON.stringify(entry.dict, null, 2);' +
+'  var grid = document.getElementById("rawLogBtnGrid");' +
+'  if (grid) {' +
+'    var btns = grid.getElementsByClassName("raw-log-btn");' +
+'    for (var j = 0; j < btns.length; j++) btns[j].className = "raw-log-btn";' +
+'  }' +
+'  var btn = document.getElementById("rawLogBtn" + i);' +
+'  if (btn) btn.className = "raw-log-btn active";' +
 '}' +
 'function copyDebugData() {' +
 '  var ta = document.getElementById("debugData");' +
@@ -1787,20 +1834,6 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  var ok = false;' +
 '  try { ok = document.execCommand("copy"); } catch (e) {}' +
 '  var btn = document.getElementById("copyDebugDataBtn");' +
-'  if (btn) {' +
-'    var original = btn.textContent;' +
-'    btn.textContent = ok ? "Copied!" : "Copy failed";' +
-'    setTimeout(function () { btn.textContent = original; }, 1500);' +
-'  }' +
-'}' +
-'function copyFullRefreshData() {' +
-'  var ta = document.getElementById("lastFullRefreshData");' +
-'  ta.focus();' +
-'  ta.select();' +
-'  ta.setSelectionRange(0, 999999);' +
-'  var ok = false;' +
-'  try { ok = document.execCommand("copy"); } catch (e) {}' +
-'  var btn = document.getElementById("copyFullRefreshDataBtn");' +
 '  if (btn) {' +
 '    var original = btn.textContent;' +
 '    btn.textContent = ok ? "Copied!" : "Copy failed";' +
@@ -3281,7 +3314,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  var checked = document.querySelector("input[name=\\"" + name + "\\"]:checked");' +
 '  return checked ? checked.value : fallback;' +
 '}' +
-'function save(forceRefresh, forceFullRefresh) {' +
+'function save(forceRefresh) {' +
 '  var mins = parseInt(document.getElementById("updateMins").value, 10);' +
 '  if (isNaN(mins) || mins < 5) mins = 20;' +
 '  var bottomStyleVal = document.getElementById("bottomStyleValue").value;' +
@@ -3439,14 +3472,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 // network refetch ("Force refresh now") or just apply cosmetic
 // settings and let the normal refresh cadence pick up anything that
 // actually needs new data -- never itself persisted via setSetting.
-'  settings.CONFIG_FORCE_REFRESH = !!forceRefresh || !!forceFullRefresh;' +
-// Also transient/one-shot -- tells webviewclosed to additionally
-// capture the resulting complete dict as its own separate
-// "LAST_FULL_REFRESH_DICT" snapshot (see the Testing section's "Last
-// Full Refresh Raw Data" field), independent of whatever
-// LAST_COMPUTED_DICT happens to hold from the most recent send of any
-// kind.
-'  settings.CONFIG_FORCE_FULL_REFRESH = !!forceFullRefresh;' +
+'  settings.CONFIG_FORCE_REFRESH = !!forceRefresh;' +
 '  var returnTo = getQueryParam("return_to", "pebblejs://close#");' +
 '  document.location = returnTo + encodeURIComponent(JSON.stringify(settings));' +
 '}' +

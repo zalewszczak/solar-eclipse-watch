@@ -132,9 +132,42 @@ var KEY_TYPE_MAP = (function () {
 // Only one AppMessage can be in flight at a time -- s_sendQueue holds
 // the chunks still waiting to go out for the current send*() call(s),
 // s_sendInFlight guards against overlapping Pebble.sendAppMessage()
-// calls (which would otherwise error/clobber each other).
+// calls (which would otherwise error/clobber each other). Each queue
+// entry is {dict, batchIndex, batchTotal} rather than the bare dict --
+// batchIndex/batchTotal (1-based position / count within THIS
+// enqueueFlatDict() call, e.g. "3/6") are never sent to the watch
+// (only entry.dict is), just carried alongside for
+// recordRawMessage()'s own log entries and the Testing section's
+// per-chunk button labels in the settings page.
 var s_sendQueue = [];
 var s_sendInFlight = false;
+
+// Last RAW_MESSAGE_LOG_MAX individual AppMessage chunks actually sent
+// (acked, not just attempted), for the Testing section's raw-message
+// browser -- see recordRawMessage() below and buildConfigHtml()'s own
+// rawMessageLog. Chunking (see the AppMessage chunking block above)
+// means any one send*() call now produces several small messages
+// instead of one big one, so logging only "the last thing sent" (the
+// old LAST_COMPUTED_DICT/"Reload last sent data" button) stopped
+// being useful -- it would just show whichever single chunk happened
+// to go out last, not the full picture. Logging every chunk instead
+// means a full refresh's whole 6-7-message batch is all inspectable
+// afterwards, not just its tail end.
+var RAW_MESSAGE_LOG_MAX = 10;
+function recordRawMessage(batchIndex, batchTotal, dict) {
+  try {
+    var entries = [];
+    var raw = localStorage.getItem('RAW_MESSAGE_LOG');
+    if (raw) entries = JSON.parse(raw);
+    if (!Array.isArray(entries)) entries = [];
+    entries.push({ t: Date.now(), batchIndex: batchIndex, batchTotal: batchTotal, dict: dict });
+    if (entries.length > RAW_MESSAGE_LOG_MAX) entries = entries.slice(entries.length - RAW_MESSAGE_LOG_MAX);
+    localStorage.setItem('RAW_MESSAGE_LOG', JSON.stringify(entries));
+  } catch (e) {
+    // Not critical if this fails (storage full, etc.) -- just means the
+    // settings page's Testing section won't have a fresh log this time.
+  }
+}
 
 // Buckets a flat {KEY: value} dict (as every send*() function used to
 // build a single one) into per-MESSAGE_TYPE chunks and queues them.
@@ -153,11 +186,15 @@ function enqueueFlatDict(flatDict) {
     if (!buckets[type]) buckets[type] = {};
     buckets[type][k] = flatDict[k];
   });
+  var batch = [];
   MSG_TYPE_SEND_ORDER.forEach(function (type) {
     if (buckets[type]) {
       buckets[type]['MESSAGE_TYPE'] = type;
-      s_sendQueue.push(buckets[type]);
+      batch.push(buckets[type]);
     }
+  });
+  batch.forEach(function (dict, i) {
+    s_sendQueue.push({ dict: dict, batchIndex: i + 1, batchTotal: batch.length });
   });
   pumpSendQueue();
 }
@@ -165,10 +202,12 @@ function enqueueFlatDict(flatDict) {
 function pumpSendQueue() {
   if (s_sendInFlight || s_sendQueue.length === 0) return;
   s_sendInFlight = true;
-  var chunk = s_sendQueue.shift();
+  var entry = s_sendQueue.shift();
+  var chunk = entry.dict;
   var msgType = chunk['MESSAGE_TYPE'];
   Pebble.sendAppMessage(chunk, function () {
     console.log('eclipse-watch: chunk sent (type ' + msgType + '), ' + s_sendQueue.length + ' queued');
+    recordRawMessage(entry.batchIndex, entry.batchTotal, chunk);
     s_sendInFlight = false;
     pumpSendQueue();
   }, function (e) {
@@ -193,13 +232,6 @@ var refreshTimer = null;
 // call that's still the current generation when its data is finally
 // ready is allowed to actually send it.
 var s_refreshGeneration = 0;
-// Set (from webviewclosed, on a "Force full refresh" save) right
-// before triggering that refresh cycle -- the next sendFlatDict() call
-// after that also saves its dict as LAST_FULL_REFRESH_DICT (a
-// separate snapshot from the general LAST_COMPUTED_DICT every send
-// already updates), then clears itself so only that one send gets
-// captured.
-var s_captureNextAsFullRefresh = false;
 
 // ---- tiny settings helpers, backed directly by localStorage -------------
 
@@ -920,27 +952,24 @@ function sendFlatDict(dict) {
   dict['DAILY_STEP_GOAL'] = dailyStepGoalValue();
 
   try {
-    localStorage.setItem('LAST_COMPUTED_DICT', JSON.stringify(dict));
-    // Separate from the general snapshot above: this one is ONLY
+    // Separate from the raw-message log recordRawMessage() builds
+    // once each chunk actually sends (see the AppMessage chunking
+    // block near the top of this file) -- this one is ONLY
     // overwritten when `dict` is a genuine full-data send (from
     // sendEclipseData()/sendNoEclipseToday(), which both always set
     // C1_TIME -- 0 for "no eclipse today", a real epoch otherwise --
     // vs. the cosmetic-only sendFlatDict({}) push settings-only saves
     // trigger, or sendInvalid()'s {DATA_VALID:0,...}, neither of
-    // which ever sets it). Cosmetic-only saves are frequent enough
-    // (any settings change triggers one) that LAST_COMPUTED_DICT
-    // itself is often NOT full data -- refreshAndSend()'s skip-path
-    // resend below needs something that's reliably the real thing.
+    // which ever sets it). refreshAndSend()'s skip-path resend below
+    // needs something that's reliably the real, complete thing, not
+    // just whatever the most recent send of any kind happened to be.
     if (Object.prototype.hasOwnProperty.call(dict, 'C1_TIME')) {
       localStorage.setItem('LAST_FULL_COMPUTED_DICT', JSON.stringify(dict));
     }
-    if (s_captureNextAsFullRefresh) {
-      localStorage.setItem('LAST_FULL_REFRESH_DICT', JSON.stringify(dict));
-      s_captureNextAsFullRefresh = false;
-    }
   } catch (e) {
-    // Not critical if this fails (storage full, etc.) -- just means the
-    // settings page's debug view won't have a fresh snapshot this time.
+    // Not critical if this fails (storage full, etc.) -- just means
+    // refreshAndSend()'s skip-path resend won't have a fresh snapshot
+    // to fall back on this time (see resendLastFullData()).
   }
 
   var toSend = dict;
@@ -2352,20 +2381,17 @@ Pebble.addEventListener('showConfiguration', function () {
     cornerCustomFont: getSetting('CONFIG_CORNER_CUSTOM_FONT', '0'),
     testMode: getSetting('CONFIG_TEST_MODE', 'false') === 'true',
     testDateTime: getSetting('CONFIG_TEST_DATETIME', ''),
-    lastSentData: (function () {
+    // Last RAW_MESSAGE_LOG_MAX individual chunks actually sent -- see
+    // recordRawMessage() near the top of this file. Newest last (the
+    // order they were recorded in); the settings page itself is what
+    // shows them newest-first.
+    rawMessageLog: (function () {
       try {
-        var raw = localStorage.getItem('LAST_COMPUTED_DICT');
-        return raw ? JSON.stringify(JSON.parse(raw), null, 2) : '';
+        var raw = localStorage.getItem('RAW_MESSAGE_LOG');
+        var parsed = raw ? JSON.parse(raw) : [];
+        return Array.isArray(parsed) ? parsed : [];
       } catch (e) {
-        return '';
-      }
-    })(),
-    lastFullRefreshData: (function () {
-      try {
-        var raw = localStorage.getItem('LAST_FULL_REFRESH_DICT');
-        return raw ? JSON.stringify(JSON.parse(raw), null, 2) : '';
-      } catch (e) {
-        return '';
+        return [];
       }
     })(),
     debugOverrideEnabled: getSetting('CONFIG_DEBUG_OVERRIDE_ENABLED', 'false') === 'true',
@@ -2576,12 +2602,5 @@ Pebble.addEventListener('webviewclosed', function (e) {
   // silently wiping the watch's last known-good weather. A plain
   // save still gets a refresh if one is actually due (moved far
   // enough, or the interval elapsed) via this same normal check.
-  //
-  // Set here, AFTER the cosmetic-only sendFlatDict({}) above already ran
-  // (and cleared itself) -- so it's the refreshAndSend() below's own
-  // eventual sendFlatDict() call, the one with the actual complete
-  // weather/eclipse/sky data, that gets captured as
-  // LAST_FULL_REFRESH_DICT, not that earlier cosmetic-only one.
-  if (settings.CONFIG_FORCE_FULL_REFRESH) s_captureNextAsFullRefresh = true;
   refreshAndSend(!!settings.CONFIG_FORCE_REFRESH);
 });
