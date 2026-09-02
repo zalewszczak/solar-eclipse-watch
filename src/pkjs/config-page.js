@@ -35,28 +35,96 @@ function esc(str) {
     .replace(/>/g, '&gt;');
 }
 
-// Simple black-and-white (stroke="currentColor" so they inherit the
-// button's own text color -- white when active, same as the label
-// below them, no separate active-state icon needed) line-icons for
-// the 3 clock-layout buttons above the section they belong to.
+// Screen-shaped (200x228 -- the real Emery/Pebble Time 2 display
+// resolution, so the icon's own proportions match the watch's rather
+// than a generic square) line-icons for the 3 clock-layout buttons
+// above the section they belong to. All still stroke="currentColor"
+// (inherits the button's own text color -- white when active, no
+// separate active-state icon needed), except the bottom info band:
+// that's a solid currentColor-filled rect with an SVG <mask> punching
+// transparent windows where its content sits (the time/date bars,
+// the analog clock's face, the 4 info-line rows) -- a genuinely
+// unfilled "hole" through to whatever's behind the icon, rather than
+// a hardcoded second color, so it reads correctly in both the active
+// (orange background) and inactive (light/dark theme background)
+// button states without needing to know which. Each mask needs a
+// unique id since all 3 icons render on the same page at once.
 var MODE_BTN_ICONS = {
+  // Top 2/3 blank with a scatter of dots (the sky view), bottom 1/3 a
+  // dark info band with two window-cutouts: a thick bar (the time)
+  // above a thinner one (the date) -- matches the DIGITAL bottom
+  // style's actual layout.
   digital:
-    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
-    '<rect x="3" y="7" width="18" height="10" rx="2"/>' +
-    '<line x1="7" y1="11" x2="10" y2="11"/><line x1="14" y1="11" x2="17" y2="11"/>' +
-    '<line x1="7" y1="14" x2="10" y2="14"/><line x1="14" y1="14" x2="17" y2="14"/>' +
+    '<svg viewBox="0 0 200 228" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">' +
+    '<rect x="4" y="4" width="192" height="220" rx="20"/>' +
+    '<circle cx="40" cy="30" r="5" fill="currentColor" stroke="none"/>' +
+    '<circle cx="100" cy="50" r="4" fill="currentColor" stroke="none"/>' +
+    '<circle cx="150" cy="35" r="5" fill="currentColor" stroke="none"/>' +
+    '<circle cx="60" cy="90" r="4" fill="currentColor" stroke="none"/>' +
+    '<circle cx="140" cy="100" r="4" fill="currentColor" stroke="none"/>' +
+    '<circle cx="95" cy="122" r="5" fill="currentColor" stroke="none"/>' +
+    '<mask id="modeIconDigitalMask">' +
+    '<rect x="4" y="152" width="192" height="72" rx="8" fill="#fff" stroke="none"/>' +
+    '<rect x="38" y="168" width="124" height="22" rx="10" fill="#000" stroke="none"/>' +
+    '<rect x="58" y="198" width="84" height="10" rx="5" fill="#000" stroke="none"/>' +
+    '</mask>' +
+    '<rect x="4" y="152" width="192" height="72" rx="8" fill="currentColor" stroke="none" mask="url(#modeIconDigitalMask)"/>' +
     '</svg>',
+  // Same top 2/3 dots, same dark bottom band, but its mask carves out
+  // several windows: a small analog clock face on the left and 4
+  // thin stacked info-line rows on the right -- matches ANALOG's
+  // actual layout (a small analog face plus edge-content readouts
+  // alongside it). The 4 lines are plain mask cutouts (same trick as
+  // the digital icon's time/date bars), but the clock's ring + hands
+  // are drawn as normal currentColor strokes ON TOP of its own
+  // circular window instead -- a mask hole can only be a solid
+  // silhouette, and a ring-with-hands isn't one. That only works
+  // because the hole is genuinely transparent there (showing whatever
+  // the icon's own background is, not the band's fill), so the
+  // stroke has something to contrast against; drawing those same
+  // strokes directly over the (currentColor-filled) band instead, the
+  // way an earlier version of the 4 lines did, made them invisible --
+  // stroke and fill were the same color. Every shape inside a <mask>
+  // needs its own explicit stroke="none" too, for a related reason:
+  // otherwise they inherit the root <svg>'s stroke="currentColor"
+  // stroke-width="8", and on an 8px-tall cutout rect that inherited
+  // stroke is wide enough to straddle and wash out the whole shape's
+  // silhouette with light-colored (visible-in-the-mask) pixels,
+  // defeating the fill="#000" (hidden) that rect was supposed to mean.
   analog:
-    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
-    '<circle cx="12" cy="12" r="9"/>' +
-    '<line x1="12" y1="12" x2="12" y2="7"/><line x1="12" y1="12" x2="15.5" y2="14"/>' +
+    '<svg viewBox="0 0 200 228" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">' +
+    '<rect x="4" y="4" width="192" height="220" rx="20"/>' +
+    '<circle cx="40" cy="30" r="5" fill="currentColor" stroke="none"/>' +
+    '<circle cx="100" cy="50" r="4" fill="currentColor" stroke="none"/>' +
+    '<circle cx="150" cy="35" r="5" fill="currentColor" stroke="none"/>' +
+    '<circle cx="60" cy="90" r="4" fill="currentColor" stroke="none"/>' +
+    '<circle cx="140" cy="100" r="4" fill="currentColor" stroke="none"/>' +
+    '<circle cx="95" cy="122" r="5" fill="currentColor" stroke="none"/>' +
+    '<mask id="modeIconAnalogMask">' +
+    '<rect x="4" y="152" width="192" height="72" rx="8" fill="#fff" stroke="none"/>' +
+    '<circle cx="46" cy="188" r="27" fill="#000" stroke="none"/>' +
+    '<rect x="90" y="160" width="90" height="8" rx="4" fill="#000" stroke="none"/>' +
+    '<rect x="90" y="174" width="90" height="8" rx="4" fill="#000" stroke="none"/>' +
+    '<rect x="90" y="188" width="90" height="8" rx="4" fill="#000" stroke="none"/>' +
+    '<rect x="90" y="202" width="90" height="8" rx="4" fill="#000" stroke="none"/>' +
+    '</mask>' +
+    '<rect x="4" y="152" width="192" height="72" rx="8" fill="currentColor" stroke="none" mask="url(#modeIconAnalogMask)"/>' +
+    '<circle cx="46" cy="188" r="22" stroke-width="6"/>' +
+    '<line x1="46" y1="188" x2="46" y2="174" stroke-width="6"/>' +
+    '<line x1="46" y1="188" x2="57" y2="194" stroke-width="6"/>' +
     '</svg>',
+  // No separate info band at all -- one big analog clock filling
+  // nearly the whole screen, plus a couple of stray sky dots, since
+  // BIG ANALOG replaces the digital/edge-content area entirely rather
+  // than sharing the screen with it the way the other two do.
   biganalog:
-    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
-    '<circle cx="12" cy="12" r="11"/>' +
-    '<line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/>' +
-    '<line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/>' +
-    '<line x1="12" y1="12" x2="12" y2="6"/><line x1="12" y1="12" x2="17" y2="14.5"/>' +
+    '<svg viewBox="0 0 200 228" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">' +
+    '<rect x="4" y="4" width="192" height="220" rx="20"/>' +
+    '<circle cx="100" cy="114" r="88" stroke-width="7"/>' +
+    '<line x1="100" y1="114" x2="100" y2="55" stroke-width="9"/>' +
+    '<line x1="100" y1="114" x2="138" y2="140" stroke-width="9"/>' +
+    '<circle cx="60" cy="60" r="4" fill="currentColor" stroke="none"/>' +
+    '<circle cx="150" cy="170" r="4" fill="currentColor" stroke="none"/>' +
     '</svg>'
 };
 
@@ -901,7 +969,7 @@ function buildConfigHtml(current) {
 '  .example-style-modal-title { font-weight: 700; font-size: 16px; margin-top: 10px; text-align: center; color: var(--text-strong); }' +
 '  .mode-btn-group { display: flex; width: 100%; margin-top: 6px; border-radius: 6px; overflow: hidden; border: 1px solid var(--border); box-sizing: border-box; }' +
 '  .mode-btn { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 8px 0 10px; font-size: 12px; font-weight: 700; color: var(--text-strong); background: var(--btn-bg); border: none; border-right: 1px solid var(--border); }' +
-'  .mode-btn svg { width: 26px; height: 26px; display: block; }' +
+'  .mode-btn svg { width: 23px; height: 26px; display: block; }' +
 '  .mode-btn:last-child { border-right: none; }' +
 '  .mode-btn.active { background: #ff9200; color: #fff; box-shadow: inset 0 2px 4px rgba(0,0,0,0.35); }' +
 '  .slider-row { margin-top: 12px; }' +
