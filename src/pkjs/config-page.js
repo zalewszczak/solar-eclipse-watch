@@ -242,6 +242,24 @@ function fontOptionsHtml(selectedId, onlyMainClock) {
   }).join('');
 }
 
+// A vertical stack of buttons that behaves like a radio group -- same
+// "one active at a time, tap to switch" idea as .mode-btn-group (the
+// 3-across DIGITAL/ANALOG/BIG ANALOG layout buttons), just stacked
+// instead of side-by-side, for option lists too long/wordy to fit
+// 3+ across (the two Animation section pickers). Backed by one hidden
+// input (same "hidden input is the real value, buttons just reflect
+// it" pattern selectBottomStyle()/selectSunTimeMode() already use)
+// rather than actual radio inputs, so save() and applyStyleCornersJson()
+// read it the same simple way as every other hidden-input field.
+function verticalButtonGroupHtml(groupId, hiddenId, options, currentValue) {
+  var buttons = options.map(function (opt) {
+    var active = String(currentValue) === String(opt.value);
+    return '<button type="button" class="mode-btn-vertical' + (active ? ' active' : '') + '" data-value="' + esc(opt.value) + '" onclick="selectVerticalOption(\'' + groupId + '\', \'' + hiddenId + '\', \'' + esc(opt.value) + '\')">' + esc(opt.label) + '</button>';
+  }).join('');
+  return '<div class="mode-btn-group-vertical" id="' + groupId + '">' + buttons + '</div>' +
+    '<input type="hidden" id="' + hiddenId + '" value="' + esc(currentValue) + '">';
+}
+
 // Must match get_color_scheme() in pebble-eclipse-watch.c exactly --
 // same order, same id, same colors.
 var COLOR_SCHEMES = [
@@ -1028,6 +1046,10 @@ function buildConfigHtml(current) {
 '  .mode-btn svg { width: 23px; height: 26px; display: block; }' +
 '  .mode-btn:last-child { border-right: none; }' +
 '  .mode-btn.active { background: #ff9200; color: #fff; box-shadow: inset 0 2px 4px rgba(0,0,0,0.35); }' +
+'  .mode-btn-group-vertical { display: flex; flex-direction: column; width: 100%; margin-top: 6px; border-radius: 6px; overflow: hidden; border: 1px solid var(--border); box-sizing: border-box; }' +
+'  .mode-btn-vertical { display: block; width: 100%; text-align: left; padding: 10px 12px; font-size: 13px; font-weight: 700; color: var(--text-strong); background: var(--btn-bg); border: none; border-bottom: 1px solid var(--border); box-sizing: border-box; }' +
+'  .mode-btn-vertical:last-child { border-bottom: none; }' +
+'  .mode-btn-vertical.active { background: #ff9200; color: #fff; box-shadow: inset 0 2px 4px rgba(0,0,0,0.35); }' +
 '  .slider-row { margin-top: 12px; }' +
 '  .slider-row label { display: flex; justify-content: space-between; font-size: 13px; color: var(--text-faint2); margin-bottom: 2px; }' +
 '  .slider-row label .val { font-weight: 700; color: var(--text-strong); }' +
@@ -1253,6 +1275,13 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    <input type="hidden" id="bottomStyleValue" value="' + esc(bottomStyleVal) + '">' +
 '    <div class="help">Analog shows a clock face on the left and clouds/location/date/week on the right. Big analog fills the whole screen with fullscreen hands over the sky/eclipse view -- no bottom bar.</div>' +
 
+'    <div class="checkbox-row subsection">' +
+'      <input type="checkbox" id="showSeconds" ' + secondsChecked + ' ' + secondsDisabled + ' onchange="onShowSecondsChange()">' +
+'      <label for="showSeconds" style="margin:0;">Show seconds</label>' +
+'    </div>' +
+'    <div class="help" id="secondsHelp" style="' + (secondsUnsupported ? '' : 'display:none;') + '">This font is too wide to fit seconds alongside it.</div>' +
+'    <div class="help">Used by all three layouts -- the digital clock\'s own seconds digits, and whether analog/big analog draw a second hand at all (gates the Custom style\'s "Edit second hand" below, too).</div>' +
+
 '    <div id="digitalOnlySettings" class="subsection" style="' + (bottomStyleVal === 'digital' ? '' : 'display:none;') + '">' +
 '      <label for="clockFont">Clock font</label>' +
 '      <select id="clockFont" onchange="onFontChange()">' + fontOptions + '</select>' +
@@ -1365,12 +1394,6 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      <input type="hidden" id="showSunTime" value="' + (current.showSunTime ? 'true' : 'false') + '">' +
 '      <div class="help">Falls back to the week number once today\'s sunset has passed, until the next refresh rolls over to a new day. Only applies to digital mode -- analog\'s 4 feature rows below can each independently be set to Week number or Sunrise/sunset instead.</div>' +
 '    </div>' +
-
-'    <div class="checkbox-row subsection">' +
-'      <input type="checkbox" id="showSeconds" ' + secondsChecked + ' ' + secondsDisabled + ' onchange="onShowSecondsChange()">' +
-'      <label for="showSeconds" style="margin:0;">Show seconds</label>' +
-'    </div>' +
-'    <div class="help" id="secondsHelp" style="' + (secondsUnsupported ? '' : 'display:none;') + '">This font is too wide to fit seconds alongside it.</div>' +
 
 '    <div class="checkbox-row subsection">' +
 '      <input type="checkbox" id="outlineEnabled" ' + (current.outlineEnabled !== false ? 'checked' : '') + '>' +
@@ -1555,21 +1578,25 @@ handEditorModalHtml('sec', 'Edit second hand') +
 
 '    <div class="subsection">' +
 '      <label>Animate background on start</label>' +
-'      <div class="radio-row"><input type="radio" name="bgAnimMode" id="bgAnimMode0" value="0" ' + (current.bgAnimMode === '0' || !current.bgAnimMode ? 'checked' : '') + '><label for="bgAnimMode0" style="margin:0;">Off</label></div>' +
-'      <div class="radio-row"><input type="radio" name="bgAnimMode" id="bgAnimMode1" value="1" ' + (current.bgAnimMode === '1' ? 'checked' : '') + '><label for="bgAnimMode1" style="margin:0;">Weather (clouds slide in from the sides)</label></div>' +
-'      <div class="radio-row"><input type="radio" name="bgAnimMode" id="bgAnimMode2" value="2" ' + (current.bgAnimMode === '2' ? 'checked' : '') + '><label for="bgAnimMode2" style="margin:0;">Planets (Sun/Moon/planets + sky sweep in from a couple hours ago)</label></div>' +
-'      <div class="radio-row"><input type="radio" name="bgAnimMode" id="bgAnimMode3" value="3" ' + (current.bgAnimMode === '3' ? 'checked' : '') + '><label for="bgAnimMode3" style="margin:0;">Markers (big-analog hour markers animate in; seconds draw normally)</label></div>' +
+      verticalButtonGroupHtml('bgAnimModeGroup', 'bgAnimMode', [
+        { value: '0', label: 'Off' },
+        { value: '1', label: 'Weather (clouds slide in from the sides)' },
+        { value: '2', label: 'Planets (Sun/Moon/planets + sky sweep in from a couple hours ago)' },
+        { value: '3', label: 'Markers (big-analog hour markers animate in; seconds draw normally)' }
+      ], current.bgAnimMode || '0') +
 '    </div>' +
 '    <div class="help">Off by default: exactly one of the above sweeps into place on launch, under 1.5s.</div>' +
 
 '    <div class="subsection">' +
 '      <label>Animate outlines on shake</label>' +
-'      <div class="radio-row"><input type="radio" name="shakeAnimMode" id="shakeAnimMode0" value="0" ' + (current.shakeAnimMode === '0' || !current.shakeAnimMode ? 'checked' : '') + '><label for="shakeAnimMode0" style="margin:0;">Off</label></div>' +
-'      <div class="radio-row"><input type="radio" name="shakeAnimMode" id="shakeAnimMode1" value="1" ' + (current.shakeAnimMode === '1' ? 'checked' : '') + '><label for="shakeAnimMode1" style="margin:0;">Gradient (outlines sweep through a rainbow)</label></div>' +
-'      <div class="radio-row"><input type="radio" name="shakeAnimMode" id="shakeAnimMode2" value="2" ' + (current.shakeAnimMode === '2' ? 'checked' : '') + '><label for="shakeAnimMode2" style="margin:0;">Smooth second hand</label></div>' +
-'      <div class="radio-row"><input type="radio" name="shakeAnimMode" id="shakeAnimMode3" value="3" ' + (current.shakeAnimMode === '3' ? 'checked' : '') + '><label for="shakeAnimMode3" style="margin:0;">Both</label></div>' +
-'      <div class="radio-row"><input type="radio" name="shakeAnimMode" id="shakeAnimMode4" value="4" ' + (current.shakeAnimMode === '4' ? 'checked' : '') + '><label for="shakeAnimMode4" style="margin:0;">Planet seek</label></div>' +
-'      <div class="radio-row"><input type="radio" name="shakeAnimMode" id="shakeAnimMode5" value="5" ' + (current.shakeAnimMode === '5' ? 'checked' : '') + '><label for="shakeAnimMode5" style="margin:0;">Paths</label></div>' +
+      verticalButtonGroupHtml('shakeAnimModeGroup', 'shakeAnimMode', [
+        { value: '0', label: 'Off' },
+        { value: '1', label: 'Gradient (outlines sweep through a rainbow)' },
+        { value: '2', label: 'Smooth second hand' },
+        { value: '3', label: 'Both' },
+        { value: '4', label: 'Planet seek' },
+        { value: '5', label: 'Paths' }
+      ], current.shakeAnimMode || '0') +
 '    </div>' +
 '    <div class="help">Off by default: runs for as long as the shake labels stay up -- see "Shake-to-reveal labels stay on screen for" in the Astronomy section. "Planet seek" points the sky view at whichever 90&deg; slice of the horizon your compass currently faces, repositioning the Sun/Moon/planets to match as you turn -- weather is hidden for the duration, and it never runs on a day with an eclipse. "Paths" grows a dotted trail out of each currently-visible Sun/Moon/planet in its own color, tracing roughly the surrounding 4 hours -- bodies not currently on screen don\'t get a path in this version.</div>' +
 '    </div>' +
@@ -2869,6 +2896,8 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    }' +
 '    if (el.type === "checkbox") el.checked = !!obj[id]; else el.value = obj[id];' +
 '  });' +
+'  selectVerticalOption("bgAnimModeGroup", "bgAnimMode", document.getElementById("bgAnimMode").value);' +
+'  selectVerticalOption("shakeAnimModeGroup", "shakeAnimMode", document.getElementById("shakeAnimMode").value);' +
 '  onBottomStyleChange();' +
 '  onMarkerStyleChange();' +
 '  onHandStyleChange();' +
@@ -3163,6 +3192,14 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  }' +
 '  onBottomStyleChange();' +
 '}' +
+'function selectVerticalOption(groupId, hiddenId, val) {' +
+'  document.getElementById(hiddenId).value = val;' +
+'  var buttons = document.getElementById(groupId).getElementsByClassName("mode-btn-vertical");' +
+'  for (var i = 0; i < buttons.length; i++) {' +
+'    buttons[i].className = "mode-btn-vertical" + (buttons[i].getAttribute("data-value") === val ? " active" : "");' +
+'  }' +
+'  updatePreview();' +
+'}' +
 'function onFontChange() {' +
 '  var fontSel = document.getElementById("clockFont");' +
 '  var opt = fontSel.options[fontSel.selectedIndex];' +
@@ -3308,10 +3345,6 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  document.getElementById("nightSchemeSettings").style.display = document.getElementById("nightEnabled").checked ? "block" : "none";' +
 '}' +
 
-'function radioValue(name, fallback) {' +
-'  var checked = document.querySelector("input[name=\\"" + name + "\\"]:checked");' +
-'  return checked ? checked.value : fallback;' +
-'}' +
 'function save(forceRefresh) {' +
 '  var mins = parseInt(document.getElementById("updateMins").value, 10);' +
 '  if (isNaN(mins) || mins < 5) mins = 20;' +
@@ -3370,8 +3403,8 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    CONFIG_AURORA_ENABLED: document.getElementById("auroraEnabled").checked,' +
 '    CONFIG_VIBRATE_ON_PHASE_CHANGE: document.getElementById("vibrateOnPhaseChange").checked,' +
 '    CONFIG_STARTUP_CLOCK_ANIMATION_ENABLED: document.getElementById("startupClockAnimationEnabled").checked,' +
-'    CONFIG_BG_ANIM_MODE: radioValue("bgAnimMode", "0"),' +
-'    CONFIG_SHAKE_ANIM_MODE: radioValue("shakeAnimMode", "0"),' +
+'    CONFIG_BG_ANIM_MODE: document.getElementById("bgAnimMode").value,' +
+'    CONFIG_SHAKE_ANIM_MODE: document.getElementById("shakeAnimMode").value,' +
 '    CONFIG_OUTLINE_ENABLED: document.getElementById("outlineEnabled").checked,' +
 '    CONFIG_HAND_PRESET_CONTRAST_STYLE: document.getElementById("handPresetContrastStyle").value,' +
 '    CONFIG_CORNER_FONT: document.getElementById("cornerFont").value,' +
