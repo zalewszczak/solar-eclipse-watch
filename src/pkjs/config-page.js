@@ -144,52 +144,77 @@ var EXAMPLE_STYLE_PRESETS = require('./example-style-presets');
 // `pairedSmallId` (mainClock entries only) is which small font this
 // big one defaults to pairing with for the clock's own small-readout
 // companion (seconds digits, sunrise/sunset, the date line) --
-// auto-selected on change, still independently overridable after.
+// auto-selected on change (onFontChange()), still independently
+// overridable after. Only set to another font in the SAME family when
+// one genuinely exists in this table (Digital Dream -> Digital Dream
+// Small, Leco XL -> Leco Small, etc.); every mainClock font with no
+// real small counterpart defaults to id 4 (System XXL) instead of a
+// guessed unrelated font -- edit these by hand as real matches get
+// designed.
+// `small: true` marks a font compact enough to read well at the
+// small sizes the corner/edge Font picker and the clock's own Small
+// companion font picker use it at (height <= 30px) -- both of those
+// two pickers hide `small: false` fonts by default (their own "Show
+// incompatible fonts" checkbox reveals them), since most of the
+// ~48px-scale mainClock fonts read poorly or clip at those small
+// sizes. Doesn't affect the marker text font picker (all fonts always
+// shown there) or the main Clock font picker (mainClock already
+// filters that one to just the big fonts).
+// `secondsDisabled: true` marks a font that Show Seconds should be
+// entirely grayed out and force-unchecked for in digital mode (as
+// opposed to `wide` below, which just substitutes a small-font digit
+// box for the seconds rather than disabling them at all) -- these are
+// custom display fonts that read badly, clip, or plain don't have
+// numerals that suit a running seconds counter squeezed in next to
+// them. save() also re-checks this at save time and overrides
+// CONFIG_SHOW_SECONDS to false regardless of the checkbox's own state
+// if it's true, so a stale/already-saved seconds-on selection can
+// never reach the watch paired with a font that can't support it.
 // `wide: true` marks a font that runs too wide for a full HH:MM:SS
 // digital readout at its normal size, matching font_lookup.c's own
-// `wide` column exactly -- grays out the Show Seconds checkbox in
-// digital mode (see secondsUnsupported below), same reasoning
-// font_lookup_is_wide()/use_small_seconds_for_digital_clock() apply
-// on the watch itself.
+// `wide` column exactly -- these get the seconds digits shrunk into
+// their own small-font box instead of grayed out entirely, same
+// reasoning font_lookup_is_wide()/use_small_seconds_for_digital_clock()
+// apply on the watch itself.
 var FONT_LOOKUP = [
-  { id: 0,  label: 'System Small',        height: 14, preview: "font-family: Arial, sans-serif;" },
-  { id: 1,  label: 'System Medium',       height: 18, preview: "font-family: Arial, sans-serif; font-weight: 700;" },
-  { id: 2,  label: 'System Large',        height: 24, preview: "font-family: Arial, sans-serif; font-weight: 700;" },
-  { id: 3,  label: 'System XL',           height: 32, preview: "font-family: Arial, sans-serif; font-weight: 700;" },
-  { id: 4,  label: 'System XXL',          height: 36, preview: "font-family: Arial, sans-serif; font-weight: 700;" },
-  { id: 5,  label: 'Leco Small',          height: 17, preview: "font-family: Arial, sans-serif; font-weight: 300;" },
-  { id: 6,  label: 'Leco Medium',         height: 20, preview: "font-family: Arial, sans-serif; font-weight: 700;" },
-  { id: 7,  label: 'Leco Large',          height: 23, preview: "font-family: Arial, sans-serif; font-weight: 700;" },
-  { id: 8,  label: 'Leco XL',             height: 26, preview: "font-family: Arial, sans-serif; font-weight: 700;", mainClock: true, pairedSmallId: 0 },
-  { id: 9,  label: 'Droid Serif',         height: 17, preview: "font-family: Georgia, serif; font-weight: 700;" },
-  { id: 10, label: 'Roboto Condensed',    height: 15, preview: "font-family: 'Roboto Condensed', Arial, sans-serif;" },
-  { id: 11, label: 'Roboto Bold',         height: 30, preview: "font-family: 'Roboto', Arial, sans-serif; font-weight: 700;", mainClock: true, pairedSmallId: 10 },
-  { id: 12, label: 'Bitham Bold 30',      height: 19, preview: "font-family: 'Futura', 'Century Gothic', sans-serif; font-weight: 700;" },
-  { id: 13, label: 'Bitham Medium 34',    height: 21, preview: "font-family: 'Futura', 'Century Gothic', sans-serif; font-weight: 500;" },
-  { id: 14, label: 'Bitham Light',        height: 26, preview: "font-family: 'Futura', 'Century Gothic', sans-serif; font-weight: 300; letter-spacing: 1px;", mainClock: true, pairedSmallId: 0 },
-  { id: 15, label: 'Bitham Bold',         height: 26, preview: "font-family: 'Futura', 'Century Gothic', sans-serif; font-weight: 700; letter-spacing: 1px;", mainClock: true, pairedSmallId: 0 },
-  { id: 16, label: 'Digital Dream Small', height: 12, preview: "font-family: 'Courier New', monospace; letter-spacing: 2px; font-weight: 700;" },
-  { id: 17, label: 'Digital Dream',       height: 40, preview: "font-family: 'Courier New', monospace; letter-spacing: 4px; font-weight: 700;", mainClock: true, pairedSmallId: 16 },
-  { id: 18, label: 'Minecrafter Small',   height: 12, preview: "font-family: 'Courier New', monospace; letter-spacing: 2px;" },
-  { id: 19, label: 'Minecrafter',         height: 40, preview: "font-family: 'Courier New', monospace; letter-spacing: 3px;", mainClock: true, pairedSmallId: 18, wide: true },
-  { id: 20, label: 'SF Pixelate Small',   height: 14, preview: "font-family: 'Courier New', monospace; letter-spacing: 1px;" },
-  { id: 21, label: 'SF Pixelate',         height: 40, preview: "font-family: 'Courier New', monospace; letter-spacing: 2px;", mainClock: true, pairedSmallId: 0, wide: true },
-  { id: 22, label: 'Miso Small',          height: 19, preview: "font-family: 'Century Gothic', sans-serif; font-weight: 600;" },
-  { id: 23, label: 'Miso',                height: 40, preview: "font-family: 'Century Gothic', sans-serif; font-weight: 600;", mainClock: true, pairedSmallId: 22 },
-  { id: 24, label: 'Bebas Small',         height: 20, preview: "font-family: 'Bebas', 'Century Gothic', sans-serif; font-weight: 700; letter-spacing: 1px;" },
-  { id: 25, label: 'Bebas',               height: 40, preview: "font-family: 'Bebas', 'Century Gothic', sans-serif; font-weight: 700; letter-spacing: 1px;", mainClock: true, pairedSmallId: 24 },
-  { id: 26, label: 'ClockForge',          height: 40, preview: "font-family: Impact, sans-serif; font-weight: 700; letter-spacing: 1px;", mainClock: true, pairedSmallId: 16 },
-  { id: 27, label: 'Radioland',           height: 40, preview: "font-family: 'Courier New', monospace; font-weight: 700;", mainClock: true, pairedSmallId: 16, wide: true },
-  { id: 28, label: 'Mini System',         height: 40, preview: "font-family: 'Courier New', monospace;", mainClock: true, pairedSmallId: 16, wide: true },
-  { id: 29, label: 'Kitchen Police',      height: 40, preview: "font-family: Impact, 'Arial Narrow', sans-serif;", mainClock: true, pairedSmallId: 0, wide: true },
-  { id: 30, label: 'DS Digital',          height: 40, preview: "font-family: 'Courier New', monospace; font-weight: 700; letter-spacing: 2px;", mainClock: true, pairedSmallId: 16 },
-  { id: 31, label: 'Distant Galaxy',      height: 40, preview: "font-family: 'Arial Narrow', sans-serif; letter-spacing: 3px; font-weight: 700;", mainClock: true, pairedSmallId: 24 },
-  { id: 32, label: 'Dimitri',             height: 40, preview: "font-family: Georgia, serif; font-weight: 700;", mainClock: true, pairedSmallId: 18 },
-  { id: 33, label: 'Blackout',            height: 40, preview: "font-family: Impact, sans-serif; font-weight: 900;", mainClock: true, pairedSmallId: 24 },
-  { id: 34, label: 'Audiowide',           height: 40, preview: "font-family: 'Arial Black', sans-serif; letter-spacing: 1px;", mainClock: true, pairedSmallId: 24, wide: true },
-  { id: 35, label: 'Formation',           height: 40, preview: "font-family: Verdana, sans-serif; font-weight: 700;", mainClock: true, pairedSmallId: 24 },
-  { id: 36, label: 'Komika',              height: 40, preview: "font-family: 'Comic Sans MS', cursive; font-weight: 700;", mainClock: true, pairedSmallId: 22, wide: true },
-  { id: 37, label: 'Pricedown',           height: 40, preview: "font-family: Impact, 'Arial Narrow', sans-serif; font-style: italic; letter-spacing: 1px;", mainClock: true, pairedSmallId: 18 }
+  { id: 0,  label: 'System Small',        height: 14, preview: "font-family: Arial, sans-serif;", small: true },
+  { id: 1,  label: 'System Medium',       height: 18, preview: "font-family: Arial, sans-serif; font-weight: 700;", small: true },
+  { id: 2,  label: 'System Large',        height: 24, preview: "font-family: Arial, sans-serif; font-weight: 700;", small: true },
+  { id: 3,  label: 'System XL',           height: 32, preview: "font-family: Arial, sans-serif; font-weight: 700;", small: false },
+  { id: 4,  label: 'System XXL',          height: 36, preview: "font-family: Arial, sans-serif; font-weight: 700;", small: false },
+  { id: 5,  label: 'Leco Small',          height: 17, preview: "font-family: Arial, sans-serif; font-weight: 300;", small: true },
+  { id: 6,  label: 'Leco Medium',         height: 20, preview: "font-family: Arial, sans-serif; font-weight: 700;", small: true },
+  { id: 7,  label: 'Leco Large',          height: 23, preview: "font-family: Arial, sans-serif; font-weight: 700;", small: true },
+  { id: 8,  label: 'Leco XL',             height: 26, preview: "font-family: Arial, sans-serif; font-weight: 700;", small: true, mainClock: true, pairedSmallId: 5 },
+  { id: 9,  label: 'Droid Serif',         height: 17, preview: "font-family: Georgia, serif; font-weight: 700;", small: true },
+  { id: 10, label: 'Roboto Condensed',    height: 15, preview: "font-family: 'Roboto Condensed', Arial, sans-serif;", small: true },
+  { id: 11, label: 'Roboto Bold',         height: 30, preview: "font-family: 'Roboto', Arial, sans-serif; font-weight: 700;", small: true, mainClock: true, pairedSmallId: 10 },
+  { id: 12, label: 'Bitham Bold 30',      height: 19, preview: "font-family: 'Futura', 'Century Gothic', sans-serif; font-weight: 700;", small: true },
+  { id: 13, label: 'Bitham Medium 34',    height: 21, preview: "font-family: 'Futura', 'Century Gothic', sans-serif; font-weight: 500;", small: true },
+  { id: 14, label: 'Bitham Light',        height: 26, preview: "font-family: 'Futura', 'Century Gothic', sans-serif; font-weight: 300; letter-spacing: 1px;", small: true, mainClock: true, pairedSmallId: 4 },
+  { id: 15, label: 'Bitham Bold',         height: 26, preview: "font-family: 'Futura', 'Century Gothic', sans-serif; font-weight: 700; letter-spacing: 1px;", small: true, mainClock: true, pairedSmallId: 4 },
+  { id: 16, label: 'Digital Dream Small', height: 12, preview: "font-family: 'Courier New', monospace; letter-spacing: 2px; font-weight: 700;", small: true },
+  { id: 17, label: 'Digital Dream',       height: 40, preview: "font-family: 'Courier New', monospace; letter-spacing: 4px; font-weight: 700;", small: false, mainClock: true, pairedSmallId: 16 },
+  { id: 18, label: 'Minecrafter Small',   height: 12, preview: "font-family: 'Courier New', monospace; letter-spacing: 2px;", small: true },
+  { id: 19, label: 'Minecrafter',         height: 40, preview: "font-family: 'Courier New', monospace; letter-spacing: 3px;", small: false, mainClock: true, pairedSmallId: 18, wide: true, secondsDisabled: true },
+  { id: 20, label: 'SF Pixelate Small',   height: 14, preview: "font-family: 'Courier New', monospace; letter-spacing: 1px;", small: true },
+  { id: 21, label: 'SF Pixelate',         height: 40, preview: "font-family: 'Courier New', monospace; letter-spacing: 2px;", small: false, mainClock: true, pairedSmallId: 20, wide: true, secondsDisabled: true },
+  { id: 22, label: 'Miso Small',          height: 19, preview: "font-family: 'Century Gothic', sans-serif; font-weight: 600;", small: true },
+  { id: 23, label: 'Miso',                height: 40, preview: "font-family: 'Century Gothic', sans-serif; font-weight: 600;", small: false, mainClock: true, pairedSmallId: 22 },
+  { id: 24, label: 'Bebas Small',         height: 20, preview: "font-family: 'Bebas', 'Century Gothic', sans-serif; font-weight: 700; letter-spacing: 1px;", small: true },
+  { id: 25, label: 'Bebas',               height: 40, preview: "font-family: 'Bebas', 'Century Gothic', sans-serif; font-weight: 700; letter-spacing: 1px;", small: false, mainClock: true, pairedSmallId: 24 },
+  { id: 26, label: 'ClockForge',          height: 40, preview: "font-family: Impact, sans-serif; font-weight: 700; letter-spacing: 1px;", small: false, mainClock: true, pairedSmallId: 4 },
+  { id: 27, label: 'Radioland',           height: 40, preview: "font-family: 'Courier New', monospace; font-weight: 700;", small: false, mainClock: true, pairedSmallId: 4, wide: true, secondsDisabled: true },
+  { id: 28, label: 'Mini System',         height: 40, preview: "font-family: 'Courier New', monospace;", small: false, mainClock: true, pairedSmallId: 4, wide: true, secondsDisabled: true },
+  { id: 29, label: 'Kitchen Police',      height: 40, preview: "font-family: Impact, 'Arial Narrow', sans-serif;", small: false, mainClock: true, pairedSmallId: 4, wide: true, secondsDisabled: true },
+  { id: 30, label: 'DS Digital',          height: 40, preview: "font-family: 'Courier New', monospace; font-weight: 700; letter-spacing: 2px;", small: false, mainClock: true, pairedSmallId: 4 },
+  { id: 31, label: 'Distant Galaxy',      height: 40, preview: "font-family: 'Arial Narrow', sans-serif; letter-spacing: 3px; font-weight: 700;", small: false, mainClock: true, pairedSmallId: 4 },
+  { id: 32, label: 'Dimitri',             height: 40, preview: "font-family: Georgia, serif; font-weight: 700;", small: false, mainClock: true, pairedSmallId: 4 },
+  { id: 33, label: 'Blackout',            height: 40, preview: "font-family: Impact, sans-serif; font-weight: 900;", small: false, mainClock: true, pairedSmallId: 4 },
+  { id: 34, label: 'Audiowide',           height: 40, preview: "font-family: 'Arial Black', sans-serif; letter-spacing: 1px;", small: false, mainClock: true, pairedSmallId: 4, wide: true, secondsDisabled: true },
+  { id: 35, label: 'Formation',           height: 40, preview: "font-family: Verdana, sans-serif; font-weight: 700;", small: false, mainClock: true, pairedSmallId: 4 },
+  { id: 36, label: 'Komika',              height: 40, preview: "font-family: 'Comic Sans MS', cursive; font-weight: 700;", small: false, mainClock: true, pairedSmallId: 4, wide: true, secondsDisabled: true },
+  { id: 37, label: 'Pricedown',           height: 40, preview: "font-family: Impact, 'Arial Narrow', sans-serif; font-style: italic; letter-spacing: 1px;", small: false, mainClock: true, pairedSmallId: 4 }
 ];
 
 // Fastest way to go from an id to its entry -- every font picker
@@ -211,7 +236,8 @@ function fontOptionsHtml(selectedId, onlyMainClock) {
     return !onlyMainClock || f.mainClock;
   }).map(function (f) {
     return '<option value="' + f.id + '" data-preview="' + esc(f.preview) + '" data-seconds="' +
-      (f.wide ? '0' : '1') + '" data-height="' + f.height + '" data-paired-small="' + (f.pairedSmallId !== undefined ? f.pairedSmallId : 0) + '"' +
+      (f.secondsDisabled ? '0' : '1') + '" data-height="' + f.height + '" data-small="' + (f.small ? '1' : '0') +
+      '" data-paired-small="' + (f.pairedSmallId !== undefined ? f.pairedSmallId : 0) + '"' +
       (selectedId === f.id ? ' selected' : '') + '>' + esc(f.label) + '</option>';
   }).join('');
 }
@@ -872,9 +898,16 @@ function buildConfigHtml(current) {
   var isAnalog = bottomStyleVal === 'analog';
   var clockFontId = parseInt(current.clockFont || '8', 10);
   var clockFontSmallId = parseInt(current.clockFontSmall || '0', 10);
-  var secondsUnsupported = (bottomStyleVal === 'digital') && fontLookupEntry(clockFontId).wide;
+  var secondsUnsupported = (bottomStyleVal === 'digital') && fontLookupEntry(clockFontId).secondsDisabled;
   var secondsChecked = (current.showSeconds && !secondsUnsupported) ? 'checked' : '';
   var secondsDisabled = secondsUnsupported ? 'disabled' : '';
+  var cornerFontId = parseInt(current.cornerFont || '1', 10);
+  // Defaults to checked (showing every font, not just the small ones)
+  // whenever the CURRENTLY saved selection for that picker is itself
+  // one of the fonts that would otherwise be hidden -- so loading the
+  // page never makes an already-picked font disappear from view.
+  var cornerFontShowIncompatible = !fontLookupEntry(cornerFontId).small;
+  var clockFontSmallShowIncompatible = !fontLookupEntry(clockFontSmallId).small;
 
   // One <button> per example-style slot (see EXAMPLE_STYLE_COUNT's own
   // comment above) -- a screenshot if one's been generated for that
@@ -1295,14 +1328,19 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      <input type="checkbox" id="showSeconds" ' + secondsChecked + ' ' + secondsDisabled + ' onchange="onShowSecondsChange()">' +
 '      <label for="showSeconds" style="margin:0;">Show seconds</label>' +
 '    </div>' +
-'    <div class="help" id="secondsHelp" style="' + (secondsUnsupported ? '' : 'display:none;') + '">This font is too wide to fit seconds alongside it.</div>' +
+'    <div class="help" id="secondsHelp" style="' + (secondsUnsupported ? '' : 'display:none;') + '">This font doesn\'t support showing seconds.</div>' +
 '    <div class="help">Used by both layouts -- the digital clock\'s own seconds digits, and whether analog draws a second hand at all (gates the Custom style\'s "Edit second hand" below, too).</div>' +
 
 '    <div id="digitalOnlySettings" class="subsection" style="' + (bottomStyleVal === 'digital' ? '' : 'display:none;') + '">' +
 '      <label for="clockFont">Clock font</label>' +
 '      <select id="clockFont" onchange="onFontChange()">' + fontOptions + '</select>' +
 '      <label for="clockFontSmall" style="margin-top:10px;">Small companion font</label>' +
-'      <select id="clockFontSmall" onchange="updatePreview()">' + clockFontSmallOptions + '</select>' +
+'      <select id="clockFontSmall" onchange="onClockFontSmallChange()">' + clockFontSmallOptions + '</select>' +
+'      <div class="checkbox-row" style="margin-top:6px;">' +
+'        <input type="checkbox" id="clockFontSmallShowIncompatible" ' + (clockFontSmallShowIncompatible ? 'checked' : '') + ' onchange="onFontOptionFilterChange(\'clockFontSmall\', \'clockFontSmallShowIncompatible\')">' +
+'        <label for="clockFontSmallShowIncompatible" style="margin:0;">Show incompatible fonts</label>' +
+'      </div>' +
+'      <div class="help">Bigger display fonts are hidden here by default -- they\'re sized for the main clock, not a small companion readout.</div>' +
 '      <div class="help">Used for the seconds digits, sunrise/sunset time, and date line next to the clock -- picking a Clock font above suggests a matching one here automatically, but you can override it.</div>' +
 '    </div>' +
 
@@ -1472,7 +1510,12 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    </div>' +
 
 '    <label for="cornerFont">Font</label>' +
-'    <select id="cornerFont" onchange="onCornerFontChange()">' + fontOptionsHtml(parseInt(current.cornerFont || '1', 10), false) + '</select>' +
+'    <select id="cornerFont" onchange="onCornerFontChange()">' + fontOptionsHtml(cornerFontId, false) + '</select>' +
+'    <div class="checkbox-row" style="margin-top:6px;">' +
+'      <input type="checkbox" id="cornerFontShowIncompatible" ' + (cornerFontShowIncompatible ? 'checked' : '') + ' onchange="onFontOptionFilterChange(\'cornerFont\', \'cornerFontShowIncompatible\')">' +
+'      <label for="cornerFontShowIncompatible" style="margin:0;">Show incompatible fonts</label>' +
+'    </div>' +
+'    <div class="help">Bigger display fonts are hidden here by default -- they\'re sized for the main clock, not corner/edge readouts.</div>' +
 '    <div class="help">Applies to corner/edge feature text and the analog date.</div>' +
 
 '    <div id="weatherIconStyleRow" style="' + (weatherIconFeatureInUse ? '' : 'display:none;') + '">' +
@@ -2857,6 +2900,8 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  });' +
 '  selectVerticalOption("bgAnimModeGroup", "bgAnimMode", document.getElementById("bgAnimMode").value);' +
 '  selectVerticalOption("shakeAnimModeGroup", "shakeAnimMode", document.getElementById("shakeAnimMode").value);' +
+'  applyFontOptionFilter("cornerFont", document.getElementById("cornerFontShowIncompatible").checked);' +
+'  applyFontOptionFilter("clockFontSmall", document.getElementById("clockFontSmallShowIncompatible").checked);' +
 '  onBottomStyleChange();' +
 '  onMarkerStyleChange();' +
 '  onCornerFontChange();' +
@@ -3146,6 +3191,32 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  renderSlotPicker();' +
 '  updatePreview();' +
 '}' +
+// Hides/reveals a font <option> list's own `data-small="0"` (bigger,
+// ~48px-scale) entries based on that picker's own "Show incompatible
+// fonts" checkbox -- shared by the corner/edge Font picker and the
+// clock\'s own Small companion font picker, the two pickers that get
+// this treatment (see FONT_LOOKUP\'s own `small` comment). The
+// currently-selected option is always exempted from hiding, even
+// with the checkbox off, so a saved big-font pick already in that
+// slot never disappears out from under the user -- just stays as the
+// one visible "incompatible" entry until they actively pick something
+// else.' +
+'function applyFontOptionFilter(selectId, showIncompatible) {' +
+'  var sel = document.getElementById(selectId);' +
+'  if (!sel) return;' +
+'  for (var i = 0; i < sel.options.length; i++) {' +
+'    var opt = sel.options[i];' +
+'    var isSmall = opt.getAttribute("data-small") === "1";' +
+'    opt.hidden = !showIncompatible && !isSmall && !opt.selected;' +
+'  }' +
+'}' +
+'function onFontOptionFilterChange(selectId, checkboxId) {' +
+'  applyFontOptionFilter(selectId, document.getElementById(checkboxId).checked);' +
+'}' +
+'function onClockFontSmallChange() {' +
+'  applyFontOptionFilter("clockFontSmall", document.getElementById("clockFontSmallShowIncompatible").checked);' +
+'  updatePreview();' +
+'}' +
 'function selectSunTimeMode(isSunTime) {' +
 '  document.getElementById("showSunTime").value = isSunTime ? "true" : "false";' +
 '  var buttons = document.getElementById("showSunTimeGroup").getElementsByClassName("mode-btn");' +
@@ -3174,6 +3245,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  var opt = fontSel.options[fontSel.selectedIndex];' +
 '  var pairedSmallId = opt.getAttribute("data-paired-small");' +
 '  if (pairedSmallId !== null) document.getElementById("clockFontSmall").value = pairedSmallId;' +
+'  applyFontOptionFilter("clockFontSmall", document.getElementById("clockFontSmallShowIncompatible").checked);' +
 '  onBottomStyleChange();' +
 '}' +
 'function onAnalogStyleChange() { updatePreview(); }' +
@@ -3318,6 +3390,17 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  var mins = parseInt(document.getElementById("updateMins").value, 10);' +
 '  if (isNaN(mins) || mins < 5) mins = 20;' +
 '  var bottomStyleVal = document.getElementById("bottomStyleValue").value;' +
+// Belt-and-suspenders re-check, independent of whatever the (possibly
+// stale, possibly never-recomputed-since-load) Show Seconds checkbox
+// itself currently holds -- onBottomStyleChange()/onFontChange()
+// already gray it out and uncheck it live whenever the selected clock
+// font can't support seconds, but this is the actual value that goes
+// to the watch, so it\'s re-derived here from the current clock font
+// selection directly rather than trusted to already be correct.
+'  var clockFontSel = document.getElementById("clockFont");' +
+'  var clockFontOpt = clockFontSel.options[clockFontSel.selectedIndex];' +
+'  var secondsOverriddenOff = bottomStyleVal === "digital" && clockFontOpt.getAttribute("data-seconds") === "0";' +
+'  var showSecondsVal = !secondsOverriddenOff && document.getElementById("showSeconds").checked;' +
 '  var settings = {' +
 '    CONFIG_AUTO_LOC: document.getElementById("autoLoc").checked,' +
 '    CONFIG_LAT: document.getElementById("lat").value,' +
@@ -3333,7 +3416,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    CONFIG_CLOUD_RENDER_STYLE: document.getElementById("cloudRenderStyle").value,' +
 '    CONFIG_SKY_MODE: document.getElementById("skyMode").value,' +
 '    CONFIG_WEATHER_ICON_STYLE: document.getElementById("weatherIconStyle").value,' +
-'    CONFIG_SHOW_SECONDS: document.getElementById("showSeconds").checked,' +
+'    CONFIG_SHOW_SECONDS: showSecondsVal,' +
 '    CONFIG_CUSTOM_BG: document.getElementById("customBgValue").value,' +
 '    CONFIG_CUSTOM_TEXT: document.getElementById("customTextValue").value,' +
 '    CONFIG_CUSTOM_ACCENT: document.getElementById("customAccentValue").value,' +
@@ -3490,6 +3573,8 @@ handEditorModalHtml('sec', 'Edit second hand') +
 'updateColorRoleButtons("day");' +
 'updateColorRoleButtons("night");' +
 'onBottomStyleChange();' +
+'applyFontOptionFilter("cornerFont", document.getElementById("cornerFontShowIncompatible").checked);' +
+'applyFontOptionFilter("clockFontSmall", document.getElementById("clockFontSmallShowIncompatible").checked);' +
 'renderHandStyleGrid();' +
 'renderMarkerStyleGrid();' +
 'updateWeatherIconStyleVisibility();' +
