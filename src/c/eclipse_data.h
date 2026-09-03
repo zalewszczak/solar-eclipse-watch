@@ -337,62 +337,25 @@ typedef struct {
                              // both near draw_body_paths_overlay() for what a real attempt would need).
   bool outline_enabled; // user setting: 1px contrasting-color outline behind corner/edge text,
                           // the big-analog date, the eclipse phase text, and (procedurally, non-
-                          // translucent mode only) corner/edge icons and the CUSTOM hand system
-                          // (big_analog_hand_style == 4) -- the 4 built-in hand style presets
-                          // (styles 0-3) use their own separate hand_preset_contrast_style
-                          // setting below instead, not this one.
-  uint8_t hand_preset_contrast_style; // user setting ("Style" section, right below the hand
-                                        // style picker): applies ONLY to the 4 built-in hand
-                                        // style presets (big_analog_hand_style 0-3) -- never to
-                                        // the custom hand system, icons, or text features, which
-                                        // all keep using outline_enabled above unchanged. Exactly
-                                        // one of: 0=None (no outline at all), 1=Contrasting
-                                        // outline (auto black/white by luma against the hand's
-                                        // own fill color -- see HandConfig's own
-                                        // outline_auto_contrast comment in hand_layer.h),
-                                        // 2=Background color outline (the scheme's own background
-                                        // color -- this was the fixed, only behavior before this
-                                        // setting existed), 3=Shadow (a solid black copy of the
-                                        // hand shifted 1px right+down, NOT a traced outline at
-                                        // all -- see HandConfig's own hard_shadow comment).
+                          // translucent mode only) corner/edge icons. Hands have their own
+                          // per-hand outline_enabled instead (HandConfig, in hand_hour/
+                          // hand_minute/hand_second below) -- this setting doesn't touch them.
   uint8_t corner_font; // unified font id (see font_lookup.h) for corner/edge feature text and the
                          // big-analog date text; default (1 = System Medium) matches the old
                          // corner_font_size default
 
-  // bottom_style==2 (big analogue) settings -- hands/markings render
-  // in their own always-on-top layer (see pebble-eclipse-watch.c),
-  // separate from the sky canvas underneath.
-  uint8_t big_analog_hand_style; // 0=pointy (triangular), 1=square (rectangular),
-                                   // 2=modern (rounded, hollow hour/minute hands), 3=rounded/classic,
-                                   // 4=custom -- user-built per-hand system, see hand_layer.h/.c and
-                                   // the hand_hour/hand_minute/hand_second/center_circle_* fields below.
-  bool big_analog_hands_transparent; // dither the hands instead of solid fill, so the
-                                       // sky/eclipse drawing underneath still shows through --
-                                       // for the custom hand style (4), this instead means "draw
-                                       // hands (and their outline, if any) as a 1px stroke only"
-  bool big_analog_hands_shadow; // user setting: turns on the drop-shadow HandConfig.shadow_enabled
-                                  // field for all 3 procedural hand presets (styles 0-3) at once,
-                                  // same "one global toggle applied uniformly" pattern
-                                  // outline_enabled/big_analog_hands_transparent already use --
-                                  // meaningless for the custom hand style (4), which has its own
-                                  // per-hand hand_hour/hand_minute/hand_second.shadow_enabled
-                                  // instead. Procedural presets always use a hardcoded 2px
-                                  // shadow_distance_px when this is on (the angle is always
-                                  // shadow_angle_deg below, shared with every other hand).
-  bool shadow_translucent; // user setting ("Style" section): whether EVERY hand's shadow (both
-                             // procedural presets and the custom hand system) draws solid black
-                             // or a dithered translucent black -- ~50% normally, ~25% when that
-                             // particular hand is itself translucent too. A single global style
-                             // choice, unlike shadow_enabled/distance which are per-hand
-                             // (or, for presets, one shared toggle) -- see hand_layer.h. Defaults
-                             // to true (translucent).
+  bool shadow_translucent; // user setting ("Style" section): whether every hand's shadow draws
+                             // solid black or a dithered translucent black -- ~50% normally, ~25%
+                             // when that particular hand is itself translucent too. A single
+                             // global style choice, unlike shadow_enabled/distance which are
+                             // per-hand -- see hand_layer.h. Defaults to true (translucent).
   uint16_t shadow_angle_deg; // user setting ("Style" section, right below shadow_translucent):
                               // single shared light-source direction for every hand's shadow, 0-359,
                               // same "0 = 12 o'clock, clockwise" convention as every other angle in
                               // this project. All 3 hands share one physical light source, so a
                               // separately-adjustable angle per hand (as this briefly was) made no
                               // real sense -- only shadow_enabled/distance stayed per-hand. Defaults
-                              // to 120, matching the procedural presets' own hardcoded angle.
+                              // to 120.
   bool draw_features_beneath_hands; // user setting ("Style" section, big-analog only): when
                                       // true, apply_layout() adds the features overlay layer
                                       // BEFORE the hands layer instead of after, so hands draw
@@ -400,7 +363,17 @@ typedef struct {
                                       // Meaningless (and hidden on the settings page) outside
                                       // bottom_style == 2.
 
-  // Only meaningful when big_analog_hand_style == 4. See hand_layer.h for field docs.
+  // bottom_style==2 (big analogue) hands -- rendered in their own
+  // always-on-top layer (see pebble-eclipse-watch.c), separate from
+  // the sky canvas underneath. Every hand the watch ever draws is one
+  // of these full HandConfig field sets -- pkjs is what offers a
+  // gallery of quick-pick preset buttons on top of this (see
+  // config-page.js's hand style picker popup and its lookup table of
+  // presets), but a preset is just a shortcut for filling these same
+  // fields; the watch itself has no separate "preset" mode to branch
+  // on, unlike the version of this struct that used to also carry
+  // big_analog_hand_style/big_analog_hands_transparent/
+  // big_analog_hands_shadow/hand_preset_contrast_style for that.
   HandConfig hand_hour;
   HandConfig hand_minute;
   HandConfig hand_second;

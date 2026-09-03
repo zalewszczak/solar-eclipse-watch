@@ -238,36 +238,6 @@ int16_t draw_sun_time_icon(GContext *ctx, GPoint top_left, bool is_sunrise, GCol
 // canvas's own cached redraw (see the design note at the top of that
 // file), not from here every tick.
 
-// ---- big-analogue hand-style presets (procedural, styles 0-3) ------------
-// Recreates the 4 non-custom big_analog_hand_style options through
-// hand_layer.c's shared drawing code, rather than a separate procedural
-// drawing function -- same simplification trade-off the recreated
-// procedural marker presets in background_layer.c make: these are static
-// approximations (~92px reference radius, a 200x228 screen) rather than
-// proportional to the actual screen radius the way the original
-// formula-driven draw_big_hand() was. outline_enabled/outline_color/
-// translucent are left at their zero-value defaults here and filled in
-// at the call site instead, from the (still-global, still applicable to
-// these 4 styles) outline_enabled and big_analog_hands_transparent
-// settings -- see hands_layer_update_proc.
-static const HandConfig HAND_STYLE_HOUR_PRESETS[4] = {
-  { .style = 1, .width = 12, .length = 51, .back_offset = 6, .color = 0 },                     // 0: pointy
-  { .style = 2, .width = 8,  .length = 51, .back_offset = 6, .color = 0 },                     // 1: square
-  { .style = 2, .width = 6,  .length = 51, .back_offset = 8, .color = 0, .hollow = true },      // 2: modern
-  { .style = 0, .width = 6,  .length = 51, .back_offset = 0, .color = 1 },                     // 3: rounded/classic (accent hour hand)
-};
-static const HandConfig HAND_STYLE_MIN_PRESETS[4] = {
-  { .style = 1, .width = 12, .length = 78, .back_offset = 6, .color = 0 },
-  { .style = 2, .width = 8, .length = 78, .back_offset = 6, .color = 0 },
-  { .style = 2, .width = 6,  .length = 78, .back_offset = 8, .color = 0, .hollow = true },
-  { .style = 0, .width = 6, .length = 78, .back_offset = 0, .color = 0 },
-};
-// The 4 procedural styles never customized the second hand -- always a
-// plain accent-colored thin line -- so one shared preset covers all of them.
-static const HandConfig HAND_STYLE_SEC_PRESET = {
-  .style = 1, .width = 2, .length = 85, .back_offset = 6, .color = 1,
-};
-
 // Corner/edge/date font resolution is now font_lookup_resolve() plus a
 // shared FontSlot (see font_lookup.h) owned by features_layer.c, whose
 // ensure_corner_custom_font()/small_analog_feature_count() are exposed
@@ -739,48 +709,16 @@ static void hands_layer_update_proc(Layer *layer, GContext *ctx) {
     compute_startup_hand_anim(sec_angle, s_startup_anim_elapsed_ms, &sec_angle, &sec_length_scale_1000);
   }
 
-  // All 5 hand styles now go through hand_layer_draw() -- custom (4) uses
-  // the user's own per-hand settings; 0-3 use one of the hardcoded
-  // HAND_STYLE_*_PRESETS above, with the still-global hand settings
-  // (outline_enabled, big_analog_hands_transparent, big_analog_hands_shadow)
-  // applied uniformly to all 3 hands, matching what draw_big_hand_outlined()
-  // used to do.
-  HandConfig hour_cfg, min_cfg, sec_cfg;
-  if (s_data.big_analog_hand_style == 4) {
-    hour_cfg = s_data.hand_hour;
-    min_cfg = s_data.hand_minute;
-    sec_cfg = s_data.hand_second;
-  } else {
-    uint8_t idx = (s_data.big_analog_hand_style <= 3) ? s_data.big_analog_hand_style : 0;
-    hour_cfg = HAND_STYLE_HOUR_PRESETS[idx];
-    min_cfg = HAND_STYLE_MIN_PRESETS[idx];
-    sec_cfg = HAND_STYLE_SEC_PRESET;
-    hour_cfg.translucent = min_cfg.translucent = sec_cfg.translucent = s_data.big_analog_hands_transparent;
-    // "Contrast style" (hand_preset_contrast_style) -- see its own
-    // eclipse_data.h comment for the 4 options. Replaces what used to
-    // be a single always-on "background color outline" driven by the
-    // shared outline_enabled boolean -- see HandConfig's own
-    // outline_auto_contrast/hard_shadow comments in hand_layer.h for
-    // how 1/3 are actually implemented.
-    bool outline_on = s_data.hand_preset_contrast_style == 1 || s_data.hand_preset_contrast_style == 2;
-    bool auto_contrast = s_data.hand_preset_contrast_style == 1;
-    bool hard_shadow = s_data.hand_preset_contrast_style == 3;
-    hour_cfg.outline_enabled = min_cfg.outline_enabled = sec_cfg.outline_enabled = outline_on;
-    hour_cfg.outline_auto_contrast = min_cfg.outline_auto_contrast = sec_cfg.outline_auto_contrast = auto_contrast;
-    hour_cfg.hard_shadow = min_cfg.hard_shadow = sec_cfg.hard_shadow = hard_shadow;
-    // contrasting_outline_color() picked black/white dynamically by luma;
-    // the closest fixed equivalent in HandConfig's 3-option scheme-color
-    // enum is the scheme's own background, which is high-contrast against
-    // its text/accent colors in every built-in scheme.
-    hour_cfg.outline_color = min_cfg.outline_color = sec_cfg.outline_color = 2;
-    // Shadow: one shared on/off toggle like outline_enabled above, but
-    // distance is hardcoded rather than user-adjustable for the
-    // procedural presets -- only the custom hand system (hand_hour/
-    // hand_minute/hand_second above) exposes that as a slider. Angle
-    // is never per-hand at all -- see hand_layer_draw()'s own comment.
-    hour_cfg.shadow_enabled = min_cfg.shadow_enabled = sec_cfg.shadow_enabled = s_data.big_analog_hands_shadow;
-    hour_cfg.shadow_distance_px = min_cfg.shadow_distance_px = sec_cfg.shadow_distance_px = 2;
-  }
+  // Every hand style is a "custom" hand now, whether the person got
+  // there by picking one of the built-in preset buttons or by editing
+  // hour/minute/second by hand -- pkjs is what tells the two apart
+  // (see config-page.js's hand style picker popup); by the time
+  // settings reach the watch, a preset has already been expanded into
+  // the exact same hand_hour/hand_minute/hand_second fields a fully
+  // custom hand uses, so there's nothing left to branch on here.
+  HandConfig hour_cfg = s_data.hand_hour;
+  HandConfig min_cfg = s_data.hand_minute;
+  HandConfig sec_cfg = s_data.hand_second;
 
   hand_layer_draw(ctx, center, hour_angle, &hour_cfg, main_color, accent_color, bg, s_data.shadow_translucent, s_data.shadow_angle_deg, hour_length_scale_1000);
   hand_layer_draw(ctx, center, min_angle, &min_cfg, main_color, accent_color, bg, s_data.shadow_translucent, s_data.shadow_angle_deg, min_length_scale_1000);
@@ -788,13 +726,8 @@ static void hands_layer_update_proc(Layer *layer, GContext *ctx) {
     hand_layer_draw(ctx, center, sec_angle, &sec_cfg, main_color, accent_color, bg, s_data.shadow_translucent, s_data.shadow_angle_deg, sec_length_scale_1000);
   }
 
-  if (s_data.big_analog_hand_style == 4) {
-    hand_layer_draw_center_circle(ctx, center, s_data.center_circle_radius, s_data.center_circle_color,
-                                   main_color, accent_color, bg);
-  } else {
-    graphics_context_set_fill_color(ctx, main_color);
-    graphics_fill_circle(ctx, center, 3);
-  }
+  hand_layer_draw_center_circle(ctx, center, s_data.center_circle_radius, s_data.center_circle_color,
+                                 main_color, accent_color, bg);
 }
 
 // ---- corners/edges feature overlay ---------------------------------------
@@ -1435,24 +1368,8 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   if ((t = dict_find(iter, MESSAGE_KEY_OUTLINE_ENABLED))) {
     s_data.outline_enabled = t->value->uint8 != 0;
   }
-  if ((t = dict_find(iter, MESSAGE_KEY_HAND_PRESET_CONTRAST_STYLE))) {
-    uint8_t v = t->value->uint8;
-    s_data.hand_preset_contrast_style = (v <= 3) ? v : 2; // clamped -- used as a raw comparison, not a safely-defaulting switch, and 2 (background outline) matches the old fixed pre-this-setting behavior
-  }
   if ((t = dict_find(iter, MESSAGE_KEY_CORNER_FONT))) {
     s_data.corner_font = t->value->uint8;
-  }
-  if ((t = dict_find(iter, MESSAGE_KEY_BIG_ANALOG_HAND_STYLE))) {
-    s_data.big_analog_hand_style = t->value->uint8;
-    if (s_hands_layer) layer_mark_dirty(s_hands_layer);
-  }
-  if ((t = dict_find(iter, MESSAGE_KEY_BIG_ANALOG_HANDS_TRANSPARENT))) {
-    s_data.big_analog_hands_transparent = t->value->uint8 != 0;
-    if (s_hands_layer) layer_mark_dirty(s_hands_layer);
-  }
-  if ((t = dict_find(iter, MESSAGE_KEY_BIG_ANALOG_HANDS_SHADOW))) {
-    s_data.big_analog_hands_shadow = t->value->uint8 != 0;
-    if (s_hands_layer) layer_mark_dirty(s_hands_layer);
   }
   if ((t = dict_find(iter, MESSAGE_KEY_SHADOW_TRANSLUCENT))) {
     s_data.shadow_translucent = t->value->uint8 != 0;
@@ -1466,7 +1383,10 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
     s_data.draw_features_beneath_hands = t->value->uint8 != 0;
     apply_layout(); // re-orders the hands/features layers if this actually changed -- see its own comment
   }
-  // Custom hand system (big_analog_hand_style == 4) -- see hand_layer.h.
+  // Hand system -- see hand_layer.h. Every hand (however it was picked
+  // on the settings page -- a preset button or the manual editor) is
+  // sent as one of these full field sets; the watch itself has no
+  // separate "preset" concept.
   if ((t = dict_find(iter, MESSAGE_KEY_HAND_HOUR_STYLE))) s_data.hand_hour.style = t->value->uint8;
   if ((t = dict_find(iter, MESSAGE_KEY_HAND_HOUR_WIDTH))) s_data.hand_hour.width = t->value->uint8;
   if ((t = dict_find(iter, MESSAGE_KEY_HAND_HOUR_LENGTH))) s_data.hand_hour.length = t->value->uint8;
@@ -1479,6 +1399,8 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   if ((t = dict_find(iter, MESSAGE_KEY_HAND_HOUR_TRANSLUCENT))) s_data.hand_hour.translucent = t->value->uint8 != 0;
   if ((t = dict_find(iter, MESSAGE_KEY_HAND_HOUR_SHADOW_ENABLED))) s_data.hand_hour.shadow_enabled = t->value->uint8 != 0;
   if ((t = dict_find(iter, MESSAGE_KEY_HAND_HOUR_SHADOW_DISTANCE))) s_data.hand_hour.shadow_distance_px = t->value->uint8;
+  if ((t = dict_find(iter, MESSAGE_KEY_HAND_HOUR_HOLLOW))) s_data.hand_hour.hollow = t->value->uint8 != 0;
+  if ((t = dict_find(iter, MESSAGE_KEY_HAND_HOUR_HOLLOW_THICKNESS))) s_data.hand_hour.hollow_thickness = t->value->uint8;
   if ((t = dict_find(iter, MESSAGE_KEY_HAND_MIN_STYLE))) s_data.hand_minute.style = t->value->uint8;
   if ((t = dict_find(iter, MESSAGE_KEY_HAND_MIN_WIDTH))) s_data.hand_minute.width = t->value->uint8;
   if ((t = dict_find(iter, MESSAGE_KEY_HAND_MIN_LENGTH))) s_data.hand_minute.length = t->value->uint8;
@@ -1491,6 +1413,8 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   if ((t = dict_find(iter, MESSAGE_KEY_HAND_MIN_TRANSLUCENT))) s_data.hand_minute.translucent = t->value->uint8 != 0;
   if ((t = dict_find(iter, MESSAGE_KEY_HAND_MIN_SHADOW_ENABLED))) s_data.hand_minute.shadow_enabled = t->value->uint8 != 0;
   if ((t = dict_find(iter, MESSAGE_KEY_HAND_MIN_SHADOW_DISTANCE))) s_data.hand_minute.shadow_distance_px = t->value->uint8;
+  if ((t = dict_find(iter, MESSAGE_KEY_HAND_MIN_HOLLOW))) s_data.hand_minute.hollow = t->value->uint8 != 0;
+  if ((t = dict_find(iter, MESSAGE_KEY_HAND_MIN_HOLLOW_THICKNESS))) s_data.hand_minute.hollow_thickness = t->value->uint8;
   if ((t = dict_find(iter, MESSAGE_KEY_HAND_SEC_STYLE))) s_data.hand_second.style = t->value->uint8;
   if ((t = dict_find(iter, MESSAGE_KEY_HAND_SEC_WIDTH))) s_data.hand_second.width = t->value->uint8;
   if ((t = dict_find(iter, MESSAGE_KEY_HAND_SEC_LENGTH))) s_data.hand_second.length = t->value->uint8;
@@ -1503,6 +1427,8 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   if ((t = dict_find(iter, MESSAGE_KEY_HAND_SEC_TRANSLUCENT))) s_data.hand_second.translucent = t->value->uint8 != 0;
   if ((t = dict_find(iter, MESSAGE_KEY_HAND_SEC_SHADOW_ENABLED))) s_data.hand_second.shadow_enabled = t->value->uint8 != 0;
   if ((t = dict_find(iter, MESSAGE_KEY_HAND_SEC_SHADOW_DISTANCE))) s_data.hand_second.shadow_distance_px = t->value->uint8;
+  if ((t = dict_find(iter, MESSAGE_KEY_HAND_SEC_HOLLOW))) s_data.hand_second.hollow = t->value->uint8 != 0;
+  if ((t = dict_find(iter, MESSAGE_KEY_HAND_SEC_HOLLOW_THICKNESS))) s_data.hand_second.hollow_thickness = t->value->uint8;
   if ((t = dict_find(iter, MESSAGE_KEY_CENTER_CIRCLE_RADIUS))) s_data.center_circle_radius = t->value->uint8;
   if ((t = dict_find(iter, MESSAGE_KEY_CENTER_CIRCLE_COLOR))) s_data.center_circle_color = t->value->uint8;
   if ((t = dict_find(iter, MESSAGE_KEY_BIG_ANALOG_MARKER_STYLE))) {

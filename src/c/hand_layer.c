@@ -1,6 +1,5 @@
 #include "hand_layer.h"
 #include "eclipse_data.h" // for shake_gradient_active() -- see draw_hand_outline_once_fp()'s own comment on why
-#include "features_layer.h" // for contrasting_outline_color() -- see hand_layer_draw()'s own comment on why. Safe as a .c-file-only include (not added to hand_layer.h itself) -- features_layer.h -> eclipse_data.h -> hand_layer.h would otherwise be a real circular header include.
 
 // round_div/BAYER4/FGPoint helpers and the fill_polygon_fp()/
 // fill_polygon_dithered_fp()/fill_circle_fp()/stroke_line_fp()/
@@ -37,8 +36,21 @@ static GColor resolve_scheme_color(uint8_t choice, GColor main_color, GColor acc
 // base plus a separate tip ornament) is decomposed into 2 separate
 // convex polygons instead of one -- see each style's own comment
 // below for its exact point layout.
-#define HAND_MAX_POLY_PTS 5
-#define HAND_MAX_POLYS 2
+// 12, not 5 -- style 8/leaf's single smooth convex outline (back point,
+// LEAF_HALF_SAMPLES interior points either side of the peak on each of
+// its two flanks, the peak itself, and the tip point) needs every one
+// of the 12 slots that shape's own comment works out; every other
+// style still needs at most 5. Must stay <= subpixel.h's own
+// SUBPIXEL_MAX_RING_PTS -- inset_convex_polygon_fp()/fill_polygon_ring_fp()
+// (the "hollow thickness" feature) take whatever poly this file hands
+// them, sight unseen, into their own fixed-size local arrays of that size.
+#define HAND_MAX_POLY_PTS 12
+// 6, not 2 -- style 10/serpentine discretizes its squiggly centerline
+// into SERP_SEGMENTS separate straight quads (one convex HandPoly
+// each, since the overall squiggle itself is emphatically NOT convex
+// and can't be one polygon the way every other style's shape is).
+// Every other style still needs at most 2.
+#define HAND_MAX_POLYS 6
 // 3, not 2 -- style 6/spade needs its rounded-line base's own 2 round
 // caps (from append_capsule_fp(..., round_caps=true)) PLUS its own
 // separate droplet-tip circle, 3 circles total in the one hand. Every
@@ -279,6 +291,258 @@ static void compute_hand_geometry_fp(FGPoint center, int32_t angle, const HandCo
       return;
     }
 
+    case 8: { // leaf -- a single smooth convex outline that starts at
+              // a point (back_offset), swells to its widest at a
+              // configurable peak (middle_offset, measured from the
+              // hand's own length-center like every other style's
+              // middle_offset), and tapers back down to a point at
+              // the tip (length). Each half's width follows a quarter
+              // sine -- half_w*sin(pi*u/2) growing into the peak,
+              // half_w*cos(pi*u/2) shrinking out of it -- rather than
+              // a full raised-cosine ease: sin/cos over a quarter
+              // period is concave for its whole span, which is what
+              // actually keeps the outline convex (this shape's fill
+              // routine requires a convex polygon); a raised-cosine
+              // has an inflection partway along each half and
+              // produces a self-intersecting, wrongly-filled outline.
+              // The trade-off is a sharp (not smoothed-to-zero) slope
+              // at the back and tip points -- which reads as the
+              // classic pointed leaf tip anyway, with the smooth
+              // deceleration the spec describes happening on the
+              // approach to the peak (and, mirrored, on the way out
+              // of it).
+      int32_t center_ax = (back_fp + len_fp) / 2;
+      int32_t peak_ax = center_ax + mid_fp;
+      // Clamped to the hand's own [back_offset, length] span -- same
+      // idea as sword's own mid_ax clamp above -- so an extreme
+      // middle_offset can't push the peak past either anchor and
+      // invert one flank's ordering into a self-intersecting outline.
+      if (peak_ax < back_fp) peak_ax = back_fp;
+      if (peak_ax > len_fp) peak_ax = len_fp;
+      #define LEAF_HALF_SAMPLES 2 // interior points per half, excluding
+        // the shared back/peak/tip anchors -- keeps the whole 12-point
+        // outline (see HAND_MAX_POLY_PTS's own comment) inside its cap
+        // while still reading as a smooth curve at watch-face scale.
+      FGPoint plus_side[LEAF_HALF_SAMPLES], minus_side[LEAF_HALF_SAMPLES];   // back -> peak flank
+      FGPoint plus_side2[LEAF_HALF_SAMPLES], minus_side2[LEAF_HALF_SAMPLES]; // peak -> tip flank
+
+      // A sufficiently extreme middle_offset clamps peak_ax onto
+      // back_fp or len_fp exactly (previous comment) -- and once a
+      // flank's own span is zero, every one of its "interior" points
+      // above is mathematically supposed to land exactly on the
+      // straight edge between that anchor and the peak, but the
+      // fixed-point width/trig math doesn't round to EXACTLY zero
+      // deviation from that line -- just close enough that it used to
+      // flip the polygon non-convex by a few thousandths of a pixel
+      // right at that corner (invisible on screen, but still breaks
+      // point_in_convex_polygon_fp's assumption). Rather than compute
+      // those now-redundant points at all, this flank is just omitted
+      // outright when degenerate -- back_pt/tip_pt (and that whole
+      // flank's samples) drop out, leaving a flat leading/trailing
+      // edge directly between peak_plus and peak_minus, which is the
+      // correct limiting shape anyway (the taper have zero length
+      // left to bulge out over).
+      bool have_back = peak_ax > back_fp;
+      bool have_tip  = peak_ax < len_fp;
+
+      if (have_back) {
+        for (int k = 1; k <= LEAF_HALF_SAMPLES; k++) {
+          int32_t u_num = k, u_den = LEAF_HALF_SAMPLES + 1; // u in (0,1)
+          int32_t ax = back_fp + round_div((peak_ax - back_fp) * u_num, u_den);
+          int32_t angle_half_pi_u = (int32_t)(((int64_t)u_num * (TRIG_MAX_ANGLE / 4)) / u_den); // (pi/2)*u
+          int32_t w = (int32_t)(((int64_t)half_w_fp * sin_lookup(angle_half_pi_u)) / TRIG_MAX_RATIO);
+          FGPoint p = point_at_axial_fp(center, sin_v, cos_v, ax);
+          int32_t dx, dy; perp_offset_fp(sin_v, cos_v, w, &dx, &dy);
+          plus_side[k - 1] = fgpoint_new(p.x + dx, p.y + dy);
+          minus_side[k - 1] = fgpoint_new(p.x - dx, p.y - dy);
+        }
+      }
+      if (have_tip) {
+        for (int k = 1; k <= LEAF_HALF_SAMPLES; k++) {
+          int32_t u_num = k, u_den = LEAF_HALF_SAMPLES + 1; // v in (0,1), peak->tip
+          int32_t ax = peak_ax + round_div((len_fp - peak_ax) * u_num, u_den);
+          int32_t angle_half_pi_v = (int32_t)(((int64_t)u_num * (TRIG_MAX_ANGLE / 4)) / u_den); // (pi/2)*v
+          int32_t w = (int32_t)(((int64_t)half_w_fp * cos_lookup(angle_half_pi_v)) / TRIG_MAX_RATIO);
+          FGPoint p = point_at_axial_fp(center, sin_v, cos_v, ax);
+          int32_t dx, dy; perp_offset_fp(sin_v, cos_v, w, &dx, &dy);
+          plus_side2[k - 1] = fgpoint_new(p.x + dx, p.y + dy);
+          minus_side2[k - 1] = fgpoint_new(p.x - dx, p.y - dy);
+        }
+      }
+
+      FGPoint peak_plus, peak_minus;
+      {
+        FGPoint p = point_at_axial_fp(center, sin_v, cos_v, peak_ax);
+        int32_t dx, dy; perp_offset_fp(sin_v, cos_v, half_w_fp, &dx, &dy);
+        peak_plus = fgpoint_new(p.x + dx, p.y + dy);
+        peak_minus = fgpoint_new(p.x - dx, p.y - dy);
+      }
+
+      HandPoly *poly = &geo->polys[geo->n_polys++];
+      poly->thin = thin_w;
+      int n = 0;
+      if (have_back) {
+        poly->pts[n++] = point_at_axial_fp(center, sin_v, cos_v, back_fp);
+        for (int k = 0; k < LEAF_HALF_SAMPLES; k++) poly->pts[n++] = plus_side[k];
+      }
+      poly->pts[n++] = peak_plus;
+      if (have_tip) {
+        for (int k = 0; k < LEAF_HALF_SAMPLES; k++) poly->pts[n++] = plus_side2[k];
+        poly->pts[n++] = point_at_axial_fp(center, sin_v, cos_v, len_fp);
+        for (int k = LEAF_HALF_SAMPLES - 1; k >= 0; k--) poly->pts[n++] = minus_side2[k];
+      }
+      poly->pts[n++] = peak_minus;
+      if (have_back) {
+        for (int k = LEAF_HALF_SAMPLES - 1; k >= 0; k--) poly->pts[n++] = minus_side[k];
+      }
+      poly->n = n;
+      #undef LEAF_HALF_SAMPLES
+      return;
+    }
+
+    case 9: { // syringe -- a flat-ended "barrel" (back_offset..length,
+              // regular width, same rectangle style 2/square uses)
+              // plus a separate needle: a trapezoid tapering from the
+              // barrel's own width down to secondary_width at a fixed
+              // 45 degree angle, so its own axial span is whatever
+              // (half_w - half_sw) requires rather than being directly
+              // user-editable. middle_offset positions the needle's
+              // WIDE corner -- where it meets the barrel's width, i.e.
+              // where the taper actually starts -- measured from the
+              // tip (`length`), same "signed distance along the axis"
+              // convention back_offset already uses relative to
+              // center: positive pushes that corner (and the whole
+              // needle) out past the barrel's own tip ("sticks out
+              // from the top", detached from the barrel if the needle
+              // doesn't reach back to it -- the same kind of gap a
+              // negative back_offset already makes elsewhere in this
+              // file); negative pulls the corner backward INTO the
+              // barrel, so the needle emerges from partway along the
+              // base instead of flush with its end ("sticks out from
+              // the base").
+      append_capsule_fp(geo, center, sin_v, cos_v, back_fp, len_fp, half_w_fp, thin_w, false);
+
+      int32_t corner_ax = len_fp + mid_fp;
+      int32_t taper_len_fp = half_w_fp - half_sw_fp;
+      if (taper_len_fp < SUBPIXEL_HALF) taper_len_fp = SUBPIXEL_HALF; // guard against
+        // secondary_width >= width collapsing the taper to a zero/
+        // negative-length degenerate poly
+      int32_t tip_ax = corner_ax + taper_len_fp;
+
+      FGPoint corner = point_at_axial_fp(center, sin_v, cos_v, corner_ax);
+      FGPoint tip     = point_at_axial_fp(center, sin_v, cos_v, tip_ax);
+      int32_t dx_w, dy_w, dx_sw, dy_sw;
+      perp_offset_fp(sin_v, cos_v, half_w_fp, &dx_w, &dy_w);
+      perp_offset_fp(sin_v, cos_v, half_sw_fp, &dx_sw, &dy_sw);
+
+      HandPoly *poly = &geo->polys[geo->n_polys++];
+      poly->n = 4;
+      poly->thin = thin_w;
+      poly->pts[0] = fgpoint_new(corner.x - dx_w, corner.y - dy_w);
+      poly->pts[1] = fgpoint_new(corner.x + dx_w, corner.y + dy_w);
+      poly->pts[2] = fgpoint_new(tip.x + dx_sw, tip.y + dy_sw);
+      poly->pts[3] = fgpoint_new(tip.x - dx_sw, tip.y - dy_sw);
+      return;
+    }
+
+    case 10: { // serpentine -- a squiggly stroked path from the
+               // pivot, approximated as SERP_SEGMENTS straight quads
+               // along a sampled sine centerline (not true circular
+               // arcs -- see below) so it still fits this file's
+               // convex-polygon-only fill/outline/shadow machinery.
+               // `length`/`back_offset` set the STRAIGHT-LINE span the
+               // path covers (its axial start/end), same meaning as
+               // every other style; the path itself winds within that
+               // span rather than running along it directly.
+               //
+               // middle_offset doubles as both the requested curvature
+               // ("circle of Npx width" -> a full up-and-down wave
+               // spans roughly 2*N px of that axial span) and, via its
+               // sign, which way the FIRST bend turns (positive =
+               // counter-clockwise per the spec, negative = clockwise)
+               // -- the same dual magnitude+sign use back_offset
+               // already gets elsewhere in HandConfig.
+               //
+               // secondary_width is the envelope the squiggle is
+               // allowed to occupy (only takes effect once it exceeds
+               // width, per spec); the centerline's own peak deviation
+               // is half that envelope minus half the line's own
+               // width, so the stroke's OUTER edge -- not its
+               // centerline -- is what actually reaches the envelope
+               // boundary.
+               //
+               // This is a fixed small number of straight segments on
+               // a SAMPLED sine, not a geometrically exact arc --
+               // keeps the cost (and HandGeometry's own size) bounded
+               // regardless of `length`, at the cost of not being
+               // exact circular arcs. Not visually distinguishable
+               // from true arcs at watch-face scale/resolution.
+      #define SERP_SEGMENTS 6
+      int32_t amp_fp = (half_sw_fp > half_w_fp) ? (half_sw_fp - half_w_fp) : 0;
+      int32_t diameter_fp = (int32_t)cfg->middle_offset << SUBPIXEL_BITS;
+      if (diameter_fp < 0) diameter_fp = -diameter_fp;
+      if (diameter_fp < (4 << SUBPIXEL_BITS)) diameter_fp = 4 << SUBPIXEL_BITS; // guard
+        // against a near-0 period aliasing into meaningless high-
+        // frequency noise (and against dividing by ~0 below)
+      int32_t period_fp = diameter_fp * 2;
+      int32_t dir_sign = (cfg->middle_offset < 0) ? -1 : 1;
+      int32_t span_fp = len_fp - back_fp;
+
+      FGPoint verts[SERP_SEGMENTS + 1];
+      for (int i = 0; i <= SERP_SEGMENTS; i++) {
+        int32_t s_rel_fp = round_div(span_fp * i, SERP_SEGMENTS);
+        int32_t ax = back_fp + s_rel_fp;
+        int64_t angle_raw = ((int64_t)s_rel_fp * TRIG_MAX_ANGLE) / period_fp;
+        int32_t angle = (int32_t)(angle_raw % TRIG_MAX_ANGLE);
+        int32_t sin_val = sin_lookup(angle) * dir_sign;
+        int32_t dev_fp = (int32_t)(((int64_t)amp_fp * sin_val) / TRIG_MAX_RATIO);
+        verts[i] = point_at_axial_fp(center, sin_v, cos_v, ax);
+        int32_t dx, dy;
+        perp_offset_fp(sin_v, cos_v, dev_fp, &dx, &dy);
+        verts[i].x += dx;
+        verts[i].y += dy;
+      }
+
+      // Each segment quad uses ITS OWN straight-line tangent for its
+      // perpendicular offset (like a straight capsule between its two
+      // vertices) rather than a bisector shared with its neighbors.
+      // A shared-bisector offset (this file's earlier approach) keeps
+      // the ribbon perfectly seamless at each joint, but at a sharp
+      // enough bend -- short segments, a tight requested curvature, a
+      // thin line -- the bisector direction can diverge enough from
+      // either segment's own direction that the resulting quad's
+      // edges cross (a real, if rare, self-intersecting "bowtie" -- not
+      // just fixed-point rounding noise). Computing each quad
+      // independently off its own segment guarantees a valid convex
+      // quad every time (same guarantee append_capsule_fp's rectangle
+      // already relies on for a single straight segment); the only
+      // cost is a small seam -- a hair's-width sliver of a gap or
+      // overlap -- at each joint, invisible at watch-face scale with
+      // SERP_SEGMENTS this low.
+      for (int i = 0; i < SERP_SEGMENTS; i++) {
+        FGPoint a = verts[i], b = verts[i + 1];
+        int32_t tx = b.x - a.x, ty = b.y - a.y;
+        int64_t len_sq = (int64_t)tx * tx + (int64_t)ty * ty;
+        int32_t ox, oy;
+        if (len_sq == 0) {
+          perp_offset_fp(sin_v, cos_v, half_w_fp, &ox, &oy);
+        } else {
+          int32_t tlen = (int32_t)isqrt64_fp(len_sq);
+          ox = round_div(-ty * half_w_fp, tlen);
+          oy = round_div(tx * half_w_fp, tlen);
+        }
+        HandPoly *poly = &geo->polys[geo->n_polys++];
+        poly->n = 4;
+        poly->thin = thin_w;
+        poly->pts[0] = fgpoint_new(a.x - ox, a.y - oy);
+        poly->pts[1] = fgpoint_new(a.x + ox, a.y + oy);
+        poly->pts[2] = fgpoint_new(b.x + ox, b.y + oy);
+        poly->pts[3] = fgpoint_new(b.x - ox, b.y - oy);
+      }
+      #undef SERP_SEGMENTS
+      return;
+    }
+
     case 0:  // dot -- round-capped body
     case 2:  // square -- flat-capped body (same rectangle, no circles)
     default: // any unrecognized style value falls back to style 2's plain body
@@ -296,17 +560,24 @@ static void draw_hand_shape_once_fp(GContext *ctx, FGPoint center, int32_t angle
                                      GColor color, bool dithered) {
   HandGeometry geo;
   compute_hand_geometry_fp(center, angle, cfg, &geo);
+  int32_t hollow_thickness_fp = (int32_t)cfg->hollow_thickness << SUBPIXEL_BITS;
 
   for (int i = 0; i < geo.n_polys; i++) {
     HandPoly *p = &geo.polys[i];
     if (dithered) fill_polygon_dithered_fp(ctx, p->pts, p->n, color);
-    else if (cfg->hollow) stroke_polygon_fp(ctx, p->pts, p->n, color, false);
+    else if (cfg->hollow) {
+      if (cfg->hollow_thickness <= 1) stroke_polygon_fp(ctx, p->pts, p->n, color, false);
+      else fill_polygon_ring_fp(ctx, p->pts, p->n, hollow_thickness_fp, color, false);
+    }
     else if (p->thin) fill_polygon_thin_fp(ctx, p->pts, p->n, color);
     else fill_polygon_fp(ctx, p->pts, p->n, color);
   }
   for (int i = 0; i < geo.n_circles; i++) {
     HandCircle *c = &geo.circles[i];
-    if (cfg->hollow && !dithered) stroke_circle_fp(ctx, c->center, c->radius_fp, color, false);
+    if (cfg->hollow && !dithered) {
+      if (cfg->hollow_thickness <= 1) stroke_circle_fp(ctx, c->center, c->radius_fp, color, false);
+      else fill_circle_ring_fp(ctx, c->center, c->radius_fp, hollow_thickness_fp, color, false);
+    }
     else if (c->thin && !dithered) fill_circle_thin_fp(ctx, c->center, c->radius_fp, color);
     else fill_circle_fp(ctx, c->center, c->radius_fp, color, dithered);
   }
@@ -480,24 +751,9 @@ void hand_layer_draw(GContext *ctx, GPoint center, int32_t angle, const HandConf
 
   draw_hand_shadow_once_fp(ctx, center_fp, angle, cfg, shadow_translucent_style, shadow_angle_deg);
 
-  // "Contrast style: Shadow" (hand style presets only -- see
-  // hard_shadow's own comment in hand_layer.h) -- a fixed, always-
-  // solid, always-1px-right-and-down black copy of the hand shape,
-  // drawn before everything else so the real hand/outline paints over
-  // most of it, leaving just that 1px offset showing on two edges.
-  // Reuses draw_hand_shape_once_fp() directly rather than the outline
-  // stroke machinery -- this is a shifted silhouette, not a traced
-  // perimeter.
-  if (cfg->hard_shadow) {
-    FGPoint shadow_center = fgpoint_new(center_fp.x + SUBPIXEL_SCALE, center_fp.y + SUBPIXEL_SCALE);
-    draw_hand_shape_once_fp(ctx, shadow_center, angle, cfg, GColorBlack, false);
-  }
-
-  GColor hand_color = GColorClear; // resolved below if actually needed (cfg->color != 3 or outline_auto_contrast)
-  bool have_hand_color = false;
-  if (cfg->color != 3 || cfg->outline_auto_contrast) {
+  GColor hand_color = GColorClear; // resolved below if actually needed (cfg->color != 3)
+  if (cfg->color != 3) {
     hand_color = resolve_scheme_color(cfg->color, main_color, accent_color, bg_color);
-    have_hand_color = true;
   }
 
   if (cfg->outline_enabled) {
@@ -507,9 +763,7 @@ void hand_layer_draw(GContext *ctx, GPoint center, int32_t angle, const HandConf
     // shake" gradient effect (if active) is applied inside
     // draw_hand_outline_once_fp() itself now, per pixel -- see its own
     // comment -- rather than resolved to one flat color up here.
-    GColor outline_color = cfg->outline_auto_contrast && have_hand_color
-      ? contrasting_outline_color(hand_color)
-      : resolve_scheme_color(cfg->outline_color, main_color, accent_color, bg_color);
+    GColor outline_color = resolve_scheme_color(cfg->outline_color, main_color, accent_color, bg_color);
     draw_hand_outline_once_fp(ctx, center_fp, angle, cfg, outline_color, cfg->translucent);
   }
 
