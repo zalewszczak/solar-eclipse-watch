@@ -219,12 +219,12 @@ typedef struct {
                                  // keeps its own
 
   // "Edge-middle" slots -- upper-middle, bottom-middle, middle-left,
-  // middle-right -- around the big-analogue clock face. Which of the
+  // middle-right -- around the analog clock face. Which of the
   // 4 are actually shown depends on bottom_style/big_analog_marker_style
   // (see corners_layer_update_proc in pebble-eclipse-watch.c):
-  // digital/analog modes use none of them; big-analogue procedural
+  // digital mode uses none of them; analog mode's procedural
   // marker styles (<3, no artwork constraints) use all 4 alongside
-  // the corners; big-analogue bitmap styles (>=3) are limited to
+  // the corners; analog mode's bitmap styles (>=3) are limited to
   // whichever slots that specific mask graphic's design actually has
   // room for (upper-middle alone for swiss/bell, upper+left for
   // tally, upper+bottom for modern/brown), and suppress the 4 corners
@@ -271,10 +271,7 @@ typedef struct {
   uint8_t night_custom_text;
   uint8_t night_custom_accent;
 
-  uint8_t bottom_style;       // 0=digital (big time+date), 1=analog clock + 4-line text panel,
-                               // 2=big analogue (fullscreen hands over the sky, no bottom bar)
-  uint8_t analog_style;        // 0=solid circle, 1=hour markers, 2=solid circle + markers,
-                                 // 3=12/3/6/9 in a tiny procedural pixel font (bottom_style==1 only)
+  uint8_t bottom_style;       // 0=digital (big time+date), 1=analog (fullscreen hands over the sky, no bottom bar)
 
   uint8_t sun_moon_size_pct;   // 25/50/75/100, scales SUN_R_NORMAL/MOON_R_NORMAL. Ignored during
                                  // an active eclipse (and in big-analogue's fullscreen-sun mode) --
@@ -356,14 +353,14 @@ typedef struct {
                               // separately-adjustable angle per hand (as this briefly was) made no
                               // real sense -- only shadow_enabled/distance stayed per-hand. Defaults
                               // to 120.
-  bool draw_features_beneath_hands; // user setting ("Style" section, big-analog only): when
+  bool draw_features_beneath_hands; // user setting ("Style" section, analog only): when
                                       // true, apply_layout() adds the features overlay layer
                                       // BEFORE the hands layer instead of after, so hands draw
                                       // on top of corners/edges info instead of under it.
                                       // Meaningless (and hidden on the settings page) outside
-                                      // bottom_style == 2.
+                                      // bottom_style == 1.
 
-  // bottom_style==2 (big analogue) hands -- rendered in their own
+  // bottom_style==1 (analog) hands -- rendered in their own
   // always-on-top layer (see pebble-eclipse-watch.c), separate from
   // the sky canvas underneath. Every hand the watch ever draws is one
   // of these full HandConfig field sets -- pkjs is what offers a

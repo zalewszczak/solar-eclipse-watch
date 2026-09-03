@@ -70,54 +70,11 @@ var MODE_BTN_ICONS = {
     '</mask>' +
     '<rect x="4" y="152" width="192" height="72" rx="8" fill="currentColor" stroke="none" mask="url(#modeIconDigitalMask)"/>' +
     '</svg>',
-  // Same top 2/3 dots, same dark bottom band, but its mask carves out
-  // several windows: a small analog clock face on the left and 4
-  // thin stacked info-line rows on the right -- matches ANALOG's
-  // actual layout (a small analog face plus edge-content readouts
-  // alongside it). The 4 lines are plain mask cutouts (same trick as
-  // the digital icon's time/date bars), but the clock's ring + hands
-  // are drawn as normal currentColor strokes ON TOP of its own
-  // circular window instead -- a mask hole can only be a solid
-  // silhouette, and a ring-with-hands isn't one. That only works
-  // because the hole is genuinely transparent there (showing whatever
-  // the icon's own background is, not the band's fill), so the
-  // stroke has something to contrast against; drawing those same
-  // strokes directly over the (currentColor-filled) band instead, the
-  // way an earlier version of the 4 lines did, made them invisible --
-  // stroke and fill were the same color. Every shape inside a <mask>
-  // needs its own explicit stroke="none" too, for a related reason:
-  // otherwise they inherit the root <svg>'s stroke="currentColor"
-  // stroke-width="8", and on an 8px-tall cutout rect that inherited
-  // stroke is wide enough to straddle and wash out the whole shape's
-  // silhouette with light-colored (visible-in-the-mask) pixels,
-  // defeating the fill="#000" (hidden) that rect was supposed to mean.
-  analog:
-    '<svg viewBox="0 0 200 228" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">' +
-    '<rect x="4" y="4" width="192" height="220" rx="20"/>' +
-    '<circle cx="40" cy="30" r="5" fill="currentColor" stroke="none"/>' +
-    '<circle cx="100" cy="50" r="4" fill="currentColor" stroke="none"/>' +
-    '<circle cx="150" cy="35" r="5" fill="currentColor" stroke="none"/>' +
-    '<circle cx="60" cy="90" r="4" fill="currentColor" stroke="none"/>' +
-    '<circle cx="140" cy="100" r="4" fill="currentColor" stroke="none"/>' +
-    '<circle cx="95" cy="122" r="5" fill="currentColor" stroke="none"/>' +
-    '<mask id="modeIconAnalogMask">' +
-    '<rect x="4" y="152" width="192" height="72" rx="8" fill="#fff" stroke="none"/>' +
-    '<circle cx="46" cy="188" r="27" fill="#000" stroke="none"/>' +
-    '<rect x="90" y="160" width="90" height="8" rx="4" fill="#000" stroke="none"/>' +
-    '<rect x="90" y="174" width="90" height="8" rx="4" fill="#000" stroke="none"/>' +
-    '<rect x="90" y="188" width="90" height="8" rx="4" fill="#000" stroke="none"/>' +
-    '<rect x="90" y="202" width="90" height="8" rx="4" fill="#000" stroke="none"/>' +
-    '</mask>' +
-    '<rect x="4" y="152" width="192" height="72" rx="8" fill="currentColor" stroke="none" mask="url(#modeIconAnalogMask)"/>' +
-    '<circle cx="46" cy="188" r="22" stroke-width="6"/>' +
-    '<line x1="46" y1="188" x2="46" y2="174" stroke-width="6"/>' +
-    '<line x1="46" y1="188" x2="57" y2="194" stroke-width="6"/>' +
-    '</svg>',
   // No separate info band at all -- one big analog clock filling
   // nearly the whole screen, plus a couple of stray sky dots, since
-  // BIG ANALOG replaces the digital/edge-content area entirely rather
-  // than sharing the screen with it the way the other two do.
-  biganalog:
+  // ANALOG replaces the digital/edge-content area entirely rather
+  // than sharing the screen with it the way DIGITAL does.
+  analog:
     '<svg viewBox="0 0 200 228" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">' +
     '<rect x="4" y="4" width="192" height="220" rx="20"/>' +
     '<circle cx="100" cy="114" r="88" stroke-width="7"/>' +
@@ -254,7 +211,7 @@ function fontOptionsHtml(selectedId, onlyMainClock) {
 
 // A vertical stack of buttons that behaves like a radio group -- same
 // "one active at a time, tap to switch" idea as .mode-btn-group (the
-// 3-across DIGITAL/ANALOG/BIG ANALOG layout buttons), just stacked
+// side-by-side DIGITAL/ANALOG layout buttons), just stacked
 // instead of side-by-side, for option lists too long/wordy to fit
 // 3+ across (the two Animation section pickers). Backed by one hidden
 // input (same "hidden input is the real value, buttons just reflect
@@ -792,7 +749,7 @@ function handEditorModalHtml(kind, title) {
 /**
  * @param {object} current  current settings, as plain values:
  *   { autoLoc, lat, lon, owmKey, updateMins,
- *     clockFont, showSeconds, bottomStyle: 'digital'|'analog'|'biganalog', analogStyle: '0'-'3',
+ *     clockFont, showSeconds, bottomStyle: 'digital'|'analog' (a persisted 'biganalog' from before this app version is treated as 'analog'),
  *     bigAnalogMarkerStyle: '0'-'8' (8=custom -- see customHour.../customSec.../markerText... below), upperMiddleLine1Content/upperMiddleLine2Content: '0'-'12', upperMiddleLine1Color/upperMiddleLine2Color: '0'-'3',
  *     colorScheme: '0'-'9'|'custom', customBg, customText, customAccent (packed byte strings),
  *     nightEnabled, nightScheme, nightCustomBg, nightCustomText, nightCustomAccent,
@@ -896,7 +853,7 @@ function buildConfigHtml(current) {
   var debugTextareaInitial = (current.debugOverrideEnabled && current.debugOverrideData)
     ? current.debugOverrideData
     : (mostRecentRawChunk ? JSON.stringify(mostRecentRawChunk, null, 2) : '');
-  var bottomStyleVal = current.bottomStyle === 'biganalog' ? 'biganalog' : (current.bottomStyle === 'analog' ? 'analog' : 'digital');
+  var bottomStyleVal = (current.bottomStyle === 'analog' || current.bottomStyle === 'biganalog') ? 'analog' : 'digital';
   // Drives whether the "Weather icon style" dropdown in the Weather
   // section starts visible -- true if any of the 12 corner/edge slots
   // is already set to "Weather icon" (31) or "Temp + weather icon" (32).
@@ -905,7 +862,6 @@ function buildConfigHtml(current) {
     'middleLeftLine1Content', 'middleLeftLine2Content', 'middleRightLine1Content', 'middleRightLine2Content'
   ].some(function (key) { return current[key] === '31' || current[key] === '32'; });
   var isAnalog = bottomStyleVal === 'analog';
-  var isBigAnalog = bottomStyleVal === 'biganalog';
   var clockFontId = parseInt(current.clockFont || '8', 10);
   var clockFontSmallId = parseInt(current.clockFontSmall || '0', 10);
   var secondsUnsupported = (bottomStyleVal === 'digital') && fontLookupEntry(clockFontId).wide;
@@ -937,7 +893,7 @@ function buildConfigHtml(current) {
   var markerStyleNum = parseInt(current.bigAnalogMarkerStyle || '0', 10);
   var isBitmapMarkerStyle = markerStyleNum >= 3 && markerStyleNum !== 8 && markerStyleNum !== 9;
   var edgeAvail = { upper: false, bottom: false, left: false, right: false, cornersGrayed: false };
-  if (isBigAnalog) {
+  if (isAnalog) {
     if (markerStyleNum < 3 || markerStyleNum === 8 || markerStyleNum === 9) {
       edgeAvail = { upper: true, bottom: true, left: true, right: true, cornersGrayed: false };
     } else if (markerStyleNum === 3 || markerStyleNum === 4 || markerStyleNum === 6) {
@@ -1128,16 +1084,6 @@ function buildConfigHtml(current) {
 '  .slot-middle-left-l2 { left: 6px; top: calc(50% + 15px); transform: translateY(-50%); }' +
 '  .slot-middle-right-l1 { right: 6px; top: calc(50% - 15px); transform: translateY(-50%); }' +
 '  .slot-middle-right-l2 { right: 6px; top: calc(50% + 15px); transform: translateY(-50%); }' +
-'  .analog-feature-panel { width: 240px; margin: 10px auto 0; padding: 12px; box-sizing: border-box; border-radius: 8px; background: var(--btn-bg); border: 1px solid var(--border); }' +
-'  .analog-feature-panel-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; color: var(--text-faint); margin-bottom: 8px; }' +
-'  .analog-feature-panel-row { display: flex; align-items: center; }' +
-'  .slot-fake-clock { position: relative; width: 78px; height: 78px; flex-shrink: 0; border-radius: 50%; border: 2px solid rgba(0,0,0,0.55); background: rgba(255,255,255,0.35); }' +
-'  .slot-fake-clock-hand { position: absolute; left: 50%; top: 50%; background: #222; border-radius: 2px; transform-origin: 50% 100%; }' +
-'  .slot-fake-clock-hour { width: 3px; height: 20px; transform: translate(-50%, -100%) rotate(35deg); }' +
-'  .slot-fake-clock-min { width: 2px; height: 28px; transform: translate(-50%, -100%) rotate(110deg); }' +
-'  .slot-fake-clock-dot { position: absolute; left: 50%; top: 50%; width: 6px; height: 6px; margin: -3px 0 0 -3px; border-radius: 50%; background: #222; }' +
-'  .slot-feature-col { flex: 1; min-width: 0; margin-left: 10px; display: flex; flex-direction: column; gap: 4px; }' +
-'  .slot-feature-col .slot-btn { position: static; width: 100%; box-sizing: border-box; text-align: left; }' +
 '</style></head>' +
 '<body>' +
 
@@ -1331,17 +1277,16 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    <div class="mode-btn-group" id="bottomStyleGroup">' +
 '      <button type="button" class="mode-btn' + (bottomStyleVal === 'digital' ? ' active' : '') + '" onclick="selectBottomStyle(\'digital\')">' + MODE_BTN_ICONS.digital + '<span>DIGITAL</span></button>' +
 '      <button type="button" class="mode-btn' + (isAnalog ? ' active' : '') + '" onclick="selectBottomStyle(\'analog\')">' + MODE_BTN_ICONS.analog + '<span>ANALOG</span></button>' +
-'      <button type="button" class="mode-btn' + (isBigAnalog ? ' active' : '') + '" onclick="selectBottomStyle(\'biganalog\')">' + MODE_BTN_ICONS.biganalog + '<span>BIG ANALOG</span></button>' +
 '    </div>' +
 '    <input type="hidden" id="bottomStyleValue" value="' + esc(bottomStyleVal) + '">' +
-'    <div class="help">Analog shows a clock face on the left and clouds/location/date/week on the right. Big analog fills the whole screen with fullscreen hands over the sky/eclipse view -- no bottom bar.</div>' +
+'    <div class="help">Analog fills the whole screen with fullscreen hands over the sky/eclipse view -- no bottom bar.</div>' +
 
 '    <div class="checkbox-row subsection">' +
 '      <input type="checkbox" id="showSeconds" ' + secondsChecked + ' ' + secondsDisabled + ' onchange="onShowSecondsChange()">' +
 '      <label for="showSeconds" style="margin:0;">Show seconds</label>' +
 '    </div>' +
 '    <div class="help" id="secondsHelp" style="' + (secondsUnsupported ? '' : 'display:none;') + '">This font is too wide to fit seconds alongside it.</div>' +
-'    <div class="help">Used by all three layouts -- the digital clock\'s own seconds digits, and whether analog/big analog draw a second hand at all (gates the Custom style\'s "Edit second hand" below, too).</div>' +
+'    <div class="help">Used by both layouts -- the digital clock\'s own seconds digits, and whether analog draws a second hand at all (gates the Custom style\'s "Edit second hand" below, too).</div>' +
 
 '    <div id="digitalOnlySettings" class="subsection" style="' + (bottomStyleVal === 'digital' ? '' : 'display:none;') + '">' +
 '      <label for="clockFont">Clock font</label>' +
@@ -1351,17 +1296,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      <div class="help">Used for the seconds digits, sunrise/sunset time, and date line next to the clock -- picking a Clock font above suggests a matching one here automatically, but you can override it.</div>' +
 '    </div>' +
 
-'    <div id="analogOnlySettings" class="subsection" style="' + (isAnalog ? '' : 'display:none;') + '">' +
-'      <label for="analogStyle">Analog face style</label>' +
-'      <select id="analogStyle" onchange="onAnalogStyleChange()">' +
-'        <option value="0"' + (current.analogStyle === '0' || !current.analogStyle ? ' selected' : '') + '>Solid circle</option>' +
-'        <option value="1"' + (current.analogStyle === '1' ? ' selected' : '') + '>Hour markers</option>' +
-'        <option value="2"' + (current.analogStyle === '2' ? ' selected' : '') + '>Solid circle + hour markers</option>' +
-'        <option value="3"' + (current.analogStyle === '3' ? ' selected' : '') + '>12 / 3 / 6 / 9 tiny numerals</option>' +
-'      </select>' +
-'    </div>' +
-
-'    <div id="bigAnalogSettings" class="subsection" style="' + (isBigAnalog ? '' : 'display:none;') + '">' +
+'    <div id="bigAnalogSettings" class="subsection" style="' + (isAnalog ? '' : 'display:none;') + '">' +
 '      <label>Hand style</label>' +
 '      <button type="button" class="marker-edit-btn" style="margin-top:8px;" onclick="openHandStyleModal()">Choose hand style &rsaquo;</button>' +
 '      <div class="help">To show the date behind the hands, pick "Short date" as a line in the Features section below (bottom-middle line 1 does this by default).</div>' +
@@ -1435,7 +1370,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      <input type="checkbox" id="outlineEnabled" ' + (current.outlineEnabled !== false ? 'checked' : '') + '>' +
 '      <label for="outlineEnabled" style="margin:0;">Outline text, icons, and hands for contrast</label>' +
 '    </div>' +
-'    <div class="help">Adds a thin outline (in your color scheme\'s background color) behind corner/edge text and icons, the big-analog date, the eclipse phase text, and the hands -- so they stay readable over any part of the sky. Icons and hands only get it outside translucent/transparent mode.</div>' +
+'    <div class="help">Adds a thin outline (in your color scheme\'s background color) behind corner/edge text and icons, the analog date, the eclipse phase text, and the hands -- so they stay readable over any part of the sky. Icons and hands only get it outside translucent/transparent mode.</div>' +
 
 '  </fieldset>' +
 
@@ -1526,31 +1461,9 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      <button type="button" class="slot-btn slot-middle-right-l2" id="slotBtn-middleRightLine2" onclick="openSlotEditor(\'middleRightLine2\')"></button>' +
 '    </div>' +
 
-// Sits BELOW the sky diagram, as its own box -- not inside/overlaid
-// on it -- representing the watch's separate bottom-third panel
-// (clock + 4 feature rows) rather than anything drawn over the sky
-// view itself. Only ever shown for the small-analog layout (see
-// onBottomStyleChange()); digital and big-analog never render it.
-'    <div class="analog-feature-panel" id="analogFeaturePanel" style="' + (isAnalog ? '' : 'display:none;') + '">' +
-'      <div class="analog-feature-panel-label">Small-analog bottom panel</div>' +
-'      <div class="analog-feature-panel-row">' +
-'        <div class="slot-fake-clock" aria-hidden="true">' +
-'          <div class="slot-fake-clock-hand slot-fake-clock-hour"></div>' +
-'          <div class="slot-fake-clock-hand slot-fake-clock-min"></div>' +
-'          <div class="slot-fake-clock-dot"></div>' +
-'        </div>' +
-'        <div class="slot-feature-col">' +
-'          <button type="button" class="slot-btn slot-feature-btn" id="slotBtn-smallAnalogFeature1" onclick="openSlotEditor(\'smallAnalogFeature1\')"></button>' +
-'          <button type="button" class="slot-btn slot-feature-btn" id="slotBtn-smallAnalogFeature2" onclick="openSlotEditor(\'smallAnalogFeature2\')"></button>' +
-'          <button type="button" class="slot-btn slot-feature-btn" id="slotBtn-smallAnalogFeature3" onclick="openSlotEditor(\'smallAnalogFeature3\')"></button>' +
-'          <button type="button" class="slot-btn slot-feature-btn" id="slotBtn-smallAnalogFeature4" onclick="openSlotEditor(\'smallAnalogFeature4\')"></button>' +
-'        </div>' +
-'      </div>' +
-'    </div>' +
-
 '    <label for="cornerFont">Font</label>' +
 '    <select id="cornerFont" onchange="onCornerFontChange()">' + fontOptionsHtml(parseInt(current.cornerFont || '1', 10), false) + '</select>' +
-'    <div class="help">Applies to corner/edge feature text and the big-analog date.</div>' +
+'    <div class="help">Applies to corner/edge feature text and the analog date.</div>' +
 
 '    <div id="weatherIconStyleRow" style="' + (weatherIconFeatureInUse ? '' : 'display:none;') + '">' +
 '      <label for="weatherIconStyle">Weather icon style</label>' +
@@ -1618,7 +1531,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
         { value: '0', label: 'Off' },
         { value: '1', label: 'Weather (clouds slide in from the sides)' },
         { value: '2', label: 'Planets (Sun/Moon/planets + sky sweep in from a couple hours ago)' },
-        { value: '3', label: 'Markers (big-analog hour markers animate in; seconds draw normally)' }
+        { value: '3', label: 'Markers (analog hour markers animate in; seconds draw normally)' }
       ], current.bgAnimMode || '0') +
 '    </div>' +
 '    <div class="help">Off by default: exactly one of the above sweeps into place on launch, under 1.5s.</div>' +
@@ -2073,59 +1986,6 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  }' +
 '}' +
 
-'function drawAnalogPreview(ctx, colors, now, showSeconds, w, panelTop, panelBottom) {' +
-'  var panelH = panelBottom - panelTop;' +
-'  var cx = panelH * 0.58, cy = panelTop + panelH / 2, r = panelH * 0.4;' +
-'  var style = parseInt(document.getElementById("analogStyle").value, 10);' +
-'  if (style === 0 || style === 2) {' +
-'    ctx.strokeStyle = colors.text; ctx.lineWidth = 2;' +
-'    ctx.beginPath(); ctx.arc(cx, cy, r, 0, 2 * Math.PI); ctx.stroke();' +
-'  }' +
-'  if (style === 1 || style === 2) {' +
-'    for (var hIdx = 0; hIdx < 12; hIdx++) {' +
-'      var ang = hIdx * Math.PI / 6;' +
-'      var outer = r, inner = (hIdx % 3 === 0) ? r - 6 : r - 3;' +
-'      ctx.strokeStyle = colors.text; ctx.lineWidth = 1;' +
-'      ctx.beginPath();' +
-'      ctx.moveTo(cx + outer * Math.sin(ang), cy - outer * Math.cos(ang));' +
-'      ctx.lineTo(cx + inner * Math.sin(ang), cy - inner * Math.cos(ang));' +
-'      ctx.stroke();' +
-'    }' +
-'  }' +
-'  if (style === 3) {' +
-'    ctx.font = "bold 9px monospace";' +
-'    ctx.fillStyle = colors.text;' +
-'    ctx.textAlign = "center"; ctx.textBaseline = "middle";' +
-'    ctx.fillText("12", cx, cy - r + 8);' +
-'    ctx.fillText("3", cx + r - 7, cy);' +
-'    ctx.fillText("6", cx, cy + r - 8);' +
-'    ctx.fillText("9", cx - r + 7, cy);' +
-'  }' +
-'  var hh = now.getHours() % 12, mm = now.getMinutes(), ss = now.getSeconds();' +
-'  var hourAngle = ((hh * 60 + mm) / 720) * 2 * Math.PI;' +
-'  var minAngle = (mm / 60) * 2 * Math.PI;' +
-'  ctx.strokeStyle = colors.text;' +
-'  ctx.lineWidth = 3;' +
-'  ctx.beginPath(); ctx.moveTo(cx, cy);' +
-'  ctx.lineTo(cx + r * 0.55 * Math.sin(hourAngle), cy - r * 0.55 * Math.cos(hourAngle));' +
-'  ctx.stroke();' +
-'  ctx.lineWidth = 2;' +
-'  ctx.beginPath(); ctx.moveTo(cx, cy);' +
-'  ctx.lineTo(cx + r * 0.8 * Math.sin(minAngle), cy - r * 0.8 * Math.cos(minAngle));' +
-'  ctx.stroke();' +
-'  if (showSeconds) {' +
-'    var secAngle = (ss / 60) * 2 * Math.PI;' +
-'    ctx.strokeStyle = colors.accent;' +
-'    ctx.lineWidth = 1;' +
-'    ctx.beginPath(); ctx.moveTo(cx, cy);' +
-'    ctx.lineTo(cx + r * 0.88 * Math.sin(secAngle), cy - r * 0.88 * Math.cos(secAngle));' +
-'    ctx.stroke();' +
-'  }' +
-'  ctx.fillStyle = colors.text;' +
-'  ctx.beginPath(); ctx.arc(cx, cy, 2, 0, 2 * Math.PI); ctx.fill();' +
-'  return cx + r;' + // right edge of the clock, so the caller knows where to start the info panel
-'}' +
-
 // Rough triangular pointer for both hour and minute hands in the
 // preview -- every hand is a "custom" hand now (see HAND_PRESETS'
 // own comment), and this canvas preview never modeled the full
@@ -2289,35 +2149,6 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  ctx.beginPath(); ctx.arc(cx, cy, 2, 0, 2 * Math.PI); ctx.fill();' +
 '}' +
 
-// Mirrors small_analog_feature_count() in pebble-eclipse-watch.c --
-// keep the two in sync. Also used by computeSlotAvailability() to
-// gray out the 4th "Feature" slot button when it wouldn't fit.
-'function computeSmallAnalogFeatureCount() {' +
-'  var cornerFontEl = document.getElementById("cornerFont");' +
-'  if (!cornerFontEl) return 4;' +
-'  var opt = cornerFontEl.options[cornerFontEl.selectedIndex];' +
-'  var height = parseInt(opt.getAttribute("data-height"), 10) || 14;' +
-'  return height > 18 ? 3 : 4;' +
-'}' +
-
-// The small-analog info panel's rows -- same 4 fields the big-analog
-// upper-middle/bottom-middle 2-line slots use (see SLOT_DEFS/the
-// smallAnalogFeatureN entries below), drawn left-aligned starting
-// just after the clock face, matching the watch.
-'function drawInfoPanelPreview(ctx, colors, panelLeft, w, panelTop, panelBottom) {' +
-'  var count = computeSmallAnalogFeatureCount();' +
-'  var ids = [' +
-'    ["upperMiddleLine1Content", "upperMiddleLine1Color"],' +
-'    ["upperMiddleLine2Content", "upperMiddleLine2Color"],' +
-'    ["bottomMiddleLine1Content", "bottomMiddleLine1Color"],' +
-'    ["bottomMiddleLine2Content", "bottomMiddleLine2Color"]' +
-'  ];' +
-'  var lineH = (panelBottom - panelTop) / count;' +
-'  for (var i = 0; i < count; i++) {' +
-'    drawCornerSlot(ctx, ids[i][0], ids[i][1], panelLeft + 8, panelTop + lineH * i + (lineH - 9) / 2, "left", colors);' +
-'  }' +
-'}' +
-
 'function drawDigitalPreview(ctx, colors, now, showSeconds, w, panelTop, panelBottom) {' +
 '  var fontSel = document.getElementById("clockFont");' +
 '  var opt = fontSel.options[fontSel.selectedIndex];' +
@@ -2345,7 +2176,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  var secondsBox = document.getElementById("showSeconds");' +
 '  var showSeconds = secondsBox.checked && !secondsBox.disabled;' +
 
-'  if (styleVal === "biganalog") {' +
+'  if (styleVal === "analog") {' +
 '    drawSkyLayer(ctx, 0, 0, w, h);' +
 '    var markerStyleVal = document.getElementById("bigAnalogMarkerStyle").value;' +
 '    var markerStyleInt = parseInt(markerStyleVal, 10);' +
@@ -2358,31 +2189,21 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    drawCornersAndEdges(ctx, w, h, colors, skyH);' +
 '    ctx.fillStyle = colors.bg;' +
 '    ctx.fillRect(0, skyH, w, h - skyH);' +
-'    if (styleVal === "analog") {' +
-'      var clockRight = drawAnalogPreview(ctx, colors, now, showSeconds, w, skyH, h);' +
-'      drawInfoPanelPreview(ctx, colors, clockRight, w, skyH, h);' +
-'    } else {' +
-'      drawDigitalPreview(ctx, colors, now, showSeconds, w, skyH, h);' +
-'    }' +
+'    drawDigitalPreview(ctx, colors, now, showSeconds, w, skyH, h);' +
 '  }' +
 '}' +
 
 'function onBottomStyleChange() {' +
 '  var styleVal = document.getElementById("bottomStyleValue").value;' +
 '  var isAnalog = styleVal === "analog";' +
-'  var isBigAnalog = styleVal === "biganalog";' +
 '  document.getElementById("digitalOnlySettings").style.display = (styleVal === "digital") ? "block" : "none";' +
-'  document.getElementById("analogOnlySettings").style.display = isAnalog ? "block" : "none";' +
-'  document.getElementById("bigAnalogSettings").style.display = isBigAnalog ? "block" : "none";' +
+'  document.getElementById("bigAnalogSettings").style.display = isAnalog ? "block" : "none";' +
 '  document.getElementById("showSunTimeSection").style.display = (styleVal === "digital") ? "block" : "none";' +
-'  var analogFeaturePanel = document.getElementById("analogFeaturePanel");' +
-'  if (analogFeaturePanel) analogFeaturePanel.style.display = isAnalog ? "block" : "none";' +
 '  var secondsBox = document.getElementById("showSeconds");' +
 '  var fontSel = document.getElementById("clockFont");' +
 '  var opt = fontSel.options[fontSel.selectedIndex];' +
 '  var fontOk = opt.getAttribute("data-seconds") === "1";' +
-'  var handBased = isAnalog || isBigAnalog;' +
-'  var secondsUnavailable = !handBased && !fontOk;' +
+'  var secondsUnavailable = !isAnalog && !fontOk;' +
 '  secondsBox.disabled = secondsUnavailable;' +
 '  if (secondsUnavailable) secondsBox.checked = false;' +
 '  document.getElementById("secondsHelp").style.display = secondsUnavailable ? "block" : "none";' +
@@ -2484,37 +2305,20 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  bottomMiddleLine2: { contentId: "bottomMiddleLine2Content", colorId: "bottomMiddleLine2Color", btnId: "slotBtn-bottomMiddleLine2", label: "Bottom-middle, line 2", avail: function (a) { return a.bottom; } },' +
 '  middleLeftLine1: { contentId: "middleLeftLine1Content", colorId: "middleLeftLine1Color", btnId: "slotBtn-middleLeftLine1", label: "Middle-left, line 1", avail: function (a) { return a.left; } },' +
 '  middleLeftLine2: { contentId: "middleLeftLine2Content", colorId: "middleLeftLine2Color", btnId: "slotBtn-middleLeftLine2", label: "Middle-left, line 2", avail: function (a) { return a.left; } },' +
-'  middleRightLine1: { contentId: "middleRightLine1Content", colorId: "middleRightLine1Color", btnId: "slotBtn-middleRightLine1", label: "Middle-right, line 1", avail: function (a) { return a.right; } },' +
-'  middleRightLine2: { contentId: "middleRightLine2Content", colorId: "middleRightLine2Color", btnId: "slotBtn-middleRightLine2", label: "Middle-right, line 2", avail: function (a) { return a.right; } },' +
-// The small-analog info panel's 4 rows -- deliberately reusing the
-// SAME contentId/colorId as upper/bottom-middle line 1/2 above
-// rather than separate storage (see the matching comment in
-// pebble-eclipse-watch.c's bottom_canvas_update_proc). Both this
-// button and the corresponding "Upper-middle"/"Bottom-middle" button
-// edit the exact same underlying value -- picking a different label
-// for each just makes clear which on-screen row each is standing in
-// for right now.
-'  smallAnalogFeature1: { contentId: "upperMiddleLine1Content", colorId: "upperMiddleLine1Color", btnId: "slotBtn-smallAnalogFeature1", label: "Feature 1", avail: function (a) { return a.analog; } },' +
-'  smallAnalogFeature2: { contentId: "upperMiddleLine2Content", colorId: "upperMiddleLine2Color", btnId: "slotBtn-smallAnalogFeature2", label: "Feature 2", avail: function (a) { return a.analog; } },' +
-'  smallAnalogFeature3: { contentId: "bottomMiddleLine1Content", colorId: "bottomMiddleLine1Color", btnId: "slotBtn-smallAnalogFeature3", label: "Feature 3", avail: function (a) { return a.analog; } },' +
-'  smallAnalogFeature4: { contentId: "bottomMiddleLine2Content", colorId: "bottomMiddleLine2Color", btnId: "slotBtn-smallAnalogFeature4", label: "Feature 4", avail: function (a) { return a.analog && a.smallAnalogFeatureCount >= 4; } }' +
+'  middleRightLine2: { contentId: "middleRightLine2Content", colorId: "middleRightLine2Color", btnId: "slotBtn-middleRightLine2", label: "Middle-right, line 2", avail: function (a) { return a.right; } }' +
 '};' +
 'var CURRENT_SLOT_KEY = null;' +
 'var SLOT_EDITOR_DRAFT_COLOR = 0;' +
-// Same per-marker-style room rules as before: procedural styles (<3)
-// have all 8 slots and the 4 corners; bitmap styles are each limited
-// to whatever their own artwork actually has room for and suppress
-// the corners entirely (the mask fills most of the screen). analog
-// and smallAnalogFeatureCount drive the small-analog "Feature 1-4"
-// buttons instead -- see computeSmallAnalogFeatureCount() above,
-// which mirrors small_analog_feature_count() in the C code.
+// Procedural marker styles (<3) have all 8 slots and the 4 corners;
+// bitmap styles are each limited to whatever their own artwork
+// actually has room for and suppress the corners entirely (the mask
+// fills most of the screen).
 'function computeSlotAvailability() {' +
 '  var styleVal = document.getElementById("bottomStyleValue").value;' +
-'  var isBigAnalog = styleVal === "biganalog";' +
+'  var isAnalog = styleVal === "analog";' +
 '  var markerStyle = parseInt(document.getElementById("bigAnalogMarkerStyle").value, 10);' +
-'  var avail = { upper: false, bottom: false, left: false, right: false, cornersGrayed: false,' +
-'                analog: styleVal === "analog", smallAnalogFeatureCount: computeSmallAnalogFeatureCount() };' +
-'  if (isBigAnalog) {' +
+'  var avail = { upper: false, bottom: false, left: false, right: false, cornersGrayed: false };' +
+'  if (isAnalog) {' +
 '    if (markerStyle < 3 || markerStyle === 8 || markerStyle === 9) {' +
 '      avail.upper = avail.bottom = avail.left = avail.right = true;' +
 '    } else if (markerStyle === 3 || markerStyle === 4 || markerStyle === 6) {' +
@@ -3334,7 +3138,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 'function selectBottomStyle(val) {' +
 '  document.getElementById("bottomStyleValue").value = val;' +
 '  var buttons = document.getElementById("bottomStyleGroup").getElementsByClassName("mode-btn");' +
-'  var order = ["digital", "analog", "biganalog"];' +
+'  var order = ["digital", "analog"];' +
 '  for (var i = 0; i < buttons.length; i++) {' +
 '    buttons[i].className = "mode-btn" + (order[i] === val ? " active" : "");' +
 '  }' +
@@ -3521,7 +3325,6 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    CONFIG_NIGHT_CUSTOM_TEXT: document.getElementById("nightCustomTextValue").value,' +
 '    CONFIG_NIGHT_CUSTOM_ACCENT: document.getElementById("nightCustomAccentValue").value,' +
 '    CONFIG_BOTTOM_STYLE: bottomStyleVal || "digital",' +
-'    CONFIG_ANALOG_STYLE: document.getElementById("analogStyle").value,' +
 '    CONFIG_SHADOW_TRANSLUCENT: document.getElementById("shadowTranslucent").value,' +
 '    CONFIG_SHADOW_ANGLE: document.getElementById("shadowAngle").value,' +
 '    CONFIG_BIG_ANALOG_MARKER_STYLE: document.getElementById("bigAnalogMarkerStyle").value,' +

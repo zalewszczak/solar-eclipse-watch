@@ -80,11 +80,6 @@ void ensure_corner_custom_font(uint8_t choice);
 // pebble-eclipse-watch.c already frees its own clock_font/small_font.
 void features_layer_unload_fonts(void);
 
-// How many of the small-analog panel's 4 feature rows actually fit given
-// the currently-selected corner/edge font -- see features_layer.c for the
-// exact thresholds (must stay in sync with config-page.js's own copy).
-uint8_t small_analog_feature_count(const EclipseData *data);
-
 // Shared outline-drawing primitives -- also used by the countdown/status
 // label in pebble-eclipse-watch.c, not just this module's own content.
 GColor contrasting_outline_color(GColor c);

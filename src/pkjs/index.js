@@ -97,7 +97,7 @@ var KEY_TYPE_MAP = (function () {
     'CLOCK_FONT', 'CLOCK_FONT_SMALL', 'TEMP_UNIT', 'WIND_SPEED_UNIT', 'SHOW_SECONDS',
     'CUSTOM_BG', 'CUSTOM_TEXT', 'CUSTOM_ACCENT',
     'NIGHT_SCHEME_ENABLED', 'NIGHT_CUSTOM_BG', 'NIGHT_CUSTOM_TEXT', 'NIGHT_CUSTOM_ACCENT',
-    'BOTTOM_STYLE', 'ANALOG_STYLE', 'SUN_MOON_SIZE_PCT', 'CLOUD_RENDER_STYLE',
+    'BOTTOM_STYLE', 'SUN_MOON_SIZE_PCT', 'CLOUD_RENDER_STYLE',
     'SKY_MODE', 'WEATHER_ICON_STYLE', 'AQI_UNIT', 'ALTITUDE_UNIT',
     'SHAKE_LABEL_SECONDS', 'LABEL_STYLE',
     'VIBRATE_ON_PHASE_CHANGE', 'STARTUP_CLOCK_ANIMATION_ENABLED',
@@ -435,14 +435,7 @@ function nightCustomAccentByte() { return customColorByte('CONFIG_NIGHT_CUSTOM_A
 
 function bottomStyleCode() {
   var v = getSetting('CONFIG_BOTTOM_STYLE', 'digital');
-  if (v === 'biganalog') return 2;
-  if (v === 'analog') return 1;
-  return 0;
-}
-function analogStyleCode() {
-  var id = parseInt(getSetting('CONFIG_ANALOG_STYLE', '0'), 10);
-  if (isNaN(id) || id < 0 || id > 3) id = 0;
-  return id;
+  return (v === 'analog' || v === 'biganalog') ? 1 : 0;
 }
 
 function sunMoonSizeCode() {
@@ -524,9 +517,9 @@ function bigAnalogMarkerStyleCode() {
 // dimmed the markers whether or not that's what was wanted).
 function bitmapMarkerTransparentCode() { return getSetting('CONFIG_BITMAP_MARKER_TRANSPARENT', 'false') === 'true' ? 1 : 0; }
 
-// Whether the corners/edges feature overlay draws underneath the big-
+// Whether the corners/edges feature overlay draws underneath the
 // analog hands instead of on top of them -- only meaningful (and only
-// shown on the settings page) when bottomStyle is 'biganalog'.
+// shown on the settings page) when bottomStyle is 'analog'.
 function drawFeaturesBeneathHandsCode() { return getSetting('CONFIG_DRAW_FEATURES_BENEATH_HANDS', 'false') === 'true' ? 1 : 0; }
 
 // Custom hour/second marker system (bigAnalogMarkerStyleCode() === 8) --
@@ -815,7 +808,6 @@ function sendFlatDict(dict) {
   dict['NIGHT_CUSTOM_TEXT'] = nightCustomTextByte();
   dict['NIGHT_CUSTOM_ACCENT'] = nightCustomAccentByte();
   dict['BOTTOM_STYLE'] = bottomStyleCode();
-  dict['ANALOG_STYLE'] = analogStyleCode();
   dict['SUN_MOON_SIZE_PCT'] = sunMoonSizeCode();
   dict['CLOUD_RENDER_STYLE'] = cloudRenderStyleCode();
   dict['SKY_MODE'] = skyModeCode();
@@ -1509,8 +1501,7 @@ function sendFlatDict(dict) {
 '  "NIGHT_CUSTOM_BG": 192,'+
 '  "NIGHT_CUSTOM_TEXT": 255,'+
 '  "NIGHT_CUSTOM_ACCENT": 240,'+
-'  "BOTTOM_STYLE": 2,'+
-'  "ANALOG_STYLE": 3,'+
+'  "BOTTOM_STYLE": 1,'+
 '  "SUN_MOON_SIZE_PCT": 50,'+
 '  "CLOUD_RENDER_STYLE": 0,'+
 '  "SKY_MODE": 0,'+
@@ -2274,7 +2265,6 @@ Pebble.addEventListener('showConfiguration', function () {
     nightCustomText: getSetting('CONFIG_NIGHT_CUSTOM_TEXT', '255'),
     nightCustomAccent: getSetting('CONFIG_NIGHT_CUSTOM_ACCENT', '255'),
     bottomStyle: getSetting('CONFIG_BOTTOM_STYLE', 'digital'),
-    analogStyle: getSetting('CONFIG_ANALOG_STYLE', '0'),
     sunMoonSize: getSetting('CONFIG_SUN_MOON_SIZE', '75'),
     cloudRenderStyle: getSetting('CONFIG_CLOUD_RENDER_STYLE', '1'),
     skyMode: getSetting('CONFIG_SKY_MODE', '0'),
@@ -2465,8 +2455,7 @@ Pebble.addEventListener('webviewclosed', function (e) {
   setSetting('CONFIG_NIGHT_CUSTOM_BG', settings.CONFIG_NIGHT_CUSTOM_BG || '192');
   setSetting('CONFIG_NIGHT_CUSTOM_TEXT', settings.CONFIG_NIGHT_CUSTOM_TEXT || '255');
   setSetting('CONFIG_NIGHT_CUSTOM_ACCENT', settings.CONFIG_NIGHT_CUSTOM_ACCENT || '255');
-  setSetting('CONFIG_BOTTOM_STYLE', (settings.CONFIG_BOTTOM_STYLE === 'analog' || settings.CONFIG_BOTTOM_STYLE === 'biganalog') ? settings.CONFIG_BOTTOM_STYLE : 'digital');
-  setSetting('CONFIG_ANALOG_STYLE', settings.CONFIG_ANALOG_STYLE || '0');
+  setSetting('CONFIG_BOTTOM_STYLE', (settings.CONFIG_BOTTOM_STYLE === 'analog' || settings.CONFIG_BOTTOM_STYLE === 'biganalog') ? 'analog' : 'digital');
   setSetting('CONFIG_SUN_MOON_SIZE', settings.CONFIG_SUN_MOON_SIZE || '100');
   setSetting('CONFIG_CLOUD_RENDER_STYLE', settings.CONFIG_CLOUD_RENDER_STYLE || '1');
   setSetting('CONFIG_SKY_MODE', settings.CONFIG_SKY_MODE || '0');

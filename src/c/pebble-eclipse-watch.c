@@ -105,69 +105,6 @@ void get_active_color_scheme(const EclipseData *d, time_t now, GColor *bg, GColo
   }
 }
 
-// ---- analog clock styling ------------------------------------------------
-
-// A minimal 3x5-pixel digit font, drawn procedurally rather than
-// loaded as a resource -- "super tiny" is the whole point, smaller
-// than any real system font renders legibly. Each row is 3 bits
-// (left to right); only the digits needed for a 12/3/6/9 dial are
-// used, but the full 0-9 set costs nothing extra to keep complete.
-static const uint8_t TINY_DIGITS[10][5] = {
-  { 0x7, 0x5, 0x5, 0x5, 0x7 }, // 0
-  { 0x2, 0x6, 0x2, 0x2, 0x7 }, // 1
-  { 0x7, 0x1, 0x7, 0x4, 0x7 }, // 2
-  { 0x7, 0x1, 0x7, 0x1, 0x7 }, // 3
-  { 0x5, 0x5, 0x7, 0x1, 0x1 }, // 4
-  { 0x7, 0x4, 0x7, 0x1, 0x7 }, // 5
-  { 0x7, 0x4, 0x7, 0x5, 0x7 }, // 6
-  { 0x7, 0x1, 0x1, 0x1, 0x1 }, // 7
-  { 0x7, 0x5, 0x7, 0x5, 0x7 }, // 8
-  { 0x7, 0x5, 0x7, 0x1, 0x7 }, // 9
-};
-
-static void draw_tiny_digit(GContext *ctx, GPoint top_left, int digit, GColor color, int16_t px) {
-  if (digit < 0 || digit > 9) return;
-  graphics_context_set_fill_color(ctx, color);
-  for (int row = 0; row < 5; row++) {
-    uint8_t bits = TINY_DIGITS[digit][row];
-    for (int col = 0; col < 3; col++) {
-      if (bits & (1 << (2 - col))) {
-        graphics_fill_rect(ctx, GRect(top_left.x + col * px, top_left.y + row * px, px, px), 0, GCornerNone);
-      }
-    }
-  }
-}
-
-// Centers a (1- or 2-digit) number on `center` using the tiny font.
-static void draw_tiny_number(GContext *ctx, GPoint center, int number, GColor color, int16_t px) {
-  char buf[4];
-  snprintf(buf, sizeof(buf), "%d", number);
-  int len = (int)strlen(buf);
-  int16_t digit_w = 3 * px + px; // 3px-wide digit + 1px gap
-  int16_t total_w = (int16_t)(len * digit_w - px);
-  GPoint start = GPoint(center.x - total_w / 2, center.y - (5 * px) / 2);
-  for (int i = 0; i < len; i++) {
-    draw_tiny_digit(ctx, GPoint(start.x + i * digit_w, start.y), buf[i] - '0', color, px);
-  }
-}
-
-// Small tick marks at each hour position -- slightly longer at
-// 12/3/6/9 for a bit of visual structure without needing numerals.
-static void draw_hour_markers(GContext *ctx, GPoint center, int16_t r, GColor color) {
-  graphics_context_set_stroke_color(ctx, color);
-  graphics_context_set_stroke_width(ctx, 1);
-  for (int h = 0; h < 12; h++) {
-    int32_t angle = (h * TRIG_MAX_ANGLE) / 12;
-    int16_t outer = r;
-    int16_t inner = (h % 3 == 0) ? r - 5 : r - 3;
-    GPoint p1 = GPoint(center.x + (outer * sin_lookup(angle)) / TRIG_MAX_RATIO,
-                        center.y - (outer * cos_lookup(angle)) / TRIG_MAX_RATIO);
-    GPoint p2 = GPoint(center.x + (inner * sin_lookup(angle)) / TRIG_MAX_RATIO,
-                        center.y - (inner * cos_lookup(angle)) / TRIG_MAX_RATIO);
-    graphics_draw_line(ctx, p1, p2);
-  }
-}
-
 // ---- sunrise/sunset readout ------------------------------------------
 
 // Whichever of today's sunrise/sunset is still ahead of `now`. Only
@@ -240,9 +177,8 @@ int16_t draw_sun_time_icon(GContext *ctx, GPoint top_left, bool is_sunrise, GCol
 
 // Corner/edge/date font resolution is now font_lookup_resolve() plus a
 // shared FontSlot (see font_lookup.h) owned by features_layer.c, whose
-// ensure_corner_custom_font()/small_analog_feature_count() are exposed
-// via features_layer.h since this file's hands layer and bottom panel
-// still need them.
+// ensure_corner_custom_font() is exposed via features_layer.h since
+// this file's hands layer still needs it.
 
 
 
@@ -743,29 +679,27 @@ static void hands_layer_update_proc(Layer *layer, GContext *ctx) {
 
 // ---- rendering ---------------------------------------------------------
 
-// The bottom third of the face: either the classic big-time-plus-date
-// layout, or (bottom_style == 1) a split view with an analog clock on
-// the left and four lines of text on the right. Both obey the color
-// scheme and the seconds-visibility setting. Redrawn every second
-// when seconds are shown; otherwise still cheap enough (no astronomy,
-// just text/line drawing) not to bother throttling separately from
-// the sky canvas above it.
+// The bottom third of the face, digital-only now (bottom_style == 1,
+// analog, has no bottom bar at all -- see apply_layout()). Obeys the
+// color scheme and the seconds-visibility setting. Redrawn every
+// second when seconds are shown; otherwise still cheap enough (no
+// astronomy, just text drawing) not to bother throttling separately
+// from the sky canvas above it.
 static void bottom_canvas_update_proc(Layer *layer, GContext *ctx) {
   GRect bounds = layer_get_bounds(layer);
   time_t now = time(NULL);
   struct tm *t = localtime(&now);
 
-  // Startup animation (digital + small-analog): substitutes an eased
-  // count-up from midnight to the real time for the DISPLAYED time
-  // only -- `now`/the color scheme below still use the real current
-  // time. Every read of `t->tm_hour`/`tm_min`/`tm_sec` below (both
-  // the digital HH:MM(:SS) text and the small-analog hand angles
-  // further down) shares this one struct tm, so both get the
-  // count-up for free from this single substitution. Uses the same
-  // shared ease-out table every other "settles gracefully into place"
-  // animation in this app uses (fast at first, gradually slowing into
-  // the real time) -- this used to accelerate INTO the stop instead
-  // (ease-in), which read as an abrupt halt right at the end.
+  // Startup animation: substitutes an eased count-up from midnight to
+  // the real time for the DISPLAYED time only -- `now`/the color
+  // scheme below still use the real current time. Every read of
+  // `t->tm_hour`/`tm_min`/`tm_sec` below shares this one struct tm,
+  // so the digital HH:MM(:SS) text gets the count-up for free from
+  // this single substitution. Uses the same shared ease-out table
+  // every other "settles gracefully into place" animation in this
+  // app uses (fast at first, gradually slowing into the real time)
+  // -- this used to accelerate INTO the stop instead (ease-in), which
+  // read as an abrupt halt right at the end.
   struct tm anim_tm;
   if (s_startup_clock_anim_active) {
     int32_t progress = ((int32_t)s_startup_anim_elapsed_ms * 1000) / STARTUP_CLOCK_ANIM_MS;
@@ -796,177 +730,58 @@ static void bottom_canvas_update_proc(Layer *layer, GContext *ctx) {
            t->tm_sec / 10,
            t->tm_sec % 10);
 
-  if (s_data.bottom_style == 1) {
-    // ---- analog: clock on the left half, 4 lines of text on the right ----
-    int16_t half_w = bounds.size.w / 2;
-    GPoint clock_center = GPoint(bounds.origin.x + half_w / 2, bounds.origin.y + bounds.size.h / 2);
-    int16_t clock_r = (bounds.size.h / 2) - 6;
-    if (clock_r > half_w / 2 - 6) clock_r = half_w / 2 - 6;
-
-    // Face style: 0=solid circle, 1=hour markers, 2=both, 3=tiny
-    // procedural 12/3/6/9 numerals instead of any circle/markers.
-    if (s_data.analog_style == 0 || s_data.analog_style == 2) {
-      graphics_context_set_stroke_color(ctx, text_color);
-      graphics_context_set_stroke_width(ctx, 2);
-      graphics_draw_circle(ctx, clock_center, clock_r);
-    }
-    if (s_data.analog_style == 1 || s_data.analog_style == 2) {
-      draw_hour_markers(ctx, clock_center, clock_r, text_color);
-    }
-    if (s_data.analog_style == 3) {
-      int16_t px = 1; // "super tiny" -- 3x5px digits at 1px/dot
-      int16_t label_r = clock_r - 7;
-      draw_tiny_number(ctx, GPoint(clock_center.x, clock_center.y - label_r), 12, text_color, px);
-      draw_tiny_number(ctx, GPoint(clock_center.x + label_r, clock_center.y), 3, text_color, px);
-      draw_tiny_number(ctx, GPoint(clock_center.x, clock_center.y + label_r), 6, text_color, px);
-      draw_tiny_number(ctx, GPoint(clock_center.x - label_r, clock_center.y), 9, text_color, px);
-    }
-
-    int32_t hour_angle = (((t->tm_hour % 12) * 60 + t->tm_min) * TRIG_MAX_ANGLE) / (12 * 60);
-    int16_t hour_len = (clock_r * 55) / 100;
-    GPoint hour_end = GPoint(
-      clock_center.x + (hour_len * sin_lookup(hour_angle)) / TRIG_MAX_RATIO,
-      clock_center.y - (hour_len * cos_lookup(hour_angle)) / TRIG_MAX_RATIO);
-    graphics_context_set_stroke_color(ctx, text_color);
-    graphics_context_set_stroke_width(ctx, 3);
-    graphics_draw_line(ctx, clock_center, hour_end);
-
-    int32_t min_angle = (t->tm_min * TRIG_MAX_ANGLE) / 60;
-    int16_t min_len = (clock_r * 80) / 100;
-    GPoint min_end = GPoint(
-      clock_center.x + (min_len * sin_lookup(min_angle)) / TRIG_MAX_RATIO,
-      clock_center.y - (min_len * cos_lookup(min_angle)) / TRIG_MAX_RATIO);
-    graphics_context_set_stroke_width(ctx, 2);
-    graphics_draw_line(ctx, clock_center, min_end);
-
-    if (s_data.show_seconds) {
-      int32_t sec_angle;
-      if (s_shake_anim_active) {
-        // Same smooth sub-second motion as the big-analog hand system's
-        // own version above -- see its comment.
-        time_t smooth_now;
-        uint16_t smooth_ms;
-        time_ms(&smooth_now, &smooth_ms);
-        struct tm *smooth_t = localtime(&smooth_now);
-        sec_angle = (int32_t)((((int64_t)smooth_t->tm_sec * 1000 + smooth_ms) * TRIG_MAX_ANGLE) / 60000);
-      } else {
-        sec_angle = (t->tm_sec * TRIG_MAX_ANGLE) / 60;
-      }
-      int16_t sec_len = (clock_r * 88) / 100;
-      GPoint sec_end = GPoint(
-        clock_center.x + (sec_len * sin_lookup(sec_angle)) / TRIG_MAX_RATIO,
-        clock_center.y - (sec_len * cos_lookup(sec_angle)) / TRIG_MAX_RATIO);
-      graphics_context_set_stroke_color(ctx, accent_color);
-      graphics_context_set_stroke_width(ctx, 1);
-      graphics_draw_line(ctx, clock_center, sec_end);
-    }
-
-    graphics_context_set_fill_color(ctx, text_color);
-    graphics_fill_circle(ctx, clock_center, 3);
-
-    // ---- 4 user-picked feature rows, right-aligned -------------------
-    // These reuse the same 4 content/color_mode fields (and the same
-    // phone-side message keys) that big-analogue mode's upper-middle
-    // and bottom-middle 2-line slots use -- upper_middle_line1/2 as
-    // rows 1-2, bottom_middle_line1/2 as rows 3-4. That pairing is
-    // deliberate rather than incidental: neither pair ever actually
-    // renders in small-analog mode (corners_layer_update_proc only
-    // shows the edge-middle slots when bottom_style == 2), so they're
-    // sitting completely idle here, and reusing them means no new
-    // persisted fields or message keys were needed for this panel.
-    // One real consequence: since it's the same storage, whatever a
-    // user picks for upper/bottom-middle line 1/2 while in big-analog
-    // mode is exactly what they'll see as rows 1-4 here if they ever
-    // switch to small-analog (and vice versa) -- the settings page's
-    // slot picker makes this explicit rather than hiding it.
-    //
-    // draw_corner_item() draws each row itself (icon + text, left-
-    // aligned via is_left=true, anchored to the right half of the
-    // panel bounds -- matching where the old 4 fixed lines used to
-    // start, just after the clock face) rather than the plain
-    // graphics_draw_text() those 4 fixed lines used to get -- that's
-    // what makes the full corner/edge content list (weather, health,
-    // timezones, date formats, ...) available here instead of just
-    // the 4 old fixed readouts. allow_outline is false: this panel
-    // sits on its own solid background color, not over the busy sky
-    // view, so it never needs the contrasting outline the corners/
-    // edges rely on.
-    ensure_corner_custom_font(s_data.corner_font);
-    uint8_t feature_count = small_analog_feature_count(&s_data);
-    const uint8_t feature_content[4] = {
-      s_data.upper_middle_line1_content, s_data.upper_middle_line2_content,
-      s_data.bottom_middle_line1_content, s_data.bottom_middle_line2_content
-    };
-    const uint8_t feature_color_mode[4] = {
-      s_data.upper_middle_line1_color_mode, s_data.upper_middle_line2_color_mode,
-      s_data.bottom_middle_line1_color_mode, s_data.bottom_middle_line2_color_mode
-    };
-    // Restricted to the right half of the panel so is_left's "+2 from
-    // the bounds' own left edge" anchors right after the clock face,
-    // not at the screen's actual left edge.
-    GRect feature_bounds = GRect(bounds.origin.x + half_w, bounds.origin.y,
-                                  bounds.size.w - half_w, bounds.size.h);
-    int16_t line_h = bounds.size.h / feature_count;
-    for (int i = 0; i < feature_count; i++) {
-      int16_t row_top = i * line_h + (line_h - CORNER_ROW_H) / 2;
-      features_draw_item(ctx, feature_bounds, &s_data, feature_content[i], feature_color_mode[i],
-                          text_color, accent_color, bg,
-                          true, true, false, row_top, 0, 0, false, false, false);
-    }
+  // ---- big time, small date/week below ----
+  graphics_context_set_text_color(ctx, text_color);
+  if (s_data.show_seconds && use_small_seconds_for_digital_clock()) {
+    graphics_draw_text(ctx, time_buf, clock_font,
+                        GRect(bounds.origin.x, bounds.origin.y + font_lookup_y_offset(s_data.clock_font), bounds.size.w - 20, 60),
+                        GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
+    graphics_context_set_text_color(ctx, accent_color);
+    graphics_draw_text(ctx, sec_buf, small_font,
+                       GRect(bounds.origin.x + bounds.size.w - 22, bounds.origin.y + 15 + font_lookup_y_offset(s_data.clock_font_small) * 2, 20, 50),
+                        GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft, NULL);
   } else {
-    // ---- digital: big time, small date/week below ----
+    graphics_draw_text(ctx, time_buf, clock_font,
+                        GRect(bounds.origin.x, bounds.origin.y + font_lookup_y_offset(s_data.clock_font), bounds.size.w, 60),
+                        GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
+  }
+
+  char main_buf[32];
+  strftime(main_buf, sizeof(main_buf), "%a %b %d", t);
+
+  // Computed before any second localtime() call below, since that
+  // returns a pointer to a shared static buffer and would otherwise
+  // clobber `t` before main_buf got built from it.
+  time_t sun_event_time = 0;
+  bool sun_event_is_rise = false;
+  bool show_sun_row = s_data.show_sun_time &&
+    get_next_sun_event(now, s_data.sun_rise, s_data.sun_set, s_data.sun_rise_tomorrow, &sun_event_time, &sun_event_is_rise);
+
+  graphics_context_set_text_color(ctx, text_color);
+  if (show_sun_row) {
+    char sun_time_buf[8];
+    struct tm *event_t = localtime(&sun_event_time);
+    strftime(sun_time_buf, sizeof(sun_time_buf), clock_is_24h_style() ? "%H:%M" : "%I:%M", event_t);
+
+    int16_t left_w = (bounds.size.w * 55) / 100;
+    graphics_draw_text(ctx, main_buf, small_font,
+                        GRect(bounds.origin.x, bounds.origin.y + 60 + font_lookup_y_offset(s_data.clock_font_small), left_w, 16),
+                        GTextOverflowModeTrailingEllipsis, GTextAlignmentRight, NULL);
+    int16_t icon_x = bounds.origin.x + left_w + 6;
+    int16_t icon_y = bounds.origin.y + 60 + 5;
+    int16_t icon_w = draw_sun_time_icon(ctx, GPoint(icon_x, icon_y), sun_event_is_rise, text_color, bg);
     graphics_context_set_text_color(ctx, text_color);
-    if (s_data.show_seconds && use_small_seconds_for_digital_clock()) {
-      graphics_draw_text(ctx, time_buf, clock_font,
-                          GRect(bounds.origin.x, bounds.origin.y + font_lookup_y_offset(s_data.clock_font), bounds.size.w - 20, 60),
-                          GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
-      graphics_context_set_text_color(ctx, accent_color);
-      graphics_draw_text(ctx, sec_buf, small_font,
-                         GRect(bounds.origin.x + bounds.size.w - 22, bounds.origin.y + 15 + font_lookup_y_offset(s_data.clock_font_small) * 2, 20, 50),
-                          GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft, NULL);
-    } else {
-      graphics_draw_text(ctx, time_buf, clock_font,
-                          GRect(bounds.origin.x, bounds.origin.y + font_lookup_y_offset(s_data.clock_font), bounds.size.w, 60),
-                          GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
-    }
-
-    char main_buf[32];
-    strftime(main_buf, sizeof(main_buf), "%a %b %d", t);
-
-    // Computed before any second localtime() call below, since that
-    // returns a pointer to a shared static buffer and would otherwise
-    // clobber `t` before main_buf got built from it.
-    time_t sun_event_time = 0;
-    bool sun_event_is_rise = false;
-    bool show_sun_row = s_data.show_sun_time &&
-      get_next_sun_event(now, s_data.sun_rise, s_data.sun_set, s_data.sun_rise_tomorrow, &sun_event_time, &sun_event_is_rise);
-
-    graphics_context_set_text_color(ctx, text_color);
-    if (show_sun_row) {
-      char sun_time_buf[8];
-      struct tm *event_t = localtime(&sun_event_time);
-      strftime(sun_time_buf, sizeof(sun_time_buf), clock_is_24h_style() ? "%H:%M" : "%I:%M", event_t);
-
-      int16_t left_w = (bounds.size.w * 55) / 100;
-      graphics_draw_text(ctx, main_buf, small_font,
-                          GRect(bounds.origin.x, bounds.origin.y + 60 + font_lookup_y_offset(s_data.clock_font_small), left_w, 16),
-                          GTextOverflowModeTrailingEllipsis, GTextAlignmentRight, NULL);
-      int16_t icon_x = bounds.origin.x + left_w + 6;
-      int16_t icon_y = bounds.origin.y + 60 + 5;
-      int16_t icon_w = draw_sun_time_icon(ctx, GPoint(icon_x, icon_y), sun_event_is_rise, text_color, bg);
-      graphics_context_set_text_color(ctx, text_color);
-      graphics_draw_text(ctx, sun_time_buf, small_font,
-                          GRect(icon_x + icon_w + 3, bounds.origin.y + 60 + font_lookup_y_offset(s_data.clock_font_small), bounds.size.w - (icon_x + icon_w + 3), 16),
-                          GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft, NULL);
-    } else {
-      char week_buf[8];
-      strftime(week_buf, sizeof(week_buf), "%V", t);
-      char date_buf[40];
-      snprintf(date_buf, sizeof(date_buf), "%s  -  Wk%s", main_buf, week_buf);
-      graphics_draw_text(ctx, date_buf, small_font,
-                          GRect(bounds.origin.x, bounds.origin.y + 60 + font_lookup_y_offset(s_data.clock_font_small), bounds.size.w, 16),
-                          GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
-    }
+    graphics_draw_text(ctx, sun_time_buf, small_font,
+                        GRect(icon_x + icon_w + 3, bounds.origin.y + 60 + font_lookup_y_offset(s_data.clock_font_small), bounds.size.w - (icon_x + icon_w + 3), 16),
+                        GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft, NULL);
+  } else {
+    char week_buf[8];
+    strftime(week_buf, sizeof(week_buf), "%V", t);
+    char date_buf[40];
+    snprintf(date_buf, sizeof(date_buf), "%s  -  Wk%s", main_buf, week_buf);
+    graphics_draw_text(ctx, date_buf, small_font,
+                        GRect(bounds.origin.x, bounds.origin.y + 60 + font_lookup_y_offset(s_data.clock_font_small), bounds.size.w, 16),
+                        GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
   }
 }
 
@@ -980,7 +795,7 @@ static void countdown_layer_update_proc(Layer *layer, GContext *ctx) {
   GRect bounds = layer_get_bounds(layer);
   GFont font = fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD);
 
-  // In big-analog mode this label floats directly over the busy sky
+  // In analog mode this label floats directly over the busy sky
   // view. Normally draw_text_outlined()'s 4-shifted-copy outline keeps
   // it legible against any background there, but with that setting
   // off there's nothing else backing the text, so it can disappear
@@ -988,10 +803,10 @@ static void countdown_layer_update_proc(Layer *layer, GContext *ctx) {
   // background in that specific case instead (contrasting_outline_color()
   // picks black or white, whichever contrasts with the text color) --
   // outline mode already handles legibility fine on its own, and
-  // outside big-analog mode the bottom bar/panel is already a solid
+  // in digital mode the bottom bar is already a solid
   // color the text sits on, so neither of those needs this extra
   // background.
-  if (!s_data.outline_enabled && s_data.bottom_style == 2 && s_countdown_buf[0] != '\0') {
+  if (!s_data.outline_enabled && s_data.bottom_style == 1 && s_countdown_buf[0] != '\0') {
     GSize text_size = graphics_text_layout_get_content_size(s_countdown_buf, font, bounds,
                                                               GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter);
     int16_t pad_x = 6;
@@ -1226,17 +1041,8 @@ static bool use_small_seconds_for_digital_clock() {
 // font_lookup_y_offset(s_data.clock_font_small) at each call site.
 
 static void apply_clock_font(void) {
-  if (s_data.bottom_style == 1) {
-    // Small analog + 4 data rows -- the digital clock font choice
-    // doesn't apply here at all (there's no room for anything but the
-    // plain default), so this always resolves to Leco XL/System Small
-    // regardless of clock_font/clock_font_small.
-    clock_font = font_lookup_resolve(&s_clock_font_slot, 8);
-    small_font = font_lookup_resolve(&s_clock_small_font_slot, 0);
-  } else {
-    clock_font = font_lookup_resolve(&s_clock_font_slot, s_data.clock_font);
-    small_font = font_lookup_resolve(&s_clock_small_font_slot, s_data.clock_font_small);
-  }
+  clock_font = font_lookup_resolve(&s_clock_font_slot, s_data.clock_font);
+  small_font = font_lookup_resolve(&s_clock_small_font_slot, s_data.clock_font_small);
   if (s_bottom_layer) layer_mark_dirty(s_bottom_layer);
 }
 
@@ -1323,10 +1129,6 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   if ((t = dict_find(iter, MESSAGE_KEY_BOTTOM_STYLE))) {
     s_data.bottom_style = t->value->uint8;
     apply_layout(); // may need to tear down/rebuild layers entirely -- see its own comment
-  }
-  if ((t = dict_find(iter, MESSAGE_KEY_ANALOG_STYLE))) {
-    s_data.analog_style = t->value->uint8;
-    if (s_bottom_layer) layer_mark_dirty(s_bottom_layer);
   }
   if ((t = dict_find(iter, MESSAGE_KEY_SUN_MOON_SIZE_PCT))) {
     s_data.sun_moon_size_pct = t->value->uint8;
@@ -1919,7 +1721,7 @@ static void corners_timer_callback(void *data) {
 // no-ops in that case.
 // Reacts to Timeline Quick View (or any future system overlay using
 // this same API) appearing/disappearing at the bottom of the screen.
-// Digital/analog mode's bottom panel used to just shrink its own
+// Digital mode's bottom panel used to just shrink its own
 // height from the bottom (top edge fixed) as the obstruction grew --
 // which cropped/hid its content (most visibly the digital clock's own
 // time text) rather than keeping it fully visible, since the text's
@@ -1928,7 +1730,7 @@ static void corners_timer_callback(void *data) {
 // ate into it, keeping its own full height (and everything drawn in
 // it) intact, with the sky canvas above it shrinking by that same
 // amount to make room -- same "make room by moving, not cropping"
-// idea big-analogue mode's hands/canvas already used for this.
+// idea analog mode's hands/canvas already used for this.
 static void unobstructed_change_handler(AnimationProgress progress, void *context) {
   if (!s_window) return;
   Layer *root = window_get_root_layer(s_window);
@@ -1937,7 +1739,7 @@ static void unobstructed_change_handler(AnimationProgress progress, void *contex
   int16_t obstruction_h = full_bounds.size.h - unobstructed.size.h;
   if (obstruction_h < 0) obstruction_h = 0;
 
-  if (s_data.bottom_style != 2 && s_bottom_layer) {
+  if (s_data.bottom_style != 1 && s_bottom_layer) {
     // 152 -- the panel's own always-unobstructed top, fixed by
     // apply_layout() -- not read from the layer's current frame,
     // since that may already be shifted up from a previous
@@ -1967,7 +1769,7 @@ static void unobstructed_change_handler(AnimationProgress progress, void *contex
     }
   }
 
-  if (s_data.bottom_style == 2 && s_canvas_layer) {
+  if (s_data.bottom_style == 1 && s_canvas_layer) {
     GRect frame = layer_get_frame(s_canvas_layer);
     if (frame.size.h != unobstructed.size.h) {
       frame.size.h = unobstructed.size.h;
@@ -1992,7 +1794,7 @@ static void apply_layout(void) {
   Layer *root = window_get_root_layer(s_window);
   GRect bounds = layer_get_bounds(root);
   uint8_t style = s_data.bottom_style;
-  // Only meaningful (and only shown on the settings page) in big-analog
+  // Only meaningful (and only shown on the settings page) in analog
   // mode, but tracked unconditionally here so a change to it never gets
   // silently ignored if it arrives alongside/after a style switch.
   bool beneath_hands = s_data.draw_features_beneath_hands;
@@ -2021,8 +1823,8 @@ static void apply_layout(void) {
     s_features_layer = NULL;
   }
 
-  if (style == 2) {
-    // Big analogue: sky canvas fills the whole screen; hands render in
+  if (style == 1) {
+    // Analog: sky canvas fills the whole screen; hands render in
     // their own always-on-top transparent layer; no bottom bar. Which
     // of the hands layer and the features overlay gets added (and so
     // painted) second -- i.e. which one ends up on top -- depends on
@@ -2040,9 +1842,8 @@ static void apply_layout(void) {
       layer_add_child(root, s_hands_layer);
     }
   } else {
-    // Digital / analog: sky canvas keeps its original top-2/3
-    // proportions; bottom third is the digital time or the analog
-    // clock + 4-line info panel.
+    // Digital: sky canvas keeps its original top-2/3
+    // proportions; bottom third is the digital time.
     s_canvas_layer = eclipse_canvas_create(GRect(0, 0, bounds.size.w, 152));
     layer_add_child(root, s_canvas_layer);
     s_bottom_layer = layer_create(GRect(0, 152, bounds.size.w, bounds.size.h - 152));
@@ -2053,8 +1854,8 @@ static void apply_layout(void) {
 
   // Overlays exactly the sky canvas's own bounds -- reuses its
   // just-created frame rather than duplicating the size logic above, so
-  // it always matches regardless of mode. In every mode except "big
-  // analog with features beneath hands" (handled above, where it was
+  // it always matches regardless of mode. In every mode except "analog
+  // with features beneath hands" (handled above, where it was
   // already created and added before the hands layer), it's created
   // and added here, last, so it draws on top of everything else built
   // so far -- per the original brief's "on top of the eclipse layer".
