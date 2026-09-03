@@ -105,6 +105,13 @@ var MARKER_PREVIEW_IMAGES = require('./marker-preview-images');
 var HAND_STYLE_IMAGES = require('./hand-style-images');
 var MARKER_PRESET_IMAGES = require('./marker-preset-images');
 
+// Base64 data: URIs for the hand editor popup's own full-width
+// explainer diagram, one per HandConfig.style value (see
+// scripts/generate-infographics.js and its own comment) -- distinct
+// from HAND_STYLE_IMAGES above, which is the style PICKER popup's
+// thumbnail grid, not the editor's in-popup diagram.
+var HAND_STYLE_DIAGRAM_IMAGES = require('./hand-style-diagram-images');
+
 // "Example styles" grid (first section on the settings page) -- each
 // numbered slot pairs a screenshot (resources/example-styles/<n>.png,
 // embedded at build time -- see generate-example-style-previews.js)
@@ -627,6 +634,7 @@ function handEditorModalHtml(kind, title) {
 '<div class="modal-overlay" id="handEditorModal-' + kind + '" onclick="if (event.target === this) closeHandEditor(\'' + kind + '\');">' +
 '  <div class="modal-box">' +
 '    <div class="modal-title">' + esc(title) + '</div>' +
+'    <img class="hand-editor-diagram" id="' + p + 'Diagram" src="" alt="">' +
 '    <div class="modal-scroll-body">' +
 
 '    <label for="' + p + 'Style">Shape</label>' +
@@ -645,7 +653,7 @@ function handEditorModalHtml(kind, title) {
 '    </select>' +
 
 '    <div class="slider-row">' +
-'      <label for="' + p + 'Width">Width <span class="val" id="' + p + 'WidthVal"></span></label>' +
+'      <label for="' + p + 'Width">A. Width <span class="val" id="' + p + 'WidthVal"></span></label>' +
 '      <div class="slider-with-buttons">' +
 '      <button type="button" class="slider-step-btn" onclick="stepSlider(\'' + p + 'Width\', -1)">&minus;</button>' +
 '      <input type="range" id="' + p + 'Width" min="1" max="40" step="1" oninput="onHandSliderInput(\'' + kind + '\')">' +
@@ -653,7 +661,7 @@ function handEditorModalHtml(kind, title) {
 '      </div>' +
 '    </div>' +
 '    <div class="slider-row">' +
-'      <label for="' + p + 'Length">Length <span class="val" id="' + p + 'LengthVal"></span></label>' +
+'      <label for="' + p + 'Length">B. Length <span class="val" id="' + p + 'LengthVal"></span></label>' +
 '      <div class="slider-with-buttons">' +
 '      <button type="button" class="slider-step-btn" onclick="stepSlider(\'' + p + 'Length\', -1)">&minus;</button>' +
 '      <input type="range" id="' + p + 'Length" min="10" max="100" step="1" oninput="onHandSliderInput(\'' + kind + '\')">' +
@@ -661,7 +669,7 @@ function handEditorModalHtml(kind, title) {
 '      </div>' +
 '    </div>' +
 '    <div class="slider-row">' +
-'      <label for="' + p + 'BackOffset">Back offset <span class="val" id="' + p + 'BackOffsetVal"></span></label>' +
+'      <label for="' + p + 'BackOffset">C. Back offset <span class="val" id="' + p + 'BackOffsetVal"></span></label>' +
 '      <div class="slider-with-buttons">' +
 '      <button type="button" class="slider-step-btn" onclick="stepSlider(\'' + p + 'BackOffset\', -1)">&minus;</button>' +
 '      <input type="range" id="' + p + 'BackOffset" min="-40" max="40" step="1" oninput="onHandSliderInput(\'' + kind + '\')">' +
@@ -671,7 +679,7 @@ function handEditorModalHtml(kind, title) {
 '    <div class="help">Positive extends a tail behind the pivot; negative starts the hand short of center (a detached gap).</div>' +
 
 '    <div class="slider-row" id="' + p + 'MiddleOffsetRow">' +
-'      <label for="' + p + 'MiddleOffset">Middle offset <span class="val" id="' + p + 'MiddleOffsetVal"></span></label>' +
+'      <label for="' + p + 'MiddleOffset">D. Middle offset <span class="val" id="' + p + 'MiddleOffsetVal"></span></label>' +
 '      <div class="slider-with-buttons">' +
 '      <button type="button" class="slider-step-btn" onclick="stepSlider(\'' + p + 'MiddleOffset\', -1)">&minus;</button>' +
 '      <input type="range" id="' + p + 'MiddleOffset" min="-40" max="40" step="1" oninput="onHandSliderInput(\'' + kind + '\')">' +
@@ -679,7 +687,7 @@ function handEditorModalHtml(kind, title) {
 '      </div>' +
 '    </div>' +
 '    <div class="slider-row" id="' + p + 'SecondaryWidthRow">' +
-'      <label for="' + p + 'SecondaryWidth">Secondary width <span class="val" id="' + p + 'SecondaryWidthVal"></span></label>' +
+'      <label for="' + p + 'SecondaryWidth">E. Secondary width <span class="val" id="' + p + 'SecondaryWidthVal"></span></label>' +
 '      <div class="slider-with-buttons">' +
 '      <button type="button" class="slider-step-btn" onclick="stepSlider(\'' + p + 'SecondaryWidth\', -1)">&minus;</button>' +
 '      <input type="range" id="' + p + 'SecondaryWidth" min="1" max="40" step="1" oninput="onHandSliderInput(\'' + kind + '\')">' +
@@ -704,7 +712,7 @@ function handEditorModalHtml(kind, title) {
 '    </div>' +
 '    <div class="help">Draws a thick inline stroke of the shape\'s own outline instead of a solid fill -- within the shape\'s bounds, unlike Outline below which marks it from the outside.</div>' +
 '    <div class="slider-row" id="' + p + 'HollowThicknessRow">' +
-'      <label for="' + p + 'HollowThickness">Hollow thickness <span class="val" id="' + p + 'HollowThicknessVal"></span></label>' +
+'      <label for="' + p + 'HollowThickness">F. Hollow thickness <span class="val" id="' + p + 'HollowThicknessVal"></span></label>' +
 '      <div class="slider-with-buttons">' +
 '      <button type="button" class="slider-step-btn" onclick="stepSlider(\'' + p + 'HollowThickness\', -1)">&minus;</button>' +
 '      <input type="range" id="' + p + 'HollowThickness" min="1" max="40" step="1" oninput="onHandSliderInput(\'' + kind + '\')">' +
@@ -725,7 +733,7 @@ function handEditorModalHtml(kind, title) {
 '    </div>' +
 '    <div class="help">A drop shadow of the hand\'s own shape, offset a fixed distance in a fixed direction (not rotated with the hand). Solid or translucent is set once for every hand in the Style section.</div>' +
 '    <div class="slider-row">' +
-'      <label for="' + p + 'ShadowDistance">Shadow distance <span class="val" id="' + p + 'ShadowDistanceVal"></span></label>' +
+'      <label for="' + p + 'ShadowDistance">G. Shadow distance <span class="val" id="' + p + 'ShadowDistanceVal"></span></label>' +
 '      <div class="slider-with-buttons">' +
 '      <button type="button" class="slider-step-btn" onclick="stepSlider(\'' + p + 'ShadowDistance\', -1)">&minus;</button>' +
 '      <input type="range" id="' + p + 'ShadowDistance" min="1" max="5" step="1" oninput="onHandSliderInput(\'' + kind + '\')">' +
@@ -1022,6 +1030,8 @@ function buildConfigHtml(current) {
 '  .modal-overlay.open { display: flex; }' +
 '  .modal-box { background: var(--card-bg); border-radius: 12px 12px 0 0; padding: 16px; width: 100%; max-width: 400px; max-height: 80vh; box-sizing: border-box; display: flex; flex-direction: column; overflow: hidden; }' +
 '  .modal-title { font-weight: 600; font-size: 15px; margin-bottom: 10px; text-align: center; color: var(--text); flex: 0 0 auto; }' +
+'  .hand-editor-diagram { width: 100%; height: auto; display: block; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 10px; flex: 0 0 auto; }' +
+'  .hand-editor-diagram:not([src]), .hand-editor-diagram[src=""] { display: none; }' +
 '  .modal-scroll-body { overflow-y: auto; flex: 1 1 auto; min-height: 0; }' +
 '  .modal-footer { flex: 0 0 auto; }' +
 '  .hex-grid { position: relative; width: 260px; height: 255px; margin: 0 auto; }' +
@@ -1742,6 +1752,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 'var MARKER_PREVIEW_IMAGES = ' + JSON.stringify(MARKER_PREVIEW_IMAGES) + ';' +
 'var HAND_STYLE_IMAGES = ' + JSON.stringify(HAND_STYLE_IMAGES) + ';' +
 'var MARKER_PRESET_IMAGES = ' + JSON.stringify(MARKER_PRESET_IMAGES) + ';' +
+'var HAND_STYLE_DIAGRAM_IMAGES = ' + JSON.stringify(HAND_STYLE_DIAGRAM_IMAGES) + ';' +
 // EXAMPLE_STYLE_PRESETS is { title, description, preset } per slot
 // (or null for an empty one) -- the popup below reads title/
 // description directly, and applies `.preset` (the same shape
@@ -3057,6 +3068,12 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  });' +
 '  var secEl = document.getElementById(p + "SecondaryWidthRow");' +
 '  if (secEl) secEl.style.display = showSecondary ? "" : "none";' +
+'  var diagramImg = document.getElementById(p + "Diagram");' +
+'  if (diagramImg) {' +
+'    var src = HAND_STYLE_DIAGRAM_IMAGES[styleEl.value];' +
+'    diagramImg.style.display = src ? "" : "none";' +
+'    diagramImg.src = src || "";' +
+'  }' +
 '}' +
 // Shows/hides the Hollow thickness slider based on the Hollow
 // checkbox -- called both on the checkbox's own onchange and once up
