@@ -478,66 +478,116 @@ static void compute_hand_geometry_fp(FGPoint center, int32_t angle, const HandCo
                // exact circular arcs. Not visually distinguishable
                // from true arcs at watch-face scale/resolution.
       #define SERP_SEGMENTS 6
-      int32_t amp_fp = (half_sw_fp > half_w_fp) ? (half_sw_fp - half_w_fp) : 0;
-      int32_t diameter_fp = (int32_t)cfg->middle_offset << SUBPIXEL_BITS;
-      if (diameter_fp < 0) diameter_fp = -diameter_fp;
-      if (diameter_fp < (4 << SUBPIXEL_BITS)) diameter_fp = 4 << SUBPIXEL_BITS; // guard
-        // against a near-0 period aliasing into meaningless high-
-        // frequency noise (and against dividing by ~0 below)
-      int32_t period_fp = diameter_fp * 2;
-      int32_t dir_sign = (cfg->middle_offset < 0) ? -1 : 1;
-      int32_t span_fp = len_fp - back_fp;
 
-      FGPoint verts[SERP_SEGMENTS + 1];
-      for (int i = 0; i <= SERP_SEGMENTS; i++) {
-        int32_t s_rel_fp = round_div(span_fp * i, SERP_SEGMENTS);
-        int32_t ax = back_fp + s_rel_fp;
-        int64_t angle_raw = ((int64_t)s_rel_fp * TRIG_MAX_ANGLE) / period_fp;
-        int32_t angle = (int32_t)(angle_raw % TRIG_MAX_ANGLE);
-        int32_t sin_val = sin_lookup(angle) * dir_sign;
-        int32_t dev_fp = (int32_t)(((int64_t)amp_fp * sin_val) / TRIG_MAX_RATIO);
-        verts[i] = point_at_axial_fp(center, sin_v, cos_v, ax);
-        int32_t dx, dy;
-        perp_offset_fp(sin_v, cos_v, dev_fp, &dx, &dy);
-        verts[i].x += dx;
-        verts[i].y += dy;
-      }
+      int32_t wave_fp = (int32_t)cfg->middle_offset << SUBPIXEL_BITS;
 
-      // Each segment quad uses ITS OWN straight-line tangent for its
-      // perpendicular offset (like a straight capsule between its two
-      // vertices) rather than a bisector shared with its neighbors.
-      // A shared-bisector offset (this file's earlier approach) keeps
-      // the ribbon perfectly seamless at each joint, but at a sharp
-      // enough bend -- short segments, a tight requested curvature, a
-      // thin line -- the bisector direction can diverge enough from
-      // either segment's own direction that the resulting quad's
-      // edges cross (a real, if rare, self-intersecting "bowtie" -- not
-      // just fixed-point rounding noise). Computing each quad
-      // independently off its own segment guarantees a valid convex
-      // quad every time (same guarantee append_capsule_fp's rectangle
-      // already relies on for a single straight segment); the only
-      // cost is a small seam -- a hair's-width sliver of a gap or
-      // overlap -- at each joint, invisible at watch-face scale with
-      // SERP_SEGMENTS this low.
-      for (int i = 0; i < SERP_SEGMENTS; i++) {
-        FGPoint a = verts[i], b = verts[i + 1];
-        int32_t tx = b.x - a.x, ty = b.y - a.y;
-        int64_t len_sq = (int64_t)tx * tx + (int64_t)ty * ty;
-        int32_t ox, oy;
-        if (len_sq == 0) {
-          perp_offset_fp(sin_v, cos_v, half_w_fp, &ox, &oy);
-        } else {
-          int32_t tlen = (int32_t)isqrt64_fp(len_sq);
-          ox = round_div(-ty * half_w_fp, tlen);
-          oy = round_div(tx * half_w_fp, tlen);
-        }
-        HandPoly *poly = &geo->polys[geo->n_polys++];
-        poly->n = 4;
-        poly->thin = thin_w;
-        poly->pts[0] = fgpoint_new(a.x - ox, a.y - oy);
-        poly->pts[1] = fgpoint_new(a.x + ox, a.y + oy);
-        poly->pts[2] = fgpoint_new(b.x + ox, b.y + oy);
-        poly->pts[3] = fgpoint_new(b.x - ox, b.y - oy);
+      if (wave_fp != 0) {
+          // Amplitude is controlled by the difference between the
+          // secondary envelope and the actual hand width.
+          int32_t amp_fp = half_sw_fp - half_w_fp;
+          if (amp_fp < 0) {
+              amp_fp = 0;
+          }
+
+          // Clamp the actual stroke width to secondary_width / 4,
+          // with a minimum of 1 pixel.
+          int32_t max_half_w_fp = half_sw_fp / 4;
+
+          if (half_w_fp > max_half_w_fp) {
+              half_w_fp = max_half_w_fp;
+          }
+
+          if (half_w_fp < (1 << SUBPIXEL_BITS)) {
+              half_w_fp = (1 << SUBPIXEL_BITS);
+          }
+
+          const int32_t span_fp = len_fp - back_fp;
+
+          FGPoint verts[SERP_SEGMENTS + 1];
+
+          // middle_offset is one complete wavelength.
+          // Use exactly one wavelength across the complete hand.
+          //
+          // Positive = normal direction
+          // Negative = reverse direction
+          const int32_t direction = (wave_fp < 0) ? -1 : 1;
+
+          for (int i = 0; i <= SERP_SEGMENTS; i++) {
+              // Position along the complete hand span.
+              int32_t s_fp = (span_fp * i) / SERP_SEGMENTS;
+              int32_t axial_fp = back_fp + s_fp;
+
+              // One complete sine wave over the complete span:
+              //
+              // 0, 60, 120, 180, 240, 300, 360 degrees
+              //
+              int32_t phase = (i * TRIG_MAX_ANGLE) / SERP_SEGMENTS;
+
+              int32_t sine = sin_lookup(phase) * direction;
+
+              int32_t deviation_fp =
+                  (int32_t)(((int64_t)amp_fp * sine) / TRIG_MAX_RATIO);
+
+              verts[i] = point_at_axial_fp(
+                  center,
+                  sin_v,
+                  cos_v,
+                  axial_fp
+              );
+
+              int32_t dx, dy;
+              perp_offset_fp(
+                  sin_v,
+                  cos_v,
+                  deviation_fp,
+                  &dx,
+                  &dy
+              );
+
+              verts[i].x += dx;
+              verts[i].y += dy;
+          }
+
+          for (int i = 0; i < SERP_SEGMENTS; i++) {
+              int32_t dx = verts[i + 1].x - verts[i].x;
+              int32_t dy = verts[i + 1].y - verts[i].y;
+
+              int32_t len_sq =
+                  (int32_t)(((int64_t)dx * dx) +
+                             ((int64_t)dy * dy));
+
+              int32_t seg_len_fp = isqrt64_fp(len_sq);
+
+              if (seg_len_fp <= 0) {
+                  continue;
+              }
+
+              // Perpendicular to this individual segment.
+              int32_t px = (int32_t)(
+                  -((int64_t)dy * half_w_fp) / seg_len_fp
+              );
+
+              int32_t py = (int32_t)(
+                  ((int64_t)dx * half_w_fp) / seg_len_fp
+              );
+
+              HandPoly *poly = &geo->polys[geo->n_polys++];
+
+              poly->n = 4;
+              poly->thin = (half_w_fp < (3 << (SUBPIXEL_BITS - 1)));
+
+              poly->pts[0].x = verts[i].x     + px;
+              poly->pts[0].y = verts[i].y     + py;
+
+              poly->pts[1].x = verts[i + 1].x + px;
+              poly->pts[1].y = verts[i + 1].y + py;
+
+              poly->pts[2].x = verts[i + 1].x - px;
+              poly->pts[2].y = verts[i + 1].y - py;
+
+              poly->pts[3].x = verts[i].x     - px;
+              poly->pts[3].y = verts[i].y     - py;
+          }
       }
       #undef SERP_SEGMENTS
       return;
