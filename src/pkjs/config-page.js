@@ -70,54 +70,11 @@ var MODE_BTN_ICONS = {
     '</mask>' +
     '<rect x="4" y="152" width="192" height="72" rx="8" fill="currentColor" stroke="none" mask="url(#modeIconDigitalMask)"/>' +
     '</svg>',
-  // Same top 2/3 dots, same dark bottom band, but its mask carves out
-  // several windows: a small analog clock face on the left and 4
-  // thin stacked info-line rows on the right -- matches ANALOG's
-  // actual layout (a small analog face plus edge-content readouts
-  // alongside it). The 4 lines are plain mask cutouts (same trick as
-  // the digital icon's time/date bars), but the clock's ring + hands
-  // are drawn as normal currentColor strokes ON TOP of its own
-  // circular window instead -- a mask hole can only be a solid
-  // silhouette, and a ring-with-hands isn't one. That only works
-  // because the hole is genuinely transparent there (showing whatever
-  // the icon's own background is, not the band's fill), so the
-  // stroke has something to contrast against; drawing those same
-  // strokes directly over the (currentColor-filled) band instead, the
-  // way an earlier version of the 4 lines did, made them invisible --
-  // stroke and fill were the same color. Every shape inside a <mask>
-  // needs its own explicit stroke="none" too, for a related reason:
-  // otherwise they inherit the root <svg>'s stroke="currentColor"
-  // stroke-width="8", and on an 8px-tall cutout rect that inherited
-  // stroke is wide enough to straddle and wash out the whole shape's
-  // silhouette with light-colored (visible-in-the-mask) pixels,
-  // defeating the fill="#000" (hidden) that rect was supposed to mean.
-  analog:
-    '<svg viewBox="0 0 200 228" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">' +
-    '<rect x="4" y="4" width="192" height="220" rx="20"/>' +
-    '<circle cx="40" cy="30" r="5" fill="currentColor" stroke="none"/>' +
-    '<circle cx="100" cy="50" r="4" fill="currentColor" stroke="none"/>' +
-    '<circle cx="150" cy="35" r="5" fill="currentColor" stroke="none"/>' +
-    '<circle cx="60" cy="90" r="4" fill="currentColor" stroke="none"/>' +
-    '<circle cx="140" cy="100" r="4" fill="currentColor" stroke="none"/>' +
-    '<circle cx="95" cy="122" r="5" fill="currentColor" stroke="none"/>' +
-    '<mask id="modeIconAnalogMask">' +
-    '<rect x="4" y="152" width="192" height="72" rx="8" fill="#fff" stroke="none"/>' +
-    '<circle cx="46" cy="188" r="27" fill="#000" stroke="none"/>' +
-    '<rect x="90" y="160" width="90" height="8" rx="4" fill="#000" stroke="none"/>' +
-    '<rect x="90" y="174" width="90" height="8" rx="4" fill="#000" stroke="none"/>' +
-    '<rect x="90" y="188" width="90" height="8" rx="4" fill="#000" stroke="none"/>' +
-    '<rect x="90" y="202" width="90" height="8" rx="4" fill="#000" stroke="none"/>' +
-    '</mask>' +
-    '<rect x="4" y="152" width="192" height="72" rx="8" fill="currentColor" stroke="none" mask="url(#modeIconAnalogMask)"/>' +
-    '<circle cx="46" cy="188" r="22" stroke-width="6"/>' +
-    '<line x1="46" y1="188" x2="46" y2="174" stroke-width="6"/>' +
-    '<line x1="46" y1="188" x2="57" y2="194" stroke-width="6"/>' +
-    '</svg>',
   // No separate info band at all -- one big analog clock filling
   // nearly the whole screen, plus a couple of stray sky dots, since
-  // BIG ANALOG replaces the digital/edge-content area entirely rather
-  // than sharing the screen with it the way the other two do.
-  biganalog:
+  // ANALOG replaces the digital/edge-content area entirely rather
+  // than sharing the screen with it the way DIGITAL does.
+  analog:
     '<svg viewBox="0 0 200 228" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">' +
     '<rect x="4" y="4" width="192" height="220" rx="20"/>' +
     '<circle cx="100" cy="114" r="88" stroke-width="7"/>' +
@@ -137,6 +94,23 @@ var MODE_BTN_ICONS = {
 // it). Missing entries (a style with no PNG provided yet) are handled
 // gracefully wherever this is used below, not treated as an error.
 var MARKER_PREVIEW_IMAGES = require('./marker-preview-images');
+
+// Base64 data: URIs for the hand style picker popup's 9 buttons
+// (resources/infographics/hands<n>.png -- see
+// scripts/generate-infographics.js) and the marker style picker
+// popup's 4 procedural-preset buttons (marker_preset_<name>.png,
+// same script) -- same "generated at build time, embedded gracefully
+// missing-or-not" story as MARKER_PREVIEW_IMAGES/EXAMPLE_STYLE_IMAGES
+// above and below.
+var HAND_STYLE_IMAGES = require('./hand-style-images');
+var MARKER_PRESET_IMAGES = require('./marker-preset-images');
+
+// Base64 data: URIs for the hand editor popup's own full-width
+// explainer diagram, one per HandConfig.style value (see
+// scripts/generate-infographics.js and its own comment) -- distinct
+// from HAND_STYLE_IMAGES above, which is the style PICKER popup's
+// thumbnail grid, not the editor's in-popup diagram.
+var HAND_STYLE_DIAGRAM_IMAGES = require('./hand-style-diagram-images');
 
 // "Example styles" grid (first section on the settings page) -- each
 // numbered slot pairs a screenshot (resources/example-styles/<n>.png,
@@ -170,52 +144,77 @@ var EXAMPLE_STYLE_PRESETS = require('./example-style-presets');
 // `pairedSmallId` (mainClock entries only) is which small font this
 // big one defaults to pairing with for the clock's own small-readout
 // companion (seconds digits, sunrise/sunset, the date line) --
-// auto-selected on change, still independently overridable after.
+// auto-selected on change (onFontChange()), still independently
+// overridable after. Only set to another font in the SAME family when
+// one genuinely exists in this table (Digital Dream -> Digital Dream
+// Small, Leco XL -> Leco Small, etc.); every mainClock font with no
+// real small counterpart defaults to id 4 (System XXL) instead of a
+// guessed unrelated font -- edit these by hand as real matches get
+// designed.
+// `small: true` marks a font compact enough to read well at the
+// small sizes the corner/edge Font picker and the clock's own Small
+// companion font picker use it at (height <= 30px) -- both of those
+// two pickers hide `small: false` fonts by default (their own "Show
+// incompatible fonts" checkbox reveals them), since most of the
+// ~48px-scale mainClock fonts read poorly or clip at those small
+// sizes. Doesn't affect the marker text font picker (all fonts always
+// shown there) or the main Clock font picker (mainClock already
+// filters that one to just the big fonts).
+// `secondsDisabled: true` marks a font that Show Seconds should be
+// entirely grayed out and force-unchecked for in digital mode (as
+// opposed to `wide` below, which just substitutes a small-font digit
+// box for the seconds rather than disabling them at all) -- these are
+// custom display fonts that read badly, clip, or plain don't have
+// numerals that suit a running seconds counter squeezed in next to
+// them. save() also re-checks this at save time and overrides
+// CONFIG_SHOW_SECONDS to false regardless of the checkbox's own state
+// if it's true, so a stale/already-saved seconds-on selection can
+// never reach the watch paired with a font that can't support it.
 // `wide: true` marks a font that runs too wide for a full HH:MM:SS
 // digital readout at its normal size, matching font_lookup.c's own
-// `wide` column exactly -- grays out the Show Seconds checkbox in
-// digital mode (see secondsUnsupported below), same reasoning
-// font_lookup_is_wide()/use_small_seconds_for_digital_clock() apply
-// on the watch itself.
+// `wide` column exactly -- these get the seconds digits shrunk into
+// their own small-font box instead of grayed out entirely, same
+// reasoning font_lookup_is_wide()/use_small_seconds_for_digital_clock()
+// apply on the watch itself.
 var FONT_LOOKUP = [
-  { id: 0,  label: 'System Small',        height: 14, preview: "font-family: Arial, sans-serif;" },
-  { id: 1,  label: 'System Medium',       height: 18, preview: "font-family: Arial, sans-serif; font-weight: 700;" },
-  { id: 2,  label: 'System Large',        height: 24, preview: "font-family: Arial, sans-serif; font-weight: 700;" },
-  { id: 3,  label: 'System XL',           height: 32, preview: "font-family: Arial, sans-serif; font-weight: 700;" },
-  { id: 4,  label: 'System XXL',          height: 36, preview: "font-family: Arial, sans-serif; font-weight: 700;" },
-  { id: 5,  label: 'Leco Small',          height: 17, preview: "font-family: Arial, sans-serif; font-weight: 300;" },
-  { id: 6,  label: 'Leco Medium',         height: 20, preview: "font-family: Arial, sans-serif; font-weight: 700;" },
-  { id: 7,  label: 'Leco Large',          height: 23, preview: "font-family: Arial, sans-serif; font-weight: 700;" },
-  { id: 8,  label: 'Leco XL',             height: 26, preview: "font-family: Arial, sans-serif; font-weight: 700;", mainClock: true, pairedSmallId: 0 },
-  { id: 9,  label: 'Droid Serif',         height: 17, preview: "font-family: Georgia, serif; font-weight: 700;" },
-  { id: 10, label: 'Roboto Condensed',    height: 15, preview: "font-family: 'Roboto Condensed', Arial, sans-serif;" },
-  { id: 11, label: 'Roboto Bold',         height: 30, preview: "font-family: 'Roboto', Arial, sans-serif; font-weight: 700;", mainClock: true, pairedSmallId: 10 },
-  { id: 12, label: 'Bitham Bold 30',      height: 19, preview: "font-family: 'Futura', 'Century Gothic', sans-serif; font-weight: 700;" },
-  { id: 13, label: 'Bitham Medium 34',    height: 21, preview: "font-family: 'Futura', 'Century Gothic', sans-serif; font-weight: 500;" },
-  { id: 14, label: 'Bitham Light',        height: 26, preview: "font-family: 'Futura', 'Century Gothic', sans-serif; font-weight: 300; letter-spacing: 1px;", mainClock: true, pairedSmallId: 0 },
-  { id: 15, label: 'Bitham Bold',         height: 26, preview: "font-family: 'Futura', 'Century Gothic', sans-serif; font-weight: 700; letter-spacing: 1px;", mainClock: true, pairedSmallId: 0 },
-  { id: 16, label: 'Digital Dream Small', height: 12, preview: "font-family: 'Courier New', monospace; letter-spacing: 2px; font-weight: 700;" },
-  { id: 17, label: 'Digital Dream',       height: 40, preview: "font-family: 'Courier New', monospace; letter-spacing: 4px; font-weight: 700;", mainClock: true, pairedSmallId: 16 },
-  { id: 18, label: 'Minecrafter Small',   height: 12, preview: "font-family: 'Courier New', monospace; letter-spacing: 2px;" },
-  { id: 19, label: 'Minecrafter',         height: 40, preview: "font-family: 'Courier New', monospace; letter-spacing: 3px;", mainClock: true, pairedSmallId: 18, wide: true },
-  { id: 20, label: 'SF Pixelate Small',   height: 14, preview: "font-family: 'Courier New', monospace; letter-spacing: 1px;" },
-  { id: 21, label: 'SF Pixelate',         height: 40, preview: "font-family: 'Courier New', monospace; letter-spacing: 2px;", mainClock: true, pairedSmallId: 0, wide: true },
-  { id: 22, label: 'Miso Small',          height: 19, preview: "font-family: 'Century Gothic', sans-serif; font-weight: 600;" },
-  { id: 23, label: 'Miso',                height: 40, preview: "font-family: 'Century Gothic', sans-serif; font-weight: 600;", mainClock: true, pairedSmallId: 22 },
-  { id: 24, label: 'Bebas Small',         height: 20, preview: "font-family: 'Bebas', 'Century Gothic', sans-serif; font-weight: 700; letter-spacing: 1px;" },
-  { id: 25, label: 'Bebas',               height: 40, preview: "font-family: 'Bebas', 'Century Gothic', sans-serif; font-weight: 700; letter-spacing: 1px;", mainClock: true, pairedSmallId: 24 },
-  { id: 26, label: 'ClockForge',          height: 40, preview: "font-family: Impact, sans-serif; font-weight: 700; letter-spacing: 1px;", mainClock: true, pairedSmallId: 16 },
-  { id: 27, label: 'Radioland',           height: 40, preview: "font-family: 'Courier New', monospace; font-weight: 700;", mainClock: true, pairedSmallId: 16, wide: true },
-  { id: 28, label: 'Mini System',         height: 40, preview: "font-family: 'Courier New', monospace;", mainClock: true, pairedSmallId: 16, wide: true },
-  { id: 29, label: 'Kitchen Police',      height: 40, preview: "font-family: Impact, 'Arial Narrow', sans-serif;", mainClock: true, pairedSmallId: 0, wide: true },
-  { id: 30, label: 'DS Digital',          height: 40, preview: "font-family: 'Courier New', monospace; font-weight: 700; letter-spacing: 2px;", mainClock: true, pairedSmallId: 16 },
-  { id: 31, label: 'Distant Galaxy',      height: 40, preview: "font-family: 'Arial Narrow', sans-serif; letter-spacing: 3px; font-weight: 700;", mainClock: true, pairedSmallId: 24 },
-  { id: 32, label: 'Dimitri',             height: 40, preview: "font-family: Georgia, serif; font-weight: 700;", mainClock: true, pairedSmallId: 18 },
-  { id: 33, label: 'Blackout',            height: 40, preview: "font-family: Impact, sans-serif; font-weight: 900;", mainClock: true, pairedSmallId: 24 },
-  { id: 34, label: 'Audiowide',           height: 40, preview: "font-family: 'Arial Black', sans-serif; letter-spacing: 1px;", mainClock: true, pairedSmallId: 24, wide: true },
-  { id: 35, label: 'Formation',           height: 40, preview: "font-family: Verdana, sans-serif; font-weight: 700;", mainClock: true, pairedSmallId: 24 },
-  { id: 36, label: 'Komika',              height: 40, preview: "font-family: 'Comic Sans MS', cursive; font-weight: 700;", mainClock: true, pairedSmallId: 22, wide: true },
-  { id: 37, label: 'Pricedown',           height: 40, preview: "font-family: Impact, 'Arial Narrow', sans-serif; font-style: italic; letter-spacing: 1px;", mainClock: true, pairedSmallId: 18 }
+  { id: 0,  label: 'System Small',        height: 14, preview: "font-family: Arial, sans-serif;", small: true },
+  { id: 1,  label: 'System Medium',       height: 18, preview: "font-family: Arial, sans-serif; font-weight: 700;", small: true },
+  { id: 2,  label: 'System Large',        height: 24, preview: "font-family: Arial, sans-serif; font-weight: 700;", small: true },
+  { id: 3,  label: 'System XL',           height: 32, preview: "font-family: Arial, sans-serif; font-weight: 700;", small: false },
+  { id: 4,  label: 'System XXL',          height: 36, preview: "font-family: Arial, sans-serif; font-weight: 700;", small: false },
+  { id: 5,  label: 'Leco Small',          height: 17, preview: "font-family: Arial, sans-serif; font-weight: 300;", small: true },
+  { id: 6,  label: 'Leco Medium',         height: 20, preview: "font-family: Arial, sans-serif; font-weight: 700;", small: true },
+  { id: 7,  label: 'Leco Large',          height: 23, preview: "font-family: Arial, sans-serif; font-weight: 700;", small: true },
+  { id: 8,  label: 'Leco XL',             height: 26, preview: "font-family: Arial, sans-serif; font-weight: 700;", small: true, mainClock: true, pairedSmallId: 5 },
+  { id: 9,  label: 'Droid Serif',         height: 17, preview: "font-family: Georgia, serif; font-weight: 700;", small: true },
+  { id: 10, label: 'Roboto Condensed',    height: 15, preview: "font-family: 'Roboto Condensed', Arial, sans-serif;", small: true },
+  { id: 11, label: 'Roboto Bold',         height: 30, preview: "font-family: 'Roboto', Arial, sans-serif; font-weight: 700;", small: true, mainClock: true, pairedSmallId: 10 },
+  { id: 12, label: 'Bitham Bold 30',      height: 19, preview: "font-family: 'Futura', 'Century Gothic', sans-serif; font-weight: 700;", small: true },
+  { id: 13, label: 'Bitham Medium 34',    height: 21, preview: "font-family: 'Futura', 'Century Gothic', sans-serif; font-weight: 500;", small: true },
+  { id: 14, label: 'Bitham Light',        height: 26, preview: "font-family: 'Futura', 'Century Gothic', sans-serif; font-weight: 300; letter-spacing: 1px;", small: true, mainClock: true, pairedSmallId: 4 },
+  { id: 15, label: 'Bitham Bold',         height: 26, preview: "font-family: 'Futura', 'Century Gothic', sans-serif; font-weight: 700; letter-spacing: 1px;", small: true, mainClock: true, pairedSmallId: 4 },
+  { id: 16, label: 'Digital Dream Small', height: 12, preview: "font-family: 'Courier New', monospace; letter-spacing: 2px; font-weight: 700;", small: true },
+  { id: 17, label: 'Digital Dream',       height: 40, preview: "font-family: 'Courier New', monospace; letter-spacing: 4px; font-weight: 700;", small: false, mainClock: true, pairedSmallId: 16 },
+  { id: 18, label: 'Minecrafter Small',   height: 12, preview: "font-family: 'Courier New', monospace; letter-spacing: 2px;", small: true },
+  { id: 19, label: 'Minecrafter',         height: 40, preview: "font-family: 'Courier New', monospace; letter-spacing: 3px;", small: false, mainClock: true, pairedSmallId: 18, wide: true, secondsDisabled: true },
+  { id: 20, label: 'SF Pixelate Small',   height: 14, preview: "font-family: 'Courier New', monospace; letter-spacing: 1px;", small: true },
+  { id: 21, label: 'SF Pixelate',         height: 40, preview: "font-family: 'Courier New', monospace; letter-spacing: 2px;", small: false, mainClock: true, pairedSmallId: 20, wide: true, secondsDisabled: true },
+  { id: 22, label: 'Miso Small',          height: 19, preview: "font-family: 'Century Gothic', sans-serif; font-weight: 600;", small: true },
+  { id: 23, label: 'Miso',                height: 40, preview: "font-family: 'Century Gothic', sans-serif; font-weight: 600;", small: false, mainClock: true, pairedSmallId: 22 },
+  { id: 24, label: 'Bebas Small',         height: 20, preview: "font-family: 'Bebas', 'Century Gothic', sans-serif; font-weight: 700; letter-spacing: 1px;", small: true },
+  { id: 25, label: 'Bebas',               height: 40, preview: "font-family: 'Bebas', 'Century Gothic', sans-serif; font-weight: 700; letter-spacing: 1px;", small: false, mainClock: true, pairedSmallId: 24 },
+  { id: 26, label: 'ClockForge',          height: 40, preview: "font-family: Impact, sans-serif; font-weight: 700; letter-spacing: 1px;", small: false, mainClock: true, pairedSmallId: 4 },
+  { id: 27, label: 'Radioland',           height: 40, preview: "font-family: 'Courier New', monospace; font-weight: 700;", small: false, mainClock: true, pairedSmallId: 4, wide: true, secondsDisabled: true },
+  { id: 28, label: 'Mini System',         height: 40, preview: "font-family: 'Courier New', monospace;", small: false, mainClock: true, pairedSmallId: 4, wide: true, secondsDisabled: true },
+  { id: 29, label: 'Kitchen Police',      height: 40, preview: "font-family: Impact, 'Arial Narrow', sans-serif;", small: false, mainClock: true, pairedSmallId: 4, wide: true, secondsDisabled: true },
+  { id: 30, label: 'DS Digital',          height: 40, preview: "font-family: 'Courier New', monospace; font-weight: 700; letter-spacing: 2px;", small: false, mainClock: true, pairedSmallId: 4 },
+  { id: 31, label: 'Distant Galaxy',      height: 40, preview: "font-family: 'Arial Narrow', sans-serif; letter-spacing: 3px; font-weight: 700;", small: false, mainClock: true, pairedSmallId: 4 },
+  { id: 32, label: 'Dimitri',             height: 40, preview: "font-family: Georgia, serif; font-weight: 700;", small: false, mainClock: true, pairedSmallId: 4 },
+  { id: 33, label: 'Blackout',            height: 40, preview: "font-family: Impact, sans-serif; font-weight: 900;", small: false, mainClock: true, pairedSmallId: 4 },
+  { id: 34, label: 'Audiowide',           height: 40, preview: "font-family: 'Arial Black', sans-serif; letter-spacing: 1px;", small: false, mainClock: true, pairedSmallId: 4, wide: true, secondsDisabled: true },
+  { id: 35, label: 'Formation',           height: 40, preview: "font-family: Verdana, sans-serif; font-weight: 700;", small: false, mainClock: true, pairedSmallId: 4 },
+  { id: 36, label: 'Komika',              height: 40, preview: "font-family: 'Comic Sans MS', cursive; font-weight: 700;", small: false, mainClock: true, pairedSmallId: 4, wide: true, secondsDisabled: true },
+  { id: 37, label: 'Pricedown',           height: 40, preview: "font-family: Impact, 'Arial Narrow', sans-serif; font-style: italic; letter-spacing: 1px;", small: false, mainClock: true, pairedSmallId: 4 }
 ];
 
 // Fastest way to go from an id to its entry -- every font picker
@@ -237,14 +236,15 @@ function fontOptionsHtml(selectedId, onlyMainClock) {
     return !onlyMainClock || f.mainClock;
   }).map(function (f) {
     return '<option value="' + f.id + '" data-preview="' + esc(f.preview) + '" data-seconds="' +
-      (f.wide ? '0' : '1') + '" data-height="' + f.height + '" data-paired-small="' + (f.pairedSmallId !== undefined ? f.pairedSmallId : 0) + '"' +
+      (f.secondsDisabled ? '0' : '1') + '" data-height="' + f.height + '" data-small="' + (f.small ? '1' : '0') +
+      '" data-paired-small="' + (f.pairedSmallId !== undefined ? f.pairedSmallId : 0) + '"' +
       (selectedId === f.id ? ' selected' : '') + '>' + esc(f.label) + '</option>';
   }).join('');
 }
 
 // A vertical stack of buttons that behaves like a radio group -- same
 // "one active at a time, tap to switch" idea as .mode-btn-group (the
-// 3-across DIGITAL/ANALOG/BIG ANALOG layout buttons), just stacked
+// side-by-side DIGITAL/ANALOG layout buttons), just stacked
 // instead of side-by-side, for option lists too long/wordy to fit
 // 3+ across (the two Animation section pickers). Backed by one hidden
 // input (same "hidden input is the real value, buttons just reflect
@@ -660,6 +660,7 @@ function handEditorModalHtml(kind, title) {
 '<div class="modal-overlay" id="handEditorModal-' + kind + '" onclick="if (event.target === this) closeHandEditor(\'' + kind + '\');">' +
 '  <div class="modal-box">' +
 '    <div class="modal-title">' + esc(title) + '</div>' +
+'    <img class="hand-editor-diagram" id="' + p + 'Diagram" src="" alt="">' +
 '    <div class="modal-scroll-body">' +
 
 '    <label for="' + p + 'Style">Shape</label>' +
@@ -678,7 +679,7 @@ function handEditorModalHtml(kind, title) {
 '    </select>' +
 
 '    <div class="slider-row">' +
-'      <label for="' + p + 'Width">Width <span class="val" id="' + p + 'WidthVal"></span></label>' +
+'      <label for="' + p + 'Width">A. Width <span class="val" id="' + p + 'WidthVal"></span></label>' +
 '      <div class="slider-with-buttons">' +
 '      <button type="button" class="slider-step-btn" onclick="stepSlider(\'' + p + 'Width\', -1)">&minus;</button>' +
 '      <input type="range" id="' + p + 'Width" min="1" max="40" step="1" oninput="onHandSliderInput(\'' + kind + '\')">' +
@@ -686,7 +687,7 @@ function handEditorModalHtml(kind, title) {
 '      </div>' +
 '    </div>' +
 '    <div class="slider-row">' +
-'      <label for="' + p + 'Length">Length <span class="val" id="' + p + 'LengthVal"></span></label>' +
+'      <label for="' + p + 'Length">B. Length <span class="val" id="' + p + 'LengthVal"></span></label>' +
 '      <div class="slider-with-buttons">' +
 '      <button type="button" class="slider-step-btn" onclick="stepSlider(\'' + p + 'Length\', -1)">&minus;</button>' +
 '      <input type="range" id="' + p + 'Length" min="10" max="100" step="1" oninput="onHandSliderInput(\'' + kind + '\')">' +
@@ -694,7 +695,7 @@ function handEditorModalHtml(kind, title) {
 '      </div>' +
 '    </div>' +
 '    <div class="slider-row">' +
-'      <label for="' + p + 'BackOffset">Back offset <span class="val" id="' + p + 'BackOffsetVal"></span></label>' +
+'      <label for="' + p + 'BackOffset">C. Back offset <span class="val" id="' + p + 'BackOffsetVal"></span></label>' +
 '      <div class="slider-with-buttons">' +
 '      <button type="button" class="slider-step-btn" onclick="stepSlider(\'' + p + 'BackOffset\', -1)">&minus;</button>' +
 '      <input type="range" id="' + p + 'BackOffset" min="-40" max="40" step="1" oninput="onHandSliderInput(\'' + kind + '\')">' +
@@ -704,7 +705,7 @@ function handEditorModalHtml(kind, title) {
 '    <div class="help">Positive extends a tail behind the pivot; negative starts the hand short of center (a detached gap).</div>' +
 
 '    <div class="slider-row" id="' + p + 'MiddleOffsetRow">' +
-'      <label for="' + p + 'MiddleOffset">Middle offset <span class="val" id="' + p + 'MiddleOffsetVal"></span></label>' +
+'      <label for="' + p + 'MiddleOffset">D. Middle offset <span class="val" id="' + p + 'MiddleOffsetVal"></span></label>' +
 '      <div class="slider-with-buttons">' +
 '      <button type="button" class="slider-step-btn" onclick="stepSlider(\'' + p + 'MiddleOffset\', -1)">&minus;</button>' +
 '      <input type="range" id="' + p + 'MiddleOffset" min="-40" max="40" step="1" oninput="onHandSliderInput(\'' + kind + '\')">' +
@@ -712,7 +713,7 @@ function handEditorModalHtml(kind, title) {
 '      </div>' +
 '    </div>' +
 '    <div class="slider-row" id="' + p + 'SecondaryWidthRow">' +
-'      <label for="' + p + 'SecondaryWidth">Secondary width <span class="val" id="' + p + 'SecondaryWidthVal"></span></label>' +
+'      <label for="' + p + 'SecondaryWidth">E. Secondary width <span class="val" id="' + p + 'SecondaryWidthVal"></span></label>' +
 '      <div class="slider-with-buttons">' +
 '      <button type="button" class="slider-step-btn" onclick="stepSlider(\'' + p + 'SecondaryWidth\', -1)">&minus;</button>' +
 '      <input type="range" id="' + p + 'SecondaryWidth" min="1" max="40" step="1" oninput="onHandSliderInput(\'' + kind + '\')">' +
@@ -737,7 +738,7 @@ function handEditorModalHtml(kind, title) {
 '    </div>' +
 '    <div class="help">Draws a thick inline stroke of the shape\'s own outline instead of a solid fill -- within the shape\'s bounds, unlike Outline below which marks it from the outside.</div>' +
 '    <div class="slider-row" id="' + p + 'HollowThicknessRow">' +
-'      <label for="' + p + 'HollowThickness">Hollow thickness <span class="val" id="' + p + 'HollowThicknessVal"></span></label>' +
+'      <label for="' + p + 'HollowThickness">F. Hollow thickness <span class="val" id="' + p + 'HollowThicknessVal"></span></label>' +
 '      <div class="slider-with-buttons">' +
 '      <button type="button" class="slider-step-btn" onclick="stepSlider(\'' + p + 'HollowThickness\', -1)">&minus;</button>' +
 '      <input type="range" id="' + p + 'HollowThickness" min="1" max="40" step="1" oninput="onHandSliderInput(\'' + kind + '\')">' +
@@ -758,7 +759,7 @@ function handEditorModalHtml(kind, title) {
 '    </div>' +
 '    <div class="help">A drop shadow of the hand\'s own shape, offset a fixed distance in a fixed direction (not rotated with the hand). Solid or translucent is set once for every hand in the Style section.</div>' +
 '    <div class="slider-row">' +
-'      <label for="' + p + 'ShadowDistance">Shadow distance <span class="val" id="' + p + 'ShadowDistanceVal"></span></label>' +
+'      <label for="' + p + 'ShadowDistance">G. Shadow distance <span class="val" id="' + p + 'ShadowDistanceVal"></span></label>' +
 '      <div class="slider-with-buttons">' +
 '      <button type="button" class="slider-step-btn" onclick="stepSlider(\'' + p + 'ShadowDistance\', -1)">&minus;</button>' +
 '      <input type="range" id="' + p + 'ShadowDistance" min="1" max="5" step="1" oninput="onHandSliderInput(\'' + kind + '\')">' +
@@ -782,8 +783,7 @@ function handEditorModalHtml(kind, title) {
 /**
  * @param {object} current  current settings, as plain values:
  *   { autoLoc, lat, lon, owmKey, updateMins,
- *     clockFont, showSeconds, bottomStyle: 'digital'|'analog'|'biganalog', analogStyle: '0'-'3',
- *     bigAnalogHandStyle: '0'-'2', bigAnalogTransparent,
+ *     clockFont, showSeconds, bottomStyle: 'digital'|'analog' (a persisted 'biganalog' from before this app version is treated as 'analog'),
  *     bigAnalogMarkerStyle: '0'-'8' (8=custom -- see customHour.../customSec.../markerText... below), upperMiddleLine1Content/upperMiddleLine2Content: '0'-'12', upperMiddleLine1Color/upperMiddleLine2Color: '0'-'3',
  *     colorScheme: '0'-'9'|'custom', customBg, customText, customAccent (packed byte strings),
  *     nightEnabled, nightScheme, nightCustomBg, nightCustomText, nightCustomAccent,
@@ -887,7 +887,7 @@ function buildConfigHtml(current) {
   var debugTextareaInitial = (current.debugOverrideEnabled && current.debugOverrideData)
     ? current.debugOverrideData
     : (mostRecentRawChunk ? JSON.stringify(mostRecentRawChunk, null, 2) : '');
-  var bottomStyleVal = current.bottomStyle === 'biganalog' ? 'biganalog' : (current.bottomStyle === 'analog' ? 'analog' : 'digital');
+  var bottomStyleVal = (current.bottomStyle === 'analog' || current.bottomStyle === 'biganalog') ? 'analog' : 'digital';
   // Drives whether the "Weather icon style" dropdown in the Weather
   // section starts visible -- true if any of the 12 corner/edge slots
   // is already set to "Weather icon" (31) or "Temp + weather icon" (32).
@@ -896,12 +896,18 @@ function buildConfigHtml(current) {
     'middleLeftLine1Content', 'middleLeftLine2Content', 'middleRightLine1Content', 'middleRightLine2Content'
   ].some(function (key) { return current[key] === '31' || current[key] === '32'; });
   var isAnalog = bottomStyleVal === 'analog';
-  var isBigAnalog = bottomStyleVal === 'biganalog';
   var clockFontId = parseInt(current.clockFont || '8', 10);
   var clockFontSmallId = parseInt(current.clockFontSmall || '0', 10);
-  var secondsUnsupported = (bottomStyleVal === 'digital') && fontLookupEntry(clockFontId).wide;
+  var secondsUnsupported = (bottomStyleVal === 'digital') && fontLookupEntry(clockFontId).secondsDisabled;
   var secondsChecked = (current.showSeconds && !secondsUnsupported) ? 'checked' : '';
   var secondsDisabled = secondsUnsupported ? 'disabled' : '';
+  var cornerFontId = parseInt(current.cornerFont || '1', 10);
+  // Defaults to checked (showing every font, not just the small ones)
+  // whenever the CURRENTLY saved selection for that picker is itself
+  // one of the fonts that would otherwise be hidden -- so loading the
+  // page never makes an already-picked font disappear from view.
+  var cornerFontShowIncompatible = !fontLookupEntry(cornerFontId).small;
+  var clockFontSmallShowIncompatible = !fontLookupEntry(clockFontSmallId).small;
 
   // One <button> per example-style slot (see EXAMPLE_STYLE_COUNT's own
   // comment above) -- a screenshot if one's been generated for that
@@ -928,7 +934,7 @@ function buildConfigHtml(current) {
   var markerStyleNum = parseInt(current.bigAnalogMarkerStyle || '0', 10);
   var isBitmapMarkerStyle = markerStyleNum >= 3 && markerStyleNum !== 8 && markerStyleNum !== 9;
   var edgeAvail = { upper: false, bottom: false, left: false, right: false, cornersGrayed: false };
-  if (isBigAnalog) {
+  if (isAnalog) {
     if (markerStyleNum < 3 || markerStyleNum === 8 || markerStyleNum === 9) {
       edgeAvail = { upper: true, bottom: true, left: true, right: true, cornersGrayed: false };
     } else if (markerStyleNum === 3 || markerStyleNum === 4 || markerStyleNum === 6) {
@@ -1016,6 +1022,13 @@ function buildConfigHtml(current) {
 '  .example-style-btn:disabled { opacity: 0.4; }' +
 '  .example-style-btn img { width: 100%; height: 100%; object-fit: cover; display: block; }' +
 '  .example-style-btn-empty { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; font-size: 13px; font-weight: 600; color: var(--text); }' +
+'  .style-picker-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 8px; }' +
+'  .style-picker-btn { position: relative; aspect-ratio: 1; box-sizing: border-box; border-radius: 8px; border: 1px solid var(--border); background: var(--btn-bg); overflow: hidden; padding: 0; }' +
+'  .style-picker-btn img { width: 100%; height: 100%; object-fit: cover; display: block; }' +
+'  .style-picker-btn-empty { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; font-size: 11px; font-weight: 600; color: var(--text); text-align: center; padding: 4px; box-sizing: border-box; }' +
+'  .style-picker-btn-cap { position: absolute; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.55); color: #fff; font-size: 10px; font-weight: 700; padding: 3px 2px; text-align: center; line-height: 1.2; }' +
+'  .style-picker-custom-btn { width: 100%; box-sizing: border-box; padding: 12px; font-size: 14px; font-weight: 600; color: var(--text-strong); background: var(--btn-bg); border: 1px solid var(--border); border-radius: 8px; margin-top: 10px; }' +
+'  .style-picker-custom-btn:active { background: var(--border-light); }' +
 '  .secondary-btn:active { background: var(--border-lighter); }' +
 '  .save-bar { position: fixed; left: 0; right: 0; bottom: 0; padding: 12px 20px calc(12px + env(safe-area-inset-bottom, 0px)); background: var(--page-bg); box-shadow: 0 -2px 6px rgba(0,0,0,0.1); }' +
 '  .save-bar button { width: 100%; padding: 14px; font-size: 16px; font-weight: 600; color: #fff; background: #ff9200; border: none; border-radius: 8px; }' +
@@ -1050,6 +1063,8 @@ function buildConfigHtml(current) {
 '  .modal-overlay.open { display: flex; }' +
 '  .modal-box { background: var(--card-bg); border-radius: 12px 12px 0 0; padding: 16px; width: 100%; max-width: 400px; max-height: 80vh; box-sizing: border-box; display: flex; flex-direction: column; overflow: hidden; }' +
 '  .modal-title { font-weight: 600; font-size: 15px; margin-bottom: 10px; text-align: center; color: var(--text); flex: 0 0 auto; }' +
+'  .hand-editor-diagram { width: 100%; height: auto; display: block; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 10px; flex: 0 0 auto; }' +
+'  .hand-editor-diagram:not([src]), .hand-editor-diagram[src=""] { display: none; }' +
 '  .modal-scroll-body { overflow-y: auto; flex: 1 1 auto; min-height: 0; }' +
 '  .modal-footer { flex: 0 0 auto; }' +
 '  .hex-grid { position: relative; width: 260px; height: 255px; margin: 0 auto; }' +
@@ -1112,16 +1127,6 @@ function buildConfigHtml(current) {
 '  .slot-middle-left-l2 { left: 6px; top: calc(50% + 15px); transform: translateY(-50%); }' +
 '  .slot-middle-right-l1 { right: 6px; top: calc(50% - 15px); transform: translateY(-50%); }' +
 '  .slot-middle-right-l2 { right: 6px; top: calc(50% + 15px); transform: translateY(-50%); }' +
-'  .analog-feature-panel { width: 240px; margin: 10px auto 0; padding: 12px; box-sizing: border-box; border-radius: 8px; background: var(--btn-bg); border: 1px solid var(--border); }' +
-'  .analog-feature-panel-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; color: var(--text-faint); margin-bottom: 8px; }' +
-'  .analog-feature-panel-row { display: flex; align-items: center; }' +
-'  .slot-fake-clock { position: relative; width: 78px; height: 78px; flex-shrink: 0; border-radius: 50%; border: 2px solid rgba(0,0,0,0.55); background: rgba(255,255,255,0.35); }' +
-'  .slot-fake-clock-hand { position: absolute; left: 50%; top: 50%; background: #222; border-radius: 2px; transform-origin: 50% 100%; }' +
-'  .slot-fake-clock-hour { width: 3px; height: 20px; transform: translate(-50%, -100%) rotate(35deg); }' +
-'  .slot-fake-clock-min { width: 2px; height: 28px; transform: translate(-50%, -100%) rotate(110deg); }' +
-'  .slot-fake-clock-dot { position: absolute; left: 50%; top: 50%; width: 6px; height: 6px; margin: -3px 0 0 -3px; border-radius: 50%; background: #222; }' +
-'  .slot-feature-col { flex: 1; min-width: 0; margin-left: 10px; display: flex; flex-direction: column; gap: 4px; }' +
-'  .slot-feature-col .slot-btn { position: static; width: 100%; box-sizing: border-box; text-align: left; }' +
 '</style></head>' +
 '<body>' +
 
@@ -1166,6 +1171,31 @@ textMarkerModalHtml(current) +
 handEditorModalHtml('hour', 'Edit hour hand') +
 handEditorModalHtml('min', 'Edit minute hand') +
 handEditorModalHtml('sec', 'Edit second hand') +
+
+// Hand style / marker style pickers -- a 3x3 grid of image+title
+// buttons (see HAND_PRESETS/MARKER_PRESET_STYLES + MARKER_BITMAP_STYLES
+// below) plus one horizontal "Custom" button, same one-tap-applies-
+// and-closes interaction for both. Tapping outside the popup (the
+// overlay itself, not the box) discards -- nothing is applied.
+'<div class="modal-overlay" id="handStyleModal" onclick="if (event.target === this) closeHandStyleModal();">' +
+'  <div class="modal-box">' +
+'    <div class="modal-title">Hand style</div>' +
+'    <div class="modal-scroll-body">' +
+'      <div class="style-picker-grid" id="handStyleGrid"></div>' +
+'      <button type="button" class="style-picker-custom-btn" onclick="chooseHandStyleCustom()">Custom</button>' +
+'    </div>' +
+'  </div>' +
+'</div>' +
+
+'<div class="modal-overlay" id="markerStyleModal" onclick="if (event.target === this) closeMarkerStyleModal();">' +
+'  <div class="modal-box">' +
+'    <div class="modal-title">Hour/second marker style</div>' +
+'    <div class="modal-scroll-body">' +
+'      <div class="style-picker-grid" id="markerStyleGrid"></div>' +
+'      <button type="button" class="style-picker-custom-btn" onclick="chooseMarkerStyleCustom()">Custom</button>' +
+'    </div>' +
+'  </div>' +
+'</div>' +
 
 // Center circle -- same "commits live, no separate draft/Save state"
 // shape as the text marker modal above, not the hand editor's own
@@ -1290,68 +1320,36 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    <div class="mode-btn-group" id="bottomStyleGroup">' +
 '      <button type="button" class="mode-btn' + (bottomStyleVal === 'digital' ? ' active' : '') + '" onclick="selectBottomStyle(\'digital\')">' + MODE_BTN_ICONS.digital + '<span>DIGITAL</span></button>' +
 '      <button type="button" class="mode-btn' + (isAnalog ? ' active' : '') + '" onclick="selectBottomStyle(\'analog\')">' + MODE_BTN_ICONS.analog + '<span>ANALOG</span></button>' +
-'      <button type="button" class="mode-btn' + (isBigAnalog ? ' active' : '') + '" onclick="selectBottomStyle(\'biganalog\')">' + MODE_BTN_ICONS.biganalog + '<span>BIG ANALOG</span></button>' +
 '    </div>' +
 '    <input type="hidden" id="bottomStyleValue" value="' + esc(bottomStyleVal) + '">' +
-'    <div class="help">Analog shows a clock face on the left and clouds/location/date/week on the right. Big analog fills the whole screen with fullscreen hands over the sky/eclipse view -- no bottom bar.</div>' +
+'    <div class="help">Analog fills the whole screen with fullscreen hands over the sky/eclipse view -- no bottom bar.</div>' +
 
 '    <div class="checkbox-row subsection">' +
 '      <input type="checkbox" id="showSeconds" ' + secondsChecked + ' ' + secondsDisabled + ' onchange="onShowSecondsChange()">' +
 '      <label for="showSeconds" style="margin:0;">Show seconds</label>' +
 '    </div>' +
-'    <div class="help" id="secondsHelp" style="' + (secondsUnsupported ? '' : 'display:none;') + '">This font is too wide to fit seconds alongside it.</div>' +
-'    <div class="help">Used by all three layouts -- the digital clock\'s own seconds digits, and whether analog/big analog draw a second hand at all (gates the Custom style\'s "Edit second hand" below, too).</div>' +
+'    <div class="help" id="secondsHelp" style="' + (secondsUnsupported ? '' : 'display:none;') + '">This font doesn\'t support showing seconds.</div>' +
+'    <div class="help">Used by both layouts -- the digital clock\'s own seconds digits, and whether analog draws a second hand at all (gates the Custom style\'s "Edit second hand" below, too).</div>' +
 
 '    <div id="digitalOnlySettings" class="subsection" style="' + (bottomStyleVal === 'digital' ? '' : 'display:none;') + '">' +
 '      <label for="clockFont">Clock font</label>' +
 '      <select id="clockFont" onchange="onFontChange()">' + fontOptions + '</select>' +
 '      <label for="clockFontSmall" style="margin-top:10px;">Small companion font</label>' +
-'      <select id="clockFontSmall" onchange="updatePreview()">' + clockFontSmallOptions + '</select>' +
+'      <select id="clockFontSmall" onchange="onClockFontSmallChange()">' + clockFontSmallOptions + '</select>' +
+'      <div class="checkbox-row" style="margin-top:6px;">' +
+'        <input type="checkbox" id="clockFontSmallShowIncompatible" ' + (clockFontSmallShowIncompatible ? 'checked' : '') + ' onchange="onFontOptionFilterChange(\'clockFontSmall\', \'clockFontSmallShowIncompatible\')">' +
+'        <label for="clockFontSmallShowIncompatible" style="margin:0;">Show incompatible fonts</label>' +
+'      </div>' +
+'      <div class="help">Bigger display fonts are hidden here by default -- they\'re sized for the main clock, not a small companion readout.</div>' +
 '      <div class="help">Used for the seconds digits, sunrise/sunset time, and date line next to the clock -- picking a Clock font above suggests a matching one here automatically, but you can override it.</div>' +
 '    </div>' +
 
-'    <div id="analogOnlySettings" class="subsection" style="' + (isAnalog ? '' : 'display:none;') + '">' +
-'      <label for="analogStyle">Analog face style</label>' +
-'      <select id="analogStyle" onchange="onAnalogStyleChange()">' +
-'        <option value="0"' + (current.analogStyle === '0' || !current.analogStyle ? ' selected' : '') + '>Solid circle</option>' +
-'        <option value="1"' + (current.analogStyle === '1' ? ' selected' : '') + '>Hour markers</option>' +
-'        <option value="2"' + (current.analogStyle === '2' ? ' selected' : '') + '>Solid circle + hour markers</option>' +
-'        <option value="3"' + (current.analogStyle === '3' ? ' selected' : '') + '>12 / 3 / 6 / 9 tiny numerals</option>' +
-'      </select>' +
-'    </div>' +
-
-'    <div id="bigAnalogSettings" class="subsection" style="' + (isBigAnalog ? '' : 'display:none;') + '">' +
-'      <label for="bigAnalogHandStyle">Hand style</label>' +
-'      <select id="bigAnalogHandStyle" onchange="onHandStyleChange()">' +
-'        <option value="0"' + (current.bigAnalogHandStyle === '0' || !current.bigAnalogHandStyle ? ' selected' : '') + '>Pointy (triangular)</option>' +
-'        <option value="1"' + (current.bigAnalogHandStyle === '1' ? ' selected' : '') + '>Square (rectangular)</option>' +
-'        <option value="2"' + (current.bigAnalogHandStyle === '2' ? ' selected' : '') + '>Modern (hollow, rounded)</option>' +
-'        <option value="3"' + (current.bigAnalogHandStyle === '3' ? ' selected' : '') + '>Rounded (classic Pebble, accent hour hand)</option>' +
-'        <option value="4"' + (current.bigAnalogHandStyle === '4' ? ' selected' : '') + '>Custom</option>' +
-'      </select>' +
-'      <div class="checkbox-row" id="bigAnalogTransparentRow" style="margin-top:12px;' + (current.bigAnalogHandStyle === '4' ? ' display:none;' : '') + '">' +
-'        <input type="checkbox" id="bigAnalogTransparent" ' + (current.bigAnalogTransparent ? 'checked' : '') + ' onchange="updatePreview()">' +
-'        <label for="bigAnalogTransparent" style="margin:0;">Semi-transparent hands (see the sky through them)</label>' +
-'      </div>' +
+'    <div id="bigAnalogSettings" class="subsection" style="' + (isAnalog ? '' : 'display:none;') + '">' +
+'      <label>Hand style</label>' +
+'      <button type="button" class="marker-edit-btn" style="margin-top:8px;" onclick="openHandStyleModal()">Choose hand style &rsaquo;</button>' +
 '      <div class="help">To show the date behind the hands, pick "Short date" as a line in the Features section below (bottom-middle line 1 does this by default).</div>' +
-'      <div class="checkbox-row" id="bigAnalogHandsShadowRow" style="margin-top:12px;' + (current.bigAnalogHandStyle === '4' ? ' display:none;' : '') + '">' +
-'        <input type="checkbox" id="bigAnalogHandsShadow" ' + (current.bigAnalogHandsShadow ? 'checked' : '') + ' onchange="updatePreview()">' +
-'        <label for="bigAnalogHandsShadow" style="margin:0;">Shadow</label>' +
-'      </div>' +
-'      <div class="help">Drop shadow behind all 3 hands, offset 2px in the angle set below -- pick your own distance per hand instead with the Custom hand style below.</div>' +
 
-'      <div id="handPresetContrastStyleRow" style="' + (current.bigAnalogHandStyle === '4' ? 'display:none;' : '') + '">' +
-'      <label for="handPresetContrastStyle" style="margin-top:12px;">Contrast style</label>' +
-'      <select id="handPresetContrastStyle" onchange="updatePreview()">' +
-'        <option value="0"' + (current.handPresetContrastStyle === '0' ? ' selected' : '') + '>None</option>' +
-'        <option value="1"' + (current.handPresetContrastStyle === '1' ? ' selected' : '') + '>Contrasting outline</option>' +
-'        <option value="2"' + (current.handPresetContrastStyle === '2' || !current.handPresetContrastStyle ? ' selected' : '') + '>Background color outline</option>' +
-'        <option value="3"' + (current.handPresetContrastStyle === '3' ? ' selected' : '') + '>Shadow</option>' +
-'      </select>' +
-'      <div class="help">Only applies to the 5 hand styles above (Classic/Modern/etc, not Custom) -- "Contrasting outline" auto-picks black or white against each hand\'s own color; "Background color outline" (the default, and the only look this had before this setting existed) traces the scheme\'s background color instead; "Shadow" drops a solid black 1px offset (down and right) rather than an outline at all. Icons, text features, and the Custom hand style all keep using the separate "Outline text, icons, and hands" checkbox above instead.</div>' +
-'      </div>' +
-
-'      <div id="customHandSection" style="' + (current.bigAnalogHandStyle === '4' ? '' : 'display:none;') + '">' +
+'      <div id="customHandSection">' +
 '        <button type="button" class="marker-edit-btn" onclick="openHandEditor(\'hour\')">Edit hour hand &rsaquo;</button>' +
 '        <button type="button" class="marker-edit-btn" onclick="openHandEditor(\'min\')">Edit minute hand &rsaquo;</button>' +
 '        <button type="button" class="marker-edit-btn" id="editSecHandBtn" ' + (secondsChecked ? '' : 'disabled') + ' onclick="openHandEditor(\'sec\')">Edit second hand &rsaquo;</button>' +
@@ -1360,14 +1358,15 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      </div>' +
 '      <button type="button" class="marker-edit-btn" onclick="openShadowStyleEditor()">Edit shadow style &rsaquo;</button>' +
 
-'      <label for="bigAnalogMarkerStyle" style="margin-top:12px;">Hour/second marker style</label>' +
-'      <select id="bigAnalogMarkerStyle" onchange="onMarkerStyleChange()">' +
+'      <label style="margin-top:12px;">Hour/second marker style</label>' +
+'      <button type="button" class="marker-edit-btn" style="margin-top:8px;" onclick="openMarkerStyleModal()">Choose marker style &rsaquo;</button>' +
+'      <select id="bigAnalogMarkerStyle" style="display:none;" onchange="onMarkerStyleChange()">' +
 '        <option value="9"' + (current.bigAnalogMarkerStyle === '9' ? ' selected' : '') + '>None</option>' +
 '        <option value="0"' + (current.bigAnalogMarkerStyle === '0' || !current.bigAnalogMarkerStyle ? ' selected' : '') + '>Minimal (thin hour markers only)</option>' +
 '        <option value="1"' + (current.bigAnalogMarkerStyle === '1' ? ' selected' : '') + '>Small markers (hour + second)</option>' +
 '        <option value="2"' + (current.bigAnalogMarkerStyle === '2' ? ' selected' : '') + '>Big markers (thick hour, thin second)</option>' +
 '        <option value="3"' + (current.bigAnalogMarkerStyle === '3' ? ' selected' : '') + '>Modern</option>' +
-'        <option value="4"' + (current.bigAnalogMarkerStyle === '4' ? ' selected' : '') + '>Shadow</option>' +
+'        <option value="4"' + (current.bigAnalogMarkerStyle === '4' ? ' selected' : '') + '>Swiss</option>' +
 '        <option value="5"' + (current.bigAnalogMarkerStyle === '5' ? ' selected' : '') + '>Tally</option>' +
 '        <option value="6"' + (current.bigAnalogMarkerStyle === '6' ? ' selected' : '') + '>Bell</option>' +
 '        <option value="7"' + (current.bigAnalogMarkerStyle === '7' ? ' selected' : '') + '>Brown</option>' +
@@ -1419,7 +1418,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      <input type="checkbox" id="outlineEnabled" ' + (current.outlineEnabled !== false ? 'checked' : '') + '>' +
 '      <label for="outlineEnabled" style="margin:0;">Outline text, icons, and hands for contrast</label>' +
 '    </div>' +
-'    <div class="help">Adds a thin outline (in your color scheme\'s background color) behind corner/edge text and icons, the big-analog date, the eclipse phase text, and the hands -- so they stay readable over any part of the sky. Icons and hands only get it outside translucent/transparent mode.</div>' +
+'    <div class="help">Adds a thin outline (in your color scheme\'s background color) behind corner/edge text and icons, the analog date, the eclipse phase text, and the hands -- so they stay readable over any part of the sky. Icons and hands only get it outside translucent/transparent mode.</div>' +
 
 '  </fieldset>' +
 
@@ -1510,31 +1509,14 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      <button type="button" class="slot-btn slot-middle-right-l2" id="slotBtn-middleRightLine2" onclick="openSlotEditor(\'middleRightLine2\')"></button>' +
 '    </div>' +
 
-// Sits BELOW the sky diagram, as its own box -- not inside/overlaid
-// on it -- representing the watch's separate bottom-third panel
-// (clock + 4 feature rows) rather than anything drawn over the sky
-// view itself. Only ever shown for the small-analog layout (see
-// onBottomStyleChange()); digital and big-analog never render it.
-'    <div class="analog-feature-panel" id="analogFeaturePanel" style="' + (isAnalog ? '' : 'display:none;') + '">' +
-'      <div class="analog-feature-panel-label">Small-analog bottom panel</div>' +
-'      <div class="analog-feature-panel-row">' +
-'        <div class="slot-fake-clock" aria-hidden="true">' +
-'          <div class="slot-fake-clock-hand slot-fake-clock-hour"></div>' +
-'          <div class="slot-fake-clock-hand slot-fake-clock-min"></div>' +
-'          <div class="slot-fake-clock-dot"></div>' +
-'        </div>' +
-'        <div class="slot-feature-col">' +
-'          <button type="button" class="slot-btn slot-feature-btn" id="slotBtn-smallAnalogFeature1" onclick="openSlotEditor(\'smallAnalogFeature1\')"></button>' +
-'          <button type="button" class="slot-btn slot-feature-btn" id="slotBtn-smallAnalogFeature2" onclick="openSlotEditor(\'smallAnalogFeature2\')"></button>' +
-'          <button type="button" class="slot-btn slot-feature-btn" id="slotBtn-smallAnalogFeature3" onclick="openSlotEditor(\'smallAnalogFeature3\')"></button>' +
-'          <button type="button" class="slot-btn slot-feature-btn" id="slotBtn-smallAnalogFeature4" onclick="openSlotEditor(\'smallAnalogFeature4\')"></button>' +
-'        </div>' +
-'      </div>' +
-'    </div>' +
-
 '    <label for="cornerFont">Font</label>' +
-'    <select id="cornerFont" onchange="onCornerFontChange()">' + fontOptionsHtml(parseInt(current.cornerFont || '1', 10), false) + '</select>' +
-'    <div class="help">Applies to corner/edge feature text and the big-analog date.</div>' +
+'    <select id="cornerFont" onchange="onCornerFontChange()">' + fontOptionsHtml(cornerFontId, false) + '</select>' +
+'    <div class="checkbox-row" style="margin-top:6px;">' +
+'      <input type="checkbox" id="cornerFontShowIncompatible" ' + (cornerFontShowIncompatible ? 'checked' : '') + ' onchange="onFontOptionFilterChange(\'cornerFont\', \'cornerFontShowIncompatible\')">' +
+'      <label for="cornerFontShowIncompatible" style="margin:0;">Show incompatible fonts</label>' +
+'    </div>' +
+'    <div class="help">Bigger display fonts are hidden here by default -- they\'re sized for the main clock, not corner/edge readouts.</div>' +
+'    <div class="help">Applies to corner/edge feature text and the analog date.</div>' +
 
 '    <div id="weatherIconStyleRow" style="' + (weatherIconFeatureInUse ? '' : 'display:none;') + '">' +
 '      <label for="weatherIconStyle">Weather icon style</label>' +
@@ -1602,7 +1584,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
         { value: '0', label: 'Off' },
         { value: '1', label: 'Weather (clouds slide in from the sides)' },
         { value: '2', label: 'Planets (Sun/Moon/planets + sky sweep in from a couple hours ago)' },
-        { value: '3', label: 'Markers (big-analog hour markers animate in; seconds draw normally)' }
+        { value: '3', label: 'Markers (analog hour markers animate in; seconds draw normally)' }
       ], current.bgAnimMode || '0') +
 '    </div>' +
 '    <div class="help">Off by default: exactly one of the above sweeps into place on launch, under 1.5s.</div>' +
@@ -1811,6 +1793,9 @@ handEditorModalHtml('sec', 'Edit second hand') +
 
 '<script>' +
 'var MARKER_PREVIEW_IMAGES = ' + JSON.stringify(MARKER_PREVIEW_IMAGES) + ';' +
+'var HAND_STYLE_IMAGES = ' + JSON.stringify(HAND_STYLE_IMAGES) + ';' +
+'var MARKER_PRESET_IMAGES = ' + JSON.stringify(MARKER_PRESET_IMAGES) + ';' +
+'var HAND_STYLE_DIAGRAM_IMAGES = ' + JSON.stringify(HAND_STYLE_DIAGRAM_IMAGES) + ';' +
 // EXAMPLE_STYLE_PRESETS is { title, description, preset } per slot
 // (or null for an empty one) -- the popup below reads title/
 // description directly, and applies `.preset` (the same shape
@@ -2055,101 +2040,37 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  }' +
 '}' +
 
-'function drawAnalogPreview(ctx, colors, now, showSeconds, w, panelTop, panelBottom) {' +
-'  var panelH = panelBottom - panelTop;' +
-'  var cx = panelH * 0.58, cy = panelTop + panelH / 2, r = panelH * 0.4;' +
-'  var style = parseInt(document.getElementById("analogStyle").value, 10);' +
-'  if (style === 0 || style === 2) {' +
-'    ctx.strokeStyle = colors.text; ctx.lineWidth = 2;' +
-'    ctx.beginPath(); ctx.arc(cx, cy, r, 0, 2 * Math.PI); ctx.stroke();' +
-'  }' +
-'  if (style === 1 || style === 2) {' +
-'    for (var hIdx = 0; hIdx < 12; hIdx++) {' +
-'      var ang = hIdx * Math.PI / 6;' +
-'      var outer = r, inner = (hIdx % 3 === 0) ? r - 6 : r - 3;' +
-'      ctx.strokeStyle = colors.text; ctx.lineWidth = 1;' +
-'      ctx.beginPath();' +
-'      ctx.moveTo(cx + outer * Math.sin(ang), cy - outer * Math.cos(ang));' +
-'      ctx.lineTo(cx + inner * Math.sin(ang), cy - inner * Math.cos(ang));' +
-'      ctx.stroke();' +
-'    }' +
-'  }' +
-'  if (style === 3) {' +
-'    ctx.font = "bold 9px monospace";' +
-'    ctx.fillStyle = colors.text;' +
-'    ctx.textAlign = "center"; ctx.textBaseline = "middle";' +
-'    ctx.fillText("12", cx, cy - r + 8);' +
-'    ctx.fillText("3", cx + r - 7, cy);' +
-'    ctx.fillText("6", cx, cy + r - 8);' +
-'    ctx.fillText("9", cx - r + 7, cy);' +
-'  }' +
-'  var hh = now.getHours() % 12, mm = now.getMinutes(), ss = now.getSeconds();' +
-'  var hourAngle = ((hh * 60 + mm) / 720) * 2 * Math.PI;' +
-'  var minAngle = (mm / 60) * 2 * Math.PI;' +
-'  ctx.strokeStyle = colors.text;' +
-'  ctx.lineWidth = 3;' +
-'  ctx.beginPath(); ctx.moveTo(cx, cy);' +
-'  ctx.lineTo(cx + r * 0.55 * Math.sin(hourAngle), cy - r * 0.55 * Math.cos(hourAngle));' +
-'  ctx.stroke();' +
-'  ctx.lineWidth = 2;' +
-'  ctx.beginPath(); ctx.moveTo(cx, cy);' +
-'  ctx.lineTo(cx + r * 0.8 * Math.sin(minAngle), cy - r * 0.8 * Math.cos(minAngle));' +
-'  ctx.stroke();' +
-'  if (showSeconds) {' +
-'    var secAngle = (ss / 60) * 2 * Math.PI;' +
-'    ctx.strokeStyle = colors.accent;' +
-'    ctx.lineWidth = 1;' +
-'    ctx.beginPath(); ctx.moveTo(cx, cy);' +
-'    ctx.lineTo(cx + r * 0.88 * Math.sin(secAngle), cy - r * 0.88 * Math.cos(secAngle));' +
-'    ctx.stroke();' +
-'  }' +
-'  ctx.fillStyle = colors.text;' +
-'  ctx.beginPath(); ctx.arc(cx, cy, 2, 0, 2 * Math.PI); ctx.fill();' +
-'  return cx + r;' + // right edge of the clock, so the caller knows where to start the info panel
-'}' +
-
-'function drawBigHandPreview(ctx, cx, cy, angle, length, style, color, transparent) {' +
-'  if (style === 3) {' +
-'    ctx.save();' +
-'    ctx.translate(cx, cy);' +
-'    ctx.rotate(angle);' +
-'    ctx.lineCap = "round";' +
-'    ctx.strokeStyle = color;' +
-'    ctx.lineWidth = Math.max(4, length / 7);' +
-'    ctx.globalAlpha = transparent ? 0.5 : 1;' +
-'    ctx.beginPath();' +
-'    ctx.moveTo(0, 0);' +
-'    ctx.lineTo(0, -length);' +
-'    ctx.stroke();' +
-'    ctx.globalAlpha = 1;' +
-'    ctx.restore();' +
-'    return;' +
-'  }' +
+// Rough triangular pointer for both hour and minute hands in the
+// preview -- every hand is a "custom" hand now (see HAND_PRESETS'
+// own comment), and this canvas preview never modeled the full
+// custom-hand shape system (dot/triangle/square/dauphine/.../
+// serpentine) anyway, so it just keeps using the one generic
+// silhouette it always fell back to for anything other than the 4
+// now-removed procedural presets.
+'function drawBigHandPreview(ctx, cx, cy, angle, length, color, transparent) {' +
 '  ctx.save();' +
 '  ctx.translate(cx, cy);' +
 '  ctx.rotate(angle);' +
-'  var hw;' +
+'  var hw = Math.max(4, length / 6);' +
 '  ctx.beginPath();' +
-'  if (style === 1) {' +
-'    hw = Math.max(3, length / 8);' +
-'    ctx.rect(-hw, -length, hw * 2, length + 6);' +
-'  } else if (style === 2) {' +
-'    hw = Math.max(2, length / 10);' +
-'    ctx.rect(-hw, -length, hw * 2, length + 8);' +
-'  } else {' +
-'    hw = Math.max(4, length / 6);' +
-'    ctx.moveTo(-hw, 6); ctx.lineTo(hw, 6); ctx.lineTo(0, -length); ctx.closePath();' +
-'  }' +
+'  ctx.moveTo(-hw, 6); ctx.lineTo(hw, 6); ctx.lineTo(0, -length); ctx.closePath();' +
 '  if (transparent) {' +
 '    ctx.globalAlpha = 0.5;' +
 '    ctx.fillStyle = color; ctx.fill();' +
 '    ctx.globalAlpha = 1;' +
-'  } else if (style === 2) {' +
-'    ctx.strokeStyle = color; ctx.lineWidth = 1.5; ctx.stroke();' +
 '  } else {' +
 '    ctx.fillStyle = color; ctx.fill();' +
 '  }' +
 '  ctx.restore();' +
+'}' +
+// 0=main, 1=accent, 2=background, 3=none -- same HandConfig.color
+// enum handHourColor/handMinColor already use; "none" (skip the
+// fill) isn\'t worth modeling in this rough preview, so it just falls
+// back to main like 0 does.
+'function resolveHandPreviewColor(colorVal, colors) {' +
+'  if (colorVal === "1") return colors.accent;' +
+'  if (colorVal === "2") return colors.bg;' +
+'  return colors.text;' +
 '}' +
 
 // Loaded lazily and cached per style -- base64 data: URIs decode
@@ -2225,8 +2146,6 @@ handEditorModalHtml('sec', 'Edit second hand') +
 
 'function drawBigAnalogPreview(ctx, colors, now, showSeconds, w, h, markerImageDrawn) {' +
 '  var cx = w / 2, cy = h / 2, r = Math.min(w, h) / 2 - 12;' +
-'  var style = parseInt(document.getElementById("bigAnalogHandStyle").value, 10);' +
-'  var transparent = document.getElementById("bigAnalogTransparent").checked;' +
 '  var markerStyle = parseInt(document.getElementById("bigAnalogMarkerStyle").value, 10);' +
 
 '  if (markerStyle <= 2) {' +
@@ -2266,9 +2185,12 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  var hh = now.getHours() % 12, mm = now.getMinutes(), ss = now.getSeconds();' +
 '  var hourAngle = ((hh * 60 + mm) / 720) * 2 * Math.PI;' +
 '  var minAngle = (mm / 60) * 2 * Math.PI;' +
-'  var hourColor = (style === 3) ? colors.accent : colors.text;' +
-'  drawBigHandPreview(ctx, cx, cy, hourAngle, r * 0.55, style, hourColor, transparent);' +
-'  drawBigHandPreview(ctx, cx, cy, minAngle, r * 0.85, style, colors.text, transparent);' +
+'  var hourColor = resolveHandPreviewColor(document.getElementById("handHourColor").value, colors);' +
+'  var minColor = resolveHandPreviewColor(document.getElementById("handMinColor").value, colors);' +
+'  var hourTransparent = document.getElementById("handHourTranslucent").value === "true";' +
+'  var minTransparent = document.getElementById("handMinTranslucent").value === "true";' +
+'  drawBigHandPreview(ctx, cx, cy, hourAngle, r * 0.55, hourColor, hourTransparent);' +
+'  drawBigHandPreview(ctx, cx, cy, minAngle, r * 0.85, minColor, minTransparent);' +
 
 '  if (showSeconds) {' +
 '    var secAngle = (ss / 60) * 2 * Math.PI;' +
@@ -2279,35 +2201,6 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  }' +
 '  ctx.fillStyle = colors.text;' +
 '  ctx.beginPath(); ctx.arc(cx, cy, 2, 0, 2 * Math.PI); ctx.fill();' +
-'}' +
-
-// Mirrors small_analog_feature_count() in pebble-eclipse-watch.c --
-// keep the two in sync. Also used by computeSlotAvailability() to
-// gray out the 4th "Feature" slot button when it wouldn't fit.
-'function computeSmallAnalogFeatureCount() {' +
-'  var cornerFontEl = document.getElementById("cornerFont");' +
-'  if (!cornerFontEl) return 4;' +
-'  var opt = cornerFontEl.options[cornerFontEl.selectedIndex];' +
-'  var height = parseInt(opt.getAttribute("data-height"), 10) || 14;' +
-'  return height > 18 ? 3 : 4;' +
-'}' +
-
-// The small-analog info panel's rows -- same 4 fields the big-analog
-// upper-middle/bottom-middle 2-line slots use (see SLOT_DEFS/the
-// smallAnalogFeatureN entries below), drawn left-aligned starting
-// just after the clock face, matching the watch.
-'function drawInfoPanelPreview(ctx, colors, panelLeft, w, panelTop, panelBottom) {' +
-'  var count = computeSmallAnalogFeatureCount();' +
-'  var ids = [' +
-'    ["upperMiddleLine1Content", "upperMiddleLine1Color"],' +
-'    ["upperMiddleLine2Content", "upperMiddleLine2Color"],' +
-'    ["bottomMiddleLine1Content", "bottomMiddleLine1Color"],' +
-'    ["bottomMiddleLine2Content", "bottomMiddleLine2Color"]' +
-'  ];' +
-'  var lineH = (panelBottom - panelTop) / count;' +
-'  for (var i = 0; i < count; i++) {' +
-'    drawCornerSlot(ctx, ids[i][0], ids[i][1], panelLeft + 8, panelTop + lineH * i + (lineH - 9) / 2, "left", colors);' +
-'  }' +
 '}' +
 
 'function drawDigitalPreview(ctx, colors, now, showSeconds, w, panelTop, panelBottom) {' +
@@ -2337,7 +2230,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  var secondsBox = document.getElementById("showSeconds");' +
 '  var showSeconds = secondsBox.checked && !secondsBox.disabled;' +
 
-'  if (styleVal === "biganalog") {' +
+'  if (styleVal === "analog") {' +
 '    drawSkyLayer(ctx, 0, 0, w, h);' +
 '    var markerStyleVal = document.getElementById("bigAnalogMarkerStyle").value;' +
 '    var markerStyleInt = parseInt(markerStyleVal, 10);' +
@@ -2350,31 +2243,21 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    drawCornersAndEdges(ctx, w, h, colors, skyH);' +
 '    ctx.fillStyle = colors.bg;' +
 '    ctx.fillRect(0, skyH, w, h - skyH);' +
-'    if (styleVal === "analog") {' +
-'      var clockRight = drawAnalogPreview(ctx, colors, now, showSeconds, w, skyH, h);' +
-'      drawInfoPanelPreview(ctx, colors, clockRight, w, skyH, h);' +
-'    } else {' +
-'      drawDigitalPreview(ctx, colors, now, showSeconds, w, skyH, h);' +
-'    }' +
+'    drawDigitalPreview(ctx, colors, now, showSeconds, w, skyH, h);' +
 '  }' +
 '}' +
 
 'function onBottomStyleChange() {' +
 '  var styleVal = document.getElementById("bottomStyleValue").value;' +
 '  var isAnalog = styleVal === "analog";' +
-'  var isBigAnalog = styleVal === "biganalog";' +
 '  document.getElementById("digitalOnlySettings").style.display = (styleVal === "digital") ? "block" : "none";' +
-'  document.getElementById("analogOnlySettings").style.display = isAnalog ? "block" : "none";' +
-'  document.getElementById("bigAnalogSettings").style.display = isBigAnalog ? "block" : "none";' +
+'  document.getElementById("bigAnalogSettings").style.display = isAnalog ? "block" : "none";' +
 '  document.getElementById("showSunTimeSection").style.display = (styleVal === "digital") ? "block" : "none";' +
-'  var analogFeaturePanel = document.getElementById("analogFeaturePanel");' +
-'  if (analogFeaturePanel) analogFeaturePanel.style.display = isAnalog ? "block" : "none";' +
 '  var secondsBox = document.getElementById("showSeconds");' +
 '  var fontSel = document.getElementById("clockFont");' +
 '  var opt = fontSel.options[fontSel.selectedIndex];' +
 '  var fontOk = opt.getAttribute("data-seconds") === "1";' +
-'  var handBased = isAnalog || isBigAnalog;' +
-'  var secondsUnavailable = !handBased && !fontOk;' +
+'  var secondsUnavailable = !isAnalog && !fontOk;' +
 '  secondsBox.disabled = secondsUnavailable;' +
 '  if (secondsUnavailable) secondsBox.checked = false;' +
 '  document.getElementById("secondsHelp").style.display = secondsUnavailable ? "block" : "none";' +
@@ -2476,37 +2359,20 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  bottomMiddleLine2: { contentId: "bottomMiddleLine2Content", colorId: "bottomMiddleLine2Color", btnId: "slotBtn-bottomMiddleLine2", label: "Bottom-middle, line 2", avail: function (a) { return a.bottom; } },' +
 '  middleLeftLine1: { contentId: "middleLeftLine1Content", colorId: "middleLeftLine1Color", btnId: "slotBtn-middleLeftLine1", label: "Middle-left, line 1", avail: function (a) { return a.left; } },' +
 '  middleLeftLine2: { contentId: "middleLeftLine2Content", colorId: "middleLeftLine2Color", btnId: "slotBtn-middleLeftLine2", label: "Middle-left, line 2", avail: function (a) { return a.left; } },' +
-'  middleRightLine1: { contentId: "middleRightLine1Content", colorId: "middleRightLine1Color", btnId: "slotBtn-middleRightLine1", label: "Middle-right, line 1", avail: function (a) { return a.right; } },' +
-'  middleRightLine2: { contentId: "middleRightLine2Content", colorId: "middleRightLine2Color", btnId: "slotBtn-middleRightLine2", label: "Middle-right, line 2", avail: function (a) { return a.right; } },' +
-// The small-analog info panel's 4 rows -- deliberately reusing the
-// SAME contentId/colorId as upper/bottom-middle line 1/2 above
-// rather than separate storage (see the matching comment in
-// pebble-eclipse-watch.c's bottom_canvas_update_proc). Both this
-// button and the corresponding "Upper-middle"/"Bottom-middle" button
-// edit the exact same underlying value -- picking a different label
-// for each just makes clear which on-screen row each is standing in
-// for right now.
-'  smallAnalogFeature1: { contentId: "upperMiddleLine1Content", colorId: "upperMiddleLine1Color", btnId: "slotBtn-smallAnalogFeature1", label: "Feature 1", avail: function (a) { return a.analog; } },' +
-'  smallAnalogFeature2: { contentId: "upperMiddleLine2Content", colorId: "upperMiddleLine2Color", btnId: "slotBtn-smallAnalogFeature2", label: "Feature 2", avail: function (a) { return a.analog; } },' +
-'  smallAnalogFeature3: { contentId: "bottomMiddleLine1Content", colorId: "bottomMiddleLine1Color", btnId: "slotBtn-smallAnalogFeature3", label: "Feature 3", avail: function (a) { return a.analog; } },' +
-'  smallAnalogFeature4: { contentId: "bottomMiddleLine2Content", colorId: "bottomMiddleLine2Color", btnId: "slotBtn-smallAnalogFeature4", label: "Feature 4", avail: function (a) { return a.analog && a.smallAnalogFeatureCount >= 4; } }' +
+'  middleRightLine2: { contentId: "middleRightLine2Content", colorId: "middleRightLine2Color", btnId: "slotBtn-middleRightLine2", label: "Middle-right, line 2", avail: function (a) { return a.right; } }' +
 '};' +
 'var CURRENT_SLOT_KEY = null;' +
 'var SLOT_EDITOR_DRAFT_COLOR = 0;' +
-// Same per-marker-style room rules as before: procedural styles (<3)
-// have all 8 slots and the 4 corners; bitmap styles are each limited
-// to whatever their own artwork actually has room for and suppress
-// the corners entirely (the mask fills most of the screen). analog
-// and smallAnalogFeatureCount drive the small-analog "Feature 1-4"
-// buttons instead -- see computeSmallAnalogFeatureCount() above,
-// which mirrors small_analog_feature_count() in the C code.
+// Procedural marker styles (<3) have all 8 slots and the 4 corners;
+// bitmap styles are each limited to whatever their own artwork
+// actually has room for and suppress the corners entirely (the mask
+// fills most of the screen).
 'function computeSlotAvailability() {' +
 '  var styleVal = document.getElementById("bottomStyleValue").value;' +
-'  var isBigAnalog = styleVal === "biganalog";' +
+'  var isAnalog = styleVal === "analog";' +
 '  var markerStyle = parseInt(document.getElementById("bigAnalogMarkerStyle").value, 10);' +
-'  var avail = { upper: false, bottom: false, left: false, right: false, cornersGrayed: false,' +
-'                analog: styleVal === "analog", smallAnalogFeatureCount: computeSmallAnalogFeatureCount() };' +
-'  if (isBigAnalog) {' +
+'  var avail = { upper: false, bottom: false, left: false, right: false, cornersGrayed: false };' +
+'  if (isAnalog) {' +
 '    if (markerStyle < 3 || markerStyle === 8 || markerStyle === 9) {' +
 '      avail.upper = avail.bottom = avail.left = avail.right = true;' +
 '    } else if (markerStyle === 3 || markerStyle === 4 || markerStyle === 6) {' +
@@ -2857,18 +2723,29 @@ handEditorModalHtml('sec', 'Edit second hand') +
 'var HAND_COPY_SOURCE = { hour: "min", min: "hour", sec: "min" };' +
 'function heHiddenPrefix(kind) { return kind === "hour" ? "handHour" : (kind === "min" ? "handMin" : "handSec"); }' +
 'function hePopupPrefix(kind) { return "he" + kind.charAt(0).toUpperCase() + kind.slice(1); }' +
-// Rough translations of the 4 procedural hand styles into the custom
-// field set, keyed by bigAnalogHandStyle's own value -- applied to all
-// 3 hands whenever that dropdown changes, so switching to "Custom"
-// later starts from something close to whichever style was picked.
-// Approximated from draw_big_hand()'s constants (see
-// pebble-eclipse-watch.c) at a ~92px radius; not an exact match, a
-// starting point to tune from.
+// Rough per-hand field sets for the 9 hand style picker buttons (see
+// resources/infographics/hands<n>.png, embedded via
+// scripts/generate-infographics.js as HAND_STYLE_IMAGES) -- keyed
+// "1".."9" to match those filenames, each with a display title plus
+// hour/min/sec field sets in the same shape applyHandPresetToKind()
+// below writes into the hidden custom-hand inputs. Picking one is a
+// one-shot copy into those same fields the manual "Edit hour/minute/
+// second hand" editors use -- nothing about it is remembered as a
+// distinct "preset" afterward, on this page or on the watch (see
+// hand_layer.h's own comment for why the watch doesn't need to know).
+// These 9 are placeholders pairing the existing style shapes with
+// generic starter numbers -- replace the images and retune the field
+// sets here once real example styles are worked out.
 'var HAND_PRESETS = {' +
-'  "0": { hour: {Style:"1",Width:"12",Length:"51",BackOffset:"0",Color:"0"}, min: {Style:"1",Width:"18",Length:"78",BackOffset:"0",Color:"0"}, sec: {Style:"0",Width:"2",Length:"85",BackOffset:"0",Color:"1"} },' +
-'  "1": { hour: {Style:"2",Width:"8",Length:"51",BackOffset:"0",Color:"0"}, min: {Style:"2",Width:"12",Length:"78",BackOffset:"0",Color:"0"}, sec: {Style:"0",Width:"2",Length:"85",BackOffset:"0",Color:"1"} },' +
-'  "2": { hour: {Style:"2",Width:"6",Length:"51",BackOffset:"0",Color:"0"}, min: {Style:"2",Width:"8",Length:"78",BackOffset:"0",Color:"0"}, sec: {Style:"0",Width:"2",Length:"85",BackOffset:"0",Color:"1"} },' +
-'  "3": { hour: {Style:"0",Width:"6",Length:"51",BackOffset:"0",Color:"1"}, min: {Style:"0",Width:"10",Length:"78",BackOffset:"0",Color:"0"}, sec: {Style:"0",Width:"2",Length:"85",BackOffset:"0",Color:"1"} }' +
+'  "1": { title: "Pointy", hour: {Style:"1",Width:"12",Length:"51",BackOffset:"0",Color:"0"}, min: {Style:"1",Width:"18",Length:"78",BackOffset:"0",Color:"0"}, sec: {Style:"0",Width:"2",Length:"85",BackOffset:"0",Color:"1"} },' +
+'  "2": { title: "Square", hour: {Style:"2",Width:"8",Length:"51",BackOffset:"0",Color:"0"}, min: {Style:"2",Width:"12",Length:"78",BackOffset:"0",Color:"0"}, sec: {Style:"0",Width:"2",Length:"85",BackOffset:"0",Color:"1"} },' +
+'  "3": { title: "Modern", hour: {Style:"2",Width:"6",Length:"51",BackOffset:"0",Color:"0"}, min: {Style:"2",Width:"8",Length:"78",BackOffset:"0",Color:"0"}, sec: {Style:"0",Width:"2",Length:"85",BackOffset:"0",Color:"1"} },' +
+'  "4": { title: "Rounded", hour: {Style:"0",Width:"6",Length:"51",BackOffset:"0",Color:"1"}, min: {Style:"0",Width:"10",Length:"78",BackOffset:"0",Color:"0"}, sec: {Style:"0",Width:"2",Length:"85",BackOffset:"0",Color:"1"} },' +
+'  "5": { title: "Dauphine", hour: {Style:"3",Width:"10",Length:"51",BackOffset:"4",MiddleOffset:"10",Color:"0"}, min: {Style:"3",Width:"8",Length:"78",BackOffset:"4",MiddleOffset:"14",Color:"0"}, sec: {Style:"1",Width:"2",Length:"85",BackOffset:"6",Color:"1"} },' +
+'  "6": { title: "Sword", hour: {Style:"4",Width:"10",Length:"51",BackOffset:"6",MiddleOffset:"20",SecondaryWidth:"14",Color:"0"}, min: {Style:"4",Width:"8",Length:"78",BackOffset:"6",MiddleOffset:"30",SecondaryWidth:"12",Color:"0"}, sec: {Style:"1",Width:"2",Length:"85",BackOffset:"6",Color:"1"} },' +
+'  "7": { title: "Spade", hour: {Style:"6",Width:"8",Length:"51",BackOffset:"6",MiddleOffset:"8",SecondaryWidth:"10",Color:"0"}, min: {Style:"6",Width:"6",Length:"78",BackOffset:"6",MiddleOffset:"10",SecondaryWidth:"8",Color:"0"}, sec: {Style:"1",Width:"2",Length:"85",BackOffset:"6",Color:"1"} },' +
+'  "8": { title: "Leaf", hour: {Style:"8",Width:"10",Length:"51",BackOffset:"0",MiddleOffset:"5",Color:"0"}, min: {Style:"8",Width:"8",Length:"78",BackOffset:"0",MiddleOffset:"8",Color:"0"}, sec: {Style:"1",Width:"2",Length:"85",BackOffset:"6",Color:"1"} },' +
+'  "9": { title: "Serpentine", hour: {Style:"10",Width:"4",Length:"51",BackOffset:"0",MiddleOffset:"8",SecondaryWidth:"12",Color:"0"}, min: {Style:"10",Width:"3",Length:"78",BackOffset:"0",MiddleOffset:"10",SecondaryWidth:"10",Color:"0"}, sec: {Style:"1",Width:"2",Length:"85",BackOffset:"6",Color:"1"} }' +
 '};' +
 'function applyHandPresetToKind(kind, preset) {' +
 '  var hp = heHiddenPrefix(kind);' +
@@ -2876,6 +2753,107 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    var hidden = document.getElementById(hp + f);' +
 '    if (hidden) hidden.value = preset[f];' +
 '  }' +
+'}' +
+// Populates #handStyleGrid with one button per HAND_PRESETS entry --
+// called once up front (see the bottom of this script) rather than
+// inline in the HTML template, since the button list is entirely
+// data-driven off HAND_PRESETS/HAND_STYLE_IMAGES.
+'function renderHandStyleGrid() {' +
+'  var grid = document.getElementById("handStyleGrid");' +
+'  if (!grid) return;' +
+'  var html = "";' +
+'  for (var n = 1; n <= 9; n++) {' +
+'    var entry = HAND_PRESETS[String(n)];' +
+'    if (!entry) continue;' +
+'    var img = HAND_STYLE_IMAGES[String(n)];' +
+'    html += \'<button type="button" class="style-picker-btn" onclick="chooseHandStyle(\' + n + \')">\' +' +
+'      (img ? \'<img src="\' + img + \'" alt="\' + entry.title + \'">\' : \'<span class="style-picker-btn-empty">\' + entry.title + "</span>") +' +
+'      \'<span class="style-picker-btn-cap">\' + entry.title + "</span></button>";' +
+'  }' +
+'  grid.innerHTML = html;' +
+'}' +
+'function openHandStyleModal() {' +
+'  document.getElementById("handStyleModal").className = "modal-overlay open";' +
+'}' +
+'function closeHandStyleModal() {' +
+'  document.getElementById("handStyleModal").className = "modal-overlay";' +
+'}' +
+'function chooseHandStyle(n) {' +
+'  var entry = HAND_PRESETS[String(n)];' +
+'  if (!entry) return;' +
+'  applyHandPresetToKind("hour", entry.hour);' +
+'  applyHandPresetToKind("min", entry.min);' +
+'  applyHandPresetToKind("sec", entry.sec);' +
+'  closeHandStyleModal();' +
+'  updatePreview();' +
+'}' +
+// "Custom" -- same meaning the old dropdown\'s "Custom" option had:
+// leaves the hand fields exactly as they are (the 3 "Edit ... hand"
+// buttons are always available below regardless), just closes the
+// popup without applying any preset.
+'function chooseHandStyleCustom() {' +
+'  closeHandStyleModal();' +
+'}' +
+
+// ---- marker style picker popup -----------------------------------------
+// Unlike hands, markers keep a real on-watch "which style" field
+// (bigAnalogMarkerStyle, still 0-9 -- see eclipse_data.h) -- this
+// popup is just a friendlier picker for that same hidden <select>,
+// not a replacement for it. MARKER_BITMAP_STYLES covers the 5
+// existing bitmap styles (their own thumbnails already exist as
+// MARKER_PREVIEW_IMAGES, generated from the actual watch resource
+// PNGs -- see generate-marker-previews.js); MARKER_PRESET_STYLES
+// covers the 4 procedural ring styles, thumbnails from
+// MARKER_PRESET_IMAGES (generate-infographics.js).
+'var MARKER_BITMAP_STYLES = [' +
+'  { value: "3", title: "Modern" },' +
+'  { value: "4", title: "Swiss" },' +
+'  { value: "5", title: "Tally" },' +
+'  { value: "6", title: "Bell" },' +
+'  { value: "7", title: "Brown" }' +
+'];' +
+'var MARKER_PRESET_STYLES = [' +
+'  { value: "9", title: "None", image: "none" },' +
+'  { value: "0", title: "Minimal", image: "minimal" },' +
+'  { value: "1", title: "Small", image: "small" },' +
+'  { value: "2", title: "Big", image: "big" }' +
+'];' +
+'function renderMarkerStyleGrid() {' +
+'  var grid = document.getElementById("markerStyleGrid");' +
+'  if (!grid) return;' +
+'  var html = "";' +
+'  MARKER_BITMAP_STYLES.forEach(function (s) {' +
+'    var img = MARKER_PREVIEW_IMAGES[s.value];' +
+'    html += \'<button type="button" class="style-picker-btn" onclick="chooseMarkerStyle(\\\'\' + s.value + \'\\\')">\' +' +
+'      (img ? \'<img src="\' + img + \'" alt="\' + s.title + \'">\' : \'<span class="style-picker-btn-empty">\' + s.title + "</span>") +' +
+'      \'<span class="style-picker-btn-cap">\' + s.title + "</span></button>";' +
+'  });' +
+'  MARKER_PRESET_STYLES.forEach(function (s) {' +
+'    var img = MARKER_PRESET_IMAGES[s.image];' +
+'    html += \'<button type="button" class="style-picker-btn" onclick="chooseMarkerStyle(\\\'\' + s.value + \'\\\')">\' +' +
+'      (img ? \'<img src="\' + img + \'" alt="\' + s.title + \'">\' : \'<span class="style-picker-btn-empty">\' + s.title + "</span>") +' +
+'      \'<span class="style-picker-btn-cap">\' + s.title + "</span></button>";' +
+'  });' +
+'  grid.innerHTML = html;' +
+'}' +
+'function openMarkerStyleModal() {' +
+'  document.getElementById("markerStyleModal").className = "modal-overlay open";' +
+'}' +
+'function closeMarkerStyleModal() {' +
+'  document.getElementById("markerStyleModal").className = "modal-overlay";' +
+'}' +
+'function chooseMarkerStyle(value) {' +
+'  document.getElementById("bigAnalogMarkerStyle").value = value;' +
+'  onMarkerStyleChange();' +
+'  closeMarkerStyleModal();' +
+'}' +
+// "Custom" -- sets the underlying select to the real custom value (8)
+// so customMarkerSection actually shows, then closes -- same meaning
+// the old dropdown\'s "Custom" option had.
+'function chooseMarkerStyleCustom() {' +
+'  document.getElementById("bigAnalogMarkerStyle").value = "8";' +
+'  onMarkerStyleChange();' +
+'  closeMarkerStyleModal();' +
 '}' +
 'function onShadowAngleInput() {' +
 '  var el = document.getElementById("shadowAngle");' +
@@ -2922,9 +2900,10 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  });' +
 '  selectVerticalOption("bgAnimModeGroup", "bgAnimMode", document.getElementById("bgAnimMode").value);' +
 '  selectVerticalOption("shakeAnimModeGroup", "shakeAnimMode", document.getElementById("shakeAnimMode").value);' +
+'  applyFontOptionFilter("cornerFont", document.getElementById("cornerFontShowIncompatible").checked);' +
+'  applyFontOptionFilter("clockFontSmall", document.getElementById("clockFontSmallShowIncompatible").checked);' +
 '  onBottomStyleChange();' +
 '  onMarkerStyleChange();' +
-'  onHandStyleChange();' +
 '  onCornerFontChange();' +
 '  onSkyModeChange();' +
 '  onShowSecondsChange();' +
@@ -3109,20 +3088,6 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  document.getElementById("cloudRenderStyleRow").style.display = (val === "0") ? "" : "none";' +
 '  updatePreview();' +
 '}' +
-'function onHandStyleChange() {' +
-'  var val = document.getElementById("bigAnalogHandStyle").value;' +
-'  document.getElementById("customHandSection").style.display = (val === "4") ? "" : "none";' +
-'  document.getElementById("bigAnalogTransparentRow").style.display = (val === "4") ? "none" : "";' +
-'  document.getElementById("bigAnalogHandsShadowRow").style.display = (val === "4") ? "none" : "";' +
-'  document.getElementById("handPresetContrastStyleRow").style.display = (val === "4") ? "none" : "";' +
-'  var preset = HAND_PRESETS[val];' +
-'  if (preset) {' +
-'    applyHandPresetToKind("hour", preset.hour);' +
-'    applyHandPresetToKind("min", preset.min);' +
-'    applyHandPresetToKind("sec", preset.sec);' +
-'  }' +
-'  updatePreview();' +
-'}' +
 'function updateHandValLabels(kind) {' +
 '  var p = hePopupPrefix(kind);' +
 '  ["Width", "Length", "BackOffset", "MiddleOffset", "SecondaryWidth", "ShadowDistance", "HollowThickness"].forEach(function (f) {' +
@@ -3148,6 +3113,12 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  });' +
 '  var secEl = document.getElementById(p + "SecondaryWidthRow");' +
 '  if (secEl) secEl.style.display = showSecondary ? "" : "none";' +
+'  var diagramImg = document.getElementById(p + "Diagram");' +
+'  if (diagramImg) {' +
+'    var src = HAND_STYLE_DIAGRAM_IMAGES[styleEl.value];' +
+'    diagramImg.style.display = src ? "" : "none";' +
+'    diagramImg.src = src || "";' +
+'  }' +
 '}' +
 // Shows/hides the Hollow thickness slider based on the Hollow
 // checkbox -- called both on the checkbox's own onchange and once up
@@ -3220,6 +3191,32 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  renderSlotPicker();' +
 '  updatePreview();' +
 '}' +
+// Hides/reveals a font <option> list's own `data-small="0"` (bigger,
+// ~48px-scale) entries based on that picker's own "Show incompatible
+// fonts" checkbox -- shared by the corner/edge Font picker and the
+// clock\'s own Small companion font picker, the two pickers that get
+// this treatment (see FONT_LOOKUP\'s own `small` comment). The
+// currently-selected option is always exempted from hiding, even
+// with the checkbox off, so a saved big-font pick already in that
+// slot never disappears out from under the user -- just stays as the
+// one visible "incompatible" entry until they actively pick something
+// else.' +
+'function applyFontOptionFilter(selectId, showIncompatible) {' +
+'  var sel = document.getElementById(selectId);' +
+'  if (!sel) return;' +
+'  for (var i = 0; i < sel.options.length; i++) {' +
+'    var opt = sel.options[i];' +
+'    var isSmall = opt.getAttribute("data-small") === "1";' +
+'    opt.hidden = !showIncompatible && !isSmall && !opt.selected;' +
+'  }' +
+'}' +
+'function onFontOptionFilterChange(selectId, checkboxId) {' +
+'  applyFontOptionFilter(selectId, document.getElementById(checkboxId).checked);' +
+'}' +
+'function onClockFontSmallChange() {' +
+'  applyFontOptionFilter("clockFontSmall", document.getElementById("clockFontSmallShowIncompatible").checked);' +
+'  updatePreview();' +
+'}' +
 'function selectSunTimeMode(isSunTime) {' +
 '  document.getElementById("showSunTime").value = isSunTime ? "true" : "false";' +
 '  var buttons = document.getElementById("showSunTimeGroup").getElementsByClassName("mode-btn");' +
@@ -3229,7 +3226,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 'function selectBottomStyle(val) {' +
 '  document.getElementById("bottomStyleValue").value = val;' +
 '  var buttons = document.getElementById("bottomStyleGroup").getElementsByClassName("mode-btn");' +
-'  var order = ["digital", "analog", "biganalog"];' +
+'  var order = ["digital", "analog"];' +
 '  for (var i = 0; i < buttons.length; i++) {' +
 '    buttons[i].className = "mode-btn" + (order[i] === val ? " active" : "");' +
 '  }' +
@@ -3248,6 +3245,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  var opt = fontSel.options[fontSel.selectedIndex];' +
 '  var pairedSmallId = opt.getAttribute("data-paired-small");' +
 '  if (pairedSmallId !== null) document.getElementById("clockFontSmall").value = pairedSmallId;' +
+'  applyFontOptionFilter("clockFontSmall", document.getElementById("clockFontSmallShowIncompatible").checked);' +
 '  onBottomStyleChange();' +
 '}' +
 'function onAnalogStyleChange() { updatePreview(); }' +
@@ -3392,6 +3390,17 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  var mins = parseInt(document.getElementById("updateMins").value, 10);' +
 '  if (isNaN(mins) || mins < 5) mins = 20;' +
 '  var bottomStyleVal = document.getElementById("bottomStyleValue").value;' +
+// Belt-and-suspenders re-check, independent of whatever the (possibly
+// stale, possibly never-recomputed-since-load) Show Seconds checkbox
+// itself currently holds -- onBottomStyleChange()/onFontChange()
+// already gray it out and uncheck it live whenever the selected clock
+// font can't support seconds, but this is the actual value that goes
+// to the watch, so it\'s re-derived here from the current clock font
+// selection directly rather than trusted to already be correct.
+'  var clockFontSel = document.getElementById("clockFont");' +
+'  var clockFontOpt = clockFontSel.options[clockFontSel.selectedIndex];' +
+'  var secondsOverriddenOff = bottomStyleVal === "digital" && clockFontOpt.getAttribute("data-seconds") === "0";' +
+'  var showSecondsVal = !secondsOverriddenOff && document.getElementById("showSeconds").checked;' +
 '  var settings = {' +
 '    CONFIG_AUTO_LOC: document.getElementById("autoLoc").checked,' +
 '    CONFIG_LAT: document.getElementById("lat").value,' +
@@ -3407,7 +3416,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    CONFIG_CLOUD_RENDER_STYLE: document.getElementById("cloudRenderStyle").value,' +
 '    CONFIG_SKY_MODE: document.getElementById("skyMode").value,' +
 '    CONFIG_WEATHER_ICON_STYLE: document.getElementById("weatherIconStyle").value,' +
-'    CONFIG_SHOW_SECONDS: document.getElementById("showSeconds").checked,' +
+'    CONFIG_SHOW_SECONDS: showSecondsVal,' +
 '    CONFIG_CUSTOM_BG: document.getElementById("customBgValue").value,' +
 '    CONFIG_CUSTOM_TEXT: document.getElementById("customTextValue").value,' +
 '    CONFIG_CUSTOM_ACCENT: document.getElementById("customAccentValue").value,' +
@@ -3416,10 +3425,6 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    CONFIG_NIGHT_CUSTOM_TEXT: document.getElementById("nightCustomTextValue").value,' +
 '    CONFIG_NIGHT_CUSTOM_ACCENT: document.getElementById("nightCustomAccentValue").value,' +
 '    CONFIG_BOTTOM_STYLE: bottomStyleVal || "digital",' +
-'    CONFIG_ANALOG_STYLE: document.getElementById("analogStyle").value,' +
-'    CONFIG_BIG_ANALOG_HAND_STYLE: document.getElementById("bigAnalogHandStyle").value,' +
-'    CONFIG_BIG_ANALOG_TRANSPARENT: document.getElementById("bigAnalogTransparent").checked,' +
-'    CONFIG_BIG_ANALOG_HANDS_SHADOW: document.getElementById("bigAnalogHandsShadow").checked,' +
 '    CONFIG_SHADOW_TRANSLUCENT: document.getElementById("shadowTranslucent").value,' +
 '    CONFIG_SHADOW_ANGLE: document.getElementById("shadowAngle").value,' +
 '    CONFIG_BIG_ANALOG_MARKER_STYLE: document.getElementById("bigAnalogMarkerStyle").value,' +
@@ -3449,7 +3454,6 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    CONFIG_BG_ANIM_MODE: document.getElementById("bgAnimMode").value,' +
 '    CONFIG_SHAKE_ANIM_MODE: document.getElementById("shakeAnimMode").value,' +
 '    CONFIG_OUTLINE_ENABLED: document.getElementById("outlineEnabled").checked,' +
-'    CONFIG_HAND_PRESET_CONTRAST_STYLE: document.getElementById("handPresetContrastStyle").value,' +
 '    CONFIG_CORNER_FONT: document.getElementById("cornerFont").value,' +
 '    CONFIG_CORNER_TL: document.getElementById("cornerTL").value,' +
 '    CONFIG_CORNER_TR: document.getElementById("cornerTR").value,' +
@@ -3569,6 +3573,10 @@ handEditorModalHtml('sec', 'Edit second hand') +
 'updateColorRoleButtons("day");' +
 'updateColorRoleButtons("night");' +
 'onBottomStyleChange();' +
+'applyFontOptionFilter("cornerFont", document.getElementById("cornerFontShowIncompatible").checked);' +
+'applyFontOptionFilter("clockFontSmall", document.getElementById("clockFontSmallShowIncompatible").checked);' +
+'renderHandStyleGrid();' +
+'renderMarkerStyleGrid();' +
 'updateWeatherIconStyleVisibility();' +
 'adjustTopBarSpacing();' +
 'setInterval(updatePreview, 1000);' +

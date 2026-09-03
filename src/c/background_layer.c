@@ -1963,6 +1963,19 @@ static void draw_text_markers(GContext *ctx, GPoint center, GRect screen, Canvas
 
   GFont font = font_lookup_resolve(&state->marker_text_font_slot, text_cfg->font_choice);
   int16_t fh = font_lookup_height(text_cfg->font_choice) + font_lookup_y_offset(text_cfg->font_choice);
+  // Sized to the font itself rather than a flat pixel count -- this
+  // used to be a fixed 30px, wide enough for a 2-digit number in one
+  // of the ~14-20px system/small fonts every marker text font used to
+  // be. Now that the corner/edge-style big custom display fonts (up
+  // to ~48px tall, e.g. Digital Dream/Minecrafter/Bebas Big) are
+  // selectable here too, that flat 30px wasn't even wide enough for a
+  // single glyph at that size, let alone a 2-3 character mark like
+  // "12" or a Roman numeral ("XII") -- text overflowing its own draw
+  // box like that is what was showing up as a trailing "…" instead of
+  // the actual mark. 2x the font's own height comfortably fits the
+  // widest label this ring ever draws (a 2-digit number or a short
+  // Roman numeral) at any font size, small or big alike.
+  int16_t box_w = fh * 2 + 8, box_h = fh + 6;
 
   graphics_context_set_text_color(ctx, color);
 
@@ -2000,7 +2013,6 @@ static void draw_text_markers(GContext *ctx, GPoint center, GRect screen, Canvas
     else if (text_cfg->roman_numerals) buf[0] = '\0'; // roman numerals have no glyph for 0 -- blank rather than garbage mid-count-up
     else snprintf(buf, sizeof(buf), "%d", label);
 
-    int16_t box_w = 30, box_h = fh + 4;
     GRect box = GRect(pos.x - box_w / 2, pos.y - box_h / 2, box_w, box_h);
     graphics_draw_text(ctx, buf, font, box, GTextOverflowModeFill, GTextAlignmentCenter, NULL);
   }
@@ -2111,7 +2123,7 @@ static void draw_marker_bitmap(GContext *ctx, GBitmap *mask, GRect bounds, bool 
 // canvas_update_proc() during a full redraw, before the frame gets
 // captured, so this only actually runs on this canvas's own throttled
 // cadence (once a minute, or immediately on a forced redraw) rather than
-// every tick. big-analog mode only; callers must gate on d->bottom_style.
+// every tick. analog mode only; callers must gate on d->bottom_style.
 static void draw_all_markers(GContext *ctx, CanvasState *state, GPoint center, GRect screen,
                               const EclipseData *d, GColor main_color, GColor accent_color, GColor bg_color,
                               bool anim_active, int32_t anim_progress_1000) {
@@ -2470,7 +2482,7 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
   // regardless of whether the sky content above it has been
   // compressed to make room.
   GRect full_bounds = bounds;
-  if (d->bottom_info_bar_mode == 2 && d->bottom_style != 1) {
+  if (d->bottom_info_bar_mode == 2) {
     bounds.size.h -= 20;
     center = GPoint(bounds.size.w / 2, bounds.size.h / 2);
   }
@@ -2720,23 +2732,23 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
   // it as an active eclipse (eclipse-sized moon_r, etc.), an
   // inconsistent state. Falls back to plain night-sky rendering, same
   // as the "Sun set" branch already used for the countdown text.
-  // Big-analogue mode is exempt: its fullscreen Sun is a deliberate
+  // Analog mode is exempt: its fullscreen Sun is a deliberate
   // dramatic backdrop for the whole eclipse regardless of the real
   // horizon, per the brief.
-  if (eclipse_moon_active && d->bottom_style != 2 && d->sunset != 0 && now >= d->sunset) {
+  if (eclipse_moon_active && d->bottom_style != 1 && d->sunset != 0 && now >= d->sunset) {
     eclipse_moon_active = false;
   }
 
-  // Big-analogue mode (bottom_style == 2) has no bottom bar to make
+  // Analog mode (bottom_style == 1) has no bottom bar to make
   // room for and its hands render in a separate always-on-top layer,
   // so during an actual eclipse the Sun can fill the whole canvas as
   // a dramatic background rather than sitting at its normal small,
   // altitude-positioned size -- "basically fullscreen sun," per the
-  // brief. Outside of an active eclipse, big-analogue mode renders
-  // the sky exactly like the other modes (small Sun/Moon/planets),
+  // brief. Outside of an active eclipse, analog mode renders
+  // the sky exactly like digital mode (small Sun/Moon/planets),
   // just stretched across the full screen height since there's no
   // bottom third reserved for anything else.
-  bool fullscreen_sun = (d->bottom_style == 2) && eclipse_moon_active;
+  bool fullscreen_sun = (d->bottom_style == 1) && eclipse_moon_active;
 
   int16_t sun_r;
   if (eclipse_moon_active) {
@@ -2978,13 +2990,9 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
   // backing strip): off, shown only on shake (alongside the
   // Sun/Moon/planet name labels), or permanently visible (in which
   // case the sky content above has already been compressed by 20px,
-  // see full_bounds/bounds above, so this doesn't overlap it) --
-  // except in analog mode (bottom_style == 1), which already shows
-  // this same information persistently in its 4-line panel, so
-  // showing it here too would just be a redundant duplicate.
+  // see full_bounds/bounds above, so this doesn't overlap it).
   GRect ground = GRect(full_bounds.origin.x, full_bounds.origin.y + full_bounds.size.h - 18, full_bounds.size.w, 18);
-  bool show_bottom_bar = d->bottom_style != 1 &&
-    ((d->bottom_info_bar_mode == 2) || (d->bottom_info_bar_mode == 1 && state->show_labels));
+  bool show_bottom_bar = (d->bottom_info_bar_mode == 2) || (d->bottom_info_bar_mode == 1 && state->show_labels);
   if (show_bottom_bar) {
     graphics_context_set_fill_color(ctx, GColorBlack);
     graphics_fill_rect(ctx, ground, 0, GCornerNone);
@@ -3041,14 +3049,14 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
     if (iss_visible) draw_label(ctx, bounds, iss_center, "ISS", d->label_style, label_main_color);
   }
 
-  // Hour/second markers -- big-analog mode only. Drawn on top of
+  // Hour/second markers -- analog mode only. Drawn on top of
   // everything above (sky, sun/moon, clouds, ground, labels) so they
   // stay visible over any part of the sky, using full_bounds/its own
   // unshrunk center rather than the (possibly bottom-bar-shrunk) `bounds`
   // above -- matching hands_layer_update_proc's own positioning, which
   // always uses the full unobstructed screen regardless of the bottom
   // info bar, so markers and hands stay aligned with each other.
-  if (d->bottom_style == 2) {
+  if (d->bottom_style == 1) {
     GPoint full_center = GPoint(full_bounds.size.w / 2, full_bounds.size.h / 2);
     GColor bg, main_color, accent_color;
     get_active_color_scheme(d, now, &bg, &main_color, &accent_color);

@@ -1,6 +1,5 @@
 #include "hand_layer.h"
 #include "eclipse_data.h" // for shake_gradient_active() -- see draw_hand_outline_once_fp()'s own comment on why
-#include "features_layer.h" // for contrasting_outline_color() -- see hand_layer_draw()'s own comment on why. Safe as a .c-file-only include (not added to hand_layer.h itself) -- features_layer.h -> eclipse_data.h -> hand_layer.h would otherwise be a real circular header include.
 
 // round_div/BAYER4/FGPoint helpers and the fill_polygon_fp()/
 // fill_polygon_dithered_fp()/fill_circle_fp()/stroke_line_fp()/
@@ -752,24 +751,9 @@ void hand_layer_draw(GContext *ctx, GPoint center, int32_t angle, const HandConf
 
   draw_hand_shadow_once_fp(ctx, center_fp, angle, cfg, shadow_translucent_style, shadow_angle_deg);
 
-  // "Contrast style: Shadow" (hand style presets only -- see
-  // hard_shadow's own comment in hand_layer.h) -- a fixed, always-
-  // solid, always-1px-right-and-down black copy of the hand shape,
-  // drawn before everything else so the real hand/outline paints over
-  // most of it, leaving just that 1px offset showing on two edges.
-  // Reuses draw_hand_shape_once_fp() directly rather than the outline
-  // stroke machinery -- this is a shifted silhouette, not a traced
-  // perimeter.
-  if (cfg->hard_shadow) {
-    FGPoint shadow_center = fgpoint_new(center_fp.x + SUBPIXEL_SCALE, center_fp.y + SUBPIXEL_SCALE);
-    draw_hand_shape_once_fp(ctx, shadow_center, angle, cfg, GColorBlack, false);
-  }
-
-  GColor hand_color = GColorClear; // resolved below if actually needed (cfg->color != 3 or outline_auto_contrast)
-  bool have_hand_color = false;
-  if (cfg->color != 3 || cfg->outline_auto_contrast) {
+  GColor hand_color = GColorClear; // resolved below if actually needed (cfg->color != 3)
+  if (cfg->color != 3) {
     hand_color = resolve_scheme_color(cfg->color, main_color, accent_color, bg_color);
-    have_hand_color = true;
   }
 
   if (cfg->outline_enabled) {
@@ -779,9 +763,7 @@ void hand_layer_draw(GContext *ctx, GPoint center, int32_t angle, const HandConf
     // shake" gradient effect (if active) is applied inside
     // draw_hand_outline_once_fp() itself now, per pixel -- see its own
     // comment -- rather than resolved to one flat color up here.
-    GColor outline_color = cfg->outline_auto_contrast && have_hand_color
-      ? contrasting_outline_color(hand_color)
-      : resolve_scheme_color(cfg->outline_color, main_color, accent_color, bg_color);
+    GColor outline_color = resolve_scheme_color(cfg->outline_color, main_color, accent_color, bg_color);
     draw_hand_outline_once_fp(ctx, center_fp, angle, cfg, outline_color, cfg->translucent);
   }
 

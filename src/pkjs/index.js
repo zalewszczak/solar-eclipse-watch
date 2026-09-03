@@ -97,12 +97,11 @@ var KEY_TYPE_MAP = (function () {
     'CLOCK_FONT', 'CLOCK_FONT_SMALL', 'TEMP_UNIT', 'WIND_SPEED_UNIT', 'SHOW_SECONDS',
     'CUSTOM_BG', 'CUSTOM_TEXT', 'CUSTOM_ACCENT',
     'NIGHT_SCHEME_ENABLED', 'NIGHT_CUSTOM_BG', 'NIGHT_CUSTOM_TEXT', 'NIGHT_CUSTOM_ACCENT',
-    'BOTTOM_STYLE', 'ANALOG_STYLE', 'SUN_MOON_SIZE_PCT', 'CLOUD_RENDER_STYLE',
+    'BOTTOM_STYLE', 'SUN_MOON_SIZE_PCT', 'CLOUD_RENDER_STYLE',
     'SKY_MODE', 'WEATHER_ICON_STYLE', 'AQI_UNIT', 'ALTITUDE_UNIT',
     'SHAKE_LABEL_SECONDS', 'LABEL_STYLE',
     'VIBRATE_ON_PHASE_CHANGE', 'STARTUP_CLOCK_ANIMATION_ENABLED',
-    'BG_ANIM_MODE', 'SHAKE_ANIM_MODE', 'OUTLINE_ENABLED', 'HAND_PRESET_CONTRAST_STYLE',
-    'BIG_ANALOG_HAND_STYLE', 'BIG_ANALOG_HANDS_TRANSPARENT', 'BIG_ANALOG_HANDS_SHADOW',
+    'BG_ANIM_MODE', 'SHAKE_ANIM_MODE', 'OUTLINE_ENABLED',
     'SHADOW_TRANSLUCENT', 'SHADOW_ANGLE',
     'BIG_ANALOG_MARKER_STYLE', 'BITMAP_MARKER_TRANSPARENT', 'DRAW_FEATURES_BENEATH_HANDS',
     'CUSTOM_HOUR_STYLE', 'CUSTOM_HOUR_THICKNESS', 'CUSTOM_HOUR_INNER_ECC', 'CUSTOM_HOUR_OUTER_ECC',
@@ -115,14 +114,17 @@ var KEY_TYPE_MAP = (function () {
     'HAND_HOUR_MIDDLE_OFFSET', 'HAND_HOUR_SECONDARY_WIDTH', 'HAND_HOUR_COLOR',
     'HAND_HOUR_OUTLINE_ENABLED', 'HAND_HOUR_OUTLINE_COLOR', 'HAND_HOUR_TRANSLUCENT',
     'HAND_HOUR_SHADOW_ENABLED', 'HAND_HOUR_SHADOW_DISTANCE',
+    'HAND_HOUR_HOLLOW', 'HAND_HOUR_HOLLOW_THICKNESS',
     'HAND_MIN_STYLE', 'HAND_MIN_WIDTH', 'HAND_MIN_LENGTH', 'HAND_MIN_BACK_OFFSET',
     'HAND_MIN_MIDDLE_OFFSET', 'HAND_MIN_SECONDARY_WIDTH', 'HAND_MIN_COLOR',
     'HAND_MIN_OUTLINE_ENABLED', 'HAND_MIN_OUTLINE_COLOR', 'HAND_MIN_TRANSLUCENT',
     'HAND_MIN_SHADOW_ENABLED', 'HAND_MIN_SHADOW_DISTANCE',
+    'HAND_MIN_HOLLOW', 'HAND_MIN_HOLLOW_THICKNESS',
     'HAND_SEC_STYLE', 'HAND_SEC_WIDTH', 'HAND_SEC_LENGTH', 'HAND_SEC_BACK_OFFSET',
     'HAND_SEC_MIDDLE_OFFSET', 'HAND_SEC_SECONDARY_WIDTH', 'HAND_SEC_COLOR',
     'HAND_SEC_OUTLINE_ENABLED', 'HAND_SEC_OUTLINE_COLOR', 'HAND_SEC_TRANSLUCENT',
     'HAND_SEC_SHADOW_ENABLED', 'HAND_SEC_SHADOW_DISTANCE',
+    'HAND_SEC_HOLLOW', 'HAND_SEC_HOLLOW_THICKNESS',
     'CENTER_CIRCLE_RADIUS', 'CENTER_CIRCLE_COLOR'
   ]);
 
@@ -433,14 +435,7 @@ function nightCustomAccentByte() { return customColorByte('CONFIG_NIGHT_CUSTOM_A
 
 function bottomStyleCode() {
   var v = getSetting('CONFIG_BOTTOM_STYLE', 'digital');
-  if (v === 'biganalog') return 2;
-  if (v === 'analog') return 1;
-  return 0;
-}
-function analogStyleCode() {
-  var id = parseInt(getSetting('CONFIG_ANALOG_STYLE', '0'), 10);
-  if (isNaN(id) || id < 0 || id > 3) id = 0;
-  return id;
+  return (v === 'analog' || v === 'biganalog') ? 1 : 0;
 }
 
 function sunMoonSizeCode() {
@@ -503,21 +498,8 @@ function bottomInfoBarModeCode() {
   return [0, 1, 2].indexOf(v) === -1 ? 1 : v;
 }
 
-function bigAnalogHandStyleCode() {
-  var id = parseInt(getSetting('CONFIG_BIG_ANALOG_HAND_STYLE', '0'), 10);
-  if (isNaN(id) || id < 0 || id > 4) id = 0;
-  return id;
-}
-function bigAnalogHandsTransparentCode() { return getSetting('CONFIG_BIG_ANALOG_TRANSPARENT', 'false') === 'true' ? 1 : 0; }
-// One shared on/off toggle applied to all 3 procedural hand presets at
-// once (same pattern as bigAnalogHandsTransparentCode() above) -- angle/
-// distance aren't user-adjustable for presets, the watch hardcodes
-// 120deg/2px whenever this is on.
-function bigAnalogHandsShadowCode() { return getSetting('CONFIG_BIG_ANALOG_HANDS_SHADOW', 'false') === 'true' ? 1 : 0; }
 // A single global style choice -- solid black shadows, or dithered
-// translucent ones -- applied to every hand's shadow regardless of
-// whether it's a procedural preset or the custom hand system. Defaults
-// to translucent.
+// translucent ones -- applied to every hand's shadow. Defaults to translucent.
 function shadowTranslucentCode() { return getSetting('CONFIG_SHADOW_TRANSLUCENT', 'true') === 'true' ? 1 : 0; }
 // Single shared light-source direction for every hand's shadow --
 // see hand_layer.h's own comment for why a separate angle per hand
@@ -535,9 +517,9 @@ function bigAnalogMarkerStyleCode() {
 // dimmed the markers whether or not that's what was wanted).
 function bitmapMarkerTransparentCode() { return getSetting('CONFIG_BITMAP_MARKER_TRANSPARENT', 'false') === 'true' ? 1 : 0; }
 
-// Whether the corners/edges feature overlay draws underneath the big-
+// Whether the corners/edges feature overlay draws underneath the
 // analog hands instead of on top of them -- only meaningful (and only
-// shown on the settings page) when bottomStyle is 'biganalog'.
+// shown on the settings page) when bottomStyle is 'analog'.
 function drawFeaturesBeneathHandsCode() { return getSetting('CONFIG_DRAW_FEATURES_BENEATH_HANDS', 'false') === 'true' ? 1 : 0; }
 
 // Custom hour/second marker system (bigAnalogMarkerStyleCode() === 8) --
@@ -590,11 +572,14 @@ function markerTextHourMaskCode() { return clampInt(getSetting('CONFIG_MARKER_TE
 function markerTextSecMaskCode() { return clampInt(getSetting('CONFIG_MARKER_TEXT_SEC_MASK', '4095'), 0, 4095, 4095); }
 function markerTextRomanCode() { return getSetting('CONFIG_MARKER_TEXT_ROMAN', 'false') === 'true' ? 1 : 0; }
 
-// Custom hour/minute/second hand system (bigAnalogHandStyleCode() === 4) --
-// see HandConfig in hand_layer.h for what each field means. Style 0-2 are
-// the original dot/triangle/square; 3-7 are dauphine/sword/spade/arrow/
-// pomme, and 8-10 are leaf/syringe/serpentine -- all of 3-10 additionally
-// use middle_offset (leaf only middle_offset, the rest also secondary_width).
+// Hour/minute/second hand system -- see HandConfig in hand_layer.h for
+// what each field means. Style 0-2 are the original dot/triangle/square;
+// 3-7 are dauphine/sword/spade/arrow/pomme, and 8-10 are leaf/syringe/
+// serpentine -- all of 3-10 additionally use middle_offset (leaf only
+// middle_offset, the rest also secondary_width). Every hand -- whether
+// picked via one of config-page.js's preset buttons or hand-edited --
+// is sent as one of these full field sets; the watch has no separate
+// "preset" concept of its own (see HAND_PRESETS in config-page.js).
 function handStyleFieldCode(key, fallback) { return clampInt(getSetting(key, fallback), 0, 10, fallback); }
 function handColorFieldCode(key, fallback) { return clampInt(getSetting(key, fallback), 0, 2, fallback); }
 // A hand's own color additionally allows 3 = "none" (skip the fill) --
@@ -768,11 +753,6 @@ function shakeAnimModeCode() {
   return [0, 1, 2, 3, 4, 5].indexOf(v) === -1 ? 0 : v;
 }
 function outlineEnabledCode() { return getSetting('CONFIG_OUTLINE_ENABLED', 'true') === 'true' ? 1 : 0; }
-// Radio-style, exactly one of 0=None, 1=Contrasting outline, 2=Background color outline, 3=Shadow -- see hand_preset_contrast_style's own comment in eclipse_data.h. Default 2 matches the fixed behavior every hand style preset had before this setting existed.
-function handPresetContrastStyleCode() {
-  var v = parseInt(getSetting('CONFIG_HAND_PRESET_CONTRAST_STYLE', '2'), 10);
-  return [0, 1, 2, 3].indexOf(v) === -1 ? 2 : v;
-}
 function cornerFontCode() {
   return clampInt(getSetting('CONFIG_CORNER_FONT', '1'), 0, 37, 1); // 1 = System Medium, the old default
 }
@@ -828,7 +808,6 @@ function sendFlatDict(dict) {
   dict['NIGHT_CUSTOM_TEXT'] = nightCustomTextByte();
   dict['NIGHT_CUSTOM_ACCENT'] = nightCustomAccentByte();
   dict['BOTTOM_STYLE'] = bottomStyleCode();
-  dict['ANALOG_STYLE'] = analogStyleCode();
   dict['SUN_MOON_SIZE_PCT'] = sunMoonSizeCode();
   dict['CLOUD_RENDER_STYLE'] = cloudRenderStyleCode();
   dict['SKY_MODE'] = skyModeCode();
@@ -838,9 +817,6 @@ function sendFlatDict(dict) {
   dict['SHAKE_LABEL_SECONDS'] = shakeLabelSecondsCode();
   dict['LABEL_STYLE'] = labelStyleCode();
   dict['BOTTOM_INFO_BAR_MODE'] = bottomInfoBarModeCode();
-  dict['BIG_ANALOG_HAND_STYLE'] = bigAnalogHandStyleCode();
-  dict['BIG_ANALOG_HANDS_TRANSPARENT'] = bigAnalogHandsTransparentCode();
-  dict['BIG_ANALOG_HANDS_SHADOW'] = bigAnalogHandsShadowCode();
   dict['SHADOW_TRANSLUCENT'] = shadowTranslucentCode();
   dict['SHADOW_ANGLE'] = shadowAngleCode();
   dict['BIG_ANALOG_MARKER_STYLE'] = bigAnalogMarkerStyleCode();
@@ -936,7 +912,6 @@ function sendFlatDict(dict) {
   dict['BG_ANIM_MODE'] = bgAnimModeCode();
   dict['SHAKE_ANIM_MODE'] = shakeAnimModeCode();
   dict['OUTLINE_ENABLED'] = outlineEnabledCode();
-  dict['HAND_PRESET_CONTRAST_STYLE'] = handPresetContrastStyleCode();
   dict['CORNER_FONT'] = cornerFontCode();
   dict['CORNER_CONTENT'] = cornerContentBytes();
   dict['CORNER_COLOR_MODE'] = cornerColorModeBytes();
@@ -1526,8 +1501,7 @@ function sendFlatDict(dict) {
 '  "NIGHT_CUSTOM_BG": 192,'+
 '  "NIGHT_CUSTOM_TEXT": 255,'+
 '  "NIGHT_CUSTOM_ACCENT": 240,'+
-'  "BOTTOM_STYLE": 2,'+
-'  "ANALOG_STYLE": 3,'+
+'  "BOTTOM_STYLE": 1,'+
 '  "SUN_MOON_SIZE_PCT": 50,'+
 '  "CLOUD_RENDER_STYLE": 0,'+
 '  "SKY_MODE": 0,'+
@@ -1544,9 +1518,6 @@ function sendFlatDict(dict) {
 '  "SHAKE_LABEL_SECONDS": 8,'+
 '  "LABEL_STYLE": 0,'+
 '  "BOTTOM_INFO_BAR_MODE": 0,'+
-'  "BIG_ANALOG_HAND_STYLE": 0,'+
-'  "BIG_ANALOG_HANDS_TRANSPARENT": 1,'+
-'  "BIG_ANALOG_HANDS_SHADOW": 0,'+
 '  "SHADOW_TRANSLUCENT": 1,'+
 '  "SHADOW_ANGLE": 120,'+
 '  "BIG_ANALOG_MARKER_STYLE": 8,'+
@@ -1629,7 +1600,6 @@ function sendFlatDict(dict) {
 '  "BG_ANIM_MODE": 0,'+
 '  "SHAKE_ANIM_MODE": 0,'+
 '  "OUTLINE_ENABLED": 1,'+
-'  "HAND_PRESET_CONTRAST_STYLE": 2,'+
 '  "CORNER_FONT": 1,'+
 '  "CORNER_CONTENT": ['+
 '    10,'+
@@ -2295,7 +2265,6 @@ Pebble.addEventListener('showConfiguration', function () {
     nightCustomText: getSetting('CONFIG_NIGHT_CUSTOM_TEXT', '255'),
     nightCustomAccent: getSetting('CONFIG_NIGHT_CUSTOM_ACCENT', '255'),
     bottomStyle: getSetting('CONFIG_BOTTOM_STYLE', 'digital'),
-    analogStyle: getSetting('CONFIG_ANALOG_STYLE', '0'),
     sunMoonSize: getSetting('CONFIG_SUN_MOON_SIZE', '75'),
     cloudRenderStyle: getSetting('CONFIG_CLOUD_RENDER_STYLE', '1'),
     skyMode: getSetting('CONFIG_SKY_MODE', '0'),
@@ -2305,9 +2274,6 @@ Pebble.addEventListener('showConfiguration', function () {
     shakeLabelSeconds: getSetting('CONFIG_SHAKE_LABEL_SECONDS', '3'),
     labelStyle: getSetting('CONFIG_LABEL_STYLE', '0'),
     bottomInfoBarMode: getSetting('CONFIG_BOTTOM_INFO_BAR_MODE', '1'),
-    bigAnalogHandStyle: getSetting('CONFIG_BIG_ANALOG_HAND_STYLE', '0'),
-    bigAnalogTransparent: getSetting('CONFIG_BIG_ANALOG_TRANSPARENT', 'false') === 'true',
-    bigAnalogHandsShadow: getSetting('CONFIG_BIG_ANALOG_HANDS_SHADOW', 'false') === 'true',
     shadowTranslucent: getSetting('CONFIG_SHADOW_TRANSLUCENT', 'true'),
     shadowAngle: getSetting('CONFIG_SHADOW_ANGLE', '120'),
     bigAnalogMarkerStyle: getSetting('CONFIG_BIG_ANALOG_MARKER_STYLE', '0'),
@@ -2412,7 +2378,6 @@ Pebble.addEventListener('showConfiguration', function () {
     bgAnimMode: getSetting('CONFIG_BG_ANIM_MODE', '0'),
     shakeAnimMode: getSetting('CONFIG_SHAKE_ANIM_MODE', '0'),
     outlineEnabled: getSetting('CONFIG_OUTLINE_ENABLED', 'true') === 'true',
-    handPresetContrastStyle: getSetting('CONFIG_HAND_PRESET_CONTRAST_STYLE', '2'),
     cornerFont: getSetting('CONFIG_CORNER_FONT', '1'),
     testMode: getSetting('CONFIG_TEST_MODE', 'false') === 'true',
     testDateTime: getSetting('CONFIG_TEST_DATETIME', ''),
@@ -2490,8 +2455,7 @@ Pebble.addEventListener('webviewclosed', function (e) {
   setSetting('CONFIG_NIGHT_CUSTOM_BG', settings.CONFIG_NIGHT_CUSTOM_BG || '192');
   setSetting('CONFIG_NIGHT_CUSTOM_TEXT', settings.CONFIG_NIGHT_CUSTOM_TEXT || '255');
   setSetting('CONFIG_NIGHT_CUSTOM_ACCENT', settings.CONFIG_NIGHT_CUSTOM_ACCENT || '255');
-  setSetting('CONFIG_BOTTOM_STYLE', (settings.CONFIG_BOTTOM_STYLE === 'analog' || settings.CONFIG_BOTTOM_STYLE === 'biganalog') ? settings.CONFIG_BOTTOM_STYLE : 'digital');
-  setSetting('CONFIG_ANALOG_STYLE', settings.CONFIG_ANALOG_STYLE || '0');
+  setSetting('CONFIG_BOTTOM_STYLE', (settings.CONFIG_BOTTOM_STYLE === 'analog' || settings.CONFIG_BOTTOM_STYLE === 'biganalog') ? 'analog' : 'digital');
   setSetting('CONFIG_SUN_MOON_SIZE', settings.CONFIG_SUN_MOON_SIZE || '100');
   setSetting('CONFIG_CLOUD_RENDER_STYLE', settings.CONFIG_CLOUD_RENDER_STYLE || '1');
   setSetting('CONFIG_SKY_MODE', settings.CONFIG_SKY_MODE || '0');
@@ -2501,9 +2465,6 @@ Pebble.addEventListener('webviewclosed', function (e) {
   setSetting('CONFIG_SHAKE_LABEL_SECONDS', settings.CONFIG_SHAKE_LABEL_SECONDS || '3');
   setSetting('CONFIG_LABEL_STYLE', settings.CONFIG_LABEL_STYLE || '0');
   setSetting('CONFIG_BOTTOM_INFO_BAR_MODE', settings.CONFIG_BOTTOM_INFO_BAR_MODE || '1');
-  setSetting('CONFIG_BIG_ANALOG_HAND_STYLE', settings.CONFIG_BIG_ANALOG_HAND_STYLE || '0');
-  setSetting('CONFIG_BIG_ANALOG_TRANSPARENT', settings.CONFIG_BIG_ANALOG_TRANSPARENT ? 'true' : 'false');
-  setSetting('CONFIG_BIG_ANALOG_HANDS_SHADOW', settings.CONFIG_BIG_ANALOG_HANDS_SHADOW ? 'true' : 'false');
   setSetting('CONFIG_SHADOW_TRANSLUCENT', settings.CONFIG_SHADOW_TRANSLUCENT || 'true');
   setSetting('CONFIG_SHADOW_ANGLE', settings.CONFIG_SHADOW_ANGLE || '120');
   setSetting('CONFIG_BIG_ANALOG_MARKER_STYLE', settings.CONFIG_BIG_ANALOG_MARKER_STYLE || '0');
@@ -2608,7 +2569,6 @@ Pebble.addEventListener('webviewclosed', function (e) {
   setSetting('CONFIG_BG_ANIM_MODE', settings.CONFIG_BG_ANIM_MODE || '0');
   setSetting('CONFIG_SHAKE_ANIM_MODE', settings.CONFIG_SHAKE_ANIM_MODE || '0');
   setSetting('CONFIG_OUTLINE_ENABLED', settings.CONFIG_OUTLINE_ENABLED ? 'true' : 'false');
-  setSetting('CONFIG_HAND_PRESET_CONTRAST_STYLE', settings.CONFIG_HAND_PRESET_CONTRAST_STYLE || '2');
   setSetting('CONFIG_CORNER_FONT', settings.CONFIG_CORNER_FONT || '1');
   setSetting('CONFIG_TEST_MODE', settings.CONFIG_TEST_MODE ? 'true' : 'false');
   setSetting('CONFIG_TEST_DATETIME', settings.CONFIG_TEST_DATETIME || '');

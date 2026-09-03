@@ -111,17 +111,6 @@ void ensure_corner_custom_font(uint8_t font_id) {
   font_lookup_resolve(&s_corner_font_slot, font_id);
 }
 
-// How many of the small-analog info panel's rows actually fit, given
-// the currently-selected corner/edge font -- anything taller than
-// System Medium (the old default) only leaves room for 3 rows before
-// they'd start overlapping; System Small and Medium both stay short
-// enough for the full 4. Mirrors the equivalent check in
-// config-page.js's computeSlotAvailability() (used to gray out the
-// 4th feature button there) -- keep the two in sync.
-uint8_t small_analog_feature_count(const EclipseData *data) {
-  return font_lookup_height(data->corner_font) > 18 ? 3 : 4;
-}
-
 void features_layer_unload_fonts(void) {
   font_lookup_release(&s_corner_font_slot);
 }
@@ -2069,20 +2058,20 @@ static void features_recompute_slots(FeaturesState *state) {
   EclipseData *d = state->data;
   if (!d) return;
 
-  bool is_big_analog = d->bottom_style == 2;
+  bool is_analog = d->bottom_style == 1;
   uint8_t marker_style = d->big_analog_marker_style;
-  bool is_bitmap_style = is_big_analog && marker_style >= 3 && marker_style != 8 && marker_style != 9;
+  bool is_bitmap_style = is_analog && marker_style >= 3 && marker_style != 8 && marker_style != 9;
 
   // Which of the 4 edge-middle slots (upper/bottom/left/right-middle) does
-  // the current mode/style actually support? Digital/analog modes use
-  // none of them. Big-analogue procedural styles (<3), custom (8), and
+  // the current mode/style actually support? Digital mode uses
+  // none of them. Analog mode's procedural styles (<3), custom (8), and
   // none (9, no marker ring drawn at all) have no artwork to work around,
-  // so all 4 are available alongside the corners. Big-analogue bitmap
+  // so all 4 are available alongside the corners. Analog mode's bitmap
   // styles (3-7) are limited to whichever slots that specific mask
   // graphic's design has room for, and always suppress the 4 corners (the
   // mask already fills most of the screen either way).
   bool show_upper = false, show_bottom = false, show_left = false, show_right = false;
-  if (is_big_analog) {
+  if (is_analog) {
     if (marker_style < 3 || marker_style == 8 || marker_style == 9) {
       show_upper = show_bottom = show_left = show_right = true;
     } else {
@@ -2224,12 +2213,10 @@ static void features_recompute_slots(FeaturesState *state) {
   // bottom_info_bar_mode, not just whether a shake is currently active:
   // Off (0) never draws it (never shift), Permanent (2) always draws it
   // (always shift), and On shake (1) draws it only while labels_visible
-  // is true (shift only then). Also itself suppressed in analog mode
-  // (bottom_style == 1), where the bar is redundant with the persistent
-  // info panel and never drawn.
+  // is true (shift only then).
   bool bar_will_draw = (d->bottom_info_bar_mode == 2) ||
                         (d->bottom_info_bar_mode == 1 && state->labels_visible);
-  int16_t bottom_shift = (bar_will_draw && d->bottom_style != 1) ? 18 : 0;
+  int16_t bottom_shift = bar_will_draw ? 18 : 0;
 
   state->slots[SLOT_CORNER_TL] = (FeatureSlot){
     .active = true, .content = d->corner_content[0], .color_mode = d->corner_color_mode[0],
