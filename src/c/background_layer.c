@@ -1963,6 +1963,19 @@ static void draw_text_markers(GContext *ctx, GPoint center, GRect screen, Canvas
 
   GFont font = font_lookup_resolve(&state->marker_text_font_slot, text_cfg->font_choice);
   int16_t fh = font_lookup_height(text_cfg->font_choice) + font_lookup_y_offset(text_cfg->font_choice);
+  // Sized to the font itself rather than a flat pixel count -- this
+  // used to be a fixed 30px, wide enough for a 2-digit number in one
+  // of the ~14-20px system/small fonts every marker text font used to
+  // be. Now that the corner/edge-style big custom display fonts (up
+  // to ~48px tall, e.g. Digital Dream/Minecrafter/Bebas Big) are
+  // selectable here too, that flat 30px wasn't even wide enough for a
+  // single glyph at that size, let alone a 2-3 character mark like
+  // "12" or a Roman numeral ("XII") -- text overflowing its own draw
+  // box like that is what was showing up as a trailing "…" instead of
+  // the actual mark. 2x the font's own height comfortably fits the
+  // widest label this ring ever draws (a 2-digit number or a short
+  // Roman numeral) at any font size, small or big alike.
+  int16_t box_w = fh * 2 + 8, box_h = fh + 6;
 
   graphics_context_set_text_color(ctx, color);
 
@@ -2000,7 +2013,6 @@ static void draw_text_markers(GContext *ctx, GPoint center, GRect screen, Canvas
     else if (text_cfg->roman_numerals) buf[0] = '\0'; // roman numerals have no glyph for 0 -- blank rather than garbage mid-count-up
     else snprintf(buf, sizeof(buf), "%d", label);
 
-    int16_t box_w = 30, box_h = fh + 4;
     GRect box = GRect(pos.x - box_w / 2, pos.y - box_h / 2, box_w, box_h);
     graphics_draw_text(ctx, buf, font, box, GTextOverflowModeFill, GTextAlignmentCenter, NULL);
   }
