@@ -1622,11 +1622,10 @@ handEditorModalHtml('sec', 'Edit second hand') +
         { value: '1', label: 'Gradient (outlines sweep through a rainbow)' },
         { value: '2', label: 'Smooth second hand' },
         { value: '3', label: 'Both' },
-        { value: '4', label: 'Planet seek' },
-        { value: '5', label: 'Paths' }
+        { value: '4', label: 'Planet seek' }
       ], current.shakeAnimMode || '0') +
 '    </div>' +
-'    <div class="help">Off by default: runs for as long as the shake labels stay up -- see "Shake-to-reveal labels stay on screen for" in the Astronomy section. "Planet seek" points the sky view at whichever 90&deg; slice of the horizon your compass currently faces, repositioning the Sun/Moon/planets to match as you turn -- weather is hidden for the duration, and it never runs on a day with an eclipse. "Paths" grows a dotted trail out of each currently-visible Sun/Moon/planet in its own color, tracing roughly the surrounding 4 hours -- bodies not currently on screen don\'t get a path in this version.</div>' +
+'    <div class="help">Off by default: runs for as long as the shake labels stay up -- see "Shake-to-reveal labels stay on screen for" in the Astronomy section. "Planet seek" points the sky view at whichever 90&deg; slice of the horizon your compass currently faces, repositioning the Sun/Moon/planets to match as you turn -- weather is hidden for the duration, and it never runs on a day with an eclipse.</div>' +
 '    </div>' +
 
 '    </div>' +

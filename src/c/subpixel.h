@@ -447,52 +447,6 @@ static void stroke_line_fp(GContext *ctx, FGPoint a, FGPoint b, GColor color, bo
   }
 }
 
-// Same DDA walk as stroke_line_fp() above, but only plots every other
-// distinct pixel (a dotted line) and stops early once *budget_px hits
-// 0 -- decremented once per distinct pixel, drawn or not, so a
-// caller can budget a whole multi-segment path's reveal length across
-// several calls to this function and have it stop exactly where the
-// budget runs out, mid-segment if need be. Used for "Paths"
-// (shake_anim_mode 5)'s own extend/contract animation -- see
-// draw_body_paths_overlay() in background_layer.c.
-static bool stroke_line_dotted_budget_fp(GContext *ctx, FGPoint a, FGPoint b, GColor color, int32_t *budget_px) {
-  if (*budget_px <= 0) return false;
-
-  int32_t dx = b.x - a.x;
-  int32_t dy = b.y - a.y;
-  int32_t max_len = abs(dx) > abs(dy) ? abs(dx) : abs(dy);
-  int32_t steps = (max_len + SUBPIXEL_MASK) >> SUBPIXEL_BITS;
-  if (steps == 0) steps = 1;
-
-  int32_t x_inc = dx / steps;
-  int32_t y_inc = dy / steps;
-  int32_t cur_x = a.x;
-  int32_t cur_y = a.y;
-
-  graphics_context_set_fill_color(ctx, color);
-  int16_t last_px = -32768, last_py = -32768;
-  bool dot_on = true; // alternates per distinct pixel -- "every second pixel" per the request
-
-  for (int i = 0; i <= steps; i++) {
-    int16_t px = fp_round_to_px(cur_x);
-    int16_t py = fp_round_to_px(cur_y);
-
-    if (px != last_px || py != last_py) {
-      if (dot_on) {
-        graphics_fill_rect(ctx, GRect(px, py, 1, 1), 0, GCornerNone);
-      }
-      dot_on = !dot_on;
-      last_px = px;
-      last_py = py;
-      (*budget_px)--;
-      if (*budget_px <= 0) return true; // budget exhausted mid-segment -- caller stops walking further segments too
-    }
-    cur_x += x_inc;
-    cur_y += y_inc;
-  }
-  return true;
-}
-
 // A ~50%-Bayer-dithered stroke along the polygon's actual perimeter --
 // each consecutive pair of points (including the wrap from the last
 // point back to the first), walked pixel by pixel (Bresenham-ish) with
