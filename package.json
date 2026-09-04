@@ -247,8 +247,8 @@
         },
         {
           "type": "font",
-          "name": "MISO_FONT_19",
-          "file": "fonts/miso.otf"
+          "name": "ALAGARD_FONT_19",
+          "file": "fonts/alagard.ttf"
         },
         {
           "type": "font",
@@ -269,62 +269,44 @@
         {
           "characterRegex": "[:0-9]",
           "type": "font",
+          "name": "ALAGARD_FONT_48",
+          "file": "fonts/alagard.ttf"
+        },
+        {
+          "characterRegex": "[:0-9]",
+          "type": "font",
+          "name": "AMITA_FONT_48",
+          "file": "fonts/Amita-Bold.ttf"
+        },
+        {
+          "characterRegex": "[:0-9]",
+          "type": "font",
+          "name": "AVERIA_FONT_48",
+          "file": "fonts/AveriaSerifLibre-BoldItalic.ttf"
+        },
+        {
+          "characterRegex": "[:0-9]",
+          "type": "font",
+          "name": "BAGEL_FONT_48",
+          "file": "fonts/BagelFatOne-Regular.ttf"
+        },
+        {
+          "characterRegex": "[:0-9]",
+          "type": "font",
           "name": "BEBAS_FONT_48",
           "file": "fonts/BebasNeueBold.otf"
         },
         {
           "characterRegex": "[:0-9]",
           "type": "font",
-          "name": "CLOCKFORGE_FONT_48",
-          "file": "fonts/ClockForge.ttf"
+          "name": "BRICOLAGE_FONT_48",
+          "file": "fonts/BricolageGrotesque.ttf"
         },
         {
           "characterRegex": "[:0-9]",
           "type": "font",
-          "name": "SFPIXELATE_FONT_48",
-          "file": "fonts/SFPixelate.ttf"
-        },
-        {
-          "characterRegex": "[:0-9]",
-          "type": "font",
-          "name": "RADIOLAND_FONT_48",
-          "file": "fonts/RADIOLAND.ttf"
-        },
-        {
-          "characterRegex": "[:0-9]",
-          "type": "font",
-          "name": "MINISYSTEM_FONT_48",
-          "file": "fonts/minisystem.otf"
-        },
-        {
-          "characterRegex": "[:0-9]",
-          "type": "font",
-          "name": "MINECRAFTER_FONT_48",
-          "file": "fonts/Minecrafter.ttf"
-        },
-        {
-          "characterRegex": "[:0-9]",
-          "type": "font",
-          "name": "KITCHENPOLICE_FONT_48",
-          "file": "fonts/KITCHENPOLICE.ttf"
-        },
-        {
-          "characterRegex": "[:0-9]",
-          "type": "font",
-          "name": "DSDIGIB_FONT_48",
-          "file": "fonts/DS-DIGIB.ttf"
-        },
-        {
-          "characterRegex": "[:0-9]",
-          "type": "font",
-          "name": "DISTGRG_FONT_48",
-          "file": "fonts/DISTGRG.ttf"
-        },
-        {
-          "characterRegex": "[:0-9]",
-          "type": "font",
-          "name": "DIMITRI_FONT_48",
-          "file": "fonts/DIMITRI.ttf"
+          "name": "CHANGO_FONT_48",
+          "file": "fonts/Chango-Regular.ttf"
         },
         {
           "characterRegex": "[:0-9]",
@@ -335,20 +317,20 @@
         {
           "characterRegex": "[:0-9]",
           "type": "font",
-          "name": "BLACKOUT_FONT_48",
-          "file": "fonts/Blackout.ttf"
+          "name": "EMBLEMA_FONT_48",
+          "file": "fonts/EmblemaOne-Regular.ttf"
         },
         {
           "characterRegex": "[:0-9]",
           "type": "font",
-          "name": "AUDIOWIDE_FONT_48",
-          "file": "fonts/Audiowide.ttf"
+          "name": "FRAUNCES_FONT_48",
+          "file": "fonts/Fraunces.ttf"
         },
         {
           "characterRegex": "[:0-9]",
           "type": "font",
-          "name": "FORMATION_FONT_48",
-          "file": "fonts/Formation.ttf"
+          "name": "GEOSTAR_FONT_48",
+          "file": "fonts/GeostarFill-Regular.ttf"
         },
         {
           "characterRegex": "[:0-9]",
@@ -359,14 +341,62 @@
         {
           "characterRegex": "[:0-9]",
           "type": "font",
-          "name": "MISO_FONT_48",
-          "file": "fonts/miso.otf"
+          "name": "MICHROMA_FONT_48",
+          "file": "fonts/Michroma-Regular.ttf"
         },
         {
           "characterRegex": "[:0-9]",
           "type": "font",
-          "name": "PRICEDOWN_FONT_48",
-          "file": "fonts/pricedown.otf"
+          "name": "MINECRAFTER_FONT_48",
+          "file": "fonts/Minecrafter.ttf"
+        },
+        {
+          "characterRegex": "[:0-9]",
+          "type": "font",
+          "name": "NATIONALPARK_FONT_48",
+          "file": "fonts/NationalPark-VariableFont_wght.ttf"
+        },
+        {
+          "characterRegex": "[:0-9]",
+          "type": "font",
+          "name": "QUANTICO_FONT_48",
+          "file": "fonts/Quantico-BoldItalic.ttf"
+        },
+        {
+          "characterRegex": "[:0-9]",
+          "type": "font",
+          "name": "SFPIXELATE_FONT_48",
+          "file": "fonts/SFPixelate.ttf"
+        },
+        {
+          "characterRegex": "[:0-9]",
+          "type": "font",
+          "name": "SILKSCREEN_FONT_48",
+          "file": "fonts/Silkscreen-Regular.ttf"
+        },
+        {
+          "characterRegex": "[:0-9]",
+          "type": "font",
+          "name": "STACKSANSHEADLINE_FONT_48",
+          "file": "fonts/StackSansHeadline.ttf"
+        },
+        {
+          "characterRegex": "[:0-9]",
+          "type": "font",
+          "name": "UNBOUNDED_FONT_48",
+          "file": "fonts/Unbounded-Medium.ttf"
+        },
+        {
+          "characterRegex": "[:0-9]",
+          "type": "font",
+          "name": "WALLPOET_FONT_48",
+          "file": "fonts/Wallpoet-Regular.ttf"
+        },
+        {
+          "characterRegex": "[:0-9]",
+          "type": "font",
+          "name": "ZALANDOSANS_FONT_48",
+          "file": "fonts/ZalandoSansExpanded-Medium.ttf"
         },
         {
           "type": "bitmap",

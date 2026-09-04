@@ -199,23 +199,28 @@ var FONT_LOOKUP = [
   { id: 19, label: 'Minecrafter',         height: 40, preview: "font-family: 'Courier New', monospace; letter-spacing: 3px;", small: false, mainClock: true, pairedSmallId: 18, wide: true, secondsDisabled: true },
   { id: 20, label: 'SF Pixelate Small',   height: 14, preview: "font-family: 'Courier New', monospace; letter-spacing: 1px;", small: true },
   { id: 21, label: 'SF Pixelate',         height: 40, preview: "font-family: 'Courier New', monospace; letter-spacing: 2px;", small: false, mainClock: true, pairedSmallId: 20, wide: true, secondsDisabled: true },
-  { id: 22, label: 'Miso Small',          height: 19, preview: "font-family: 'Century Gothic', sans-serif; font-weight: 600;", small: true },
-  { id: 23, label: 'Miso',                height: 40, preview: "font-family: 'Century Gothic', sans-serif; font-weight: 600;", small: false, mainClock: true, pairedSmallId: 22 },
+  { id: 22, label: 'Alagard Small',       height: 19, preview: "font-family: 'Century Gothic', sans-serif; font-weight: 600;", small: true },
+  { id: 23, label: 'Alagard',             height: 40, preview: "font-family: 'Century Gothic', sans-serif; font-weight: 600;", small: false, mainClock: true, pairedSmallId: 22 },
   { id: 24, label: 'Bebas Small',         height: 20, preview: "font-family: 'Bebas', 'Century Gothic', sans-serif; font-weight: 700; letter-spacing: 1px;", small: true },
   { id: 25, label: 'Bebas',               height: 40, preview: "font-family: 'Bebas', 'Century Gothic', sans-serif; font-weight: 700; letter-spacing: 1px;", small: false, mainClock: true, pairedSmallId: 24 },
-  { id: 26, label: 'ClockForge',          height: 40, preview: "font-family: Impact, sans-serif; font-weight: 700; letter-spacing: 1px;", small: false, mainClock: true, pairedSmallId: 4 },
-  { id: 27, label: 'Radioland',           height: 40, preview: "font-family: 'Courier New', monospace; font-weight: 700;", small: false, mainClock: true, pairedSmallId: 4, wide: true, secondsDisabled: true },
-  { id: 28, label: 'Mini System',         height: 40, preview: "font-family: 'Courier New', monospace;", small: false, mainClock: true, pairedSmallId: 4, wide: true, secondsDisabled: true },
-  { id: 29, label: 'Kitchen Police',      height: 40, preview: "font-family: Impact, 'Arial Narrow', sans-serif;", small: false, mainClock: true, pairedSmallId: 4, wide: true, secondsDisabled: true },
-  { id: 30, label: 'DS Digital',          height: 40, preview: "font-family: 'Courier New', monospace; font-weight: 700; letter-spacing: 2px;", small: false, mainClock: true, pairedSmallId: 4 },
-  { id: 31, label: 'Distant Galaxy',      height: 40, preview: "font-family: 'Arial Narrow', sans-serif; letter-spacing: 3px; font-weight: 700;", small: false, mainClock: true, pairedSmallId: 4 },
-  { id: 32, label: 'Dimitri',             height: 40, preview: "font-family: Georgia, serif; font-weight: 700;", small: false, mainClock: true, pairedSmallId: 4 },
-  { id: 33, label: 'Blackout',            height: 40, preview: "font-family: Impact, sans-serif; font-weight: 900;", small: false, mainClock: true, pairedSmallId: 4 },
-  { id: 34, label: 'Audiowide',           height: 40, preview: "font-family: 'Arial Black', sans-serif; letter-spacing: 1px;", small: false, mainClock: true, pairedSmallId: 4, wide: true, secondsDisabled: true },
-  { id: 35, label: 'Formation',           height: 40, preview: "font-family: Verdana, sans-serif; font-weight: 700;", small: false, mainClock: true, pairedSmallId: 4 },
+  { id: 26, label: 'Amita',               height: 40, preview: "font-family: Impact, sans-serif; font-weight: 700; letter-spacing: 1px;", small: false, mainClock: true, pairedSmallId: 4 },
+  { id: 27, label: 'AveriaSerifLibre',    height: 40, preview: "font-family: 'Courier New', monospace; font-weight: 700;", small: false, mainClock: true, pairedSmallId: 4, wide: true, secondsDisabled: true },
+  { id: 28, label: 'Bagel',               height: 40, preview: "font-family: 'Courier New', monospace;", small: false, mainClock: true, pairedSmallId: 4, wide: true, secondsDisabled: true },
+  { id: 29, label: 'Bricolage Grotesque', height: 40, preview: "font-family: Impact, 'Arial Narrow', sans-serif;", small: false, mainClock: true, pairedSmallId: 4, wide: true, secondsDisabled: true },
+  { id: 30, label: 'Chango',              height: 40, preview: "font-family: 'Courier New', monospace; font-weight: 700; letter-spacing: 2px;", small: false, mainClock: true, pairedSmallId: 4 },
+  { id: 31, label: 'EmblemaOne',          height: 40, preview: "font-family: 'Arial Narrow', sans-serif; letter-spacing: 3px; font-weight: 700;", small: false, mainClock: true, pairedSmallId: 4 },
+  { id: 32, label: 'Fraunces',            height: 40, preview: "font-family: Georgia, serif; font-weight: 700;", small: false, mainClock: true, pairedSmallId: 4 },
+  { id: 33, label: 'Geostar Fill',        height: 40, preview: "font-family: Impact, sans-serif; font-weight: 900;", small: false, mainClock: true, pairedSmallId: 4 },
+  { id: 34, label: 'Michroma',            height: 40, preview: "font-family: 'Arial Black', sans-serif; letter-spacing: 1px;", small: false, mainClock: true, pairedSmallId: 4, wide: true, secondsDisabled: true },
+  { id: 35, label: 'National Park',       height: 40, preview: "font-family: Verdana, sans-serif; font-weight: 700;", small: false, mainClock: true, pairedSmallId: 4 },
   { id: 36, label: 'Komika',              height: 40, preview: "font-family: 'Comic Sans MS', cursive; font-weight: 700;", small: false, mainClock: true, pairedSmallId: 4, wide: true, secondsDisabled: true },
-  { id: 37, label: 'Pricedown',           height: 40, preview: "font-family: Impact, 'Arial Narrow', sans-serif; font-style: italic; letter-spacing: 1px;", small: false, mainClock: true, pairedSmallId: 4 }
-];
+  { id: 37, label: 'Quantico',            height: 40, preview: "font-family: Impact, 'Arial Narrow', sans-serif; font-style: italic; letter-spacing: 1px;", small: false, mainClock: true, pairedSmallId: 4 },
+  { id: 38, label: 'Silkscreen',          height: 40, preview: "font-family: Impact, 'Arial Narrow', sans-serif; font-style: italic; letter-spacing: 1px;", small: false, mainClock: true, pairedSmallId: 4 },
+  { id: 39, label: 'StackSansHeadline',   height: 40, preview: "font-family: Impact, 'Arial Narrow', sans-serif; font-style: italic; letter-spacing: 1px;", small: false, mainClock: true, pairedSmallId: 4 },
+  { id: 40, label: 'Unbounded',           height: 40, preview: "font-family: Impact, 'Arial Narrow', sans-serif; font-style: italic; letter-spacing: 1px;", small: false, mainClock: true, pairedSmallId: 4 },
+  { id: 41, label: 'Wallpoet',            height: 40, preview: "font-family: Impact, 'Arial Narrow', sans-serif; font-style: italic; letter-spacing: 1px;", small: false, mainClock: true, pairedSmallId: 4 },
+  { id: 42, label: 'ZalandoSans',         height: 40, preview: "font-family: Impact, 'Arial Narrow', sans-serif; font-style: italic; letter-spacing: 1px;", small: false, mainClock: true, pairedSmallId: 4 }
+]; // remember to bump FONT_MAX_CONTENT_ID in index.js!!!
 
 // Fastest way to go from an id to its entry -- every font picker
 // needs this (rendering the current selection, gating Show Seconds,
@@ -402,7 +407,7 @@ var ROMAN_INCOMPATIBLE_FONTS = { 6: true, 7: true, 13: true };
 
 // A 12-button grid for picking which hour numerals (kind='hour', labels
 // 12,1..11) or which every-5-second slots (kind='sec', labels 0,5..55)
-// should get a text marker -- bit i of the mask corresponds to button i,
+// should get a numeral -- bit i of the mask corresponds to button i,
 // same order marker_layer_draw_text() iterates on-watch.
 function markBtnGridHtml(kind, maskStr) {
   var mask = parseInt(maskStr, 10);
@@ -534,7 +539,7 @@ function customMarkerModalHtml(kind, title, thicknessMax) {
 '      <button type="button" onclick="applyMarkerPreset(\'' + kind + '\', \'small\')">Small</button>' +
 '      <button type="button" onclick="applyMarkerPreset(\'' + kind + '\', \'big\')">Big</button>' +
 '    </div>' +
-'    <button type="button" class="marker-edit-btn" style="margin-top:8px;" onclick="copyMarkerConfig(\'' + kind + '\')">Copy from ' + (kind === 'hour' ? 'second' : 'hour') + ' markers</button>' +
+'    <button type="button" class="marker-edit-btn" style="margin-top:8px;" onclick="copyMarkerConfig(\'' + kind + '\')">Copy from ' + (kind === 'hour' ? 'seconds' : 'hour') + ' indices</button>' +
 
 '    </div>' +
 '    <div class="modal-footer">' +
@@ -546,8 +551,8 @@ function customMarkerModalHtml(kind, title, thicknessMax) {
   );
 }
 
-// The "Edit text markers" popup -- numerals shown on the hour or second
-// custom-marker ring (never both). Everything here commits live (same
+// The "Edit numerals" popup -- numerals shown on the hour or second
+// custom-index ring (never both). Everything here commits live (same
 // as the hour/second button grids always have) rather than draft-then-
 // Save, since there's no risk of an inconsistent in-between state the
 // way there is with the ring geometry popups.
@@ -555,14 +560,14 @@ function textMarkerModalHtml(current) {
   return (
 '<div class="modal-overlay" id="textMarkerModal" onclick="if (event.target === this) closeTextMarkerEditor();">' +
 '  <div class="modal-box">' +
-'    <div class="modal-title">Edit text markers</div>' +
+'    <div class="modal-title">Edit numerals</div>' +
 '    <div class="modal-scroll-body">' +
 
 '    <label for="markerTextTarget">Numbers</label>' +
 '    <select id="markerTextTarget" onchange="onMarkerTextTargetChange()">' +
 '      <option value="0"' + (current.markerTextTarget === '0' || !current.markerTextTarget ? ' selected' : '') + '>Off</option>' +
-'      <option value="1"' + (current.markerTextTarget === '1' ? ' selected' : '') + '>On hour markers</option>' +
-'      <option value="2"' + (current.markerTextTarget === '2' ? ' selected' : '') + '>On second markers (every 5s)</option>' +
+'      <option value="1"' + (current.markerTextTarget === '1' ? ' selected' : '') + '>On hour indices</option>' +
+'      <option value="2"' + (current.markerTextTarget === '2' ? ' selected' : '') + '>On seconds indices (every 5s)</option>' +
 '    </select>' +
 '    <div class="help">Numbers can go on the hour ring or the second ring, not both at once.</div>' +
 
@@ -577,14 +582,14 @@ function textMarkerModalHtml(current) {
 '      <div class="help" id="markerTextRomanHelp">' + (ROMAN_INCOMPATIBLE_FONTS[current.markerTextFont] ? 'Not available with this font -- its glyphs don\'t support Roman numerals correctly.' : 'Shows I, II, III... instead of 1, 2, 3... -- independent of the font above.') + '</div>' +
 
 '      <div class="slider-row">' +
-'        <label for="markerTextOffset">Offset from marker <span class="val" id="markerTextOffsetVal">' + esc(current.markerTextOffset || '0') + 'px</span></label>' +
+'        <label for="markerTextOffset">Offset from index <span class="val" id="markerTextOffsetVal">' + esc(current.markerTextOffset || '0') + 'px</span></label>' +
 '        <div class="slider-with-buttons">' +
 '        <button type="button" class="slider-step-btn" onclick="stepSlider(\'markerTextOffset\', -1)">&minus;</button>' +
 '        <input type="range" id="markerTextOffset" min="-50" max="50" step="1" value="' + esc(current.markerTextOffset || '0') + '" oninput="document.getElementById(\'markerTextOffsetVal\').textContent = this.value + \'px\';">' +
 '        <button type="button" class="slider-step-btn" onclick="stepSlider(\'markerTextOffset\', 1)">+</button>' +
 '        </div>' +
 '      </div>' +
-'      <div class="help">Positive nudges numbers outward (away from center), negative pulls them inward -- so they don\'t overlap the dot/line/square marker.</div>' +
+'      <div class="help">Positive nudges numbers outward (away from center), negative pulls them inward -- so they don\'t overlap the dot/line/square index.</div>' +
 
 '      <div id="markerTextHourGrid" style="' + (current.markerTextTarget === '1' ? '' : 'display:none;') + '">' +
 '        <label style="margin-top:10px;">Which hours get a number</label>' +
@@ -797,7 +802,8 @@ function handEditorModalHtml(kind, title) {
  *     in marker_layer.c -- each mark spans directly between its inner/outer border points),
  *     markerTextTarget: '0'(off)|'1'(hour)|'2'(second), markerTextFont: '0'-'35', markerTextOffset: '-50'-'50',
  *     markerTextHourMask/markerTextSecMask: 0-4095 (12-bit),
- *     testMode, testDateTime }
+ *     testMode, testDateTime, fullKeysetJson: pretty-printed JSON string, every current
+ *     AppMessage key/value pre-filled for the debug "Full keyset" window (see buildFullKeysetDict() in index.js) }
  */
 // One quick-recall Style Presets row (apply button, rename input, save/
 // rename icon buttons) plus its two backing hidden inputs -- called for
@@ -928,8 +934,8 @@ function buildConfigHtml(current) {
 
   // Which edge-middle slots (upper/bottom/left/right-middle) does the
   // current mode/style support, and are the 4 corners themselves
-  // suppressed? Must match corners_layer_update_proc's rules in
-  // pebble-eclipse-watch.c exactly, or the settings page would show
+  // suppressed? Must match features_recompute_slots's rules in
+  // features_layer.c exactly, or the settings page would show
   // slots as available that the watch itself won't actually draw.
   var markerStyleNum = parseInt(current.bigAnalogMarkerStyle || '0', 10);
   var isBitmapMarkerStyle = markerStyleNum >= 3 && markerStyleNum !== 8 && markerStyleNum !== 9;
@@ -939,7 +945,11 @@ function buildConfigHtml(current) {
       edgeAvail = { upper: true, bottom: true, left: true, right: true, cornersGrayed: false };
     } else if (markerStyleNum === 3 || markerStyleNum === 4 || markerStyleNum === 6) {
       edgeAvail = { upper: true, bottom: true, left: false, right: false, cornersGrayed: true };
-    } else if (markerStyleNum === 5 || markerStyleNum === 7) {
+    } else if (markerStyleNum === 5) {
+      // Tally -- its own mask art leaves all 4 corners clear (unlike
+      // every other bitmap style), so it alone keeps them active.
+      edgeAvail = { upper: true, bottom: true, left: true, right: true, cornersGrayed: false };
+    } else if (markerStyleNum === 7) {
       edgeAvail = { upper: true, bottom: true, left: true, right: true, cornersGrayed: true };
     } else {
       edgeAvail = { upper: true, bottom: false, left: false, right: false, cornersGrayed: true };
@@ -987,6 +997,7 @@ function buildConfigHtml(current) {
 '  :root { --page-bg: #f4f4f4; --card-bg: #fff; --text: #222; --text-strong: #333; --text-muted: #666; --text-faint: #888; --text-faint2: #555; --text-disabled: #999; --border: #ccc; --border-light: #eee; --border-lighter: #ddd; --btn-bg: #fafafa; }' +
 '  @media (prefers-color-scheme: dark) {' +
 '    :root { --page-bg: #1c1c1e; --card-bg: #2c2c2e; --text: #f2f2f2; --text-strong: #e5e5e5; --text-muted: #aaa; --text-faint: #999; --text-faint2: #bbb; --text-disabled: #777; --border: #48484a; --border-light: #3a3a3c; --border-lighter: #545456; --btn-bg: #3a3a3c; }' +
+'    .bitmap-marker-img { filter: none; }' +
 '  }' +
 '  body { font-family: -apple-system, Helvetica, Arial, sans-serif; margin: 0; padding: 16px 20px 90px; background: var(--page-bg); color: var(--text); }' +
 '  html, body { touch-action: manipulation; }' + // belt-and-suspenders alongside the viewport meta tag --
@@ -1025,6 +1036,21 @@ function buildConfigHtml(current) {
 '  .style-picker-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 8px; }' +
 '  .style-picker-btn { position: relative; aspect-ratio: 1; box-sizing: border-box; border-radius: 8px; border: 1px solid var(--border); background: var(--btn-bg); overflow: hidden; padding: 0; }' +
 '  .style-picker-btn img { width: 100%; height: 100%; object-fit: cover; display: block; }' +
+// The 5 bitmap marker style thumbnails (Modern/Swiss/Tally/Bell/Brown)
+// are the SAME mask art the watch itself tints with the user's main
+// color -- i.e. drawn in white on transparent, meant to be recolored
+// before display, never shown as-is. Shown as-is here (no tint
+// applied, just the raw watch resource -- see MARKER_PREVIEW_IMAGES),
+// that reads fine against this page's own dark/night theme (white on
+// a dark button background) but is invisible against its light/day
+// theme (white on a near-white button background) -- inverted here so
+// day mode gets black-on-light instead, and un-inverted back in the
+// dark-mode block below so night mode keeps its already-fine look.
+// Doesn\'t apply to the 4 procedural marker-preset thumbnails or the 9
+// hand-style thumbnails (style-picker-btn img above, unaffected) --
+// those are ordinary full-color pictures already visible in both
+// themes, not tintable masks.
+'  .bitmap-marker-img { filter: invert(1); }' +
 '  .style-picker-btn-empty { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; font-size: 11px; font-weight: 600; color: var(--text); text-align: center; padding: 4px; box-sizing: border-box; }' +
 '  .style-picker-btn-cap { position: absolute; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.55); color: #fff; font-size: 10px; font-weight: 700; padding: 3px 2px; text-align: center; line-height: 1.2; }' +
 '  .style-picker-custom-btn { width: 100%; box-sizing: border-box; padding: 12px; font-size: 14px; font-weight: 600; color: var(--text-strong); background: var(--btn-bg); border: 1px solid var(--border); border-radius: 8px; margin-top: 10px; }' +
@@ -1164,8 +1190,8 @@ function buildConfigHtml(current) {
 '  </div>' +
 '</div>' +
 
-customMarkerModalHtml('hour', 'Edit hour markers', 20) +
-customMarkerModalHtml('sec', 'Edit second markers', 10) +
+customMarkerModalHtml('hour', 'Edit hour indices', 20) +
+customMarkerModalHtml('sec', 'Edit seconds indices', 10) +
 textMarkerModalHtml(current) +
 
 handEditorModalHtml('hour', 'Edit hour hand') +
@@ -1189,7 +1215,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 
 '<div class="modal-overlay" id="markerStyleModal" onclick="if (event.target === this) closeMarkerStyleModal();">' +
 '  <div class="modal-box">' +
-'    <div class="modal-title">Hour/second marker style</div>' +
+'    <div class="modal-title">Hour/seconds indices style</div>' +
 '    <div class="modal-scroll-body">' +
 '      <div class="style-picker-grid" id="markerStyleGrid"></div>' +
 '      <button type="button" class="style-picker-custom-btn" onclick="chooseMarkerStyleCustom()">Custom</button>' +
@@ -1198,7 +1224,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '</div>' +
 
 // Center circle -- same "commits live, no separate draft/Save state"
-// shape as the text marker modal above, not the hand editor's own
+// shape as the numerals modal above, not the hand editor's own
 // draft-then-Save/Cancel one, since there are only 2 fields here and
 // they already commit live via their own oninput/onchange handlers.
 '<div class="modal-overlay" id="centerCircleModal" onclick="if (event.target === this) closeCenterCircleEditor();">' +
@@ -1346,7 +1372,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 
 '    <div id="bigAnalogSettings" class="subsection" style="' + (isAnalog ? '' : 'display:none;') + '">' +
 '      <label>Hand style</label>' +
-'      <button type="button" class="marker-edit-btn" style="margin-top:8px;" onclick="openHandStyleModal()">Choose hand style &rsaquo;</button>' +
+'      <button type="button" class="marker-edit-btn" id="handStyleTriggerBtn" style="margin-top:8px;" onclick="openHandStyleModal()">Hand style: <span id="handStyleTriggerLabel"></span> &rsaquo;</button>' +
 '      <div class="help">To show the date behind the hands, pick "Short date" as a line in the Features section below (bottom-middle line 1 does this by default).</div>' +
 
 '      <div id="customHandSection">' +
@@ -1358,11 +1384,11 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      </div>' +
 '      <button type="button" class="marker-edit-btn" onclick="openShadowStyleEditor()">Edit shadow style &rsaquo;</button>' +
 
-'      <label style="margin-top:12px;">Hour/second marker style</label>' +
-'      <button type="button" class="marker-edit-btn" style="margin-top:8px;" onclick="openMarkerStyleModal()">Choose marker style &rsaquo;</button>' +
+'      <label style="margin-top:12px;">Hour/seconds indices style</label>' +
+'      <button type="button" class="marker-edit-btn" id="markerStyleTriggerBtn" style="margin-top:8px;" onclick="openMarkerStyleModal()">Marker style: <span id="markerStyleTriggerLabel"></span> &rsaquo;</button>' +
 '      <select id="bigAnalogMarkerStyle" style="display:none;" onchange="onMarkerStyleChange()">' +
 '        <option value="9"' + (current.bigAnalogMarkerStyle === '9' ? ' selected' : '') + '>None</option>' +
-'        <option value="0"' + (current.bigAnalogMarkerStyle === '0' || !current.bigAnalogMarkerStyle ? ' selected' : '') + '>Minimal (thin hour markers only)</option>' +
+'        <option value="0"' + (current.bigAnalogMarkerStyle === '0' || !current.bigAnalogMarkerStyle ? ' selected' : '') + '>Minimal (thin hour indices only)</option>' +
 '        <option value="1"' + (current.bigAnalogMarkerStyle === '1' ? ' selected' : '') + '>Small markers (hour + second)</option>' +
 '        <option value="2"' + (current.bigAnalogMarkerStyle === '2' ? ' selected' : '') + '>Big markers (thick hour, thin second)</option>' +
 '        <option value="3"' + (current.bigAnalogMarkerStyle === '3' ? ' selected' : '') + '>Modern</option>' +
@@ -1380,9 +1406,9 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      <div class="help">When an eclipse is actually happening, the Sun fills the whole screen as a background behind the hands.</div>' +
 
 '      <div id="customMarkerSection" style="' + (current.bigAnalogMarkerStyle === '8' ? '' : 'display:none;') + '">' +
-'        <button type="button" class="marker-edit-btn" onclick="openCustomMarkerEditor(\'hour\')">Edit hour markers &rsaquo;</button>' +
-'        <button type="button" class="marker-edit-btn" onclick="openCustomMarkerEditor(\'sec\')">Edit second markers &rsaquo;</button>' +
-'        <button type="button" class="marker-edit-btn" onclick="openTextMarkerEditor()">Edit text markers &rsaquo;</button>' +
+'        <button type="button" class="marker-edit-btn" onclick="openCustomMarkerEditor(\'hour\')">Edit hour indices &rsaquo;</button>' +
+'        <button type="button" class="marker-edit-btn" onclick="openCustomMarkerEditor(\'sec\')">Edit seconds indices &rsaquo;</button>' +
+'        <button type="button" class="marker-edit-btn" onclick="openTextMarkerEditor()">Edit numerals &rsaquo;</button>' +
           customMarkerHiddenInputsHtml(current) +
 '      </div>' +
 '    </div>' +
@@ -1584,7 +1610,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
         { value: '0', label: 'Off' },
         { value: '1', label: 'Weather (clouds slide in from the sides)' },
         { value: '2', label: 'Planets (Sun/Moon/planets + sky sweep in from a couple hours ago)' },
-        { value: '3', label: 'Markers (analog hour markers animate in; seconds draw normally)' }
+        { value: '3', label: 'Indices (analog hour indices animate in; seconds draw normally)' }
       ], current.bgAnimMode || '0') +
 '    </div>' +
 '    <div class="help">Off by default: exactly one of the above sweeps into place on launch, under 1.5s.</div>' +
@@ -1779,12 +1805,20 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      <input type="hidden" id="rawMessageLogJson" value="' + esc(JSON.stringify(current.rawMessageLog || [])) + '">' +
 '      <label for="debugData" style="margin-top:10px;">Raw data (editable)</label>' +
 '      <textarea id="debugData" rows="12" style="width:100%; box-sizing:border-box; font-family:monospace; font-size:11px;">' + esc(debugTextareaInitial) + '</textarea>' +
-'      <button type="button" class="secondary-btn" id="copyDebugDataBtn" style="width:auto; margin-top:6px; padding:6px 12px;" onclick="copyDebugData()">Copy</button>' +
+'      <button type="button" class="secondary-btn" id="copyDebugDataBtn" style="width:auto; margin-top:6px; padding:6px 12px;" onclick="copyTextareaContent(\'debugData\', \'copyDebugDataBtn\')">Copy</button>' +
 '      <div class="checkbox-row" style="margin-top:8px;">' +
 '        <input type="checkbox" id="debugOverrideEnabled" ' + (current.debugOverrideEnabled ? 'checked' : '') + '>' +
 '        <label for="debugOverrideEnabled" style="margin:0;">Override data sent to watch with the text above</label>' +
 '      </div>' +
 '      <div class="help">Pick a chunk above to load its exact JSON payload here, or edit it freely. Enabling the checkbox sends exactly this text (as one message, unchunked) instead of the normally-computed data on every future refresh, useful for testing specific values without needing real conditions to match. Invalid JSON is ignored and the app falls back to normal data rather than failing to send anything.</div>' +
+'    </div>' +
+
+'    <div class="subsection">' +
+'      <label>Full keyset (every current value)</label>' +
+'      <div class="help">Regenerated fresh every time this page opens: every key the watch could receive, filled in with whatever\'s actually configured right now (settings) plus the last real eclipse/weather/astronomy data that was computed (may be blank/zeroed fields if nothing\'s been fetched yet). Edit anything below, then send it as-is -- this bypasses your other settings and the normal data sources entirely for this one send; nothing here gets saved, and Save above is unaffected by it.</div>' +
+'      <textarea id="fullKeysetData" rows="16" style="width:100%; box-sizing:border-box; font-family:monospace; font-size:11px;">' + esc(current.fullKeysetJson || '{}') + '</textarea>' +
+'      <button type="button" class="secondary-btn" id="copyFullKeysetBtn" style="width:auto; margin-top:6px; padding:6px 12px;" onclick="copyTextareaContent(\'fullKeysetData\', \'copyFullKeysetBtn\')">Copy</button>' +
+'      <button type="button" class="secondary-btn" style="width:auto; margin-top:6px; margin-left:6px; padding:6px 12px;" onclick="sendFullKeysetToWatch()">Send to watch now</button>' +
 '    </div>' +
 '    </div>' +
 '  </fieldset>' +
@@ -1855,19 +1889,43 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  var btn = document.getElementById("rawLogBtn" + i);' +
 '  if (btn) btn.className = "raw-log-btn active";' +
 '}' +
-'function copyDebugData() {' +
-'  var ta = document.getElementById("debugData");' +
+'function copyTextareaContent(textareaId, btnId) {' +
+'  var ta = document.getElementById(textareaId);' +
 '  ta.focus();' +
 '  ta.select();' +
 '  ta.setSelectionRange(0, 999999);' +
 '  var ok = false;' +
 '  try { ok = document.execCommand("copy"); } catch (e) {}' +
-'  var btn = document.getElementById("copyDebugDataBtn");' +
+'  var btn = document.getElementById(btnId);' +
 '  if (btn) {' +
 '    var original = btn.textContent;' +
 '    btn.textContent = ok ? "Copied!" : "Copy failed";' +
 '    setTimeout(function () { btn.textContent = original; }, 1500);' +
 '  }' +
+'}' +
+// The "Send full keyset to watch now" button below -- reads whatever
+// is CURRENTLY in the fullKeysetData textarea (the auto-generated
+// snapshot from page load, or whatever the person edited it to since
+// then), closes the settings page carrying it plus a marker flag, and
+// returns. index.js's webviewclosed handler checks for that flag
+// before anything else and, if set, parses this text and sends it
+// chunked to the watch AS-IS -- skipping every normal setSetting()/
+// sendFlatDict()/refreshAndSend() call entirely, so nothing else
+// changes and nothing here gets persisted. A deliberately different,
+// parallel exit from the page than the normal Save button\'s -- Save
+// itself never sets this flag, so an ordinary save is completely
+// unaffected by this textarea\'s contents.
+'function sendFullKeysetToWatch() {' +
+'  var text = document.getElementById("fullKeysetData").value;' +
+'  try {' +
+'    JSON.parse(text);' +
+'  } catch (e) {' +
+'    alert("Not valid JSON -- fix the text before sending:\\n\\n" + e.message);' +
+'    return;' +
+'  }' +
+'  var returnTo = getQueryParam("return_to", "pebblejs://close#");' +
+'  var payload = { CONFIG_SEND_FULL_KEYSET: true, CONFIG_FULL_KEYSET_DATA: text };' +
+'  document.location = returnTo + encodeURIComponent(JSON.stringify(payload));' +
 '}' +
 'function searchLocation() {' +
 '  var query = document.getElementById("locationSearch").value;' +
@@ -2365,8 +2423,9 @@ handEditorModalHtml('sec', 'Edit second hand') +
 'var SLOT_EDITOR_DRAFT_COLOR = 0;' +
 // Procedural marker styles (<3) have all 8 slots and the 4 corners;
 // bitmap styles are each limited to whatever their own artwork
-// actually has room for and suppress the corners entirely (the mask
-// fills most of the screen).
+// actually has room for and (Tally excepted -- its own mask leaves
+// all 4 corners clear) suppress the corners entirely, since the mask
+// fills most of the rest of the screen either way.
 'function computeSlotAvailability() {' +
 '  var styleVal = document.getElementById("bottomStyleValue").value;' +
 '  var isAnalog = styleVal === "analog";' +
@@ -2377,7 +2436,9 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      avail.upper = avail.bottom = avail.left = avail.right = true;' +
 '    } else if (markerStyle === 3 || markerStyle === 4 || markerStyle === 6) {' +
 '      avail.upper = avail.bottom = true; avail.cornersGrayed = true;' +
-'    } else if (markerStyle === 5 || markerStyle === 7) {' +
+'    } else if (markerStyle === 5) {' +
+'      avail.upper = avail.bottom = avail.left = avail.right = true;' +
+'    } else if (markerStyle === 7) {' +
 '      avail.upper = avail.bottom = avail.left = avail.right = true; avail.cornersGrayed = true;' +
 '    } else {' +
 '      avail.upper = true; avail.cornersGrayed = true;' +
@@ -2559,11 +2620,12 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  document.getElementById("customMarkerSection").style.display = (val === "8") ? "" : "none";' +
 '  var isBitmap = (val === "3" || val === "4" || val === "5" || val === "6" || val === "7");' +
 '  document.getElementById("bitmapMarkerTransparentRow").style.display = isBitmap ? "" : "none";' +
+'  updateMarkerStyleButtonLabel();' +
 '  renderSlotPicker();' +
 '  updatePreview();' +
 '}' +
 
-// ---- custom hour/second marker popups --------------------------------
+// ---- custom hour/seconds indices popups --------------------------------
 'var CM_FIELDS = ["Style", "Thickness", "InnerEcc", "OuterEcc", "InnerBorder", "OuterBorder", "Translucent", "Color"];' +
 'var CM_CHECKBOX_FIELDS = ["Translucent"];' +
 'function cmHiddenPrefix(kind) { return kind === "hour" ? "customHour" : "customSec"; }' +
@@ -2585,7 +2647,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 // marker_layer.c) now that a mark's length comes directly from its
 // inner/outer border points rather than a separate slider -- a starting
 // point to tune from, not an exact match. The "second" ring has no real
-// minimal-style equivalent (that style draws no second markers at all),
+// minimal-style equivalent (that style draws no second indices at all),
 // so its "minimal" preset is just a short stub near the outer edge.
 'function updateCustomMarkerValLabels(kind) {' +
 '  var p = cmPopupPrefix(kind);' +
@@ -2785,6 +2847,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  applyHandPresetToKind("min", entry.min);' +
 '  applyHandPresetToKind("sec", entry.sec);' +
 '  closeHandStyleModal();' +
+'  updateHandStyleButtonLabel();' +
 '  updatePreview();' +
 '}' +
 // "Custom" -- same meaning the old dropdown\'s "Custom" option had:
@@ -2793,6 +2856,43 @@ handEditorModalHtml('sec', 'Edit second hand') +
 // popup without applying any preset.
 'function chooseHandStyleCustom() {' +
 '  closeHandStyleModal();' +
+'  updateHandStyleButtonLabel();' +
+'}' +
+// Whether the trigger button reads a preset\'s own name or "Custom" is
+// entirely DERIVED from the 3 hands\' current field values, not a
+// separate remembered flag -- so it stays correct regardless of HOW
+// those values got there (a preset button, a manual "Edit ... hand"
+// change, an imported style JSON) without needing every one of those
+// call sites to separately remember to update/clear some "current
+// preset" state by hand. Deliberately checks only the fields a given
+// preset actually specifies (Style/Width/Length/BackOffset/
+// MiddleOffset/SecondaryWidth/Color -- see HAND_PRESETS\' own entries)
+// rather than every HE_FIELDS entry: those are the fields that define
+// the STYLE itself, whereas Translucent/Outline/Shadow/Hollow are
+// independent finish options layered on top of it, not part of
+// telling one named style apart from another.
+'function handKindMatchesPresetFields(kind, presetFields) {' +
+'  var hp = heHiddenPrefix(kind);' +
+'  for (var f in presetFields) {' +
+'    var el = document.getElementById(hp + f);' +
+'    if (!el || el.value !== String(presetFields[f])) return false;' +
+'  }' +
+'  return true;' +
+'}' +
+'function computeHandStyleLabel() {' +
+'  for (var n = 1; n <= 9; n++) {' +
+'    var entry = HAND_PRESETS[String(n)];' +
+'    if (!entry) continue;' +
+'    if (handKindMatchesPresetFields("hour", entry.hour) && handKindMatchesPresetFields("min", entry.min) &&' +
+'        handKindMatchesPresetFields("sec", entry.sec)) {' +
+'      return entry.title;' +
+'    }' +
+'  }' +
+'  return "Custom";' +
+'}' +
+'function updateHandStyleButtonLabel() {' +
+'  var span = document.getElementById("handStyleTriggerLabel");' +
+'  if (span) span.textContent = computeHandStyleLabel();' +
 '}' +
 
 // ---- marker style picker popup -----------------------------------------
@@ -2818,6 +2918,18 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  { value: "1", title: "Small", image: "small" },' +
 '  { value: "2", title: "Big", image: "big" }' +
 '];' +
+// Trigger-button label lookup -- every MARKER_BITMAP_STYLES/
+// MARKER_PRESET_STYLES entry\'s own title, plus "8" (Custom, the only
+// value neither array carries since it has no picker button of its
+// own -- see chooseMarkerStyleCustom()).
+'var MARKER_STYLE_TITLES = { "8": "Custom" };' +
+'MARKER_BITMAP_STYLES.concat(MARKER_PRESET_STYLES).forEach(function (s) { MARKER_STYLE_TITLES[s.value] = s.title; });' +
+'function updateMarkerStyleButtonLabel() {' +
+'  var span = document.getElementById("markerStyleTriggerLabel");' +
+'  if (!span) return;' +
+'  var val = document.getElementById("bigAnalogMarkerStyle").value;' +
+'  span.textContent = MARKER_STYLE_TITLES.hasOwnProperty(val) ? MARKER_STYLE_TITLES[val] : "Custom";' +
+'}' +
 'function renderMarkerStyleGrid() {' +
 '  var grid = document.getElementById("markerStyleGrid");' +
 '  if (!grid) return;' +
@@ -2825,7 +2937,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  MARKER_BITMAP_STYLES.forEach(function (s) {' +
 '    var img = MARKER_PREVIEW_IMAGES[s.value];' +
 '    html += \'<button type="button" class="style-picker-btn" onclick="chooseMarkerStyle(\\\'\' + s.value + \'\\\')">\' +' +
-'      (img ? \'<img src="\' + img + \'" alt="\' + s.title + \'">\' : \'<span class="style-picker-btn-empty">\' + s.title + "</span>") +' +
+'      (img ? \'<img class="bitmap-marker-img" src="\' + img + \'" alt="\' + s.title + \'">\' : \'<span class="style-picker-btn-empty">\' + s.title + "</span>") +' +
 '      \'<span class="style-picker-btn-cap">\' + s.title + "</span></button>";' +
 '  });' +
 '  MARKER_PRESET_STYLES.forEach(function (s) {' +
@@ -2904,6 +3016,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  applyFontOptionFilter("clockFontSmall", document.getElementById("clockFontSmallShowIncompatible").checked);' +
 '  onBottomStyleChange();' +
 '  onMarkerStyleChange();' +
+'  updateHandStyleButtonLabel();' +
 '  onCornerFontChange();' +
 '  onSkyModeChange();' +
 '  onShowSecondsChange();' +
@@ -3168,6 +3281,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    hidden.value = (HE_CHECKBOX_FIELDS.indexOf(f) !== -1) ? String(popupEl.checked) : popupEl.value;' +
 '  });' +
 '  closeHandEditor(kind);' +
+'  updateHandStyleButtonLabel();' +
 '  updatePreview();' +
 '}' +
 // Copies the OTHER hand's last-saved settings into this popup's draft
@@ -3573,6 +3687,8 @@ handEditorModalHtml('sec', 'Edit second hand') +
 'updateColorRoleButtons("day");' +
 'updateColorRoleButtons("night");' +
 'onBottomStyleChange();' +
+'onMarkerStyleChange();' +
+'updateHandStyleButtonLabel();' +
 'applyFontOptionFilter("cornerFont", document.getElementById("cornerFontShowIncompatible").checked);' +
 'applyFontOptionFilter("clockFontSmall", document.getElementById("clockFontSmallShowIncompatible").checked);' +
 'renderHandStyleGrid();' +

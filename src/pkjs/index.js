@@ -8,6 +8,7 @@ var servicelog = require('./servicelog');
 var TYPE_CODE = { none: 0, partial: 1, total: 2, annular: 3 };
 
 var MAX_FEATURES = 83; // highest corner/edge content id -- see CORNER_CONTENT_OPTIONS in config-page.js
+var FONT_MAX_CONTENT_ID = 42; // highest font id -- see FONT_LOOKUP in config-page.js
 
 // ---- AppMessage chunking -------------------------------------------------
 //
@@ -144,6 +145,26 @@ var KEY_TYPE_MAP = (function () {
 var s_sendQueue = [];
 var s_sendInFlight = false;
 
+// Nothing actually leaves the phone for the first few seconds after
+// PKJS starts up, regardless of what queued it (the 'ready' handler's
+// own first refresh below, a REQUEST_UPDATE reply, a settings-page
+// Save) -- gated here, in the one place every send*() call already
+// funnels through (see pumpSendQueue()), rather than in each
+// individual caller, so nothing can slip through by some other path.
+// Lets the watch's own screen finish laying out/settling first before
+// a message starts changing what's on it -- the watch itself holds
+// its own first outbound request back a few seconds for the same
+// reason (see request_update()'s own comment in pebble-eclipse-watch.c),
+// so this is the phone-side half of that same "let it settle first"
+// intent, on its own longer timer since the phone doesn't know
+// whether the watch's request has actually arrived yet.
+var PHONE_STARTUP_SEND_DELAY_MS = 5000;
+var s_phoneStartupSendDelayElapsed = false;
+setTimeout(function () {
+  s_phoneStartupSendDelayElapsed = true;
+  pumpSendQueue(); // resume whatever queued up during the delay, if anything did
+}, PHONE_STARTUP_SEND_DELAY_MS);
+
 // Last RAW_MESSAGE_LOG_MAX individual AppMessage chunks actually sent
 // (acked, not just attempted), for the Testing section's raw-message
 // browser -- see recordRawMessage() below and buildConfigHtml()'s own
@@ -203,6 +224,7 @@ function enqueueFlatDict(flatDict) {
 
 function pumpSendQueue() {
   if (s_sendInFlight || s_sendQueue.length === 0) return;
+  if (!s_phoneStartupSendDelayElapsed) return; // the setTimeout above re-pumps once the startup delay elapses
   s_sendInFlight = true;
   var entry = s_sendQueue.shift();
   var chunk = entry.dict;
@@ -383,14 +405,14 @@ function skyFieldsDict(sky, cloudGrid, moonPhase, riseSet, meteorShower, cloudAl
 // mapping layer needed here anymore -- clamped to FONT_LOOKUP's own
 // 0-37 range (see FONT_LOOKUP in config-page.js) rather than trusting
 // whatever the webview sent.
-function clampFontId(v) { return clampInt(v, 0, 37, 8); } // 8 = Leco XL, the main clock's own default
+function clampFontId(v) { return clampInt(v, 0, FONT_MAX_CONTENT_ID, 8); } // 8 = Leco XL, the main clock's own default
 
 function clockFontCode() {
   return clampFontId(getSetting('CONFIG_CLOCK_FONT', '8'));
 }
 
 function clockFontSmallCode() {
-  return clampInt(getSetting('CONFIG_CLOCK_FONT_SMALL', '0'), 0, 37, 0);
+  return clampInt(getSetting('CONFIG_CLOCK_FONT_SMALL', '0'), 0, FONT_MAX_CONTENT_ID, 0);
 }
 
 function tempUnitCode() {
@@ -566,7 +588,7 @@ function customSecOuterBorderCode() {
 function customSecTranslucentCode() { return getSetting('CONFIG_CUSTOM_SEC_TRANSLUCENT', 'false') === 'true' ? 1 : 0; }
 function customSecColorCode() { return clampInt(getSetting('CONFIG_CUSTOM_SEC_COLOR', '0'), 0, 2, 0); }
 function markerTextTargetCode() { return clampInt(getSetting('CONFIG_MARKER_TEXT_TARGET', '0'), 0, 2, 0); }
-function markerTextFontCode() { return clampInt(getSetting('CONFIG_MARKER_TEXT_FONT', '0'), 0, 35, 0); }
+function markerTextFontCode() { return clampInt(getSetting('CONFIG_MARKER_TEXT_FONT', '0'), 0, FONT_MAX_CONTENT_ID, 0); }
 function markerTextOffsetCode() { return clampInt(getSetting('CONFIG_MARKER_TEXT_OFFSET', '0'), -50, 50, 0); }
 function markerTextHourMaskCode() { return clampInt(getSetting('CONFIG_MARKER_TEXT_HOUR_MASK', '4095'), 0, 4095, 4095); }
 function markerTextSecMaskCode() { return clampInt(getSetting('CONFIG_MARKER_TEXT_SEC_MASK', '4095'), 0, 4095, 4095); }
@@ -754,7 +776,7 @@ function shakeAnimModeCode() {
 }
 function outlineEnabledCode() { return getSetting('CONFIG_OUTLINE_ENABLED', 'true') === 'true' ? 1 : 0; }
 function cornerFontCode() {
-  return clampInt(getSetting('CONFIG_CORNER_FONT', '1'), 0, 37, 1); // 1 = System Medium, the old default
+  return clampInt(getSetting('CONFIG_CORNER_FONT', '1'), 0, FONT_MAX_CONTENT_ID, 1); // 1 = System Medium, the old default
 }
 
 // Corners: 4 slots (0=top-left, 1=top-right, 2=bottom-left,
@@ -783,15 +805,14 @@ function dailyStepGoalValue() {
   return v;
 }
 
-// Builds the full flat dict (eclipse/weather/sky data passed in, plus
-// the cosmetic settings/features fields merged in below) exactly as
-// before, then hands it to enqueueFlatDict() to be split into typed
-// chunks and sent one at a time -- see the AppMessage chunking block
-// near the top of this file. Kept the name/shape of the old
-// single-big-message sendDict() so every call site below (and the
-// debug-override/localStorage-snapshot logic already living here)
-// stayed untouched.
-function sendFlatDict(dict) {
+// Populates every settings-derived AppMessage field (all ~148 of
+// them) into `dict`, reading current values fresh from localStorage
+// each time -- no send-related side effects of its own (no cache
+// write, no debug-override check, no enqueueFlatDict()), so callers
+// that just want a correctly-encoded settings snapshot (the debug
+// page's own "full keyset" window -- see buildFullKeysetDict()) can
+// get one without it also quietly sending anything.
+function populateSettingsFields(dict) {
   // Always carried, on every message -- these are purely cosmetic,
   // phone-local preferences, not eclipse data, so there's no reason
   // to gate them behind DATA_VALID or wait for a full refresh cycle.
@@ -916,6 +937,56 @@ function sendFlatDict(dict) {
   dict['CORNER_CONTENT'] = cornerContentBytes();
   dict['CORNER_COLOR_MODE'] = cornerColorModeBytes();
   dict['DAILY_STEP_GOAL'] = dailyStepGoalValue();
+}
+
+// For the settings page's own debug "full keyset" window (see
+// showConfiguration below and fullKeysetData in config-page.js) --
+// every key the watch could currently receive, ready to hand-edit and
+// send as-is. Starts from the last genuinely computed full send (the
+// same LAST_FULL_COMPUTED_DICT resendLastFullData() above already
+// uses) so the eclipse/weather/astronomy fields are real values
+// rather than blank/zeroed placeholders, then overlays fresh settings
+// on top (same reasoning as resendLastFullData()'s own fix: those
+// need to reflect whatever's actually configured right now, not
+// whatever happened to be true whenever that snapshot was last
+// cached). No network fetch of its own -- opening the settings page
+// should be instant, not wait on a fresh weather/astronomy call just
+// to populate a debug textarea.
+function buildFullKeysetDict() {
+  var dict = {};
+  try {
+    var raw = localStorage.getItem('LAST_FULL_COMPUTED_DICT');
+    if (raw) {
+      var parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') dict = parsed;
+    }
+  } catch (e) {
+    // Corrupt/missing cache -- fall back to settings-only, below.
+  }
+  populateSettingsFields(dict);
+  return dict;
+}
+
+// Builds the full flat dict (eclipse/weather/sky data passed in, plus
+// the cosmetic settings/features fields merged in below) exactly as
+// before, then hands it to enqueueFlatDict() to be split into typed
+// chunks and sent one at a time -- see the AppMessage chunking block
+// near the top of this file. Kept the name/shape of the old
+// single-big-message sendDict() so every call site below (and the
+// debug-override/localStorage-snapshot logic already living here)
+// stayed untouched.
+//
+// The actual field-by-field population (dict['CLOCK_FONT'] = ...,
+// all ~148 of them) lives in populateSettingsFields() below, split
+// out so the settings page's own debug "full keyset" window (see
+// buildFullKeysetDict()) can get a fresh, correctly-encoded settings
+// snapshot without going through this function's OWN side effects
+// (the LAST_FULL_COMPUTED_DICT cache write, the debug-override check,
+// and -- the one that actually matters here -- enqueueFlatDict()
+// itself, which would mean just opening the settings page quietly
+// sent something to the watch).
+function sendFlatDict(dict) {
+  populateSettingsFields(dict);
 
   try {
     // Separate from the raw-message log recordRawMessage() builds
@@ -940,692 +1011,6 @@ function sendFlatDict(dict) {
 
   var toSend = dict;
   
-  var debugData = '{'+
-'  "DATA_VALID": 1,'+
-'  "ECLIPSE_TYPE": 0,'+
-'  "C1_TIME": 0,'+
-'  "C2_TIME": 0,'+
-'  "MAX_TIME": 0,'+
-'  "C3_TIME": 0,'+
-'  "C4_TIME": 0,'+
-'  "SUNSET_TIME": 0,'+
-'  "MAGNITUDE": 0,'+
-'  "POS_ANGLE": 0,'+
-'  "SAMPLE_START": 0,'+
-'  "SAMPLE_INTERVAL": 0,'+
-'  "SAMPLE_COUNT": 0,'+
-'  "SEP_SAMPLES": ['+
-'    0,'+
-'    0'+
-'  ],'+
-'  "MAG_SAMPLES": ['+
-'    0,'+
-'    0'+
-'  ],'+
-'  "RADIUS_RATIO_PCT": 0,'+
-'  "CLOUD_COVER": 13,'+
-'  "VIS_SCORE": 87,'+
-'  "WEATHER_SOURCES": 1,'+
-'  "WEATHER_CONDITION": 0,'+
-'  "WEATHER_TEMP_C": 15,'+
-'  "WEATHER_TEMP_HIGH_C": 27,'+
-'  "WEATHER_TEMP_LOW_C": 14,'+
-'  "UV_INDEX_X10": 61,'+
-'  "RAIN_CHANCE_PCT": 18,'+
-'  "HUMIDITY_PCT": 78,'+
-'  "WIND_SPEED_KMH": 5,'+
-'  "LOCATION_NAME": "Innsbruck, Tyrol",'+
-'  "SKY_SAMPLE_START": 1787522400,'+
-'  "SKY_SAMPLE_INTERVAL": 3600,'+
-'  "SKY_SAMPLE_COUNT": 25,'+
-'  "SUN_ALT_SAMPLES": ['+
-'    228,'+
-'    254,'+
-'    205,'+
-'    254,'+
-'    211,'+
-'    254,'+
-'    247,'+
-'    254,'+
-'    51,'+
-'    255,'+
-'    128,'+
-'    255,'+
-'    219,'+
-'    255,'+
-'    60,'+
-'    0,'+
-'    161,'+
-'    0,'+
-'    6,'+
-'    1,'+
-'    103,'+
-'    1,'+
-'    189,'+
-'    1,'+
-'    254,'+
-'    1,'+
-'    31,'+
-'    2,'+
-'    21,'+
-'    2,'+
-'    228,'+
-'    1,'+
-'    152,'+
-'    1,'+
-'    60,'+
-'    1,'+
-'    217,'+
-'    0,'+
-'    115,'+
-'    0,'+
-'    15,'+
-'    0,'+
-'    176,'+
-'    255,'+
-'    90,'+
-'    255,'+
-'    19,'+
-'    255,'+
-'    225,'+
-'    254'+
-'  ],'+
-'  "MOON_ALT_SAMPLES": ['+
-'    111,'+
-'    0,'+
-'    59,'+
-'    0,'+
-'    246,'+
-'    255,'+
-'    167,'+
-'    255,'+
-'    79,'+
-'    255,'+
-'    241,'+
-'    254,'+
-'    145,'+
-'    254,'+
-'    49,'+
-'    254,'+
-'    213,'+
-'    253,'+
-'    136,'+
-'    253,'+
-'    90,'+
-'    253,'+
-'    98,'+
-'    253,'+
-'    156,'+
-'    253,'+
-'    240,'+
-'    253,'+
-'    78,'+
-'    254,'+
-'    176,'+
-'    254,'+
-'    18,'+
-'    255,'+
-'    112,'+
-'    255,'+
-'    200,'+
-'    255,'+
-'    24,'+
-'    0,'+
-'    91,'+
-'    0,'+
-'    142,'+
-'    0,'+
-'    173,'+
-'    0,'+
-'    181,'+
-'    0,'+
-'    166,'+
-'    0'+
-'  ],'+
-'  "PLANET_ALT_SAMPLES": ['+
-'    250,'+
-'    254,'+
-'    234,'+
-'    254,'+
-'    246,'+
-'    254,'+
-'    29,'+
-'    255,'+
-'    91,'+
-'    255,'+
-'    169,'+
-'    255,'+
-'    3,'+
-'    0,'+
-'    101,'+
-'    0,'+
-'    201,'+
-'    0,'+
-'    46,'+
-'    1,'+
-'    142,'+
-'    1,'+
-'    227,'+
-'    1,'+
-'    34,'+
-'    2,'+
-'    61,'+
-'    2,'+
-'    43,'+
-'    2,'+
-'    242,'+
-'    1,'+
-'    160,'+
-'    1,'+
-'    65,'+
-'    1,'+
-'    221,'+
-'    0,'+
-'    119,'+
-'    0,'+
-'    20,'+
-'    0,'+
-'    184,'+
-'    255,'+
-'    102,'+
-'    255,'+
-'    35,'+
-'    255,'+
-'    246,'+
-'    254,'+
-'    2,'+
-'    255,'+
-'    165,'+
-'    254,'+
-'    84,'+
-'    254,'+
-'    27,'+
-'    254,'+
-'    5,'+
-'    254,'+
-'    24,'+
-'    254,'+
-'    78,'+
-'    254,'+
-'    157,'+
-'    254,'+
-'    250,'+
-'    254,'+
-'    94,'+
-'    255,'+
-'    195,'+
-'    255,'+
-'    39,'+
-'    0,'+
-'    133,'+
-'    0,'+
-'    216,'+
-'    0,'+
-'    28,'+
-'    1,'+
-'    73,'+
-'    1,'+
-'    89,'+
-'    1,'+
-'    74,'+
-'    1,'+
-'    31,'+
-'    1,'+
-'    220,'+
-'    0,'+
-'    137,'+
-'    0,'+
-'    43,'+
-'    0,'+
-'    199,'+
-'    255,'+
-'    98,'+
-'    255,'+
-'    253,'+
-'    254,'+
-'    138,'+
-'    255,'+
-'    202,'+
-'    255,'+
-'    25,'+
-'    0,'+
-'    114,'+
-'    0,'+
-'    211,'+
-'    0,'+
-'    55,'+
-'    1,'+
-'    157,'+
-'    1,'+
-'    255,'+
-'    1,'+
-'    86,'+
-'    2,'+
-'    145,'+
-'    2,'+
-'    155,'+
-'    2,'+
-'    110,'+
-'    2,'+
-'    29,'+
-'    2,'+
-'    190,'+
-'    1,'+
-'    89,'+
-'    1,'+
-'    244,'+
-'    0,'+
-'    145,'+
-'    0,'+
-'    53,'+
-'    0,'+
-'    227,'+
-'    255,'+
-'    157,'+
-'    255,'+
-'    106,'+
-'    255,'+
-'    77,'+
-'    255,'+
-'    73,'+
-'    255,'+
-'    95,'+
-'    255,'+
-'    139,'+
-'    255,'+
-'    13,'+
-'    255,'+
-'    26,'+
-'    255,'+
-'    65,'+
-'    255,'+
-'    126,'+
-'    255,'+
-'    203,'+
-'    255,'+
-'    36,'+
-'    0,'+
-'    133,'+
-'    0,'+
-'    234,'+
-'    0,'+
-'    80,'+
-'    1,'+
-'    178,'+
-'    1,'+
-'    9,'+
-'    2,'+
-'    74,'+
-'    2,'+
-'    100,'+
-'    2,'+
-'    76,'+
-'    2,'+
-'    12,'+
-'    2,'+
-'    182,'+
-'    1,'+
-'    84,'+
-'    1,'+
-'    238,'+
-'    0,'+
-'    137,'+
-'    0,'+
-'    40,'+
-'    0,'+
-'    206,'+
-'    255,'+
-'    128,'+
-'    255,'+
-'    67,'+
-'    255,'+
-'    27,'+
-'    255,'+
-'    13,'+
-'    255,'+
-'    228,'+
-'    0,'+
-'    63,'+
-'    1,'+
-'    138,'+
-'    1,'+
-'    190,'+
-'    1,'+
-'    209,'+
-'    1,'+
-'    190,'+
-'    1,'+
-'    138,'+
-'    1,'+
-'    62,'+
-'    1,'+
-'    227,'+
-'    0,'+
-'    129,'+
-'    0,'+
-'    27,'+
-'    0,'+
-'    182,'+
-'    255,'+
-'    86,'+
-'    255,'+
-'    255,'+
-'    254,'+
-'    184,'+
-'    254,'+
-'    137,'+
-'    254,'+
-'    122,'+
-'    254,'+
-'    140,'+
-'    254,'+
-'    189,'+
-'    254,'+
-'    5,'+
-'    255,'+
-'    93,'+
-'    255,'+
-'    190,'+
-'    255,'+
-'    35,'+
-'    0,'+
-'    137,'+
-'    0,'+
-'    235,'+
-'    0'+
-'  ],'+
-'  "PLANET_RISE": ['+
-'    79,'+
-'    194,'+
-'    139,'+
-'    106,'+
-'    135,'+
-'    3,'+
-'    140,'+
-'    106,'+
-'    140,'+
-'    134,'+
-'    139,'+
-'    106,'+
-'    63,'+
-'    175,'+
-'    139,'+
-'    106,'+
-'    235,'+
-'    158,'+
-'    140,'+
-'    106'+
-'  ],'+
-'  "PLANET_SET": ['+
-'    148,'+
-'    136,'+
-'    140,'+
-'    106,'+
-'    214,'+
-'    153,'+
-'    140,'+
-'    106,'+
-'    5,'+
-'    100,'+
-'    140,'+
-'    106,'+
-'    137,'+
-'    125,'+
-'    140,'+
-'    106,'+
-'    0,'+
-'    0,'+
-'    0,'+
-'    0'+
-'  ],'+
-'  "STAR_ALT_SAMPLES": ['+
-'    0,'+
-'    0,'+
-'    0,'+
-'    0,'+
-'    0,'+
-'    0,'+
-'    0,'+
-'    0,'+
-'    0,'+
-'    0,'+
-'    0,'+
-'    0,'+
-'    0,'+
-'    0,'+
-'    0,'+
-'    0,'+
-'    0,'+
-'    0,'+
-'    0,'+
-'    0,'+
-'    0,'+
-'    0,'+
-'    0,'+
-'    0,'+
-'    0,'+
-'    0,'+
-'    0,'+
-'    0,'+
-'    0,'+
-'    0,'+
-'    0,'+
-'    0'+
-'  ],'+
-'  "STAR_AZ_SAMPLES": ['+
-'    0,'+
-'    0,'+
-'    0,'+
-'    0,'+
-'    0,'+
-'    0,'+
-'    0,'+
-'    0,'+
-'    0,'+
-'    0,'+
-'    0,'+
-'    0,'+
-'    0,'+
-'    0,'+
-'    0,'+
-'    0,'+
-'    0,'+
-'    0,'+
-'    0,'+
-'    0,'+
-'    0,'+
-'    0,'+
-'    0,'+
-'    0,'+
-'    0,'+
-'    0,'+
-'    0,'+
-'    0,'+
-'    0,'+
-'    0,'+
-'    0,'+
-'    0'+
-'  ],'+
-'  "SATURN_RING_OPEN_PCT": 32,'+
-'  "SKY_SCALE_MAX_ALT": 543,'+
-'  "CLOUD_SAMPLES": ['+
-'    32,'+
-'    13,'+
-'    5,'+
-'    6,'+
-'    0,'+
-'    17,'+
-'    29,'+
-'    0,'+
-'    15,'+
-'    92,'+
-'    83,'+
-'    18,'+
-'    100,'+
-'    100,'+
-'    100,'+
-'    25,'+
-'    95,'+
-'    13,'+
-'    35,'+
-'    51,'+
-'    73,'+
-'    100,'+
-'    100,'+
-'    100,'+
-'    100'+
-'  ],'+
-'  "CLOUD_ALTITUDE_PCT": 25,'+
-'  "MOON_PHASE_PCT": 17,'+
-'  "MOON_WAXING": 1,'+
-'  "SUN_RISE": 1787545670,'+
-'  "SUN_SET": 1787594692,'+
-'  "SUN_RISE_TOMORROW": 1787632070,'+
-'  "MOON_RISE": 1787589996,'+
-'  "MOON_SET": 0,'+
-'  "METEOR_INTENSITY": 0,'+
-'  "METEOR_SHOWER_NAME": "",'+
-'  "ISS_ALT": 0,'+
-'  "ISS_AZ": 0,'+
-'  "ISS_COMPUTED_AT": 0,'+
-'  "ISS_NEXT_PASS": 0,'+
-'  "CLOCK_FONT": 8,'+
-'  "CLOCK_FONT_SMALL": 0,'+
-'  "TEMP_UNIT": 0,'+
-'  "WIND_SPEED_UNIT": 0,'+
-'  "SHOW_SECONDS": 1,'+
-'  "CUSTOM_BG": 255,'+
-'  "CUSTOM_TEXT": 192,'+
-'  "CUSTOM_ACCENT": 194,'+
-'  "NIGHT_SCHEME_ENABLED": 1,'+
-'  "NIGHT_CUSTOM_BG": 192,'+
-'  "NIGHT_CUSTOM_TEXT": 255,'+
-'  "NIGHT_CUSTOM_ACCENT": 240,'+
-'  "BOTTOM_STYLE": 1,'+
-'  "SUN_MOON_SIZE_PCT": 50,'+
-'  "CLOUD_RENDER_STYLE": 0,'+
-'  "SKY_MODE": 0,'+
-'  "WEATHER_ICON_STYLE": 1,'+
-'  "AQI_UNIT": 0,'+
-'  "ALTITUDE_UNIT": 0,'+
-'  "ALTITUDE_M": 380,'+
-'  "WIND_DIR_DEG": 225,'+
-'  "DEW_POINT_C": 12,'+
-'  "PRESSURE_HPA": 1013,'+
-'  "PRESSURE_TREND": 0,'+
-'  "AQI_US": 42,'+
-'  "AQI_EU": 18,'+
-'  "SHAKE_LABEL_SECONDS": 8,'+
-'  "LABEL_STYLE": 0,'+
-'  "BOTTOM_INFO_BAR_MODE": 0,'+
-'  "SHADOW_TRANSLUCENT": 1,'+
-'  "SHADOW_ANGLE": 120,'+
-'  "BIG_ANALOG_MARKER_STYLE": 8,'+
-'  "BITMAP_MARKER_TRANSPARENT": 0,'+
-'  "DRAW_FEATURES_BENEATH_HANDS": 0,'+
-'  "CUSTOM_HOUR_STYLE": 0,'+
-'  "CUSTOM_HOUR_THICKNESS": 1,'+
-'  "CUSTOM_HOUR_INNER_ECC": 0,'+
-'  "CUSTOM_HOUR_OUTER_ECC": 100,'+
-'  "CUSTOM_HOUR_INNER_BORDER": 0,'+
-'  "CUSTOM_HOUR_OUTER_BORDER": 25,'+
-'  "CUSTOM_HOUR_TRANSLUCENT": 0,'+
-'  "CUSTOM_HOUR_COLOR": 0,'+
-'  "CUSTOM_SEC_STYLE": 0,'+
-'  "CUSTOM_SEC_THICKNESS": 1,'+
-'  "CUSTOM_SEC_INNER_ECC": 0,'+
-'  "CUSTOM_SEC_OUTER_ECC": 0,'+
-'  "CUSTOM_SEC_INNER_BORDER": 21,'+
-'  "CUSTOM_SEC_OUTER_BORDER": 45,'+
-'  "CUSTOM_SEC_TRANSLUCENT": 0,'+
-'  "CUSTOM_SEC_COLOR": 0,'+
-'  "MARKER_TEXT_TARGET": 1,'+
-'  "MARKER_TEXT_FONT": 4,'+
-'  "MARKER_TEXT_OFFSET": -10,'+
-'  "MARKER_TEXT_HOUR_MASK": 4095,'+
-'  "MARKER_TEXT_SEC_MASK": 4095,'+
-'  "HAND_HOUR_STYLE": 1,'+
-'  "HAND_HOUR_WIDTH": 12,'+
-'  "HAND_HOUR_LENGTH": 51,'+
-'  "HAND_HOUR_BACK_OFFSET": 0,'+
-'  "HAND_HOUR_COLOR": 0,'+
-'  "HAND_HOUR_OUTLINE_ENABLED": 1,'+
-'  "HAND_HOUR_OUTLINE_COLOR": 1,'+
-'  "HAND_HOUR_TRANSLUCENT": 0,'+
-'  "HAND_HOUR_SHADOW_ENABLED": 0,'+
-'  "HAND_HOUR_SHADOW_DISTANCE": 2,'+
-'  "HAND_MIN_STYLE": 1,'+
-'  "HAND_MIN_WIDTH": 18,'+
-'  "HAND_MIN_LENGTH": 78,'+
-'  "HAND_MIN_BACK_OFFSET": 0,'+
-'  "HAND_MIN_COLOR": 0,'+
-'  "HAND_MIN_OUTLINE_ENABLED": 1,'+
-'  "HAND_MIN_OUTLINE_COLOR": 1,'+
-'  "HAND_MIN_TRANSLUCENT": 0,'+
-'  "HAND_MIN_SHADOW_ENABLED": 0,'+
-'  "HAND_MIN_SHADOW_DISTANCE": 2,'+
-'  "HAND_SEC_STYLE": 0,'+
-'  "HAND_SEC_WIDTH": 2,'+
-'  "HAND_SEC_LENGTH": 85,'+
-'  "HAND_SEC_BACK_OFFSET": 0,'+
-'  "HAND_SEC_COLOR": 1,'+
-'  "HAND_SEC_OUTLINE_ENABLED": 0,'+
-'  "HAND_SEC_OUTLINE_COLOR": 0,'+
-'  "HAND_SEC_TRANSLUCENT": 0,'+
-'  "HAND_SEC_SHADOW_ENABLED": 0,'+
-'  "HAND_SEC_SHADOW_DISTANCE": 2,'+
-'  "CENTER_CIRCLE_RADIUS": 0,'+
-'  "CENTER_CIRCLE_COLOR": 0,'+
-'  "UPPER_MIDDLE_LINE1_CONTENT": 18,'+
-'  "UPPER_MIDDLE_LINE1_COLOR_MODE": 3,'+
-'  "UPPER_MIDDLE_LINE2_CONTENT": 19,'+
-'  "UPPER_MIDDLE_LINE2_COLOR_MODE": 1,'+
-'  "BOTTOM_MIDDLE_LINE1_CONTENT": 12,'+
-'  "BOTTOM_MIDDLE_LINE1_COLOR_MODE": 3,'+
-'  "BOTTOM_MIDDLE_LINE2_CONTENT": 4,'+
-'  "BOTTOM_MIDDLE_LINE2_COLOR_MODE": 3,'+
-'  "MIDDLE_LEFT_LINE1_CONTENT": 6,'+
-'  "MIDDLE_LEFT_LINE1_COLOR_MODE": 3,'+
-'  "MIDDLE_LEFT_LINE2_CONTENT": 0,'+
-'  "MIDDLE_LEFT_LINE2_COLOR_MODE": 0,'+
-'  "MIDDLE_RIGHT_LINE1_CONTENT": 8,'+
-'  "MIDDLE_RIGHT_LINE1_COLOR_MODE": 3,'+
-'  "MIDDLE_RIGHT_LINE2_CONTENT": 0,'+
-'  "MIDDLE_RIGHT_LINE2_COLOR_MODE": 0,'+
-'  "SHOW_SUN_TIME": 1,'+
-'  "SHOW_ISS": 1,'+
-'  "AURORA_ENABLED": 0,'+
-'  "VIBRATE_ON_PHASE_CHANGE": 0,'+
-'  "STARTUP_CLOCK_ANIMATION_ENABLED": 1,'+
-'  "BG_ANIM_MODE": 0,'+
-'  "SHAKE_ANIM_MODE": 0,'+
-'  "OUTLINE_ENABLED": 1,'+
-'  "CORNER_FONT": 1,'+
-'  "CORNER_CONTENT": ['+
-'    10,'+
-'    12,'+
-'    2,'+
-'    4'+
-'  ],'+
-'  "CORNER_COLOR_MODE": ['+
-'    3,'+
-'    3,'+
-'    3,'+
-'    0'+
-'  ],'+
-'  "DAILY_STEP_GOAL": 10000'+
-'}';
-  
-//  try {
-//    var parsed = JSON.parse(debugData);
-//    if (parsed && typeof parsed === 'object') {
-//      toSend = parsed;
-//      console.log('eclipse-watch: MANUAL DEBUG OVERRIDE active, sending static data from index.js instead of computed data');
-//    }
-//  } catch (e) {
-//    console.log('eclipse-watch: MANUAL DEBUG OVERRIDE enabled but stored data is not valid JSON, sending normal computed data instead: ' + e);
-//  }
-  
   if (getSetting('CONFIG_DEBUG_OVERRIDE_ENABLED', 'false') === 'true') {
     try {
       var parsed = JSON.parse(getSetting('CONFIG_DEBUG_OVERRIDE_DATA', ''));
@@ -1643,6 +1028,7 @@ function sendFlatDict(dict) {
   // enqueueFlatDict() near the top of this file.
   enqueueFlatDict(toSend);
 }
+
 
 function sendInvalid(errorCode) {
   sendFlatDict({ 'DATA_VALID': 0, 'ERROR_CODE': errorCode || 0 });
@@ -1984,13 +1370,39 @@ function shouldSkipRefresh(lat, lon) {
 // Returns true if there was something to resend, false if the cache
 // was empty/corrupt (in which case the caller should fall through to
 // a real fetch instead).
+//
+// The cached dict's own settings fields are stale by construction --
+// it's only ever (re)written on a genuine full refresh (see
+// sendFlatDict()'s own LAST_FULL_COMPUTED_DICT comment), so any
+// settings save that happened since then (the common case: this
+// function's whole reason to exist is answering a REQUEST_UPDATE,
+// which the watch sends on every relaunch, including a completely
+// ordinary one long after the day's one real weather refresh already
+// ran) is invisible to it. Sending the cached dict as-is would still
+// be exactly the bug the comment above already describes fixing for
+// every OTHER caller ("I just changed a setting, and a bit later it
+// reverted") -- just via this one remaining path instead: settings
+// save correctly reaches the watch immediately (sendFlatDict({}) in
+// the webviewclosed handler) and it displays right, then the watch
+// happens to relaunch (locked/unlocked, app-switched away and back,
+// a plain reboot) before the next real weather refresh, its
+// REQUEST_UPDATE lands here, shouldSkipRefresh() correctly says
+// there's nothing weather-wise to refetch, and the stale cached
+// settings from before the save go right back out over the top of
+// the correct ones the watch already had. sendFlatDict(dict) re-
+// derives every settings field fresh into the cached dict before it
+// goes out (mutating it in place; harmless to the astronomy/weather
+// fields already in it, which sendFlatDict never touches) rather than
+// sending that dict unmodified -- and re-caches the corrected result
+// too, since sendFlatDict() re-checks for C1_TIME itself, so the
+// cache self-heals rather than staying stale until the next real fetch.
 function resendLastFullData() {
   try {
     var raw = localStorage.getItem('LAST_FULL_COMPUTED_DICT');
     if (!raw) return false;
     var dict = JSON.parse(raw);
     if (!dict || typeof dict !== 'object') return false;
-    enqueueFlatDict(dict);
+    sendFlatDict(dict);
     return true;
   } catch (e) {
     return false;
@@ -2396,6 +1808,11 @@ Pebble.addEventListener('showConfiguration', function () {
     })(),
     debugOverrideEnabled: getSetting('CONFIG_DEBUG_OVERRIDE_ENABLED', 'false') === 'true',
     debugOverrideData: getSetting('CONFIG_DEBUG_OVERRIDE_DATA', ''),
+    // Every key the watch could currently receive, pre-filled with
+    // real current values -- see buildFullKeysetDict()'s own comment.
+    // Computed fresh every time the settings page opens (cheap, no
+    // network fetch of its own), not cached/persisted anywhere.
+    fullKeysetJson: JSON.stringify(buildFullKeysetDict(), null, 2),
     serviceLogs: servicelog.snapshotAll(),
     presetSlot1Name: getSetting('CONFIG_PRESET_1_NAME', ''),
     presetSlot1Json: getSetting('CONFIG_PRESET_1_JSON', ''),
@@ -2435,6 +1852,32 @@ Pebble.addEventListener('webviewclosed', function (e) {
     settings = JSON.parse(raw);
   } catch (err) {
     console.log('eclipse-watch: failed to parse settings response: ' + err.message);
+    return;
+  }
+
+  // Debug-only direct send (see config-page.js's "full keyset" window
+  // and its own Send button): takes exactly the -- possibly hand-
+  // edited -- full keyset already sitting in that textarea and sends
+  // it chunked to the watch as-is, overriding whatever the normal
+  // settings-save flow below would otherwise have computed and sent
+  // instead. A completely separate action from an ordinary Save (that
+  // button doesn't set this flag at all), so it deliberately returns
+  // here rather than falling through into any of the normal
+  // setSetting()/sendFlatDict()/refreshAndSend() calls below --
+  // nothing about this send is persisted, and no other setting
+  // changes.
+  if (settings.CONFIG_SEND_FULL_KEYSET) {
+    try {
+      var keyset = JSON.parse(settings.CONFIG_FULL_KEYSET_DATA);
+      if (keyset && typeof keyset === 'object') {
+        enqueueFlatDict(keyset);
+        console.log('eclipse-watch: full keyset debug send queued');
+      } else {
+        console.log('eclipse-watch: full keyset debug send skipped -- not a JSON object');
+      }
+    } catch (err) {
+      console.log('eclipse-watch: full keyset debug send failed to parse: ' + err.message);
+    }
     return;
   }
 

@@ -83,8 +83,6 @@ typedef struct {
   bool planet_seek_active;      // "Planet seek" (shake_anim_mode 4) -- see
   uint16_t planet_seek_elapsed_ms; // eclipse_canvas_set_planet_seek() and canvas_update_proc's
   int32_t planet_seek_heading_deg; // own use of these three fields
-  bool shake_paths_active;      // "Paths" (shake_anim_mode 5) -- see
-  uint16_t shake_paths_elapsed_ms; // eclipse_canvas_set_shake_paths() and draw_body_paths_overlay()
   GBitmap *sky_cache;       // last full render, captured via graphics_capture_frame_buffer;
                              // blitted back on the seconds in between instead of leaving
                              // the screen untouched (which is what caused flicker -- Pebble
@@ -516,6 +514,55 @@ static const SunColorAnchor SUN_COLOR_ANCHORS[] = {
   {   0, 220,  60,  30 }, // right on the horizon: deep red
 };
 #define SUN_COLOR_ANCHOR_COUNT (int)(sizeof(SUN_COLOR_ANCHORS) / sizeof(SUN_COLOR_ANCHORS[0]))
+
+// The Sun's own color wherever it's shown in a "space view" instead
+// of the normal sky -- sun_color_for_altitude() above models how
+// Earth's atmosphere reddens sunlight near the horizon, which doesn't
+// mean anything in a view that isn't really representing an
+// atmospheric vantage point at a specific moment in the first place:
+// an eclipse's fullscreen Sun already ignores the real altitude
+// entirely for its own positioning (see fullscreen_sun's own comment
+// in canvas_update_proc), Planet seek repositions bodies by compass
+// heading rather than altitude, and the "Planets" startup animation
+// fast-forwards through several hours of real sky in under 2 seconds.
+// A flat, recognizably-sun yellow-orange reads better in all three
+// than a color shift whose real-world meaning doesn't apply.
+#define SUN_COLOR_SPACE_R 255
+#define SUN_COLOR_SPACE_G 190
+#define SUN_COLOR_SPACE_B 60
+
+// A handful of thin rays radiating out from the Sun's own disc,
+// slowly rotating with a gentle per-ray length pulse (each ray offset
+// from the others so they flicker independently rather than all
+// breathing in lockstep, reading more like solar activity than one
+// uniform pulse) -- decorates the space-view Sun (see
+// SUN_COLOR_SPACE_R's own comment above) specifically while it's part
+// of an animated sequence: Planet seek on shake, the "Planets"
+// bg-animation on startup. Not used for the eclipse's own fullscreen
+// Sun, which -- unlike those two -- isn't a timed animation at all,
+// just however the sky happens to look for the eclipse's whole
+// duration; rays there would just be visual noise sitting still
+// indefinitely rather than reading as motion.
+static void draw_sun_rays(GContext *ctx, GPoint center, int16_t sun_r, GColor color, uint16_t elapsed_ms) {
+  #define SUN_RAY_COUNT 8
+  int32_t rot = (int32_t)(((int64_t)elapsed_ms * TRIG_MAX_ANGLE) / 4000) % TRIG_MAX_ANGLE; // one slow rotation every 4s
+  graphics_context_set_stroke_color(ctx, color);
+  graphics_context_set_stroke_width(ctx, 2);
+  for (int i = 0; i < SUN_RAY_COUNT; i++) {
+    int32_t angle = (rot + (int32_t)(((int64_t)i * TRIG_MAX_ANGLE) / SUN_RAY_COUNT)) & 0xFFFF;
+    int32_t pulse_phase = (int32_t)(((((int64_t)elapsed_ms * TRIG_MAX_ANGLE) / 1500) +
+                                      ((int64_t)i * TRIG_MAX_ANGLE) / SUN_RAY_COUNT)) & 0xFFFF;
+    int16_t pulse = (int16_t)(((int32_t)(sun_r / 3) * (sin_lookup(pulse_phase) + TRIG_MAX_RATIO)) / (2 * TRIG_MAX_RATIO));
+    int16_t inner_r = sun_r + 3;
+    int16_t outer_r = inner_r + (sun_r / 2) + pulse;
+    GPoint p1 = GPoint(center.x + (inner_r * sin_lookup(angle)) / TRIG_MAX_RATIO,
+                        center.y - (inner_r * cos_lookup(angle)) / TRIG_MAX_RATIO);
+    GPoint p2 = GPoint(center.x + (outer_r * sin_lookup(angle)) / TRIG_MAX_RATIO,
+                        center.y - (outer_r * cos_lookup(angle)) / TRIG_MAX_RATIO);
+    graphics_draw_line(ctx, p1, p2);
+  }
+  #undef SUN_RAY_COUNT
+}
 
 static RGB8 sun_color_for_altitude(int16_t alt_decideg) {
   RGB8 out;
@@ -1542,27 +1589,16 @@ void draw_moon_phase(GContext *ctx, GRect bounds, GPoint center, int16_t radius,
   graphics_draw_circle(ctx, center, radius);
 }
 
-// A small black-backed label for the shake-to-reveal body names.
-// Placed to whichever side of `near` keeps it on-canvas, since a
-// body can be anywhere from the left edge to the right edge of the
-// sky depending on its own column position.
-// label_style: 0=Boxed (opaque rounded rect, white text -- the
-// original/default look), 1=Outlined (main_color text with a 4-
-// direction-shifted contrasting outline, via features_layer.h's
-// shared draw_text_outlined() -- same technique corner/edge feature
-// text and hand outlines already use), 2=Soft (plain light-gray text,
-// no background or outline at all). User setting, right below "Shake
-// to see labels" in the Style section.
-static void draw_label(GContext *ctx, GRect bounds, GPoint near, const char *text, uint8_t label_style, GColor main_color) {
-  int16_t w = 46, h = 14;
-  int16_t x = near.x + 8;
-  if (x + w > bounds.origin.x + bounds.size.w) x = near.x - w - 8;
-  if (x < bounds.origin.x) x = bounds.origin.x;
-  int16_t y = near.y - h / 2;
-  if (y < bounds.origin.y) y = bounds.origin.y;
-  if (y + h > bounds.origin.y + bounds.size.h) y = bounds.origin.y + bounds.size.h - h;
-
-  GRect r = GRect(x, y, w, h);
+// Draws `text` in the shake-to-reveal 3-style label look (see
+// draw_label()'s own label_style comment below) into exactly the box
+// the caller hands in -- no positioning logic of its own. Split out
+// of draw_label() so a caller that already knows precisely where the
+// label needs to go (draw_planet_seek_body()'s off-screen case, which
+// anchors directly against its own edge arrow rather than a generic
+// nearby point) can reuse the same 3-style rendering without
+// draw_label()'s own generic "flip whichever side stays on canvas"
+// placement getting in the way.
+static void draw_label_in_box(GContext *ctx, GRect r, const char *text, uint8_t label_style, GColor main_color) {
   GFont font = fonts_get_system_font(FONT_KEY_GOTHIC_14);
   GRect text_box = GRect(r.origin.x, r.origin.y - 2, r.size.w, r.size.h + 2);
 
@@ -1582,6 +1618,28 @@ static void draw_label(GContext *ctx, GRect bounds, GPoint near, const char *tex
   graphics_context_set_text_color(ctx, GColorWhite);
   graphics_draw_text(ctx, text, font, text_box,
                       GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
+}
+
+// A small black-backed label for the shake-to-reveal body names.
+// Placed to whichever side of `near` keeps it on-canvas, since a
+// body can be anywhere from the left edge to the right edge of the
+// sky depending on its own column position.
+// label_style: 0=Boxed (opaque rounded rect, white text -- the
+// original/default look), 1=Outlined (main_color text with a 4-
+// direction-shifted contrasting outline, via features_layer.h's
+// shared draw_text_outlined() -- same technique corner/edge feature
+// text and hand outlines already use), 2=Soft (plain light-gray text,
+// no background or outline at all). User setting, right below "Shake
+// to see labels" in the Style section.
+static void draw_label(GContext *ctx, GRect bounds, GPoint near, const char *text, uint8_t label_style, GColor main_color) {
+  int16_t w = 46, h = 14;
+  int16_t x = near.x + 8;
+  if (x + w > bounds.origin.x + bounds.size.w) x = near.x - w - 8;
+  if (x < bounds.origin.x) x = bounds.origin.x;
+  int16_t y = near.y - h / 2;
+  if (y < bounds.origin.y) y = bounds.origin.y;
+  if (y + h > bounds.origin.y + bounds.size.h) y = bounds.origin.y + bounds.size.h - h;
+  draw_label_in_box(ctx, GRect(x, y, w, h), text, label_style, main_color);
 }
 
 // A minimal 3x5-pixel digit font, drawn procedurally rather than
@@ -2205,8 +2263,12 @@ static int32_t planet_seek_az_offset_decideg(uint16_t az_decideg, int32_t headin
 // the standard Pebble primitive for exactly this ("simple flat-shaded
 // polygon") rather than a custom rasterizer, since it's a single
 // static 3-point shape with no need for subpixel.h's own machinery.
+// Its own base-to-tip width, shared with draw_planet_seek_edge_label()
+// below so the label can anchor directly against the arrow's flat
+// base rather than duplicating this number.
+#define PLANET_SEEK_ARROW_W 6
 static void draw_planet_seek_arrow(GContext *ctx, GPoint tip, bool points_left, GColor color) {
-  int16_t w = 6, h = 8;
+  int16_t w = PLANET_SEEK_ARROW_W, h = 8;
   GPoint pts_left[3] = { GPoint(tip.x, tip.y), GPoint(tip.x + w, tip.y - h / 2), GPoint(tip.x + w, tip.y + h / 2) };
   GPoint pts_right[3] = { GPoint(tip.x, tip.y), GPoint(tip.x - w, tip.y - h / 2), GPoint(tip.x - w, tip.y + h / 2) };
   GPathInfo info = { .num_points = 3, .points = points_left ? pts_left : pts_right };
@@ -2216,39 +2278,77 @@ static void draw_planet_seek_arrow(GContext *ctx, GPoint tip, bool points_left, 
   gpath_destroy(path);
 }
 
+// The off-screen edge label. Unlike draw_label()'s own generic "flip
+// whichever side keeps it on canvas" placement (tuned for a label
+// near an arbitrary point out in the open sky), this one anchors
+// directly against its own arrow's flat base with a small fixed gap,
+// so the two always sit right next to each other regardless of label
+// width or screen size. draw_label() used to be reused here too, but
+// its near-point flip logic put the label's own edge a further
+// ~30-40px away from the arrow depending on which way it flipped --
+// an inconsistent gap that had nothing to do with the arrow's actual
+// position, per the request.
+static void draw_planet_seek_edge_label(GContext *ctx, GRect bounds, GPoint arrow_tip, bool pin_right,
+                                         const char *text, uint8_t label_style, GColor main_color) {
+  int16_t w = 46, h = 14, gap = 2;
+  int16_t arrow_base_x = pin_right ? (arrow_tip.x - PLANET_SEEK_ARROW_W) : (arrow_tip.x + PLANET_SEEK_ARROW_W);
+  int16_t x = pin_right ? (arrow_base_x - gap - w) : (arrow_base_x + gap);
+  int16_t y = arrow_tip.y - h / 2;
+  if (y < bounds.origin.y) y = bounds.origin.y;
+  if (y + h > bounds.origin.y + bounds.size.h) y = bounds.origin.y + bounds.size.h - h;
+  draw_label_in_box(ctx, GRect(x, y, w, h), text, label_style, main_color);
+}
+
 static void draw_planet_seek_body(GContext *ctx, GRect bounds, const char *name,
                                    uint16_t az_decideg, GPoint normal_center, int16_t radius,
                                    GColor fill_color, int32_t heading_deg, int32_t blend_t_1000,
-                                   uint8_t label_style, GColor main_color) {
+                                   uint8_t label_style, GColor main_color,
+                                   bool draw_rays, uint16_t rays_elapsed_ms) {
   int32_t offset_decideg = planet_seek_az_offset_decideg(az_decideg, heading_deg);
   // 90deg field of view across the full screen width -- +-45deg maps
-  // to the left/right edges.
-  int32_t compass_x = bounds.origin.x + bounds.size.w / 2 + (int32_t)((int64_t)offset_decideg * bounds.size.w / 900);
-  int16_t blended_x = (int16_t)(normal_center.x + (((int32_t)compass_x - normal_center.x) * blend_t_1000) / 1000);
-  GPoint pos = GPoint(blended_x, normal_center.y);
+  // to the left/right edges. Whether this body ends up drawn as an
+  // on-screen circle or an off-screen edge arrow is decided from this
+  // raw (unblended) offset -- a fixed property of the body's real sky
+  // position vs the current heading -- so it doesn't flip back and
+  // forth mid-transition; only the drawn X position itself eases in
+  // via blend_t_1000 below, from the body's own normal (non-compass)
+  // position toward wherever it's actually headed, on-screen or off.
+  // This used to snap the off-screen case straight to its pinned edge
+  // position with no blend at all, which is what showed up as
+  // "planets just jump" in and out of the mode.
+  bool in_fov = (offset_decideg >= -450 && offset_decideg <= 450);
 
-  bool on_screen = (offset_decideg >= -450 && offset_decideg <= 450)
-    && pos.x >= bounds.origin.x - radius && pos.x <= bounds.origin.x + bounds.size.w + radius;
-
-  if (on_screen) {
-    graphics_context_set_fill_color(ctx, fill_color);
-    graphics_fill_circle(ctx, pos, radius);
-    draw_label(ctx, bounds, pos, name, label_style, main_color);
-    return;
+  if (in_fov) {
+    int32_t compass_x = bounds.origin.x + bounds.size.w / 2 + (int32_t)((int64_t)offset_decideg * bounds.size.w / 900);
+    int16_t blended_x = (int16_t)(normal_center.x + (((int32_t)compass_x - normal_center.x) * blend_t_1000) / 1000);
+    GPoint pos = GPoint(blended_x, normal_center.y);
+    if (pos.x >= bounds.origin.x - radius && pos.x <= bounds.origin.x + bounds.size.w + radius) {
+      // Rays first, disc on top -- so they read as radiating FROM the
+      // Sun rather than a ring drawn over it. Sun only (see
+      // draw_planet_seek_overlay's own call site) and only while
+      // actually on-screen -- an edge-pinned arrow further down has no
+      // disc for rays to radiate from.
+      if (draw_rays) draw_sun_rays(ctx, pos, radius, fill_color, rays_elapsed_ms);
+      graphics_context_set_fill_color(ctx, fill_color);
+      graphics_fill_circle(ctx, pos, radius);
+      draw_label(ctx, bounds, pos, name, label_style, main_color);
+      return;
+    }
   }
 
-  // Off screen: label pinned to whichever edge is the shorter way to
-  // turn to actually reach it, with an arrow pointing further off that
-  // same edge -- offset_decideg > 0 means the body is clockwise
-  // (east) of center, i.e. reached by turning right, hence pinned to
-  // the RIGHT edge (and vice versa for < 0/left) -- see the request's
-  // own worked example ("Sun behind on my left" -> left edge, left-
-  // pointing arrow).
+  // Off screen: label+arrow pinned to whichever edge is the shorter
+  // way to turn to actually reach it -- offset_decideg > 0 means the
+  // body is clockwise (east) of center, i.e. reached by turning
+  // right, hence pinned to the RIGHT edge (and vice versa for < 0/
+  // left) -- see the request's own worked example ("Sun behind on my
+  // left" -> left edge, left-pointing arrow). Slides in from the
+  // body's own normal position via blend_t_1000, same as the
+  // on-screen case above.
   bool pin_right = offset_decideg > 0;
-  int16_t edge_x = pin_right ? (bounds.origin.x + bounds.size.w - 30) : (bounds.origin.x + 30);
-  GPoint edge_pos = GPoint(edge_x, normal_center.y);
-  draw_label(ctx, bounds, edge_pos, name, label_style, main_color);
-  GPoint arrow_tip = GPoint(pin_right ? (bounds.origin.x + bounds.size.w - 2) : (bounds.origin.x + 2), normal_center.y);
+  int16_t edge_arrow_x = pin_right ? (bounds.origin.x + bounds.size.w - 2) : (bounds.origin.x + 2);
+  int16_t blended_arrow_x = (int16_t)(normal_center.x + (((int32_t)edge_arrow_x - normal_center.x) * blend_t_1000) / 1000);
+  GPoint arrow_tip = GPoint(blended_arrow_x, normal_center.y);
+  draw_planet_seek_edge_label(ctx, bounds, arrow_tip, pin_right, name, label_style, main_color);
   draw_planet_seek_arrow(ctx, arrow_tip, !pin_right, main_color);
 }
 
@@ -2306,76 +2406,24 @@ static int32_t planet_seek_eased_t_1000(const CanvasState *state, const EclipseD
 // end labels). Only ever called for a body that's actually visible right
 // now (state->cached_*_up/visible), since there's no on-screen anchor
 // point to grow a path out of otherwise.
-#define BODY_PATH_SAMPLE_COUNT 4    // each direction from now: 30/60/90/120 minutes out
-#define BODY_PATH_SAMPLE_STEP_S 1800 // 30 minutes
-#define BODY_PATH_MAX_PX 36          // fully-extended reveal length, in path pixels, per direction
+//#define BODY_PATH_SAMPLE_COUNT 4    // each direction from now: 30/60/90/120 minutes out
+//#define BODY_PATH_SAMPLE_STEP_S 1800 // 30 minutes
+//#define BODY_PATH_MAX_PX 36          // fully-extended reveal length, in path pixels, per direction
 
-// alts_backward[0..count-1] are samples at now-30min, now-60min, ...;
-// alts_forward the same but into the future. Both walk outward from
-// body_center (index 0 = closest to now) as two separate budget-limited
-// dotted polylines -- see stroke_line_dotted_budget_fp()'s own comment
-// for why the budget can end a path mid-segment instead of only at a
-// sample boundary, which is what makes the smooth extend/contract
-// animation possible instead of jumping in 30-minute increments.
-static void draw_body_path_from_altitudes(GContext *ctx, const EclipseData *d, GRect bounds,
-                                           GPoint body_center, GColor color,
-                                           const int16_t *alts_backward, const int16_t *alts_forward,
-                                           int count, int32_t reveal_px) {
-  FGPoint prev_b = fgpoint_from_gpoint(body_center);
-  int32_t budget_b = reveal_px;
-  for (int i = 0; i < count && budget_b > 0; i++) {
-    int16_t y = alt_to_y(alts_backward[i], d->sky_scale_max_alt_decideg, bounds.size.h, 0);
-    FGPoint next = fgpoint_from_gpoint(GPoint(body_center.x, y));
-    if (!stroke_line_dotted_budget_fp(ctx, prev_b, next, color, &budget_b)) break;
-    prev_b = next;
-  }
-  FGPoint prev_f = fgpoint_from_gpoint(body_center);
-  int32_t budget_f = reveal_px;
-  for (int i = 0; i < count && budget_f > 0; i++) {
-    int16_t y = alt_to_y(alts_forward[i], d->sky_scale_max_alt_decideg, bounds.size.h, 0);
-    FGPoint next = fgpoint_from_gpoint(GPoint(body_center.x, y));
-    if (!stroke_line_dotted_budget_fp(ctx, prev_f, next, color, &budget_f)) break;
-    prev_f = next;
-  }
-}
-
-static void draw_body_paths_overlay(GContext *ctx, CanvasState *state, const EclipseData *d, GRect bounds, time_t now) {
-  int32_t reveal_px = (BODY_PATH_MAX_PX * shake_anim_eased_t_1000(state->shake_paths_elapsed_ms, d)) / 1000; // same 500ms-in/hold/500ms-out shape Planet seek's own position blend uses -- see shake_anim_eased_t_1000's own comment
-
-  int16_t sun_back[BODY_PATH_SAMPLE_COUNT], sun_fwd[BODY_PATH_SAMPLE_COUNT];
-  int16_t moon_back[BODY_PATH_SAMPLE_COUNT], moon_fwd[BODY_PATH_SAMPLE_COUNT];
-  int16_t planet_back[PLANET_COUNT][BODY_PATH_SAMPLE_COUNT], planet_fwd[PLANET_COUNT][BODY_PATH_SAMPLE_COUNT];
-  for (int i = 0; i < BODY_PATH_SAMPLE_COUNT; i++) {
-    time_t t_back = now - (time_t)((i + 1) * BODY_PATH_SAMPLE_STEP_S);
-    time_t t_fwd = now + (time_t)((i + 1) * BODY_PATH_SAMPLE_STEP_S);
-    sun_back[i] = interp_sun_alt_decideg(d, t_back);
-    sun_fwd[i] = interp_sun_alt_decideg(d, t_fwd);
-    moon_back[i] = interp_moon_alt_decideg(d, t_back);
-    moon_fwd[i] = interp_moon_alt_decideg(d, t_fwd);
-    for (int p = 0; p < PLANET_COUNT; p++) {
-      planet_back[p][i] = interp_planet_alt_decideg(d, (PlanetId)p, t_back);
-      planet_fwd[p][i] = interp_planet_alt_decideg(d, (PlanetId)p, t_fwd);
-    }
-  }
-
-  if (state->cached_sun_up) {
-    draw_body_path_from_altitudes(ctx, d, bounds, state->cached_sun_center, state->cached_sun_fill_color,
-                                   sun_back, sun_fwd, BODY_PATH_SAMPLE_COUNT, reveal_px);
-  }
-  if (state->cached_moon_visible) {
-    draw_body_path_from_altitudes(ctx, d, bounds, state->cached_moon_center, GColorWhite,
-                                   moon_back, moon_fwd, BODY_PATH_SAMPLE_COUNT, reveal_px);
-  }
-  for (int p = 0; p < PLANET_COUNT; p++) {
-    if (!state->cached_planet_visible[p]) continue;
-    draw_body_path_from_altitudes(ctx, d, bounds, state->cached_planet_center[p], planet_color((PlanetId)p),
-                                   planet_back[p], planet_fwd[p], BODY_PATH_SAMPLE_COUNT, reveal_px);
-  }
-}
 
 static void draw_bg_anim_planets_overlay(GContext *ctx, CanvasState *state, const EclipseData *d, GRect bounds) {
   if (state->cached_sun_up) {
-    graphics_context_set_fill_color(ctx, state->cached_sun_fill_color);
+    // Space view (see SUN_COLOR_SPACE_R's own comment): flat color
+    // rather than state->cached_sun_fill_color's own altitude-based
+    // one (still used as-is by the "Paths" shake mode, which really
+    // does want to show how the Sun's color varies over the few hours
+    // its trail covers -- this overlay is the one exception, not a
+    // change to that shared cached value itself), plus animated rays
+    // (see draw_sun_rays()) since this whole overlay only exists
+    // while the "Planets" startup animation is actually running.
+    GColor sun_fill = GColorFromRGB(SUN_COLOR_SPACE_R, SUN_COLOR_SPACE_G, SUN_COLOR_SPACE_B);
+    draw_sun_rays(ctx, state->cached_sun_center, state->cached_sun_r, sun_fill, state->bg_anim_elapsed_ms);
+    graphics_context_set_fill_color(ctx, sun_fill);
     graphics_fill_circle(ctx, state->cached_sun_center, state->cached_sun_r);
   }
   if (state->cached_moon_visible) {
@@ -2403,20 +2451,24 @@ static void draw_planet_seek_overlay(GContext *ctx, CanvasState *state, const Ec
   if (moon_r < 4) moon_r = 4;
 
   if (state->cached_sun_up) {
-    RGB8 sun_rgb = sun_color_for_altitude(interp_sun_alt_decideg(d, now));
-    GColor sun_fill = GColorFromRGB(sun_rgb.r, sun_rgb.g, sun_rgb.b);
+    // Space view (see SUN_COLOR_SPACE_R's own comment): flat color,
+    // not the normal altitude-based shift, plus animated rays (see
+    // draw_sun_rays()) since this whole overlay only exists while
+    // Planet seek's own shake-triggered animation is running.
+    GColor sun_fill = GColorFromRGB(SUN_COLOR_SPACE_R, SUN_COLOR_SPACE_G, SUN_COLOR_SPACE_B);
     draw_planet_seek_body(ctx, bounds, "Sun", interp_sun_az_decideg(d, now), state->cached_sun_center, sun_r,
-                           sun_fill, heading_deg, eased_t_1000, d->label_style, main_color);
+                           sun_fill, heading_deg, eased_t_1000, d->label_style, main_color,
+                           true, state->planet_seek_elapsed_ms);
   }
   if (state->cached_moon_visible) {
     draw_planet_seek_body(ctx, bounds, "Moon", interp_moon_az_decideg(d, now), state->cached_moon_center, moon_r,
-                           GColorWhite, heading_deg, eased_t_1000, d->label_style, main_color);
+                           GColorWhite, heading_deg, eased_t_1000, d->label_style, main_color, false, 0);
   }
   for (int p = 0; p < PLANET_COUNT; p++) {
     if (!state->cached_planet_visible[p]) continue;
     draw_planet_seek_body(ctx, bounds, PLANET_NAMES[p], interp_planet_az_decideg(d, (PlanetId)p, now),
                            state->cached_planet_center[p], PLANET_R, planet_color((PlanetId)p),
-                           heading_deg, eased_t_1000, d->label_style, main_color);
+                           heading_deg, eased_t_1000, d->label_style, main_color, false, 0);
   }
 }
 
@@ -2587,9 +2639,6 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
     }
     if (state->bg_anim_active && d->bg_anim_mode == 2) {
       draw_bg_anim_planets_overlay(ctx, state, d, bounds);
-    }
-    if (state->shake_paths_active) {
-      draw_body_paths_overlay(ctx, state, d, bounds, now);
     }
     return;
   }
@@ -2788,14 +2837,16 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
   }
 
   // The sun disc: warm fill, thin outline so it still reads against
-  // both bright day blue and dark night navy. Positioned by its real
-  // altitude while up, but *whether* it's visible at all -- and the
-  // animated sink/rise right at the edges -- comes from today's
-  // actual sunrise/sunset times rather than the altitude scale (see
-  // body_screen_y's comment for why). In fullscreen-sun mode it's
-  // simply centered and always "up" -- the whole point is to fill the
-  // screen throughout the eclipse regardless of the Sun's real
-  // altitude at that moment.
+  // both bright day blue and dark night navy (fullscreen-sun mode
+  // aside -- see SUN_COLOR_SPACE_R's own comment, its fill is a flat
+  // space color rather than the altitude-based shift this normally
+  // refers to). Positioned by its real altitude while up, but
+  // *whether* it's visible at all -- and the animated sink/rise right
+  // at the edges -- comes from today's actual sunrise/sunset times
+  // rather than the altitude scale (see body_screen_y's comment for
+  // why). In fullscreen-sun mode it's simply centered and always "up"
+  // -- the whole point is to fill the screen throughout the eclipse
+  // regardless of the Sun's real altitude at that moment.
   GPoint sun_center;
   bool sun_up;
   if (fullscreen_sun) {
@@ -2808,7 +2859,13 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
     sun_center = GPoint(bounds.size.w / 2, sun_y);
   }
   if (sun_up && !skip_body_paint) {
-    RGB8 sun_rgb = sun_color_for_altitude(alt);
+    // fullscreen-sun (an eclipse's space view, see fullscreen_sun's
+    // own comment above) gets the flat space color instead of the
+    // normal altitude-based white-to-red shift -- see
+    // SUN_COLOR_SPACE_R's own comment for why.
+    RGB8 sun_rgb = fullscreen_sun
+      ? (RGB8){ SUN_COLOR_SPACE_R, SUN_COLOR_SPACE_G, SUN_COLOR_SPACE_B }
+      : sun_color_for_altitude(alt);
     GColor sun_fill = GColorFromRGB(sun_rgb.r, sun_rgb.g, sun_rgb.b);
     // A darker rim in the same hue, rather than a fixed color -- keeps
     // the disc readable against the sky at every altitude without
@@ -3110,9 +3167,6 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
   if (state->bg_anim_active && d->bg_anim_mode == 2) {
     draw_bg_anim_planets_overlay(ctx, state, d, bounds);
   }
-  if (state->shake_paths_active) {
-    draw_body_paths_overlay(ctx, state, d, bounds, now);
-  }
 }
 
 Layer *eclipse_canvas_create(GRect frame) {
@@ -3189,22 +3243,6 @@ void eclipse_canvas_set_planet_seek(Layer *layer, bool active, uint16_t elapsed_
   state->planet_seek_elapsed_ms = elapsed_ms;
   state->planet_seek_heading_deg = heading_deg;
   if (active != was_active) state->force_next_draw = true; // the one moment it DOES need a full draw: entering/leaving the mode, so the cache/backdrop itself gets refreshed at the right moment
-  layer_mark_dirty(layer);
-}
-
-// "Paths" (shake_anim_mode 5) -- unlike eclipse_canvas_set_planet_seek()
-// above, this never forces a full redraw: the bodies it draws paths
-// from are already drawn normally (not skip-painted the way Planet
-// seek/the Planets bg-anim need to be), so whatever's already cached
-// is a perfectly good backdrop for every frame of this animation --
-// each frame just blits that same cache and draws the path's CURRENT
-// reveal length fresh on top, never baking the path itself into the
-// cache at all (the cache-blit early-return in canvas_update_proc
-// returns before any capture happens).
-void eclipse_canvas_set_shake_paths(Layer *layer, bool active, uint16_t elapsed_ms) {
-  CanvasState *state = (CanvasState *)layer_get_data(layer);
-  state->shake_paths_active = active;
-  state->shake_paths_elapsed_ms = elapsed_ms;
   layer_mark_dirty(layer);
 }
 

@@ -664,7 +664,7 @@ GColor shake_outline_color(GColor normal_color, int16_t screen_x);
 
 // hand_layer.c's own version -- see its definition in
 // pebble-eclipse-watch.c for why it's different from the one above.
-bool shake_gradient_active(uint8_t *out_shift);
+bool shake_gradient_active(int32_t *out_shift);
 
 // Also defined in pebble-eclipse-watch.c -- the watch's current compass
 // heading (0-359, true-north-relative, clockwise -- 0=N, 90=E, 180=S,

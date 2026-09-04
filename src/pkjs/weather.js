@@ -349,13 +349,37 @@ function fetchAirQuality(lat, lon, cb) {
 // also depends on geomagnetic latitude -- see astro.js's
 // geomagneticLatitudeDeg()/auroraVisibilityScore()), just how
 // geomagnetically active the whole planet currently is.
+//
+// NOAA has served two different shapes for this specific endpoint's
+// rows over time -- most other SWPC JSON products use a header row
+// (an array of column-name strings) followed by data rows that are
+// themselves plain arrays of stringified values in that column order
+// (e.g. row = ["2026-09-03 18:00:00", "2.00", "7", "8"], Kp always at
+// index 1); this one switched at some point to a plain array of
+// objects instead, one per reading, with named fields directly (e.g.
+// {"time_tag":"2026-09-03T18:00:00","Kp":2.00,"a_running":7,
+// "station_count":8}) -- no header row at all, since none is needed
+// when every row already names its own fields. Confirmed directly
+// against the live endpoint. Handles both shapes below (object first,
+// since that's what NOAA actually serves for this product now) rather
+// than assuming either permanently -- this exact mismatch (still only
+// ever checking Array.isArray(last) and reading last[1], which is
+// never true for a plain object) is what "malformed Kp row" meant:
+// every row failed that shape check and got rejected, regardless of
+// its actual Kp value.
 function fetchAuroraKp(cb) {
   var url = 'https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json';
   xhrGetJSON(url, 8000, function (err, json) {
     if (err || !Array.isArray(json) || json.length < 2) return cb(err || new Error('empty Kp response'), null);
     var last = json[json.length - 1];
-    if (!Array.isArray(last) || last.length < 2) return cb(new Error('malformed Kp row'), null);
-    var kp = parseFloat(last[1]);
+    var kp;
+    if (last && typeof last === 'object' && !Array.isArray(last)) {
+      kp = parseFloat(last.Kp);
+    } else if (Array.isArray(last) && last.length >= 2) {
+      kp = parseFloat(last[1]);
+    } else {
+      return cb(new Error('malformed Kp row'), null);
+    }
     if (isNaN(kp)) return cb(new Error('bad Kp value'), null);
     cb(null, kp);
   });
