@@ -402,7 +402,7 @@ var ROMAN_INCOMPATIBLE_FONTS = { 6: true, 7: true, 13: true };
 
 // A 12-button grid for picking which hour numerals (kind='hour', labels
 // 12,1..11) or which every-5-second slots (kind='sec', labels 0,5..55)
-// should get a text marker -- bit i of the mask corresponds to button i,
+// should get a numeral -- bit i of the mask corresponds to button i,
 // same order marker_layer_draw_text() iterates on-watch.
 function markBtnGridHtml(kind, maskStr) {
   var mask = parseInt(maskStr, 10);
@@ -534,7 +534,7 @@ function customMarkerModalHtml(kind, title, thicknessMax) {
 '      <button type="button" onclick="applyMarkerPreset(\'' + kind + '\', \'small\')">Small</button>' +
 '      <button type="button" onclick="applyMarkerPreset(\'' + kind + '\', \'big\')">Big</button>' +
 '    </div>' +
-'    <button type="button" class="marker-edit-btn" style="margin-top:8px;" onclick="copyMarkerConfig(\'' + kind + '\')">Copy from ' + (kind === 'hour' ? 'second' : 'hour') + ' markers</button>' +
+'    <button type="button" class="marker-edit-btn" style="margin-top:8px;" onclick="copyMarkerConfig(\'' + kind + '\')">Copy from ' + (kind === 'hour' ? 'seconds' : 'hour') + ' indices</button>' +
 
 '    </div>' +
 '    <div class="modal-footer">' +
@@ -546,8 +546,8 @@ function customMarkerModalHtml(kind, title, thicknessMax) {
   );
 }
 
-// The "Edit text markers" popup -- numerals shown on the hour or second
-// custom-marker ring (never both). Everything here commits live (same
+// The "Edit numerals" popup -- numerals shown on the hour or second
+// custom-index ring (never both). Everything here commits live (same
 // as the hour/second button grids always have) rather than draft-then-
 // Save, since there's no risk of an inconsistent in-between state the
 // way there is with the ring geometry popups.
@@ -555,14 +555,14 @@ function textMarkerModalHtml(current) {
   return (
 '<div class="modal-overlay" id="textMarkerModal" onclick="if (event.target === this) closeTextMarkerEditor();">' +
 '  <div class="modal-box">' +
-'    <div class="modal-title">Edit text markers</div>' +
+'    <div class="modal-title">Edit numerals</div>' +
 '    <div class="modal-scroll-body">' +
 
 '    <label for="markerTextTarget">Numbers</label>' +
 '    <select id="markerTextTarget" onchange="onMarkerTextTargetChange()">' +
 '      <option value="0"' + (current.markerTextTarget === '0' || !current.markerTextTarget ? ' selected' : '') + '>Off</option>' +
-'      <option value="1"' + (current.markerTextTarget === '1' ? ' selected' : '') + '>On hour markers</option>' +
-'      <option value="2"' + (current.markerTextTarget === '2' ? ' selected' : '') + '>On second markers (every 5s)</option>' +
+'      <option value="1"' + (current.markerTextTarget === '1' ? ' selected' : '') + '>On hour indices</option>' +
+'      <option value="2"' + (current.markerTextTarget === '2' ? ' selected' : '') + '>On seconds indices (every 5s)</option>' +
 '    </select>' +
 '    <div class="help">Numbers can go on the hour ring or the second ring, not both at once.</div>' +
 
@@ -577,14 +577,14 @@ function textMarkerModalHtml(current) {
 '      <div class="help" id="markerTextRomanHelp">' + (ROMAN_INCOMPATIBLE_FONTS[current.markerTextFont] ? 'Not available with this font -- its glyphs don\'t support Roman numerals correctly.' : 'Shows I, II, III... instead of 1, 2, 3... -- independent of the font above.') + '</div>' +
 
 '      <div class="slider-row">' +
-'        <label for="markerTextOffset">Offset from marker <span class="val" id="markerTextOffsetVal">' + esc(current.markerTextOffset || '0') + 'px</span></label>' +
+'        <label for="markerTextOffset">Offset from index <span class="val" id="markerTextOffsetVal">' + esc(current.markerTextOffset || '0') + 'px</span></label>' +
 '        <div class="slider-with-buttons">' +
 '        <button type="button" class="slider-step-btn" onclick="stepSlider(\'markerTextOffset\', -1)">&minus;</button>' +
 '        <input type="range" id="markerTextOffset" min="-50" max="50" step="1" value="' + esc(current.markerTextOffset || '0') + '" oninput="document.getElementById(\'markerTextOffsetVal\').textContent = this.value + \'px\';">' +
 '        <button type="button" class="slider-step-btn" onclick="stepSlider(\'markerTextOffset\', 1)">+</button>' +
 '        </div>' +
 '      </div>' +
-'      <div class="help">Positive nudges numbers outward (away from center), negative pulls them inward -- so they don\'t overlap the dot/line/square marker.</div>' +
+'      <div class="help">Positive nudges numbers outward (away from center), negative pulls them inward -- so they don\'t overlap the dot/line/square index.</div>' +
 
 '      <div id="markerTextHourGrid" style="' + (current.markerTextTarget === '1' ? '' : 'display:none;') + '">' +
 '        <label style="margin-top:10px;">Which hours get a number</label>' +
@@ -928,8 +928,8 @@ function buildConfigHtml(current) {
 
   // Which edge-middle slots (upper/bottom/left/right-middle) does the
   // current mode/style support, and are the 4 corners themselves
-  // suppressed? Must match corners_layer_update_proc's rules in
-  // pebble-eclipse-watch.c exactly, or the settings page would show
+  // suppressed? Must match features_recompute_slots's rules in
+  // features_layer.c exactly, or the settings page would show
   // slots as available that the watch itself won't actually draw.
   var markerStyleNum = parseInt(current.bigAnalogMarkerStyle || '0', 10);
   var isBitmapMarkerStyle = markerStyleNum >= 3 && markerStyleNum !== 8 && markerStyleNum !== 9;
@@ -939,7 +939,11 @@ function buildConfigHtml(current) {
       edgeAvail = { upper: true, bottom: true, left: true, right: true, cornersGrayed: false };
     } else if (markerStyleNum === 3 || markerStyleNum === 4 || markerStyleNum === 6) {
       edgeAvail = { upper: true, bottom: true, left: false, right: false, cornersGrayed: true };
-    } else if (markerStyleNum === 5 || markerStyleNum === 7) {
+    } else if (markerStyleNum === 5) {
+      // Tally -- its own mask art leaves all 4 corners clear (unlike
+      // every other bitmap style), so it alone keeps them active.
+      edgeAvail = { upper: true, bottom: true, left: true, right: true, cornersGrayed: false };
+    } else if (markerStyleNum === 7) {
       edgeAvail = { upper: true, bottom: true, left: true, right: true, cornersGrayed: true };
     } else {
       edgeAvail = { upper: true, bottom: false, left: false, right: false, cornersGrayed: true };
@@ -1180,8 +1184,8 @@ function buildConfigHtml(current) {
 '  </div>' +
 '</div>' +
 
-customMarkerModalHtml('hour', 'Edit hour markers', 20) +
-customMarkerModalHtml('sec', 'Edit second markers', 10) +
+customMarkerModalHtml('hour', 'Edit hour indices', 20) +
+customMarkerModalHtml('sec', 'Edit seconds indices', 10) +
 textMarkerModalHtml(current) +
 
 handEditorModalHtml('hour', 'Edit hour hand') +
@@ -1205,7 +1209,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 
 '<div class="modal-overlay" id="markerStyleModal" onclick="if (event.target === this) closeMarkerStyleModal();">' +
 '  <div class="modal-box">' +
-'    <div class="modal-title">Hour/second marker style</div>' +
+'    <div class="modal-title">Hour/seconds indices style</div>' +
 '    <div class="modal-scroll-body">' +
 '      <div class="style-picker-grid" id="markerStyleGrid"></div>' +
 '      <button type="button" class="style-picker-custom-btn" onclick="chooseMarkerStyleCustom()">Custom</button>' +
@@ -1214,7 +1218,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '</div>' +
 
 // Center circle -- same "commits live, no separate draft/Save state"
-// shape as the text marker modal above, not the hand editor's own
+// shape as the numerals modal above, not the hand editor's own
 // draft-then-Save/Cancel one, since there are only 2 fields here and
 // they already commit live via their own oninput/onchange handlers.
 '<div class="modal-overlay" id="centerCircleModal" onclick="if (event.target === this) closeCenterCircleEditor();">' +
@@ -1374,11 +1378,11 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      </div>' +
 '      <button type="button" class="marker-edit-btn" onclick="openShadowStyleEditor()">Edit shadow style &rsaquo;</button>' +
 
-'      <label style="margin-top:12px;">Hour/second marker style</label>' +
+'      <label style="margin-top:12px;">Hour/seconds indices style</label>' +
 '      <button type="button" class="marker-edit-btn" id="markerStyleTriggerBtn" style="margin-top:8px;" onclick="openMarkerStyleModal()">Marker style: <span id="markerStyleTriggerLabel"></span> &rsaquo;</button>' +
 '      <select id="bigAnalogMarkerStyle" style="display:none;" onchange="onMarkerStyleChange()">' +
 '        <option value="9"' + (current.bigAnalogMarkerStyle === '9' ? ' selected' : '') + '>None</option>' +
-'        <option value="0"' + (current.bigAnalogMarkerStyle === '0' || !current.bigAnalogMarkerStyle ? ' selected' : '') + '>Minimal (thin hour markers only)</option>' +
+'        <option value="0"' + (current.bigAnalogMarkerStyle === '0' || !current.bigAnalogMarkerStyle ? ' selected' : '') + '>Minimal (thin hour indices only)</option>' +
 '        <option value="1"' + (current.bigAnalogMarkerStyle === '1' ? ' selected' : '') + '>Small markers (hour + second)</option>' +
 '        <option value="2"' + (current.bigAnalogMarkerStyle === '2' ? ' selected' : '') + '>Big markers (thick hour, thin second)</option>' +
 '        <option value="3"' + (current.bigAnalogMarkerStyle === '3' ? ' selected' : '') + '>Modern</option>' +
@@ -1396,9 +1400,9 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      <div class="help">When an eclipse is actually happening, the Sun fills the whole screen as a background behind the hands.</div>' +
 
 '      <div id="customMarkerSection" style="' + (current.bigAnalogMarkerStyle === '8' ? '' : 'display:none;') + '">' +
-'        <button type="button" class="marker-edit-btn" onclick="openCustomMarkerEditor(\'hour\')">Edit hour markers &rsaquo;</button>' +
-'        <button type="button" class="marker-edit-btn" onclick="openCustomMarkerEditor(\'sec\')">Edit second markers &rsaquo;</button>' +
-'        <button type="button" class="marker-edit-btn" onclick="openTextMarkerEditor()">Edit text markers &rsaquo;</button>' +
+'        <button type="button" class="marker-edit-btn" onclick="openCustomMarkerEditor(\'hour\')">Edit hour indices &rsaquo;</button>' +
+'        <button type="button" class="marker-edit-btn" onclick="openCustomMarkerEditor(\'sec\')">Edit seconds indices &rsaquo;</button>' +
+'        <button type="button" class="marker-edit-btn" onclick="openTextMarkerEditor()">Edit numerals &rsaquo;</button>' +
           customMarkerHiddenInputsHtml(current) +
 '      </div>' +
 '    </div>' +
@@ -1600,7 +1604,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
         { value: '0', label: 'Off' },
         { value: '1', label: 'Weather (clouds slide in from the sides)' },
         { value: '2', label: 'Planets (Sun/Moon/planets + sky sweep in from a couple hours ago)' },
-        { value: '3', label: 'Markers (analog hour markers animate in; seconds draw normally)' }
+        { value: '3', label: 'Indices (analog hour indices animate in; seconds draw normally)' }
       ], current.bgAnimMode || '0') +
 '    </div>' +
 '    <div class="help">Off by default: exactly one of the above sweeps into place on launch, under 1.5s.</div>' +
@@ -2381,8 +2385,9 @@ handEditorModalHtml('sec', 'Edit second hand') +
 'var SLOT_EDITOR_DRAFT_COLOR = 0;' +
 // Procedural marker styles (<3) have all 8 slots and the 4 corners;
 // bitmap styles are each limited to whatever their own artwork
-// actually has room for and suppress the corners entirely (the mask
-// fills most of the screen).
+// actually has room for and (Tally excepted -- its own mask leaves
+// all 4 corners clear) suppress the corners entirely, since the mask
+// fills most of the rest of the screen either way.
 'function computeSlotAvailability() {' +
 '  var styleVal = document.getElementById("bottomStyleValue").value;' +
 '  var isAnalog = styleVal === "analog";' +
@@ -2393,7 +2398,9 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      avail.upper = avail.bottom = avail.left = avail.right = true;' +
 '    } else if (markerStyle === 3 || markerStyle === 4 || markerStyle === 6) {' +
 '      avail.upper = avail.bottom = true; avail.cornersGrayed = true;' +
-'    } else if (markerStyle === 5 || markerStyle === 7) {' +
+'    } else if (markerStyle === 5) {' +
+'      avail.upper = avail.bottom = avail.left = avail.right = true;' +
+'    } else if (markerStyle === 7) {' +
 '      avail.upper = avail.bottom = avail.left = avail.right = true; avail.cornersGrayed = true;' +
 '    } else {' +
 '      avail.upper = true; avail.cornersGrayed = true;' +
@@ -2580,7 +2587,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  updatePreview();' +
 '}' +
 
-// ---- custom hour/second marker popups --------------------------------
+// ---- custom hour/seconds indices popups --------------------------------
 'var CM_FIELDS = ["Style", "Thickness", "InnerEcc", "OuterEcc", "InnerBorder", "OuterBorder", "Translucent", "Color"];' +
 'var CM_CHECKBOX_FIELDS = ["Translucent"];' +
 'function cmHiddenPrefix(kind) { return kind === "hour" ? "customHour" : "customSec"; }' +
@@ -2602,7 +2609,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 // marker_layer.c) now that a mark's length comes directly from its
 // inner/outer border points rather than a separate slider -- a starting
 // point to tune from, not an exact match. The "second" ring has no real
-// minimal-style equivalent (that style draws no second markers at all),
+// minimal-style equivalent (that style draws no second indices at all),
 // so its "minimal" preset is just a short stub near the outer edge.
 'function updateCustomMarkerValLabels(kind) {' +
 '  var p = cmPopupPrefix(kind);' +

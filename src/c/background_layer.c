@@ -517,6 +517,55 @@ static const SunColorAnchor SUN_COLOR_ANCHORS[] = {
 };
 #define SUN_COLOR_ANCHOR_COUNT (int)(sizeof(SUN_COLOR_ANCHORS) / sizeof(SUN_COLOR_ANCHORS[0]))
 
+// The Sun's own color wherever it's shown in a "space view" instead
+// of the normal sky -- sun_color_for_altitude() above models how
+// Earth's atmosphere reddens sunlight near the horizon, which doesn't
+// mean anything in a view that isn't really representing an
+// atmospheric vantage point at a specific moment in the first place:
+// an eclipse's fullscreen Sun already ignores the real altitude
+// entirely for its own positioning (see fullscreen_sun's own comment
+// in canvas_update_proc), Planet seek repositions bodies by compass
+// heading rather than altitude, and the "Planets" startup animation
+// fast-forwards through several hours of real sky in under 2 seconds.
+// A flat, recognizably-sun yellow-orange reads better in all three
+// than a color shift whose real-world meaning doesn't apply.
+#define SUN_COLOR_SPACE_R 255
+#define SUN_COLOR_SPACE_G 190
+#define SUN_COLOR_SPACE_B 60
+
+// A handful of thin rays radiating out from the Sun's own disc,
+// slowly rotating with a gentle per-ray length pulse (each ray offset
+// from the others so they flicker independently rather than all
+// breathing in lockstep, reading more like solar activity than one
+// uniform pulse) -- decorates the space-view Sun (see
+// SUN_COLOR_SPACE_R's own comment above) specifically while it's part
+// of an animated sequence: Planet seek on shake, the "Planets"
+// bg-animation on startup. Not used for the eclipse's own fullscreen
+// Sun, which -- unlike those two -- isn't a timed animation at all,
+// just however the sky happens to look for the eclipse's whole
+// duration; rays there would just be visual noise sitting still
+// indefinitely rather than reading as motion.
+static void draw_sun_rays(GContext *ctx, GPoint center, int16_t sun_r, GColor color, uint16_t elapsed_ms) {
+  #define SUN_RAY_COUNT 8
+  int32_t rot = (int32_t)(((int64_t)elapsed_ms * TRIG_MAX_ANGLE) / 4000) % TRIG_MAX_ANGLE; // one slow rotation every 4s
+  graphics_context_set_stroke_color(ctx, color);
+  graphics_context_set_stroke_width(ctx, 2);
+  for (int i = 0; i < SUN_RAY_COUNT; i++) {
+    int32_t angle = (rot + (int32_t)(((int64_t)i * TRIG_MAX_ANGLE) / SUN_RAY_COUNT)) & 0xFFFF;
+    int32_t pulse_phase = (int32_t)(((((int64_t)elapsed_ms * TRIG_MAX_ANGLE) / 1500) +
+                                      ((int64_t)i * TRIG_MAX_ANGLE) / SUN_RAY_COUNT)) & 0xFFFF;
+    int16_t pulse = (int16_t)(((int32_t)(sun_r / 3) * (sin_lookup(pulse_phase) + TRIG_MAX_RATIO)) / (2 * TRIG_MAX_RATIO));
+    int16_t inner_r = sun_r + 3;
+    int16_t outer_r = inner_r + (sun_r / 2) + pulse;
+    GPoint p1 = GPoint(center.x + (inner_r * sin_lookup(angle)) / TRIG_MAX_RATIO,
+                        center.y - (inner_r * cos_lookup(angle)) / TRIG_MAX_RATIO);
+    GPoint p2 = GPoint(center.x + (outer_r * sin_lookup(angle)) / TRIG_MAX_RATIO,
+                        center.y - (outer_r * cos_lookup(angle)) / TRIG_MAX_RATIO);
+    graphics_draw_line(ctx, p1, p2);
+  }
+  #undef SUN_RAY_COUNT
+}
+
 static RGB8 sun_color_for_altitude(int16_t alt_decideg) {
   RGB8 out;
   if (alt_decideg >= SUN_COLOR_ANCHORS[0].alt_decideg) {
@@ -2255,7 +2304,8 @@ static void draw_planet_seek_edge_label(GContext *ctx, GRect bounds, GPoint arro
 static void draw_planet_seek_body(GContext *ctx, GRect bounds, const char *name,
                                    uint16_t az_decideg, GPoint normal_center, int16_t radius,
                                    GColor fill_color, int32_t heading_deg, int32_t blend_t_1000,
-                                   uint8_t label_style, GColor main_color) {
+                                   uint8_t label_style, GColor main_color,
+                                   bool draw_rays, uint16_t rays_elapsed_ms) {
   int32_t offset_decideg = planet_seek_az_offset_decideg(az_decideg, heading_deg);
   // 90deg field of view across the full screen width -- +-45deg maps
   // to the left/right edges. Whether this body ends up drawn as an
@@ -2275,6 +2325,12 @@ static void draw_planet_seek_body(GContext *ctx, GRect bounds, const char *name,
     int16_t blended_x = (int16_t)(normal_center.x + (((int32_t)compass_x - normal_center.x) * blend_t_1000) / 1000);
     GPoint pos = GPoint(blended_x, normal_center.y);
     if (pos.x >= bounds.origin.x - radius && pos.x <= bounds.origin.x + bounds.size.w + radius) {
+      // Rays first, disc on top -- so they read as radiating FROM the
+      // Sun rather than a ring drawn over it. Sun only (see
+      // draw_planet_seek_overlay's own call site) and only while
+      // actually on-screen -- an edge-pinned arrow further down has no
+      // disc for rays to radiate from.
+      if (draw_rays) draw_sun_rays(ctx, pos, radius, fill_color, rays_elapsed_ms);
       graphics_context_set_fill_color(ctx, fill_color);
       graphics_fill_circle(ctx, pos, radius);
       draw_label(ctx, bounds, pos, name, label_style, main_color);
@@ -2421,7 +2477,17 @@ static void draw_body_paths_overlay(GContext *ctx, CanvasState *state, const Ecl
 
 static void draw_bg_anim_planets_overlay(GContext *ctx, CanvasState *state, const EclipseData *d, GRect bounds) {
   if (state->cached_sun_up) {
-    graphics_context_set_fill_color(ctx, state->cached_sun_fill_color);
+    // Space view (see SUN_COLOR_SPACE_R's own comment): flat color
+    // rather than state->cached_sun_fill_color's own altitude-based
+    // one (still used as-is by the "Paths" shake mode, which really
+    // does want to show how the Sun's color varies over the few hours
+    // its trail covers -- this overlay is the one exception, not a
+    // change to that shared cached value itself), plus animated rays
+    // (see draw_sun_rays()) since this whole overlay only exists
+    // while the "Planets" startup animation is actually running.
+    GColor sun_fill = GColorFromRGB(SUN_COLOR_SPACE_R, SUN_COLOR_SPACE_G, SUN_COLOR_SPACE_B);
+    draw_sun_rays(ctx, state->cached_sun_center, state->cached_sun_r, sun_fill, state->bg_anim_elapsed_ms);
+    graphics_context_set_fill_color(ctx, sun_fill);
     graphics_fill_circle(ctx, state->cached_sun_center, state->cached_sun_r);
   }
   if (state->cached_moon_visible) {
@@ -2449,20 +2515,24 @@ static void draw_planet_seek_overlay(GContext *ctx, CanvasState *state, const Ec
   if (moon_r < 4) moon_r = 4;
 
   if (state->cached_sun_up) {
-    RGB8 sun_rgb = sun_color_for_altitude(interp_sun_alt_decideg(d, now));
-    GColor sun_fill = GColorFromRGB(sun_rgb.r, sun_rgb.g, sun_rgb.b);
+    // Space view (see SUN_COLOR_SPACE_R's own comment): flat color,
+    // not the normal altitude-based shift, plus animated rays (see
+    // draw_sun_rays()) since this whole overlay only exists while
+    // Planet seek's own shake-triggered animation is running.
+    GColor sun_fill = GColorFromRGB(SUN_COLOR_SPACE_R, SUN_COLOR_SPACE_G, SUN_COLOR_SPACE_B);
     draw_planet_seek_body(ctx, bounds, "Sun", interp_sun_az_decideg(d, now), state->cached_sun_center, sun_r,
-                           sun_fill, heading_deg, eased_t_1000, d->label_style, main_color);
+                           sun_fill, heading_deg, eased_t_1000, d->label_style, main_color,
+                           true, state->planet_seek_elapsed_ms);
   }
   if (state->cached_moon_visible) {
     draw_planet_seek_body(ctx, bounds, "Moon", interp_moon_az_decideg(d, now), state->cached_moon_center, moon_r,
-                           GColorWhite, heading_deg, eased_t_1000, d->label_style, main_color);
+                           GColorWhite, heading_deg, eased_t_1000, d->label_style, main_color, false, 0);
   }
   for (int p = 0; p < PLANET_COUNT; p++) {
     if (!state->cached_planet_visible[p]) continue;
     draw_planet_seek_body(ctx, bounds, PLANET_NAMES[p], interp_planet_az_decideg(d, (PlanetId)p, now),
                            state->cached_planet_center[p], PLANET_R, planet_color((PlanetId)p),
-                           heading_deg, eased_t_1000, d->label_style, main_color);
+                           heading_deg, eased_t_1000, d->label_style, main_color, false, 0);
   }
 }
 
@@ -2834,14 +2904,16 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
   }
 
   // The sun disc: warm fill, thin outline so it still reads against
-  // both bright day blue and dark night navy. Positioned by its real
-  // altitude while up, but *whether* it's visible at all -- and the
-  // animated sink/rise right at the edges -- comes from today's
-  // actual sunrise/sunset times rather than the altitude scale (see
-  // body_screen_y's comment for why). In fullscreen-sun mode it's
-  // simply centered and always "up" -- the whole point is to fill the
-  // screen throughout the eclipse regardless of the Sun's real
-  // altitude at that moment.
+  // both bright day blue and dark night navy (fullscreen-sun mode
+  // aside -- see SUN_COLOR_SPACE_R's own comment, its fill is a flat
+  // space color rather than the altitude-based shift this normally
+  // refers to). Positioned by its real altitude while up, but
+  // *whether* it's visible at all -- and the animated sink/rise right
+  // at the edges -- comes from today's actual sunrise/sunset times
+  // rather than the altitude scale (see body_screen_y's comment for
+  // why). In fullscreen-sun mode it's simply centered and always "up"
+  // -- the whole point is to fill the screen throughout the eclipse
+  // regardless of the Sun's real altitude at that moment.
   GPoint sun_center;
   bool sun_up;
   if (fullscreen_sun) {
@@ -2854,7 +2926,13 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
     sun_center = GPoint(bounds.size.w / 2, sun_y);
   }
   if (sun_up && !skip_body_paint) {
-    RGB8 sun_rgb = sun_color_for_altitude(alt);
+    // fullscreen-sun (an eclipse's space view, see fullscreen_sun's
+    // own comment above) gets the flat space color instead of the
+    // normal altitude-based white-to-red shift -- see
+    // SUN_COLOR_SPACE_R's own comment for why.
+    RGB8 sun_rgb = fullscreen_sun
+      ? (RGB8){ SUN_COLOR_SPACE_R, SUN_COLOR_SPACE_G, SUN_COLOR_SPACE_B }
+      : sun_color_for_altitude(alt);
     GColor sun_fill = GColorFromRGB(sun_rgb.r, sun_rgb.g, sun_rgb.b);
     // A darker rim in the same hue, rather than a fixed color -- keeps
     // the disc readable against the sky at every altitude without

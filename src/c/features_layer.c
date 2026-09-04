@@ -2068,22 +2068,22 @@ static void features_recompute_slots(FeaturesState *state) {
   // none (9, no marker ring drawn at all) have no artwork to work around,
   // so all 4 are available alongside the corners. Analog mode's bitmap
   // styles (3-7) are limited to whichever slots that specific mask
-  // graphic's design has room for, and always suppress the 4 corners (the
-  // mask already fills most of the screen either way).
+  // graphic's design has room for, and (Tally excepted -- see
+  // is_bitmap_style's own use below) suppress the 4 corners since the
+  // mask fills most of the rest of the screen either way.
   bool show_upper = false, show_bottom = false, show_left = false, show_right = false;
   if (is_analog) {
     if (marker_style < 3 || marker_style == 8 || marker_style == 9) {
       show_upper = show_bottom = show_left = show_right = true;
     } else {
       switch (marker_style) {
-        case 3: case 4: case 6: // Modern, Shadow, Bell -- only top middle and bottom middle
+        case 3: case 4: case 6: // Modern, Swiss, Bell -- only top middle and bottom middle
           show_upper = show_bottom = true;
           break;
-        case 5: case 7: // tally, brown -- all inside
+        case 5: case 7: // Tally, Brown -- all inside
           show_upper = show_bottom = show_left = show_right = true;
           break;
-        default: // swiss, bell -- only the top has clean space
-          show_upper = true;
+        default: // out-of-range marker_style -- shouldn't happen, but leave every slot off rather than guess
           break;
       }
     }
@@ -2205,7 +2205,12 @@ static void features_recompute_slots(FeaturesState *state) {
     }
   }
 
-  if (is_bitmap_style) return; // corners fully replaced by the slots above
+  // Tally's own mask art leaves all 4 corners clear (unlike the other 4
+  // bitmap styles, whose art fills that space) -- per the request, so
+  // it alone gets to keep the corners active alongside its edge-middle
+  // slots above rather than having them suppressed like every other
+  // bitmap style.
+  if (is_bitmap_style && marker_style != 5) return; // corners fully replaced by the slots above
 
   // Bottom corners shift up out of the way of the "Clouds/visibility/
   // location" bar (background_layer.c's canvas_update_proc) whenever that
