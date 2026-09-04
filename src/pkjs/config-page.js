@@ -987,6 +987,7 @@ function buildConfigHtml(current) {
 '  :root { --page-bg: #f4f4f4; --card-bg: #fff; --text: #222; --text-strong: #333; --text-muted: #666; --text-faint: #888; --text-faint2: #555; --text-disabled: #999; --border: #ccc; --border-light: #eee; --border-lighter: #ddd; --btn-bg: #fafafa; }' +
 '  @media (prefers-color-scheme: dark) {' +
 '    :root { --page-bg: #1c1c1e; --card-bg: #2c2c2e; --text: #f2f2f2; --text-strong: #e5e5e5; --text-muted: #aaa; --text-faint: #999; --text-faint2: #bbb; --text-disabled: #777; --border: #48484a; --border-light: #3a3a3c; --border-lighter: #545456; --btn-bg: #3a3a3c; }' +
+'    .bitmap-marker-img { filter: none; }' +
 '  }' +
 '  body { font-family: -apple-system, Helvetica, Arial, sans-serif; margin: 0; padding: 16px 20px 90px; background: var(--page-bg); color: var(--text); }' +
 '  html, body { touch-action: manipulation; }' + // belt-and-suspenders alongside the viewport meta tag --
@@ -1025,6 +1026,21 @@ function buildConfigHtml(current) {
 '  .style-picker-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 8px; }' +
 '  .style-picker-btn { position: relative; aspect-ratio: 1; box-sizing: border-box; border-radius: 8px; border: 1px solid var(--border); background: var(--btn-bg); overflow: hidden; padding: 0; }' +
 '  .style-picker-btn img { width: 100%; height: 100%; object-fit: cover; display: block; }' +
+// The 5 bitmap marker style thumbnails (Modern/Swiss/Tally/Bell/Brown)
+// are the SAME mask art the watch itself tints with the user's main
+// color -- i.e. drawn in white on transparent, meant to be recolored
+// before display, never shown as-is. Shown as-is here (no tint
+// applied, just the raw watch resource -- see MARKER_PREVIEW_IMAGES),
+// that reads fine against this page's own dark/night theme (white on
+// a dark button background) but is invisible against its light/day
+// theme (white on a near-white button background) -- inverted here so
+// day mode gets black-on-light instead, and un-inverted back in the
+// dark-mode block below so night mode keeps its already-fine look.
+// Doesn\'t apply to the 4 procedural marker-preset thumbnails or the 9
+// hand-style thumbnails (style-picker-btn img above, unaffected) --
+// those are ordinary full-color pictures already visible in both
+// themes, not tintable masks.
+'  .bitmap-marker-img { filter: invert(1); }' +
 '  .style-picker-btn-empty { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; font-size: 11px; font-weight: 600; color: var(--text); text-align: center; padding: 4px; box-sizing: border-box; }' +
 '  .style-picker-btn-cap { position: absolute; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.55); color: #fff; font-size: 10px; font-weight: 700; padding: 3px 2px; text-align: center; line-height: 1.2; }' +
 '  .style-picker-custom-btn { width: 100%; box-sizing: border-box; padding: 12px; font-size: 14px; font-weight: 600; color: var(--text-strong); background: var(--btn-bg); border: 1px solid var(--border); border-radius: 8px; margin-top: 10px; }' +
@@ -1346,7 +1362,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 
 '    <div id="bigAnalogSettings" class="subsection" style="' + (isAnalog ? '' : 'display:none;') + '">' +
 '      <label>Hand style</label>' +
-'      <button type="button" class="marker-edit-btn" style="margin-top:8px;" onclick="openHandStyleModal()">Choose hand style &rsaquo;</button>' +
+'      <button type="button" class="marker-edit-btn" id="handStyleTriggerBtn" style="margin-top:8px;" onclick="openHandStyleModal()">Hand style: <span id="handStyleTriggerLabel"></span> &rsaquo;</button>' +
 '      <div class="help">To show the date behind the hands, pick "Short date" as a line in the Features section below (bottom-middle line 1 does this by default).</div>' +
 
 '      <div id="customHandSection">' +
@@ -1359,7 +1375,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      <button type="button" class="marker-edit-btn" onclick="openShadowStyleEditor()">Edit shadow style &rsaquo;</button>' +
 
 '      <label style="margin-top:12px;">Hour/second marker style</label>' +
-'      <button type="button" class="marker-edit-btn" style="margin-top:8px;" onclick="openMarkerStyleModal()">Choose marker style &rsaquo;</button>' +
+'      <button type="button" class="marker-edit-btn" id="markerStyleTriggerBtn" style="margin-top:8px;" onclick="openMarkerStyleModal()">Marker style: <span id="markerStyleTriggerLabel"></span> &rsaquo;</button>' +
 '      <select id="bigAnalogMarkerStyle" style="display:none;" onchange="onMarkerStyleChange()">' +
 '        <option value="9"' + (current.bigAnalogMarkerStyle === '9' ? ' selected' : '') + '>None</option>' +
 '        <option value="0"' + (current.bigAnalogMarkerStyle === '0' || !current.bigAnalogMarkerStyle ? ' selected' : '') + '>Minimal (thin hour markers only)</option>' +
@@ -2559,6 +2575,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  document.getElementById("customMarkerSection").style.display = (val === "8") ? "" : "none";' +
 '  var isBitmap = (val === "3" || val === "4" || val === "5" || val === "6" || val === "7");' +
 '  document.getElementById("bitmapMarkerTransparentRow").style.display = isBitmap ? "" : "none";' +
+'  updateMarkerStyleButtonLabel();' +
 '  renderSlotPicker();' +
 '  updatePreview();' +
 '}' +
@@ -2785,6 +2802,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  applyHandPresetToKind("min", entry.min);' +
 '  applyHandPresetToKind("sec", entry.sec);' +
 '  closeHandStyleModal();' +
+'  updateHandStyleButtonLabel();' +
 '  updatePreview();' +
 '}' +
 // "Custom" -- same meaning the old dropdown\'s "Custom" option had:
@@ -2793,6 +2811,43 @@ handEditorModalHtml('sec', 'Edit second hand') +
 // popup without applying any preset.
 'function chooseHandStyleCustom() {' +
 '  closeHandStyleModal();' +
+'  updateHandStyleButtonLabel();' +
+'}' +
+// Whether the trigger button reads a preset\'s own name or "Custom" is
+// entirely DERIVED from the 3 hands\' current field values, not a
+// separate remembered flag -- so it stays correct regardless of HOW
+// those values got there (a preset button, a manual "Edit ... hand"
+// change, an imported style JSON) without needing every one of those
+// call sites to separately remember to update/clear some "current
+// preset" state by hand. Deliberately checks only the fields a given
+// preset actually specifies (Style/Width/Length/BackOffset/
+// MiddleOffset/SecondaryWidth/Color -- see HAND_PRESETS\' own entries)
+// rather than every HE_FIELDS entry: those are the fields that define
+// the STYLE itself, whereas Translucent/Outline/Shadow/Hollow are
+// independent finish options layered on top of it, not part of
+// telling one named style apart from another.
+'function handKindMatchesPresetFields(kind, presetFields) {' +
+'  var hp = heHiddenPrefix(kind);' +
+'  for (var f in presetFields) {' +
+'    var el = document.getElementById(hp + f);' +
+'    if (!el || el.value !== String(presetFields[f])) return false;' +
+'  }' +
+'  return true;' +
+'}' +
+'function computeHandStyleLabel() {' +
+'  for (var n = 1; n <= 9; n++) {' +
+'    var entry = HAND_PRESETS[String(n)];' +
+'    if (!entry) continue;' +
+'    if (handKindMatchesPresetFields("hour", entry.hour) && handKindMatchesPresetFields("min", entry.min) &&' +
+'        handKindMatchesPresetFields("sec", entry.sec)) {' +
+'      return entry.title;' +
+'    }' +
+'  }' +
+'  return "Custom";' +
+'}' +
+'function updateHandStyleButtonLabel() {' +
+'  var span = document.getElementById("handStyleTriggerLabel");' +
+'  if (span) span.textContent = computeHandStyleLabel();' +
 '}' +
 
 // ---- marker style picker popup -----------------------------------------
@@ -2818,6 +2873,18 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  { value: "1", title: "Small", image: "small" },' +
 '  { value: "2", title: "Big", image: "big" }' +
 '];' +
+// Trigger-button label lookup -- every MARKER_BITMAP_STYLES/
+// MARKER_PRESET_STYLES entry\'s own title, plus "8" (Custom, the only
+// value neither array carries since it has no picker button of its
+// own -- see chooseMarkerStyleCustom()).
+'var MARKER_STYLE_TITLES = { "8": "Custom" };' +
+'MARKER_BITMAP_STYLES.concat(MARKER_PRESET_STYLES).forEach(function (s) { MARKER_STYLE_TITLES[s.value] = s.title; });' +
+'function updateMarkerStyleButtonLabel() {' +
+'  var span = document.getElementById("markerStyleTriggerLabel");' +
+'  if (!span) return;' +
+'  var val = document.getElementById("bigAnalogMarkerStyle").value;' +
+'  span.textContent = MARKER_STYLE_TITLES.hasOwnProperty(val) ? MARKER_STYLE_TITLES[val] : "Custom";' +
+'}' +
 'function renderMarkerStyleGrid() {' +
 '  var grid = document.getElementById("markerStyleGrid");' +
 '  if (!grid) return;' +
@@ -2825,7 +2892,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  MARKER_BITMAP_STYLES.forEach(function (s) {' +
 '    var img = MARKER_PREVIEW_IMAGES[s.value];' +
 '    html += \'<button type="button" class="style-picker-btn" onclick="chooseMarkerStyle(\\\'\' + s.value + \'\\\')">\' +' +
-'      (img ? \'<img src="\' + img + \'" alt="\' + s.title + \'">\' : \'<span class="style-picker-btn-empty">\' + s.title + "</span>") +' +
+'      (img ? \'<img class="bitmap-marker-img" src="\' + img + \'" alt="\' + s.title + \'">\' : \'<span class="style-picker-btn-empty">\' + s.title + "</span>") +' +
 '      \'<span class="style-picker-btn-cap">\' + s.title + "</span></button>";' +
 '  });' +
 '  MARKER_PRESET_STYLES.forEach(function (s) {' +
@@ -2904,6 +2971,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  applyFontOptionFilter("clockFontSmall", document.getElementById("clockFontSmallShowIncompatible").checked);' +
 '  onBottomStyleChange();' +
 '  onMarkerStyleChange();' +
+'  updateHandStyleButtonLabel();' +
 '  onCornerFontChange();' +
 '  onSkyModeChange();' +
 '  onShowSecondsChange();' +
@@ -3168,6 +3236,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    hidden.value = (HE_CHECKBOX_FIELDS.indexOf(f) !== -1) ? String(popupEl.checked) : popupEl.value;' +
 '  });' +
 '  closeHandEditor(kind);' +
+'  updateHandStyleButtonLabel();' +
 '  updatePreview();' +
 '}' +
 // Copies the OTHER hand's last-saved settings into this popup's draft
@@ -3573,6 +3642,8 @@ handEditorModalHtml('sec', 'Edit second hand') +
 'updateColorRoleButtons("day");' +
 'updateColorRoleButtons("night");' +
 'onBottomStyleChange();' +
+'onMarkerStyleChange();' +
+'updateHandStyleButtonLabel();' +
 'applyFontOptionFilter("cornerFont", document.getElementById("cornerFontShowIncompatible").checked);' +
 'applyFontOptionFilter("clockFontSmall", document.getElementById("clockFontSmallShowIncompatible").checked);' +
 'renderHandStyleGrid();' +

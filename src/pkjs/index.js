@@ -144,6 +144,26 @@ var KEY_TYPE_MAP = (function () {
 var s_sendQueue = [];
 var s_sendInFlight = false;
 
+// Nothing actually leaves the phone for the first few seconds after
+// PKJS starts up, regardless of what queued it (the 'ready' handler's
+// own first refresh below, a REQUEST_UPDATE reply, a settings-page
+// Save) -- gated here, in the one place every send*() call already
+// funnels through (see pumpSendQueue()), rather than in each
+// individual caller, so nothing can slip through by some other path.
+// Lets the watch's own screen finish laying out/settling first before
+// a message starts changing what's on it -- the watch itself holds
+// its own first outbound request back a few seconds for the same
+// reason (see request_update()'s own comment in pebble-eclipse-watch.c),
+// so this is the phone-side half of that same "let it settle first"
+// intent, on its own longer timer since the phone doesn't know
+// whether the watch's request has actually arrived yet.
+var PHONE_STARTUP_SEND_DELAY_MS = 5000;
+var s_phoneStartupSendDelayElapsed = false;
+setTimeout(function () {
+  s_phoneStartupSendDelayElapsed = true;
+  pumpSendQueue(); // resume whatever queued up during the delay, if anything did
+}, PHONE_STARTUP_SEND_DELAY_MS);
+
 // Last RAW_MESSAGE_LOG_MAX individual AppMessage chunks actually sent
 // (acked, not just attempted), for the Testing section's raw-message
 // browser -- see recordRawMessage() below and buildConfigHtml()'s own
@@ -203,6 +223,7 @@ function enqueueFlatDict(flatDict) {
 
 function pumpSendQueue() {
   if (s_sendInFlight || s_sendQueue.length === 0) return;
+  if (!s_phoneStartupSendDelayElapsed) return; // the setTimeout above re-pumps once the startup delay elapses
   s_sendInFlight = true;
   var entry = s_sendQueue.shift();
   var chunk = entry.dict;

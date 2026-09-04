@@ -1015,6 +1015,18 @@ static void request_retry_callback(void *data) {
   s_request_retry_timer = app_timer_register((uint32_t)s_request_retry_delay_s * 1000, request_retry_callback, NULL);
 }
 
+// The watch's very first outbound request is deliberately held back a
+// few seconds after the window actually goes up (see init()'s own
+// comment for why) rather than fired the instant app_message_open()
+// finishes -- this is that delay's own timer callback, which then
+// hands off to the exact same request_update()+backoff-retry scheme
+// an on-time startup would have used anyway.
+#define STARTUP_REQUEST_DELAY_MS 3000
+static void startup_request_delay_callback(void *data) {
+  request_update();
+  s_request_retry_timer = app_timer_register((uint32_t)s_request_retry_delay_s * 1000, request_retry_callback, NULL);
+}
+
 
 static void startup_anim_timer_callback(void *data) {
   s_startup_anim_elapsed_ms += STARTUP_ANIM_FRAME_MS;
@@ -2016,13 +2028,16 @@ static void init(void) {
   // for the platform, so this is safe even if the estimate drifts.
   app_message_open(APPMSG_INBOX_SIZE, APPMSG_OUTBOX_SIZE);
 
-  // Ask the phone for a fresh calculation as soon as we're up; PKJS
-  // will also push updates on its own schedule (see index.js). If
-  // nothing valid comes back, request_retry_callback keeps asking
-  // with backoff rather than leaving the watch stuck on an empty
-  // screen forever (see its own comment for why that can happen).
-  request_update();
-  s_request_retry_timer = app_timer_register((uint32_t)s_request_retry_delay_s * 1000, request_retry_callback, NULL);
+  // Ask the phone for a fresh calculation once things have had a
+  // moment to settle rather than the instant the window goes up --
+  // per the request, so the very first thing the watch does isn't a
+  // network round-trip racing against its own first frame(s) still
+  // laying out/painting. PKJS holds its own first push back a bit
+  // longer too (see index.js) for the same reason on that side.
+  // request_retry_callback keeps asking with backoff after that if
+  // nothing valid comes back, same as before this delay existed --
+  // see its own comment for why that matters.
+  app_timer_register(STARTUP_REQUEST_DELAY_MS, startup_request_delay_callback, NULL);
 }
 
 static void deinit(void) {
