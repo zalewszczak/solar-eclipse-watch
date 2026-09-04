@@ -45,22 +45,27 @@ static const FontLookupEntry FONT_TABLE[] = {
   [19] = { .is_custom = true, .resource_id = RESOURCE_ID_MINECRAFTER_FONT_48,   .height = 40, .y_offset = 4, .wide = true }, // Minecrafter Big
   [20] = { .is_custom = true, .resource_id = RESOURCE_ID_SFPIXELATE_FONT_14,    .height = 14 }, // SF Pixelate Small
   [21] = { .is_custom = true, .resource_id = RESOURCE_ID_SFPIXELATE_FONT_48,    .height = 40, .wide = true }, // SF Pixelate Big
-  [22] = { .is_custom = true, .resource_id = RESOURCE_ID_MISO_FONT_19,          .height = 19, .y_offset = -4 }, // Miso Small
-  [23] = { .is_custom = true, .resource_id = RESOURCE_ID_MISO_FONT_48,          .height = 40, .y_offset = -4 }, // Miso Big
+  [22] = { .is_custom = true, .resource_id = RESOURCE_ID_ALAGARD_FONT_19,       .height = 19, .y_offset = -4 }, // Alagard Small
+  [23] = { .is_custom = true, .resource_id = RESOURCE_ID_ALAGARD_FONT_48,       .height = 40, .y_offset = -4 }, // Alagard Big
   [24] = { .is_custom = true, .resource_id = RESOURCE_ID_BEBAS_FONT_20,         .height = 20, .y_offset = -6 }, // Bebas Small
   [25] = { .is_custom = true, .resource_id = RESOURCE_ID_BEBAS_FONT_48,         .height = 40 }, // Bebas Big
-  [26] = { .is_custom = true, .resource_id = RESOURCE_ID_CLOCKFORGE_FONT_48,    .height = 40 }, // ClockForge
-  [27] = { .is_custom = true, .resource_id = RESOURCE_ID_RADIOLAND_FONT_48,     .height = 40, .wide = true }, // Radioland
-  [28] = { .is_custom = true, .resource_id = RESOURCE_ID_MINISYSTEM_FONT_48,    .height = 40, .wide = true }, // Mini System
-  [29] = { .is_custom = true, .resource_id = RESOURCE_ID_KITCHENPOLICE_FONT_48, .height = 40, .wide = true }, // Kitchen Police
-  [30] = { .is_custom = true, .resource_id = RESOURCE_ID_DSDIGIB_FONT_48,       .height = 40, .y_offset = -4 }, // DS Digital
-  [31] = { .is_custom = true, .resource_id = RESOURCE_ID_DISTGRG_FONT_48,       .height = 40, .y_offset = -6 }, // Distant Galaxy
-  [32] = { .is_custom = true, .resource_id = RESOURCE_ID_DIMITRI_FONT_48,       .height = 40, .y_offset = -2 }, // Dimitri
-  [33] = { .is_custom = true, .resource_id = RESOURCE_ID_BLACKOUT_FONT_48,      .height = 40, .y_offset = -2 }, // Blackout
-  [34] = { .is_custom = true, .resource_id = RESOURCE_ID_AUDIOWIDE_FONT_48,     .height = 40, .y_offset = -2, .wide = true }, // Audiowide
-  [35] = { .is_custom = true, .resource_id = RESOURCE_ID_FORMATION_FONT_48,     .height = 40, .y_offset = -2 }, // Formation
+  [26] = { .is_custom = true, .resource_id = RESOURCE_ID_AMITA_FONT_48,         .height = 40 }, // Amita
+  [27] = { .is_custom = true, .resource_id = RESOURCE_ID_AVERIA_FONT_48,        .height = 40, .wide = true }, // AveriaSerifLibre
+  [28] = { .is_custom = true, .resource_id = RESOURCE_ID_BAGEL_FONT_48,         .height = 40, .wide = true }, // Bagel
+  [29] = { .is_custom = true, .resource_id = RESOURCE_ID_BRICOLAGE_FONT_48,     .height = 40, .wide = true }, // Bricolage Grotesque
+  [30] = { .is_custom = true, .resource_id = RESOURCE_ID_CHANGO_FONT_48,        .height = 40, .y_offset = -4 }, // Chango
+  [31] = { .is_custom = true, .resource_id = RESOURCE_ID_EMBLEMA_FONT_48,       .height = 40, .y_offset = -6 }, // EmblemaOne
+  [32] = { .is_custom = true, .resource_id = RESOURCE_ID_FRAUNCES_FONT_48,      .height = 40, .y_offset = -2 }, // Fraunces
+  [33] = { .is_custom = true, .resource_id = RESOURCE_ID_GEOSTAR_FONT_48,       .height = 40, .y_offset = -2 }, // Geostar Fill
+  [34] = { .is_custom = true, .resource_id = RESOURCE_ID_MICHROMA_FONT_48,      .height = 40, .y_offset = -2, .wide = true }, // Michroma
+  [35] = { .is_custom = true, .resource_id = RESOURCE_ID_NATIONALPARK_FONT_48,  .height = 40, .y_offset = -2 }, // National Park
   [36] = { .is_custom = true, .resource_id = RESOURCE_ID_KOMIKAHB_FONT_48,      .height = 40, .wide = true }, // Komika
-  [37] = { .is_custom = true, .resource_id = RESOURCE_ID_PRICEDOWN_FONT_48,     .height = 40 }, // Pricedown
+  [37] = { .is_custom = true, .resource_id = RESOURCE_ID_QUANTICO_FONT_48,      .height = 40 }, // Quantico
+  [38] = { .is_custom = true, .resource_id = RESOURCE_ID_SILKSCREEN_FONT_48,    .height = 40 }, // Silkscreen
+  [39] = { .is_custom = true, .resource_id = RESOURCE_ID_STACKSANSHEADLINE_FONT_48, .height = 40 }, // StackSansHeadline
+  [40] = { .is_custom = true, .resource_id = RESOURCE_ID_UNBOUNDED_FONT_48,     .height = 40 }, // Unbounded
+  [41] = { .is_custom = true, .resource_id = RESOURCE_ID_WALLPOET_FONT_48,      .height = 40 }, // Wallpoet
+  [42] = { .is_custom = true, .resource_id = RESOURCE_ID_ZALANDOSANS_FONT_48,   .height = 40 }, // ZalandoSans
 };
 
 const uint8_t FONT_LOOKUP_COUNT = sizeof(FONT_TABLE) / sizeof(FONT_TABLE[0]);
