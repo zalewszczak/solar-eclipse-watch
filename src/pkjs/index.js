@@ -804,15 +804,14 @@ function dailyStepGoalValue() {
   return v;
 }
 
-// Builds the full flat dict (eclipse/weather/sky data passed in, plus
-// the cosmetic settings/features fields merged in below) exactly as
-// before, then hands it to enqueueFlatDict() to be split into typed
-// chunks and sent one at a time -- see the AppMessage chunking block
-// near the top of this file. Kept the name/shape of the old
-// single-big-message sendDict() so every call site below (and the
-// debug-override/localStorage-snapshot logic already living here)
-// stayed untouched.
-function sendFlatDict(dict) {
+// Populates every settings-derived AppMessage field (all ~148 of
+// them) into `dict`, reading current values fresh from localStorage
+// each time -- no send-related side effects of its own (no cache
+// write, no debug-override check, no enqueueFlatDict()), so callers
+// that just want a correctly-encoded settings snapshot (the debug
+// page's own "full keyset" window -- see buildFullKeysetDict()) can
+// get one without it also quietly sending anything.
+function populateSettingsFields(dict) {
   // Always carried, on every message -- these are purely cosmetic,
   // phone-local preferences, not eclipse data, so there's no reason
   // to gate them behind DATA_VALID or wait for a full refresh cycle.
@@ -937,6 +936,56 @@ function sendFlatDict(dict) {
   dict['CORNER_CONTENT'] = cornerContentBytes();
   dict['CORNER_COLOR_MODE'] = cornerColorModeBytes();
   dict['DAILY_STEP_GOAL'] = dailyStepGoalValue();
+}
+
+// For the settings page's own debug "full keyset" window (see
+// showConfiguration below and fullKeysetData in config-page.js) --
+// every key the watch could currently receive, ready to hand-edit and
+// send as-is. Starts from the last genuinely computed full send (the
+// same LAST_FULL_COMPUTED_DICT resendLastFullData() above already
+// uses) so the eclipse/weather/astronomy fields are real values
+// rather than blank/zeroed placeholders, then overlays fresh settings
+// on top (same reasoning as resendLastFullData()'s own fix: those
+// need to reflect whatever's actually configured right now, not
+// whatever happened to be true whenever that snapshot was last
+// cached). No network fetch of its own -- opening the settings page
+// should be instant, not wait on a fresh weather/astronomy call just
+// to populate a debug textarea.
+function buildFullKeysetDict() {
+  var dict = {};
+  try {
+    var raw = localStorage.getItem('LAST_FULL_COMPUTED_DICT');
+    if (raw) {
+      var parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') dict = parsed;
+    }
+  } catch (e) {
+    // Corrupt/missing cache -- fall back to settings-only, below.
+  }
+  populateSettingsFields(dict);
+  return dict;
+}
+
+// Builds the full flat dict (eclipse/weather/sky data passed in, plus
+// the cosmetic settings/features fields merged in below) exactly as
+// before, then hands it to enqueueFlatDict() to be split into typed
+// chunks and sent one at a time -- see the AppMessage chunking block
+// near the top of this file. Kept the name/shape of the old
+// single-big-message sendDict() so every call site below (and the
+// debug-override/localStorage-snapshot logic already living here)
+// stayed untouched.
+//
+// The actual field-by-field population (dict['CLOCK_FONT'] = ...,
+// all ~148 of them) lives in populateSettingsFields() below, split
+// out so the settings page's own debug "full keyset" window (see
+// buildFullKeysetDict()) can get a fresh, correctly-encoded settings
+// snapshot without going through this function's OWN side effects
+// (the LAST_FULL_COMPUTED_DICT cache write, the debug-override check,
+// and -- the one that actually matters here -- enqueueFlatDict()
+// itself, which would mean just opening the settings page quietly
+// sent something to the watch).
+function sendFlatDict(dict) {
+  populateSettingsFields(dict);
 
   try {
     // Separate from the raw-message log recordRawMessage() builds
@@ -1664,6 +1713,7 @@ function sendFlatDict(dict) {
   // enqueueFlatDict() near the top of this file.
   enqueueFlatDict(toSend);
 }
+
 
 function sendInvalid(errorCode) {
   sendFlatDict({ 'DATA_VALID': 0, 'ERROR_CODE': errorCode || 0 });
@@ -2443,6 +2493,11 @@ Pebble.addEventListener('showConfiguration', function () {
     })(),
     debugOverrideEnabled: getSetting('CONFIG_DEBUG_OVERRIDE_ENABLED', 'false') === 'true',
     debugOverrideData: getSetting('CONFIG_DEBUG_OVERRIDE_DATA', ''),
+    // Every key the watch could currently receive, pre-filled with
+    // real current values -- see buildFullKeysetDict()'s own comment.
+    // Computed fresh every time the settings page opens (cheap, no
+    // network fetch of its own), not cached/persisted anywhere.
+    fullKeysetJson: JSON.stringify(buildFullKeysetDict(), null, 2),
     serviceLogs: servicelog.snapshotAll(),
     presetSlot1Name: getSetting('CONFIG_PRESET_1_NAME', ''),
     presetSlot1Json: getSetting('CONFIG_PRESET_1_JSON', ''),
@@ -2482,6 +2537,32 @@ Pebble.addEventListener('webviewclosed', function (e) {
     settings = JSON.parse(raw);
   } catch (err) {
     console.log('eclipse-watch: failed to parse settings response: ' + err.message);
+    return;
+  }
+
+  // Debug-only direct send (see config-page.js's "full keyset" window
+  // and its own Send button): takes exactly the -- possibly hand-
+  // edited -- full keyset already sitting in that textarea and sends
+  // it chunked to the watch as-is, overriding whatever the normal
+  // settings-save flow below would otherwise have computed and sent
+  // instead. A completely separate action from an ordinary Save (that
+  // button doesn't set this flag at all), so it deliberately returns
+  // here rather than falling through into any of the normal
+  // setSetting()/sendFlatDict()/refreshAndSend() calls below --
+  // nothing about this send is persisted, and no other setting
+  // changes.
+  if (settings.CONFIG_SEND_FULL_KEYSET) {
+    try {
+      var keyset = JSON.parse(settings.CONFIG_FULL_KEYSET_DATA);
+      if (keyset && typeof keyset === 'object') {
+        enqueueFlatDict(keyset);
+        console.log('eclipse-watch: full keyset debug send queued');
+      } else {
+        console.log('eclipse-watch: full keyset debug send skipped -- not a JSON object');
+      }
+    } catch (err) {
+      console.log('eclipse-watch: full keyset debug send failed to parse: ' + err.message);
+    }
     return;
   }
 

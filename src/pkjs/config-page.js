@@ -797,7 +797,8 @@ function handEditorModalHtml(kind, title) {
  *     in marker_layer.c -- each mark spans directly between its inner/outer border points),
  *     markerTextTarget: '0'(off)|'1'(hour)|'2'(second), markerTextFont: '0'-'35', markerTextOffset: '-50'-'50',
  *     markerTextHourMask/markerTextSecMask: 0-4095 (12-bit),
- *     testMode, testDateTime }
+ *     testMode, testDateTime, fullKeysetJson: pretty-printed JSON string, every current
+ *     AppMessage key/value pre-filled for the debug "Full keyset" window (see buildFullKeysetDict() in index.js) }
  */
 // One quick-recall Style Presets row (apply button, rename input, save/
 // rename icon buttons) plus its two backing hidden inputs -- called for
@@ -1799,12 +1800,20 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      <input type="hidden" id="rawMessageLogJson" value="' + esc(JSON.stringify(current.rawMessageLog || [])) + '">' +
 '      <label for="debugData" style="margin-top:10px;">Raw data (editable)</label>' +
 '      <textarea id="debugData" rows="12" style="width:100%; box-sizing:border-box; font-family:monospace; font-size:11px;">' + esc(debugTextareaInitial) + '</textarea>' +
-'      <button type="button" class="secondary-btn" id="copyDebugDataBtn" style="width:auto; margin-top:6px; padding:6px 12px;" onclick="copyDebugData()">Copy</button>' +
+'      <button type="button" class="secondary-btn" id="copyDebugDataBtn" style="width:auto; margin-top:6px; padding:6px 12px;" onclick="copyTextareaContent(\'debugData\', \'copyDebugDataBtn\')">Copy</button>' +
 '      <div class="checkbox-row" style="margin-top:8px;">' +
 '        <input type="checkbox" id="debugOverrideEnabled" ' + (current.debugOverrideEnabled ? 'checked' : '') + '>' +
 '        <label for="debugOverrideEnabled" style="margin:0;">Override data sent to watch with the text above</label>' +
 '      </div>' +
 '      <div class="help">Pick a chunk above to load its exact JSON payload here, or edit it freely. Enabling the checkbox sends exactly this text (as one message, unchunked) instead of the normally-computed data on every future refresh, useful for testing specific values without needing real conditions to match. Invalid JSON is ignored and the app falls back to normal data rather than failing to send anything.</div>' +
+'    </div>' +
+
+'    <div class="subsection">' +
+'      <label>Full keyset (every current value)</label>' +
+'      <div class="help">Regenerated fresh every time this page opens: every key the watch could receive, filled in with whatever\'s actually configured right now (settings) plus the last real eclipse/weather/astronomy data that was computed (may be blank/zeroed fields if nothing\'s been fetched yet). Edit anything below, then send it as-is -- this bypasses your other settings and the normal data sources entirely for this one send; nothing here gets saved, and Save above is unaffected by it.</div>' +
+'      <textarea id="fullKeysetData" rows="16" style="width:100%; box-sizing:border-box; font-family:monospace; font-size:11px;">' + esc(current.fullKeysetJson || '{}') + '</textarea>' +
+'      <button type="button" class="secondary-btn" id="copyFullKeysetBtn" style="width:auto; margin-top:6px; padding:6px 12px;" onclick="copyTextareaContent(\'fullKeysetData\', \'copyFullKeysetBtn\')">Copy</button>' +
+'      <button type="button" class="secondary-btn" style="width:auto; margin-top:6px; margin-left:6px; padding:6px 12px;" onclick="sendFullKeysetToWatch()">Send to watch now</button>' +
 '    </div>' +
 '    </div>' +
 '  </fieldset>' +
@@ -1875,19 +1884,43 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  var btn = document.getElementById("rawLogBtn" + i);' +
 '  if (btn) btn.className = "raw-log-btn active";' +
 '}' +
-'function copyDebugData() {' +
-'  var ta = document.getElementById("debugData");' +
+'function copyTextareaContent(textareaId, btnId) {' +
+'  var ta = document.getElementById(textareaId);' +
 '  ta.focus();' +
 '  ta.select();' +
 '  ta.setSelectionRange(0, 999999);' +
 '  var ok = false;' +
 '  try { ok = document.execCommand("copy"); } catch (e) {}' +
-'  var btn = document.getElementById("copyDebugDataBtn");' +
+'  var btn = document.getElementById(btnId);' +
 '  if (btn) {' +
 '    var original = btn.textContent;' +
 '    btn.textContent = ok ? "Copied!" : "Copy failed";' +
 '    setTimeout(function () { btn.textContent = original; }, 1500);' +
 '  }' +
+'}' +
+// The "Send full keyset to watch now" button below -- reads whatever
+// is CURRENTLY in the fullKeysetData textarea (the auto-generated
+// snapshot from page load, or whatever the person edited it to since
+// then), closes the settings page carrying it plus a marker flag, and
+// returns. index.js's webviewclosed handler checks for that flag
+// before anything else and, if set, parses this text and sends it
+// chunked to the watch AS-IS -- skipping every normal setSetting()/
+// sendFlatDict()/refreshAndSend() call entirely, so nothing else
+// changes and nothing here gets persisted. A deliberately different,
+// parallel exit from the page than the normal Save button\'s -- Save
+// itself never sets this flag, so an ordinary save is completely
+// unaffected by this textarea\'s contents.
+'function sendFullKeysetToWatch() {' +
+'  var text = document.getElementById("fullKeysetData").value;' +
+'  try {' +
+'    JSON.parse(text);' +
+'  } catch (e) {' +
+'    alert("Not valid JSON -- fix the text before sending:\\n\\n" + e.message);' +
+'    return;' +
+'  }' +
+'  var returnTo = getQueryParam("return_to", "pebblejs://close#");' +
+'  var payload = { CONFIG_SEND_FULL_KEYSET: true, CONFIG_FULL_KEYSET_DATA: text };' +
+'  document.location = returnTo + encodeURIComponent(JSON.stringify(payload));' +
 '}' +
 'function searchLocation() {' +
 '  var query = document.getElementById("locationSearch").value;' +
