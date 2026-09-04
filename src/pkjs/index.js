@@ -2005,13 +2005,39 @@ function shouldSkipRefresh(lat, lon) {
 // Returns true if there was something to resend, false if the cache
 // was empty/corrupt (in which case the caller should fall through to
 // a real fetch instead).
+//
+// The cached dict's own settings fields are stale by construction --
+// it's only ever (re)written on a genuine full refresh (see
+// sendFlatDict()'s own LAST_FULL_COMPUTED_DICT comment), so any
+// settings save that happened since then (the common case: this
+// function's whole reason to exist is answering a REQUEST_UPDATE,
+// which the watch sends on every relaunch, including a completely
+// ordinary one long after the day's one real weather refresh already
+// ran) is invisible to it. Sending the cached dict as-is would still
+// be exactly the bug the comment above already describes fixing for
+// every OTHER caller ("I just changed a setting, and a bit later it
+// reverted") -- just via this one remaining path instead: settings
+// save correctly reaches the watch immediately (sendFlatDict({}) in
+// the webviewclosed handler) and it displays right, then the watch
+// happens to relaunch (locked/unlocked, app-switched away and back,
+// a plain reboot) before the next real weather refresh, its
+// REQUEST_UPDATE lands here, shouldSkipRefresh() correctly says
+// there's nothing weather-wise to refetch, and the stale cached
+// settings from before the save go right back out over the top of
+// the correct ones the watch already had. sendFlatDict(dict) re-
+// derives every settings field fresh into the cached dict before it
+// goes out (mutating it in place; harmless to the astronomy/weather
+// fields already in it, which sendFlatDict never touches) rather than
+// sending that dict unmodified -- and re-caches the corrected result
+// too, since sendFlatDict() re-checks for C1_TIME itself, so the
+// cache self-heals rather than staying stale until the next real fetch.
 function resendLastFullData() {
   try {
     var raw = localStorage.getItem('LAST_FULL_COMPUTED_DICT');
     if (!raw) return false;
     var dict = JSON.parse(raw);
     if (!dict || typeof dict !== 'object') return false;
-    enqueueFlatDict(dict);
+    sendFlatDict(dict);
     return true;
   } catch (e) {
     return false;
