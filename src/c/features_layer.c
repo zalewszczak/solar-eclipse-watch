@@ -1728,7 +1728,7 @@ void features_draw_item(GContext *ctx, GRect bounds, const EclipseData *data,
   GColor icon_outline_color = contrasting_outline_color(color);
   switch (icon_kind) {
     case 1: {
-      GPoint pos = GPoint(icon_x - ICON_WIDTH+6, box_y + (CORNER_ROW_H - ICON_ROWS) / 2);
+      GPoint pos = GPoint(icon_x - ICON_WIDTH + 12, box_y + (CORNER_ROW_H - ICON_ROWS) / 2);
       if (do_icon_outline) {
         for (int i = 0; i < 4; i++) {
           draw_icon_resource(ctx, GPoint(pos.x + OUTLINE_OFFSETS[i].x, pos.y + OUTLINE_OFFSETS[i].y), RESOURCE_ID_ICON_HEART, icon_outline_color);

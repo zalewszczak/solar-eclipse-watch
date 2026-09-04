@@ -2799,10 +2799,10 @@ handEditorModalHtml('sec', 'Edit second hand') +
 // generic starter numbers -- replace the images and retune the field
 // sets here once real example styles are worked out.
 'var HAND_PRESETS = {' +
-'  "1": { title: "Pointy", hour: {Style:"1",Width:"12",Length:"51",BackOffset:"0",Color:"0"}, min: {Style:"1",Width:"18",Length:"78",BackOffset:"0",Color:"0"}, sec: {Style:"0",Width:"2",Length:"85",BackOffset:"0",Color:"1"} },' +
-'  "2": { title: "Square", hour: {Style:"2",Width:"8",Length:"51",BackOffset:"0",Color:"0"}, min: {Style:"2",Width:"12",Length:"78",BackOffset:"0",Color:"0"}, sec: {Style:"0",Width:"2",Length:"85",BackOffset:"0",Color:"1"} },' +
-'  "3": { title: "Modern", hour: {Style:"2",Width:"6",Length:"51",BackOffset:"0",Color:"0"}, min: {Style:"2",Width:"8",Length:"78",BackOffset:"0",Color:"0"}, sec: {Style:"0",Width:"2",Length:"85",BackOffset:"0",Color:"1"} },' +
-'  "4": { title: "Rounded", hour: {Style:"0",Width:"6",Length:"51",BackOffset:"0",Color:"1"}, min: {Style:"0",Width:"10",Length:"78",BackOffset:"0",Color:"0"}, sec: {Style:"0",Width:"2",Length:"85",BackOffset:"0",Color:"1"} },' +
+'  "1": { title: "Galba", hour: {Style:"1",Width:"12",Length:"51",BackOffset:"0",Color:"0"}, min: {Style:"1",Width:"12",Length:"78",BackOffset:"0",Color:"0"}, sec: {Style:"0",Width:"2",Length:"85",BackOffset:"0",Color:"1"} },' +
+'  "2": { title: "Pencil", hour: {Style:"2",Width:"8",Length:"51",BackOffset:"0",Color:"0"}, min: {Style:"2",Width:"8",Length:"78",BackOffset:"0",Color:"0"}, sec: {Style:"0",Width:"2",Length:"85",BackOffset:"0",Color:"1"} },' +
+'  "3": { title: "Modern", hour: {Style:"2",Width:"6",Length:"51",BackOffset:"0",Color:"0"}, min: {Style:"2",Width:"6",Length:"78",BackOffset:"0",Color:"0"}, sec: {Style:"0",Width:"2",Length:"85",BackOffset:"0",Color:"1"} },' +
+'  "4": { title: "Classic Pebble", hour: {Style:"0",Width:"10",Length:"51",BackOffset:"0",Color:"1"}, min: {Style:"0",Width:"10",Length:"78",BackOffset:"0",Color:"0"}, sec: {Style:"0",Width:"2",Length:"85",BackOffset:"0",Color:"1"} },' +
 '  "5": { title: "Dauphine", hour: {Style:"3",Width:"10",Length:"51",BackOffset:"4",MiddleOffset:"10",Color:"0"}, min: {Style:"3",Width:"8",Length:"78",BackOffset:"4",MiddleOffset:"14",Color:"0"}, sec: {Style:"1",Width:"2",Length:"85",BackOffset:"6",Color:"1"} },' +
 '  "6": { title: "Sword", hour: {Style:"4",Width:"10",Length:"51",BackOffset:"6",MiddleOffset:"20",SecondaryWidth:"14",Color:"0"}, min: {Style:"4",Width:"8",Length:"78",BackOffset:"6",MiddleOffset:"30",SecondaryWidth:"12",Color:"0"}, sec: {Style:"1",Width:"2",Length:"85",BackOffset:"6",Color:"1"} },' +
 '  "7": { title: "Spade", hour: {Style:"6",Width:"8",Length:"51",BackOffset:"6",MiddleOffset:"8",SecondaryWidth:"10",Color:"0"}, min: {Style:"6",Width:"6",Length:"78",BackOffset:"6",MiddleOffset:"10",SecondaryWidth:"8",Color:"0"}, sec: {Style:"1",Width:"2",Length:"85",BackOffset:"6",Color:"1"} },' +
