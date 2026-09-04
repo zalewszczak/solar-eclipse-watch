@@ -329,63 +329,15 @@ static int32_t ease_out_lut_1000(int32_t t) {
 }
 
 // ---- rainbow outline gradient -----------------------------------------
-// A real gradient ACROSS THE SCREEN (color depends on where on screen
-// a pixel is, not just on which item or what time it is), rather than
-// every outlined item flashing the exact same single color together --
-// see rainbow_outline_color_at()'s own comment for how. 24 entries,
-// stored as raw packed argb bytes (not GColor structs -- GColorFromRGB()
-// can't safely be used inside a static array initializer, since it's a
-// macro that isn't guaranteed to reduce to a constant expression
-// everywhere; gcolor_from_packed() unpacks a byte back into a real
-// GColor at the point of use instead, which is just a normal function
-// call and has no such restriction) computed offline via a plain
-// integer 6-segment HSV hue sweep, then snapped to the nearest of
-// Pebble's own 4 levels per channel (0/85/170/255) -- this project's
-// whole 64-color palette is built from exactly those 4 levels per
-// channel, so there's no shade this table could contain that isn't
-// already a real, exact color in it.
-#define SHAKE_RAINBOW_LUT_SIZE 24
-static const uint8_t SHAKE_RAINBOW_LUT[SHAKE_RAINBOW_LUT_SIZE] = {
-  0xF0, 0xF4, 0xF4, 0xF8, 0xFC, 0xEC, 0xEC, 0xDC, 0xCC, 0xCD, 0xCD, 0xCE,
-  0xCF, 0xCB, 0xCB, 0xC7, 0xC3, 0xD3, 0xD3, 0xE3, 0xF3, 0xF2, 0xF2, 0xF1
-};
-
-// screen_x: the pixel's own x coordinate -- divided by 3 so each LUT
-// entry spans a few pixels of screen width ("predefine some gradient
-// line couple pixels width" per the request) rather than changing
-// color every single pixel, which read as noise rather than a
-// gradient. shift_fp: how far the whole table has scrolled so far,
-// in 1/256ths of one LUT entry (Q8 fixed-point) rather than whole
-// entries (see s_shake_gradient_shift_fp's own comment for why) --
-// blended between the two nearest entries based on the fractional
-// part below, so advancing this by a small sub-step each frame reads
-// as a smooth continuous sweep instead of the strip visibly hopping
-// from one flat color to the next every frame, the way whole-entry
-// steps did.
-static uint8_t blend_rainbow_packed(uint8_t p0, uint8_t p1, int32_t frac_256) {
-  // Each channel is 2 bits (0-3, Pebble's own native color depth) --
-  // blend those directly rather than converting to 0-255 first, since
-  // the result gets packed right back into that same 2-bit-per-channel
-  // form regardless.
-  uint8_t a0 = (p0 >> 6) & 0x03, r0 = (p0 >> 4) & 0x03, g0 = (p0 >> 2) & 0x03, b0 = p0 & 0x03;
-  uint8_t a1 = (p1 >> 6) & 0x03, r1 = (p1 >> 4) & 0x03, g1 = (p1 >> 2) & 0x03, b1 = p1 & 0x03;
-  uint8_t a = (uint8_t)(a0 + (((int32_t)a1 - a0) * frac_256) / 256);
-  uint8_t r = (uint8_t)(r0 + (((int32_t)r1 - r0) * frac_256) / 256);
-  uint8_t g = (uint8_t)(g0 + (((int32_t)g1 - g0) * frac_256) / 256);
-  uint8_t b = (uint8_t)(b0 + (((int32_t)b1 - b0) * frac_256) / 256);
-  return (uint8_t)((a << 6) | (r << 4) | (g << 2) | b);
-}
-static GColor rainbow_outline_color_at(int16_t screen_x, int32_t shift_fp) {
-  int32_t pos_fp = (int32_t)(screen_x / 3) * 256 + shift_fp;
-  int32_t idx = (pos_fp / 256) % SHAKE_RAINBOW_LUT_SIZE;
-  if (idx < 0) idx += SHAKE_RAINBOW_LUT_SIZE;
-  int32_t frac = pos_fp % 256;
-  if (frac < 0) frac += 256;
-  int32_t idx2 = (idx + 1) % SHAKE_RAINBOW_LUT_SIZE;
-  return gcolor_from_packed(blend_rainbow_packed(SHAKE_RAINBOW_LUT[idx], SHAKE_RAINBOW_LUT[idx2], frac));
-}
-
-// Q8 fixed-point (see rainbow_outline_color_at()'s own comment) --
+// The actual LUT/blend/lookup (RAINBOW_OUTLINE_LUT/blend_rainbow_packed_fp/
+// rainbow_color_at_fp) now live once, in subpixel.h -- already transitively
+// included here via eclipse_data.h -> hand_layer.h -> subpixel.h -- rather
+// than as a second, separately-maintained copy in this file. They used to
+// be genuinely duplicated (byte-for-byte identical table, blend math, and
+// lookup), which meant two places to keep in sync for zero benefit, since
+// this file already pulls in subpixel.h regardless.
+//
+// Q8 fixed-point (see rainbow_color_at_fp()'s own comment in subpixel.h) --
 // advanced by SHAKE_GRADIENT_STEP_FP (not a whole LUT entry) each
 // shake_anim_timer_callback() tick while gradient mode is on.
 static int32_t s_shake_gradient_shift_fp = 0;
@@ -406,7 +358,7 @@ static int32_t s_shake_gradient_shift_fp = 0;
 GColor shake_outline_color(GColor normal_color, int16_t screen_x) {
   if (!s_shake_anim_active) return normal_color;
   if (!(s_data.shake_anim_mode == 1 || s_data.shake_anim_mode == 3)) return normal_color;
-  return rainbow_outline_color_at(screen_x, s_shake_gradient_shift_fp);
+  return rainbow_color_at_fp(screen_x, s_shake_gradient_shift_fp);
 }
 
 // hand_layer.c's own version of the above -- hand outlines are drawn
@@ -655,14 +607,14 @@ static void shake_anim_timer_callback(void *data) {
     if (s_data.shake_anim_mode == 4) compass_service_unsubscribe(); // stop the magnetometer the moment planet seek's own window ends, not just on app exit
   } else {
     // A small fraction of one LUT entry per frame (not a whole entry
-    // -- see rainbow_outline_color_at()'s own comment), so the strip
-    // scrolls smoothly and slowly rather than visibly hopping through
-    // all 24 colors in well under a second the way advancing a whole
-    // entry every 33ms used to. SHAKE_GRADIENT_STEP_FP=32 (1/8 of an
-    // entry) means a full 24-entry cycle takes ~192 frames, ~6.3s at
+    // -- see rainbow_color_at_fp()'s own comment in subpixel.h), so the
+    // strip scrolls smoothly and slowly rather than visibly hopping
+    // through all 24 colors in well under a second the way advancing a
+    // whole entry every 33ms used to. SHAKE_GRADIENT_STEP_FP=32 (1/8 of
+    // an entry) means a full 24-entry cycle takes ~192 frames, ~6.3s at
     // 30fps -- about 8x slower than before, per the request.
     #define SHAKE_GRADIENT_STEP_FP 32
-    s_shake_gradient_shift_fp = (s_shake_gradient_shift_fp + SHAKE_GRADIENT_STEP_FP) % (SHAKE_RAINBOW_LUT_SIZE * 256);
+    s_shake_gradient_shift_fp = (s_shake_gradient_shift_fp + SHAKE_GRADIENT_STEP_FP) % (RAINBOW_LUT_SIZE * 256);
     #undef SHAKE_GRADIENT_STEP_FP
     s_shake_anim_timer = app_timer_register(SHAKE_ANIM_FRAME_MS, shake_anim_timer_callback, NULL);
   }

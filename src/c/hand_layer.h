@@ -62,7 +62,7 @@ typedef struct {
                               // enabled, still draws -- a way to get a "hollow" or ghosted look
                               // without needing real alpha blending).
   bool outline_enabled;      // traces a genuine 1px perimeter stroke in outline_color underneath
-                               // the fill (see draw_hand_outline_once_fp() in hand_layer.c)
+                               // the fill (see draw_hand_outline_from_geometry() in hand_layer.c)
   uint8_t outline_color;      // 0=main, 1=accent, 2=background
   bool translucent;           // per-hand ~50% transparency, via the same Bayer-dithered stipple
                                 // fill_polygon_dithered() already uses elsewhere in this project --
@@ -109,7 +109,7 @@ typedef struct {
 // for a normal, non-animated draw. The "on shake" outline gradient
 // (if active) is applied automatically, per pixel, whenever
 // cfg->outline_enabled -- see shake_gradient_active() in
-// eclipse_data.h/pebble-eclipse-watch.c and draw_hand_outline_once_fp()
+// eclipse_data.h/pebble-eclipse-watch.c and draw_hand_outline_from_geometry()
 // in hand_layer.c; no separate parameter needed for it here.
 void hand_layer_draw(GContext *ctx, GPoint center, int32_t angle, const HandConfig *cfg,
                       GColor main_color, GColor accent_color, GColor bg_color,

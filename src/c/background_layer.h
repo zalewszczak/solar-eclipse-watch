@@ -28,9 +28,15 @@ void eclipse_canvas_set_show_labels(Layer *layer, bool show);
 // elapsed_ms mirror pebble-eclipse-watch.c's own s_bg_anim_active/
 // s_bg_anim_elapsed_ms exactly (see maybe_start_startup_background_
 // animation() there); this just hands them to the canvas's own draw
-// code (see canvas_update_proc's own comment on where they're used)
-// and forces an immediate full redraw, same "force + mark dirty"
-// shape eclipse_canvas_set_data() above already uses.
+// code (see canvas_update_proc's own comment on where they're used).
+// Only forces an immediate full redraw on entering/leaving bg_anim_
+// mode 2 ("Planets" -- its sky_now-driven gradient sweep genuinely
+// changes every frame) or on the active/inactive transition for modes
+// 1/3 (whose backdrop is static -- only the overlaid clouds/markers
+// move -- so canvas_update_proc's own cache-blit path plus draw_bg_
+// anim_clouds_overlay()/draw_bg_anim_markers_overlay() handle every
+// frame in between cheaply); see this function's own body for the
+// exact condition.
 void eclipse_canvas_set_bg_anim(Layer *layer, bool active, uint16_t elapsed_ms);
 
 // Drives "Planet seek" (shake_anim_mode 4) -- see its own comment in

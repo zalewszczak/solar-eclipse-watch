@@ -747,6 +747,30 @@ static const CloudSeed CLOUD_SEEDS[13] = {
 #define CLOUD_SEED_COUNT 13
 #define CLOUD_FIELD_THRESHOLD 400
 
+// A CLOUD_SEEDS[] entry pre-scaled by whichever scale_pct the current
+// draw_clouds_realistic() call is using, so cloud_field_value() (called
+// once per candidate pixel -- up to tens of thousands of times per full
+// redraw) doesn't have to redo these 3 divisions on every single call.
+// scale_pct is constant for an entire draw_clouds_realistic() call (it
+// depends only on cloud_pct/stormy, not on which cluster or pixel is
+// being evaluated), so all the per-pixel loop actually needs is the
+// already-scaled (sx, sy, r2) -- see scale_cloud_seeds() below, which
+// computes this array exactly once per call instead of once per pixel.
+typedef struct {
+  int16_t sx, sy;
+  int32_t r2;
+} ScaledCloudSeed;
+
+static void scale_cloud_seeds(int16_t scale_pct, ScaledCloudSeed out[CLOUD_SEED_COUNT]) {
+  for (int i = 0; i < CLOUD_SEED_COUNT; i++) {
+    int16_t sr = (CLOUD_SEEDS[i].r * scale_pct) / 100;
+    if (sr < 2) sr = 2;
+    out[i].sx = (CLOUD_SEEDS[i].dx * scale_pct) / 100;
+    out[i].sy = (CLOUD_SEEDS[i].dy * scale_pct) / 100;
+    out[i].r2 = (int32_t)sr * sr;
+  }
+}
+
 // Sum of each seed's smooth falloff contribution at (px, py), offset
 // from the cluster's own center. Each seed contributes
 // max(0, 1-(d/r)^2)^2 (scaled to a ~0-1000 range) -- bounded and
@@ -756,16 +780,12 @@ static const CloudSeed CLOUD_SEEDS[13] = {
 // sums well past the threshold even though neither alone would clear
 // it there, which is what makes the union read as one continuous
 // mass instead of a cluster of separate circles.
-static int32_t cloud_field_value(int16_t px, int16_t py, int16_t scale_pct) {
+static int32_t cloud_field_value(int16_t px, int16_t py, const ScaledCloudSeed seeds[CLOUD_SEED_COUNT]) {
   int32_t field = 0;
   for (int i = 0; i < CLOUD_SEED_COUNT; i++) {
-    int16_t sx = (CLOUD_SEEDS[i].dx * scale_pct) / 100;
-    int16_t sy = (CLOUD_SEEDS[i].dy * scale_pct) / 100;
-    int16_t sr = (CLOUD_SEEDS[i].r * scale_pct) / 100;
-    if (sr < 2) sr = 2;
-    int32_t dx = px - sx, dy = py - sy;
+    int32_t dx = px - seeds[i].sx, dy = py - seeds[i].sy;
     int32_t d2 = dx * dx + dy * dy;
-    int32_t r2 = (int32_t)sr * sr;
+    int32_t r2 = seeds[i].r2;
     if (d2 >= r2) continue;
     int32_t frac = ((r2 - d2) * 1000) / r2; // 0..1000, (1 - t^2)*1000
     field += (frac * frac) / 1000;           // ~(1-t^2)^2, still ~0..1000 per seed
@@ -906,6 +926,15 @@ static void draw_clouds_realistic(GContext *ctx, GRect bounds, uint8_t cloud_pct
   int16_t scale_pct = 70 + (cloud_pct * 60) / 100; // 70%..130% across the coverage range
   if (stormy && scale_pct < 130) scale_pct = 130;
 
+  // Scaled once here rather than inside cloud_field_value() itself --
+  // scale_pct is the same for every cluster and every pixel this whole
+  // call draws, so redoing these 13 seeds' divisions per-pixel (as the
+  // code used to) was pure waste across what can be tens of thousands
+  // of candidate pixels in a single redraw. See ScaledCloudSeed's own
+  // comment above.
+  ScaledCloudSeed scaled_seeds[CLOUD_SEED_COUNT];
+  scale_cloud_seeds(scale_pct, scaled_seeds);
+
   int16_t half_w = (45 * scale_pct) / 100 + 5;
   int16_t up_h = (35 * scale_pct) / 100 + 5;
   int16_t down_h = (30 * scale_pct) / 100 + 5;
@@ -954,7 +983,7 @@ static void draw_clouds_realistic(GContext *ctx, GRect bounds, uint8_t cloud_pct
       int16_t py = y - cy;
       for (int16_t x = x0; x <= x1; x++) {
         int16_t px = x - cx;
-        int32_t field = cloud_field_value(px, py, scale_pct);
+        int32_t field = cloud_field_value(px, py, scaled_seeds);
         if (field < CLOUD_FIELD_THRESHOLD) continue;
 
         // Soft edge: pixels just past the threshold get reduced
@@ -2427,6 +2456,64 @@ static void draw_bg_anim_planets_overlay(GContext *ctx, CanvasState *state, cons
   }
 }
 
+// "Weather" background-on-start animation (bg_anim_mode 1) -- same
+// "skip painting into what gets captured, draw as a cheap overlay
+// after" shape draw_bg_anim_planets_overlay() above uses for bg_anim_
+// mode 2's bodies, and shake_anim_mode 4's own Planet-seek overlay
+// uses for its own state. Unlike mode 2, this mode's backdrop (the sky
+// gradient itself) never changes during the animation -- only the
+// clouds' own slide-in position does -- so canvas_update_proc's own
+// need_full_draw gating only needs to force a genuine full redraw once,
+// on entering/leaving the mode (see eclipse_canvas_set_bg_anim()'s own
+// comment), and every frame in between just blits the cached backdrop
+// and redraws the clouds fresh on top via this function. cloud_pct/alt/
+// stormy are cheap interpolations (not the expensive part of a redraw --
+// see draw_clouds_realistic()'s own comment on what actually costs
+// CPU there), so recomputing them here each frame is fine; sun_center/
+// sun_up come from the cache populated by the one real full draw above
+// instead, same as the Planet-seek/Planets overlays already do.
+static void draw_bg_anim_clouds_overlay(GContext *ctx, CanvasState *state, const EclipseData *d,
+                                         GRect bounds, time_t now, bool flash_active) {
+  if (d->sky_mode != 0) return; // weather_enabled -- Clear sky/Space view show no clouds at all
+  if (state->planet_seek_active) return; // weather is suppressed for Planet seek's whole window
+
+  int16_t alt = interp_sun_alt_decideg(d, now);
+  uint8_t cloud_pct = interp_cloud_pct(d, now);
+  bool stormy = d->weather_condition == 4;
+
+  int32_t progress_1000 = ((int32_t)state->bg_anim_elapsed_ms * 1000) / BG_ANIM_MS;
+  if (progress_1000 > 1000) progress_1000 = 1000;
+
+  draw_clouds(ctx, bounds, cloud_pct, d->cloud_altitude_pct, d->vis_score_pct, stormy,
+              state->cached_sun_center, state->cached_sun_up, d->cloud_render_style,
+              flash_active, alt, true, progress_1000);
+  draw_weather_effect(ctx, bounds, d->weather_condition, cloud_pct, d->cloud_altitude_pct);
+}
+
+// "Markers" background-on-start animation (bg_anim_mode 3) -- same
+// shape as draw_bg_anim_clouds_overlay() just above, for the same
+// reason: only the hour ring's own reveal-in position changes frame to
+// frame (see draw_marker_ring()'s own animation handling), the rest of
+// the sky backdrop stays fixed for the whole animation, so it only
+// needs to be captured once rather than redrawn every frame. Draws
+// BOTH rings (the settled second ring too, not just the animating hour
+// one) since neither was baked into the cache this frame -- see
+// canvas_update_proc's own skip_marker_paint for why -- cheap either
+// way (one sin/cos per mark, see draw_marker_ring()'s own comment).
+static void draw_bg_anim_markers_overlay(GContext *ctx, CanvasState *state, const EclipseData *d,
+                                          GRect full_bounds, time_t now) {
+  if (d->bottom_style != 1) return; // markers are analog-mode only
+
+  GPoint full_center = GPoint(full_bounds.size.w / 2, full_bounds.size.h / 2);
+  GColor bg, main_color, accent_color;
+  get_active_color_scheme(d, now, &bg, &main_color, &accent_color);
+
+  int32_t progress_1000 = ((int32_t)state->bg_anim_elapsed_ms * 1000) / BG_ANIM_MS;
+  if (progress_1000 > 1000) progress_1000 = 1000;
+
+  draw_all_markers(ctx, state, full_center, full_bounds, d, main_color, accent_color, bg, true, progress_1000);
+}
+
 static void draw_planet_seek_overlay(GContext *ctx, CanvasState *state, const EclipseData *d,
                                       GRect bounds, time_t now, int32_t eased_t_1000, GColor main_color) {
   int32_t heading_deg = state->planet_seek_heading_deg;
@@ -2542,6 +2629,16 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
   // draw_bg_anim_planets_overlay() below for the actual fix.
   bool skip_body_paint = state->planet_seek_active || (state->bg_anim_active && d->bg_anim_mode == 2);
 
+  // Same "skip it here, draw it fresh as an overlay after the cache
+  // capture" trick as skip_body_paint above, now for the two other
+  // background-on-start modes -- see draw_bg_anim_clouds_overlay()/
+  // draw_bg_anim_markers_overlay()'s own comments for why their
+  // backdrop can be captured once (unlike mode 2's, which keeps
+  // changing throughout the sweep) and only the overlaid element
+  // needs to be fresh every frame.
+  bool skip_cloud_paint = state->bg_anim_active && d->bg_anim_mode == 1;
+  bool skip_marker_paint = state->bg_anim_active && d->bg_anim_mode == 3;
+
   int current_phase = compute_eclipse_phase(d, now);
   bool current_iss_visible = compute_iss_visible(d, now, sky_dark_for_bodies);
   bool phase_just_changed = current_phase != state->last_eclipse_phase;
@@ -2626,6 +2723,12 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
     }
     if (state->bg_anim_active && d->bg_anim_mode == 2) {
       draw_bg_anim_planets_overlay(ctx, state, d, bounds);
+    }
+    if (state->bg_anim_active && d->bg_anim_mode == 1) {
+      draw_bg_anim_clouds_overlay(ctx, state, d, bounds, now, flash_currently_active);
+    }
+    if (state->bg_anim_active && d->bg_anim_mode == 3) {
+      draw_bg_anim_markers_overlay(ctx, state, d, full_bounds, now);
     }
     return;
   }
@@ -3018,15 +3121,15 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
   // is suppressed for the whole animation, not just this one frame,
   // so it doesn't get baked into the bodies-free cache Planet seek
   // reuses every frame -- see cached_sun_center's own comment above).
-  if (weather_enabled && !state->planet_seek_active) {
-    bool cloud_anim_active = state->bg_anim_active && d->bg_anim_mode == 1;
-    int32_t cloud_anim_progress_1000 = 0;
-    if (cloud_anim_active) {
-      cloud_anim_progress_1000 = ((int32_t)state->bg_anim_elapsed_ms * 1000) / BG_ANIM_MS;
-      if (cloud_anim_progress_1000 > 1000) cloud_anim_progress_1000 = 1000;
-    }
+  // skip_cloud_paint: this exact frame's clouds get drawn afterward
+  // instead, by draw_bg_anim_clouds_overlay() -- see skip_cloud_paint's
+  // own comment above -- so the cache this redraw captures stays a
+  // clean, cloud-free backdrop for every subsequent cheap frame to
+  // blit and overlay onto, the same way skip_body_paint already keeps
+  // Planet seek/mode 2's cache body-free.
+  if (weather_enabled && !state->planet_seek_active && !skip_cloud_paint) {
     draw_clouds(ctx, bounds, cloud_pct, d->cloud_altitude_pct, d->vis_score_pct, stormy, sun_center, sun_up, d->cloud_render_style,
-                flash_currently_active, alt, cloud_anim_active, cloud_anim_progress_1000);
+                flash_currently_active, alt, false, 0);
     draw_weather_effect(ctx, bounds, d->weather_condition, cloud_pct, d->cloud_altitude_pct);
   }
 
@@ -3100,18 +3203,15 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
   // above -- matching hands_layer_update_proc's own positioning, which
   // always uses the full unobstructed screen regardless of the bottom
   // info bar, so markers and hands stay aligned with each other.
-  if (d->bottom_style == 1) {
+  // skip_marker_paint: same reasoning as skip_cloud_paint above -- this
+  // frame's markers get drawn afterward instead, by draw_bg_anim_
+  // markers_overlay(), so the cache stays marker-free for every
+  // subsequent cheap frame to blit and overlay onto.
+  if (d->bottom_style == 1 && !skip_marker_paint) {
     GPoint full_center = GPoint(full_bounds.size.w / 2, full_bounds.size.h / 2);
     GColor bg, main_color, accent_color;
     get_active_color_scheme(d, now, &bg, &main_color, &accent_color);
-    bool marker_anim_active = state->bg_anim_active && d->bg_anim_mode == 3;
-    int32_t marker_anim_progress_1000 = 0;
-    if (marker_anim_active) {
-      marker_anim_progress_1000 = ((int32_t)state->bg_anim_elapsed_ms * 1000) / BG_ANIM_MS;
-      if (marker_anim_progress_1000 > 1000) marker_anim_progress_1000 = 1000;
-    }
-    draw_all_markers(ctx, state, full_center, full_bounds, d, main_color, accent_color, bg,
-                      marker_anim_active, marker_anim_progress_1000);
+    draw_all_markers(ctx, state, full_center, full_bounds, d, main_color, accent_color, bg, false, 0);
   }
 
   // Cache what was just drawn: capture the real framebuffer (this is
@@ -3150,6 +3250,12 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
     GColor bg, main_color, accent_color;
     get_active_color_scheme(d, now, &bg, &main_color, &accent_color);
     draw_planet_seek_overlay(ctx, state, d, bounds, now, planet_seek_eased_t_1000(state, d), main_color);
+  }
+  if (state->bg_anim_active && d->bg_anim_mode == 1) {
+    draw_bg_anim_clouds_overlay(ctx, state, d, bounds, now, flash_currently_active);
+  }
+  if (state->bg_anim_active && d->bg_anim_mode == 3) {
+    draw_bg_anim_markers_overlay(ctx, state, d, full_bounds, now);
   }
   if (state->bg_anim_active && d->bg_anim_mode == 2) {
     draw_bg_anim_planets_overlay(ctx, state, d, bounds);
@@ -3209,9 +3315,26 @@ void eclipse_canvas_set_show_labels(Layer *layer, bool show) {
 
 void eclipse_canvas_set_bg_anim(Layer *layer, bool active, uint16_t elapsed_ms) {
   CanvasState *state = (CanvasState *)layer_get_data(layer);
+  bool was_active = state->bg_anim_active;
   state->bg_anim_active = active;
   state->bg_anim_elapsed_ms = elapsed_ms;
-  state->force_next_draw = true;
+  // Modes 1 ("Weather") and 3 ("Markers") only ever animate their own
+  // overlaid element (see draw_bg_anim_clouds_overlay()/draw_bg_anim_
+  // markers_overlay()'s own comments) on top of an otherwise-unchanging
+  // backdrop -- same "full draw once on entering/leaving the mode, cheap
+  // overlay every frame in between" shape eclipse_canvas_set_planet_
+  // seek() below already uses -- so for those two, only the active/
+  // inactive TRANSITION needs a genuine full redraw, not every single
+  // frame. Mode 2 ("Planets") is different: its sky_now substitution
+  // (see canvas_update_proc's own comment) means the gradient/Sun color
+  // itself keeps changing throughout the sweep, not just body position,
+  // so it still needs a real full redraw every frame -- forced
+  // unconditionally here whenever it's the active mode, same as every
+  // mode used to do. state->data may not be set yet the very first time
+  // this is ever called (app launch, before the first eclipse_canvas_
+  // set_data()); forcing in that case too is the safe default.
+  uint8_t mode = state->data ? state->data->bg_anim_mode : 2;
+  if (mode == 2 || active != was_active) state->force_next_draw = true;
   layer_mark_dirty(layer);
 }
 

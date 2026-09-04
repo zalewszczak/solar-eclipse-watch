@@ -1,5 +1,5 @@
 #include "hand_layer.h"
-#include "eclipse_data.h" // for shake_gradient_active() -- see draw_hand_outline_once_fp()'s own comment on why
+#include "eclipse_data.h" // for shake_gradient_active() -- see draw_hand_outline_from_geometry()'s own comment on why
 
 // round_div/BAYER4/FGPoint helpers and the fill_polygon_fp()/
 // fill_polygon_dithered_fp()/fill_circle_fp()/stroke_line_fp()/
@@ -556,14 +556,20 @@ static void compute_hand_geometry_fp(FGPoint center, int32_t angle, const HandCo
 // fill_polygon_dithered() above) instead of a solid one -- this is
 // what HandConfig.translucent actually means now, not the 1px
 // stroke-only look an earlier version of this file used.
-static void draw_hand_shape_once_fp(GContext *ctx, FGPoint center, int32_t angle, const HandConfig *cfg,
-                                     GColor color, bool dithered) {
-  HandGeometry geo;
-  compute_hand_geometry_fp(center, angle, cfg, &geo);
+// Takes an already-computed HandGeometry rather than a center/angle to
+// compute its own -- hand_layer_draw() computes geometry exactly ONCE
+// per hand now and shares it between this and draw_hand_outline_from_
+// geometry() below (see hand_layer_draw()'s own comment), since both
+// draw the same shape at the same center/angle and used to each redo
+// this file's own compute_hand_geometry_fp() independently -- a real,
+// measurable cost given this runs every second, for every hand with
+// both a fill and an outline (the common case).
+static void draw_hand_shape_from_geometry(GContext *ctx, const HandGeometry *geo, const HandConfig *cfg,
+                                           GColor color, bool dithered) {
   int32_t hollow_thickness_fp = (int32_t)cfg->hollow_thickness << SUBPIXEL_BITS;
 
-  for (int i = 0; i < geo.n_polys; i++) {
-    HandPoly *p = &geo.polys[i];
+  for (int i = 0; i < geo->n_polys; i++) {
+    const HandPoly *p = &geo->polys[i];
     if (dithered) fill_polygon_dithered_fp(ctx, p->pts, p->n, color);
     else if (cfg->hollow) {
       if (cfg->hollow_thickness <= 1) stroke_polygon_fp(ctx, p->pts, p->n, color, false);
@@ -572,8 +578,8 @@ static void draw_hand_shape_once_fp(GContext *ctx, FGPoint center, int32_t angle
     else if (p->thin) fill_polygon_thin_fp(ctx, p->pts, p->n, color);
     else fill_polygon_fp(ctx, p->pts, p->n, color);
   }
-  for (int i = 0; i < geo.n_circles; i++) {
-    HandCircle *c = &geo.circles[i];
+  for (int i = 0; i < geo->n_circles; i++) {
+    const HandCircle *c = &geo->circles[i];
     if (cfg->hollow && !dithered) {
       if (cfg->hollow_thickness <= 1) stroke_circle_fp(ctx, c->center, c->radius_fp, color, false);
       else fill_circle_ring_fp(ctx, c->center, c->radius_fp, hollow_thickness_fp, color, false);
@@ -593,11 +599,10 @@ static void draw_hand_shape_once_fp(GContext *ctx, FGPoint center, int32_t angle
 // 4 offset copies of an already-dithered fill just smears the same
 // stipple pattern into a slightly bigger blob, not a clean ring around
 // the shape.
-static void draw_hand_outline_once_fp(GContext *ctx, FGPoint center, int32_t angle, const HandConfig *cfg,
-                                       GColor color, bool dithered) {
-  HandGeometry geo;
-  compute_hand_geometry_fp(center, angle, cfg, &geo);
-
+// Same "takes an already-computed geometry" shape as draw_hand_shape_
+// from_geometry() above, for the same reason -- see its own comment.
+static void draw_hand_outline_from_geometry(GContext *ctx, const HandGeometry *geo,
+                                             GColor color, bool dithered) {
   // "On shake" gradient mode: a true per-pixel screen-space sweep
   // instead of one fixed color for the whole outline -- see
   // subpixel.h's stroke_*_gradient_fp() functions and their own
@@ -608,20 +613,20 @@ static void draw_hand_outline_once_fp(GContext *ctx, FGPoint center, int32_t ang
   // -- a translucent hand's outline just doesn't gradient-shift.
   int32_t shake_shift = 0; // Q8 fixed-point -- see shake_gradient_active()'s own comment
   if (!dithered && shake_gradient_active(&shake_shift)) {
-    for (int i = 0; i < geo.n_polys; i++) {
-      stroke_polygon_gradient_fp(ctx, geo.polys[i].pts, geo.polys[i].n, shake_shift);
+    for (int i = 0; i < geo->n_polys; i++) {
+      stroke_polygon_gradient_fp(ctx, geo->polys[i].pts, geo->polys[i].n, shake_shift);
     }
-    for (int i = 0; i < geo.n_circles; i++) {
-      stroke_circle_gradient_fp(ctx, geo.circles[i].center, geo.circles[i].radius_fp, shake_shift);
+    for (int i = 0; i < geo->n_circles; i++) {
+      stroke_circle_gradient_fp(ctx, geo->circles[i].center, geo->circles[i].radius_fp, shake_shift);
     }
     return;
   }
 
-  for (int i = 0; i < geo.n_polys; i++) {
-    stroke_polygon_fp(ctx, geo.polys[i].pts, geo.polys[i].n, color, dithered);
+  for (int i = 0; i < geo->n_polys; i++) {
+    stroke_polygon_fp(ctx, geo->polys[i].pts, geo->polys[i].n, color, dithered);
   }
-  for (int i = 0; i < geo.n_circles; i++) {
-    stroke_circle_fp(ctx, geo.circles[i].center, geo.circles[i].radius_fp, color, dithered);
+  for (int i = 0; i < geo->n_circles; i++) {
+    stroke_circle_fp(ctx, geo->circles[i].center, geo->circles[i].radius_fp, color, dithered);
   }
 }
 
@@ -751,24 +756,38 @@ void hand_layer_draw(GContext *ctx, GPoint center, int32_t angle, const HandConf
 
   draw_hand_shadow_once_fp(ctx, center_fp, angle, cfg, shadow_translucent_style, shadow_angle_deg);
 
+  // Computed once and shared by the outline and fill steps below --
+  // both draw the exact same shape at the exact same center/angle, so
+  // there's no reason for each to redo compute_hand_geometry_fp()'s
+  // own per-style branching/trig independently the way they used to.
+  // This runs every second for every visible hand, so avoiding a
+  // second full geometry computation whenever a hand has both an
+  // outline and a fill (the common case) is a real, continuous saving,
+  // not just a one-off. The shadow above still computes its own (see
+  // draw_hand_shadow_once_fp()'s own comment) since it draws at a
+  // genuinely different, translated center.
+  HandGeometry geo;
+  compute_hand_geometry_fp(center_fp, angle, cfg, &geo);
+
   GColor hand_color = GColorClear; // resolved below if actually needed (cfg->color != 3)
   if (cfg->color != 3) {
     hand_color = resolve_scheme_color(cfg->color, main_color, accent_color, bg_color);
   }
 
   if (cfg->outline_enabled) {
-    // A real perimeter trace now (see draw_hand_outline_once above),
-    // dithered too when the hand is translucent, so the outline
-    // doesn't look more solid than the fill it's outlining. The "on
-    // shake" gradient effect (if active) is applied inside
-    // draw_hand_outline_once_fp() itself now, per pixel -- see its own
-    // comment -- rather than resolved to one flat color up here.
+    // A real perimeter trace now (see draw_hand_outline_from_geometry
+    // above), dithered too when the hand is translucent, so the
+    // outline doesn't look more solid than the fill it's outlining.
+    // The "on shake" gradient effect (if active) is applied inside
+    // draw_hand_outline_from_geometry() itself now, per pixel -- see
+    // its own comment -- rather than resolved to one flat color up
+    // here.
     GColor outline_color = resolve_scheme_color(cfg->outline_color, main_color, accent_color, bg_color);
-    draw_hand_outline_once_fp(ctx, center_fp, angle, cfg, outline_color, cfg->translucent);
+    draw_hand_outline_from_geometry(ctx, &geo, outline_color, cfg->translucent);
   }
 
   if (cfg->color != 3) { // 3 = "none" -- skip the fill, outline (if any) still drew above
-    draw_hand_shape_once_fp(ctx, center_fp, angle, cfg, hand_color, cfg->translucent);
+    draw_hand_shape_from_geometry(ctx, &geo, cfg, hand_color, cfg->translucent);
   }
 }
 

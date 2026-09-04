@@ -213,9 +213,17 @@ static void draw_tiny_icon(GContext *ctx, GPoint top_left, const uint8_t *patter
 // contrasting outline color, then once more in the real fill color --
 // draw_icon_resource() itself doesn't need to know about outlines at
 // all, it just draws one already-tinted icon.
-static void draw_icon_resource(GContext *ctx, GPoint top_left, uint32_t resource_id, GColor color) {
-  GBitmap *bmp = gbitmap_create_with_resource(resource_id);
-  if (!bmp) return;
+// Recolors and draws an already-loaded palette icon bitmap in place --
+// the shared inner step both draw_icon_resource() and draw_icon_
+// resource_with_outline() below use, so a 4-shifted-copy outline pass
+// doesn't have to decode/reload the same resource an extra 4 times
+// just to redraw it in a different color. Safe to call repeatedly on
+// the same bmp with different colors: each call re-derives which
+// palette entry is "ink" vs "transparent" from the bitmap's current
+// palette state (transparent stays reliably GColorClear regardless of
+// what the ink entry was last recolored to), so the result is
+// identical to loading a fresh copy each time.
+static void draw_icon_bitmap_tinted(GContext *ctx, GBitmap *bmp, GPoint top_left, GColor color) {
   GColor *palette = gbitmap_get_palette(bmp);
   if (palette) {
     bool transparent0 = (palette[0].argb & 0xC0) == 0;
@@ -233,6 +241,33 @@ static void draw_icon_resource(GContext *ctx, GPoint top_left, uint32_t resource
   }
   graphics_context_set_compositing_mode(ctx, GCompOpSet);
   graphics_draw_bitmap_in_rect(ctx, bmp, GRect(top_left.x, top_left.y, ICON_WIDTH, ICON_ROWS));
+}
+
+static void draw_icon_resource(GContext *ctx, GPoint top_left, uint32_t resource_id, GColor color) {
+  GBitmap *bmp = gbitmap_create_with_resource(resource_id);
+  if (!bmp) return;
+  draw_icon_bitmap_tinted(ctx, bmp, top_left, color);
+  gbitmap_destroy(bmp);
+}
+
+// Loads resource_id exactly once and draws it up to 5 times (4
+// outline-shifted copies in outline_color when do_outline, then once
+// more in color) -- replaces features_draw_item()'s icon_kind switch's
+// former "4-shifted-copy outline, then the real icon" shape, which used
+// to be hand-repeated across roughly a dozen cases, each with its own
+// draw_icon_resource() call per shifted copy -- 5 independent resource
+// loads/decodes per icon instead of the 1 this version needs.
+static void draw_icon_resource_with_outline(GContext *ctx, GPoint pos, uint32_t resource_id,
+                                             bool do_outline, GColor outline_color, GColor color) {
+  GBitmap *bmp = gbitmap_create_with_resource(resource_id);
+  if (!bmp) return;
+  if (do_outline) {
+    for (int i = 0; i < 4; i++) {
+      GPoint shifted = GPoint(pos.x + OUTLINE_OFFSETS[i].x, pos.y + OUTLINE_OFFSETS[i].y);
+      draw_icon_bitmap_tinted(ctx, bmp, shifted, outline_color);
+    }
+  }
+  draw_icon_bitmap_tinted(ctx, bmp, pos, color);
   gbitmap_destroy(bmp);
 }
 
@@ -1729,12 +1764,7 @@ void features_draw_item(GContext *ctx, GRect bounds, const EclipseData *data,
   switch (icon_kind) {
     case 1: {
       GPoint pos = GPoint(icon_x - ICON_WIDTH + 12, box_y + (CORNER_ROW_H - ICON_ROWS) / 2);
-      if (do_icon_outline) {
-        for (int i = 0; i < 4; i++) {
-          draw_icon_resource(ctx, GPoint(pos.x + OUTLINE_OFFSETS[i].x, pos.y + OUTLINE_OFFSETS[i].y), RESOURCE_ID_ICON_HEART, icon_outline_color);
-        }
-      }
-      draw_icon_resource(ctx, pos, RESOURCE_ID_ICON_HEART, color);
+      draw_icon_resource_with_outline(ctx, pos, RESOURCE_ID_ICON_HEART, do_icon_outline, icon_outline_color, color);
       break;
     }
     case 2: {
@@ -1742,12 +1772,7 @@ void features_draw_item(GContext *ctx, GRect bounds, const EclipseData *data,
       // every icon (including this one) is a standardized 16x12 image
       // resource, it uses the same centering as the heart icon above.
       GPoint pos = GPoint(icon_x - ICON_WIDTH+6, box_y + (CORNER_ROW_H - ICON_ROWS) / 2);
-      if (do_icon_outline) {
-        for (int i = 0; i < 4; i++) {
-          draw_icon_resource(ctx, GPoint(pos.x + OUTLINE_OFFSETS[i].x, pos.y + OUTLINE_OFFSETS[i].y), RESOURCE_ID_ICON_FOOT, icon_outline_color);
-        }
-      }
-      draw_icon_resource(ctx, pos, RESOURCE_ID_ICON_FOOT, color);
+      draw_icon_resource_with_outline(ctx, pos, RESOURCE_ID_ICON_FOOT, do_icon_outline, icon_outline_color, color);
       break;
     }
     case 3: {
@@ -1790,72 +1815,37 @@ void features_draw_item(GContext *ctx, GRect bounds, const EclipseData *data,
     }
     case 5: {
       GPoint pos = GPoint(icon_x - ICON_WIDTH+10, box_y + (CORNER_ROW_H - ICON_ROWS) / 2);
-      if (do_icon_outline) {
-        for (int i = 0; i < 4; i++) {
-          draw_icon_resource(ctx, GPoint(pos.x + OUTLINE_OFFSETS[i].x, pos.y + OUTLINE_OFFSETS[i].y), RESOURCE_ID_ICON_UMBRELLA, icon_outline_color);
-        }
-      }
-      draw_icon_resource(ctx, pos, RESOURCE_ID_ICON_UMBRELLA, color);
+      draw_icon_resource_with_outline(ctx, pos, RESOURCE_ID_ICON_UMBRELLA, do_icon_outline, icon_outline_color, color);
       break;
     }
     case 6: {
       GPoint pos = GPoint(icon_x - ICON_WIDTH+10, box_y + (CORNER_ROW_H - ICON_ROWS) / 2);
-      if (do_icon_outline) {
-        for (int i = 0; i < 4; i++) {
-          draw_icon_resource(ctx, GPoint(pos.x + OUTLINE_OFFSETS[i].x, pos.y + OUTLINE_OFFSETS[i].y), RESOURCE_ID_ICON_DROPLET, icon_outline_color);
-        }
-      }
-      draw_icon_resource(ctx, pos, RESOURCE_ID_ICON_DROPLET, color);
+      draw_icon_resource_with_outline(ctx, pos, RESOURCE_ID_ICON_DROPLET, do_icon_outline, icon_outline_color, color);
       break;
     }
     case 7: {
       GPoint pos = GPoint(icon_x - ICON_WIDTH+10, box_y + (CORNER_ROW_H - ICON_ROWS) / 2);
-      if (do_icon_outline) {
-        for (int i = 0; i < 4; i++) {
-          draw_icon_resource(ctx, GPoint(pos.x + OUTLINE_OFFSETS[i].x, pos.y + OUTLINE_OFFSETS[i].y), RESOURCE_ID_ICON_WIND, icon_outline_color);
-        }
-      }
-      draw_icon_resource(ctx, pos, RESOURCE_ID_ICON_WIND, color);
+      draw_icon_resource_with_outline(ctx, pos, RESOURCE_ID_ICON_WIND, do_icon_outline, icon_outline_color, color);
       break;
     }
     case 8: {
       GPoint pos = GPoint(icon_x - ICON_WIDTH+6, box_y + (CORNER_ROW_H - ICON_ROWS) / 2);
-      if (do_icon_outline) {
-        for (int i = 0; i < 4; i++) {
-          draw_icon_resource(ctx, GPoint(pos.x + OUTLINE_OFFSETS[i].x, pos.y + OUTLINE_OFFSETS[i].y), RESOURCE_ID_ICON_GPS_PIN, icon_outline_color);
-        }
-      }
-      draw_icon_resource(ctx, pos, RESOURCE_ID_ICON_GPS_PIN, color);
+      draw_icon_resource_with_outline(ctx, pos, RESOURCE_ID_ICON_GPS_PIN, do_icon_outline, icon_outline_color, color);
       break;
     }
     case 9: {
       GPoint pos = GPoint(icon_x - ICON_WIDTH+6, box_y + (CORNER_ROW_H - ICON_ROWS) / 2);
-      if (do_icon_outline) {
-        for (int i = 0; i < 4; i++) {
-          draw_icon_resource(ctx, GPoint(pos.x + OUTLINE_OFFSETS[i].x, pos.y + OUTLINE_OFFSETS[i].y), RESOURCE_ID_ICON_EYE, icon_outline_color);
-        }
-      }
-      draw_icon_resource(ctx, pos, RESOURCE_ID_ICON_EYE, color);
+      draw_icon_resource_with_outline(ctx, pos, RESOURCE_ID_ICON_EYE, do_icon_outline, icon_outline_color, color);
       break;
     }
     case 10: {
       GPoint pos = GPoint(icon_x - ICON_WIDTH+6, box_y + (CORNER_ROW_H - ICON_ROWS) / 2);
-      if (do_icon_outline) {
-        for (int i = 0; i < 4; i++) {
-          draw_icon_resource(ctx, GPoint(pos.x + OUTLINE_OFFSETS[i].x, pos.y + OUTLINE_OFFSETS[i].y), RESOURCE_ID_ICON_CLOUD, icon_outline_color);
-        }
-      }
-      draw_icon_resource(ctx, pos, RESOURCE_ID_ICON_CLOUD, color);
+      draw_icon_resource_with_outline(ctx, pos, RESOURCE_ID_ICON_CLOUD, do_icon_outline, icon_outline_color, color);
       break;
     }
     case 13: {
       GPoint pos = GPoint(icon_x - ICON_WIDTH+6, box_y + (CORNER_ROW_H - ICON_ROWS) / 2);
-      if (do_icon_outline) {
-        for (int i = 0; i < 4; i++) {
-          draw_icon_resource(ctx, GPoint(pos.x + OUTLINE_OFFSETS[i].x, pos.y + OUTLINE_OFFSETS[i].y), RESOURCE_ID_ICON_BLUETOOTH, icon_outline_color);
-        }
-      }
-      draw_icon_resource(ctx, pos, RESOURCE_ID_ICON_BLUETOOTH, color);
+      draw_icon_resource_with_outline(ctx, pos, RESOURCE_ID_ICON_BLUETOOTH, do_icon_outline, icon_outline_color, color);
       break;
     }
     case 18: case 19: case 20: case 21: case 22: {
@@ -1865,13 +1855,7 @@ void features_draw_item(GContext *ctx, GRect bounds, const EclipseData *data,
       else if (icon_kind == 21) bed_resource = RESOURCE_ID_ICON_BED_CLOCK;
       else if (icon_kind == 22) bed_resource = RESOURCE_ID_ICON_BED_CHECK_CLOCK;
       GPoint pos = GPoint(icon_x - ICON_WIDTH+6, box_y + (CORNER_ROW_H - ICON_ROWS) / 2);
-      if (do_icon_outline) {
-        for (int i = 0; i < 4; i++) {
-          draw_icon_resource(ctx, GPoint(pos.x + OUTLINE_OFFSETS[i].x, pos.y + OUTLINE_OFFSETS[i].y),
-                              bed_resource, icon_outline_color);
-        }
-      }
-      draw_icon_resource(ctx, pos, bed_resource, color);
+      draw_icon_resource_with_outline(ctx, pos, bed_resource, do_icon_outline, icon_outline_color, color);
       break;
     }
     case 23: case 24: case 25: {
@@ -1879,23 +1863,12 @@ void features_draw_item(GContext *ctx, GRect bounds, const EclipseData *data,
       if (icon_kind == 24) astro_resource = RESOURCE_ID_ICON_SATURN_RING;
       else if (icon_kind == 25) astro_resource = RESOURCE_ID_ICON_ISS;
       GPoint pos = GPoint(icon_x - ICON_WIDTH+6, box_y + (CORNER_ROW_H - ICON_ROWS) / 2);
-      if (do_icon_outline) {
-        for (int i = 0; i < 4; i++) {
-          draw_icon_resource(ctx, GPoint(pos.x + OUTLINE_OFFSETS[i].x, pos.y + OUTLINE_OFFSETS[i].y),
-                              astro_resource, icon_outline_color);
-        }
-      }
-      draw_icon_resource(ctx, pos, astro_resource, color);
+      draw_icon_resource_with_outline(ctx, pos, astro_resource, do_icon_outline, icon_outline_color, color);
       break;
     }
     case 26: {
       GPoint pos = GPoint(icon_x - ICON_WIDTH+6, box_y + (CORNER_ROW_H - ICON_ROWS) / 2);
-      if (do_icon_outline) {
-        for (int i = 0; i < 4; i++) {
-          draw_icon_resource(ctx, GPoint(pos.x + OUTLINE_OFFSETS[i].x, pos.y + OUTLINE_OFFSETS[i].y), RESOURCE_ID_ICON_AURORA, icon_outline_color);
-        }
-      }
-      draw_icon_resource(ctx, pos, RESOURCE_ID_ICON_AURORA, color);
+      draw_icon_resource_with_outline(ctx, pos, RESOURCE_ID_ICON_AURORA, do_icon_outline, icon_outline_color, color);
       break;
     }
     case 27: { // Compass -- see draw_compass_icon()/draw_compass_sleep_icon()'s
