@@ -177,26 +177,60 @@ static void draw_tiny_icon(GContext *ctx, GPoint top_left, const uint8_t *patter
 //
 // draw_icon_resource() is for the monochrome-silhouette icons (heart,
 // foot, weather simple/hollow sets, bed icons, etc.) -- these are
-// authored as a 2-color (transparent + opaque) 1-bit-palette PNG (see
-// "memoryFormat": "1BitPalette" in package.json), so gbitmap_set_palette()
-// remaps palette index 0 to fully transparent and index 1 to whatever
-// GColor the caller wants, giving every one of them full-color tinting
-// (any GColor, not just black) and alpha transparency for free, with
-// no per-icon code. Outline support reuses the exact technique already
-// used everywhere else in this file (draw_text_outlined() et al, see
-// OUTLINE_OFFSETS' comment near the top): call sites draw the icon 4x
-// shifted in a contrasting outline color, then once more in the real
-// fill color -- draw_icon_resource() itself doesn't need to know
-// about outlines at all, it just draws one already-tinted icon.
+// authored as a 2-color (nominally opaque icon + transparent
+// background) 1-bit-palette PNG (see "memoryFormat": "1BitPalette" in
+// package.json). gbitmap_get_palette() exposes that bitmap's own
+// 2-entry palette directly (mutable in place -- no separate "set"
+// call needed, same as tint_marker_bitmap() above already relies on),
+// which this recolors to whatever GColor the caller wants for the
+// icon itself plus GColorClear for the background, giving every one
+// of them full-color tinting (any GColor, not just black) and alpha
+// transparency for free, with no per-icon code.
+//
+// Which of the 2 palette entries IS the icon vs the background isn't
+// safe to assume by a fixed index (0 or 1) -- that's a detail of how
+// each individual PNG happened to get authored/exported, and wasn't
+// consistent across every one of these icon resources. Assuming a
+// fixed index (this used to always treat index 0 as background,
+// index 1 as icon) inverted whichever icons didn't happen to match
+// that assumption: a solid tinted box with the icon shape as a
+// transparent cutout, instead of a tinted icon on a transparent
+// background. Two signals instead, in priority order: (1) if the
+// source PNG's own palette already has real per-entry alpha (one
+// entry fully transparent, the other opaque) -- same technique
+// tint_marker_bitmap() above already uses for the bitmap marker
+// styles -- trust that directly; (2) otherwise (1-bit-palette
+// resources don't reliably carry per-entry alpha through the build
+// pipeline the way the marker bitmaps' richer palette formats do, per
+// the request), fall back to treating whichever of the two colors is
+// darker as the icon -- these are authored as plain black icon
+// shapes on a white/light placeholder background, so the darker entry
+// reliably is the icon regardless of which index it's stored at.
+//
+// Outline support reuses the exact technique already used everywhere
+// else in this file (draw_text_outlined() et al, see OUTLINE_OFFSETS'
+// comment near the top): call sites draw the icon 4x shifted in a
+// contrasting outline color, then once more in the real fill color --
+// draw_icon_resource() itself doesn't need to know about outlines at
+// all, it just draws one already-tinted icon.
 static void draw_icon_resource(GContext *ctx, GPoint top_left, uint32_t resource_id, GColor color) {
   GBitmap *bmp = gbitmap_create_with_resource(resource_id);
   if (!bmp) return;
-  // Palette array must stay alive for the whole set+draw+destroy
-  // sequence below (free_on_destroy=false, so gbitmap_destroy() won't
-  // try to free this stack array) -- see gbitmap_set_palette()'s docs:
-  // https://developer.rebble.io/docs/c/Graphics/Graphics_Types/#gbitmap_set_palette
-  GColor palette[2] = { GColorClear, color };
-  gbitmap_set_palette(bmp, palette, false);
+  GColor *palette = gbitmap_get_palette(bmp);
+  if (palette) {
+    bool transparent0 = (palette[0].argb & 0xC0) == 0;
+    bool transparent1 = (palette[1].argb & 0xC0) == 0;
+    int ink;
+    if (transparent0 != transparent1) {
+      ink = transparent0 ? 1 : 0;
+    } else {
+      int sum0 = ((palette[0].argb >> 4) & 0x03) + ((palette[0].argb >> 2) & 0x03) + (palette[0].argb & 0x03);
+      int sum1 = ((palette[1].argb >> 4) & 0x03) + ((palette[1].argb >> 2) & 0x03) + (palette[1].argb & 0x03);
+      ink = (sum0 <= sum1) ? 0 : 1;
+    }
+    palette[ink] = color;
+    palette[1 - ink] = GColorClear;
+  }
   graphics_context_set_compositing_mode(ctx, GCompOpSet);
   graphics_draw_bitmap_in_rect(ctx, bmp, GRect(top_left.x, top_left.y, ICON_WIDTH, ICON_ROWS));
   gbitmap_destroy(bmp);
