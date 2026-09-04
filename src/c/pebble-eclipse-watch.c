@@ -412,7 +412,26 @@ bool shake_gradient_active(uint8_t *out_shift) {
 // running every SHAKE_ANIM_FRAME_MS while planet seek is active) just
 // reads whatever s_planet_seek_heading_deg currently holds each time
 // it redraws, rather than the two needing to be tightly synchronized.
-static int32_t s_planet_seek_heading_deg = 0; // 0-359, true north-relative, CLOCKWISE (see below)
+//
+// Stored smoothed (exponential moving average) rather than as the
+// raw reading -- the magnetometer heading on its own is visibly
+// jittery frame to frame, which showed up as the arrows/labels
+// twitching around instead of moving steadily. Kept as a Q24.8
+// fixed-point value (degrees << 8), both because whole-degree-only
+// smoothing barely smooths at all (it would just hop through each
+// integer degree with rounding noise indistinguishable from the raw
+// jitter) and because the exponential blend below needs a real
+// fractional step size to settle toward the true heading rather than
+// oscillate by +/-1 degree around it forever.
+static int32_t s_planet_seek_heading_smoothed_fp = 0; // degrees << 8, true north-relative, CLOCKWISE (see below)
+// True once at least one real compass sample has been folded into
+// s_planet_seek_heading_smoothed_fp this Planet seek session -- reset
+// by maybe_start_shake_animation() each time the mode (re)starts, so
+// the very first reading after that jumps straight to wherever the
+// compass actually says instead of slowly smoothing in from 0 (or
+// from a stale heading left over from last time), which would
+// otherwise show up as a big, pointless swing right as the mode opens.
+static bool s_planet_seek_heading_has_reading = false;
 // True whenever the compass isn't fully calibrated yet (or has no
 // reading at all) -- see planet_seek_compass_handler()'s own comment.
 // Starts true (not false) since there's no reading at all until the
@@ -437,7 +456,58 @@ static void planet_seek_compass_handler(CompassHeadingData data) {
   // the stored value swing as if the wearer had turned left, which is
   // exactly the "objects move away instead of towards me" symptom.
   CompassHeading clockwise = TRIG_MAX_ANGLE - data.true_heading;
-  s_planet_seek_heading_deg = (int32_t)(((int64_t)clockwise * 360) / TRIG_MAX_ANGLE) % 360;
+  int32_t raw_deg = (int32_t)(((int64_t)clockwise * 360) / TRIG_MAX_ANGLE) % 360;
+
+  // Adaptive smoothing: heavier (slower to react) the closer the
+  // watch is to flat (face roughly horizontal -- glancing down at it
+  // resting on a table, or a bent wrist) than to vertical (arm
+  // raised, face roughly upright, the normal "checking the time"
+  // pose), per the request. The magnetometer's own heading estimate
+  // gets visibly noisier the flatter the watch sits -- small physical
+  // wobble swings the reading by a much bigger number of degrees flat
+  // than the same wobble would while vertical -- so a fixed smoothing
+  // amount was either too twitchy flat or too sluggish vertical; this
+  // adjusts on every reading instead. A single one-shot accelerometer
+  // read (not a running subscription -- this doesn't need continuous
+  // accel data, just "how tilted is it right now") is enough to tell
+  // the two apart: the z axis (through the screen) dominates when
+  // flat, x/y (across the screen) dominate when vertical. Deliberately
+  // not normalizing/sqrt-ing that into a true tilt angle -- this is a
+  // smoothing-strength knob, not a measurement, and the plain
+  // magnitude ratio moves the same direction just as well.
+  AccelData accel = { 0 };
+  int32_t flatness_pct = 0; // 0 = vertical (light smoothing), 100 = flat (heavy smoothing)
+  if (accel_service_peek(&accel) == 0) {
+    int32_t az = accel.z < 0 ? -accel.z : accel.z;
+    int32_t axy = (accel.x < 0 ? -accel.x : accel.x) + (accel.y < 0 ? -accel.y : accel.y);
+    flatness_pct = (az * 100) / (az + axy + 1); // +1: avoid a div-by-zero on a (0,0,0) reading
+  }
+  // alpha is how much of THIS reading blends into the smoothed value,
+  // as a percent -- low alpha = heavy smoothing/slow to react, high
+  // alpha = light smoothing/quick to react. Interpolated between a
+  // responsive ~45% vertical and a much gentler ~12% flat, per the
+  // request ("not too much to be still responsive").
+  int32_t alpha_pct = 45 - ((45 - 12) * flatness_pct) / 100;
+
+  if (!s_planet_seek_heading_has_reading) {
+    s_planet_seek_heading_smoothed_fp = raw_deg << 8;
+    s_planet_seek_heading_has_reading = true;
+  } else {
+    int32_t smoothed_deg = s_planet_seek_heading_smoothed_fp >> 8;
+    // Shortest signed distance from the smoothed heading to this new
+    // raw one, handling the 359->0 wraparound (a naive `raw - smoothed`
+    // would otherwise blend the "long way around" through 180 whenever
+    // the two straddle north).
+    int32_t delta = ((raw_deg - smoothed_deg + 540) % 360) - 180;
+    s_planet_seek_heading_smoothed_fp += (delta * 256 * alpha_pct) / 100;
+    // Keep the fixed-point value's whole-degree part wrapped into
+    // 0-359 so it can't slowly drift outside a sane range over a long
+    // Planet seek session, and so the delta math above keeps working
+    // the same way call after call.
+    while (s_planet_seek_heading_smoothed_fp < 0) s_planet_seek_heading_smoothed_fp += (360 << 8);
+    while (s_planet_seek_heading_smoothed_fp >= (360 << 8)) s_planet_seek_heading_smoothed_fp -= (360 << 8);
+  }
+
   // Calibrated = high confidence; Calibrating = a reading exists but
   // is still being refined; DataInvalid/Unavailable = no usable
   // reading at all. Anything short of Calibrated is worth flagging to
@@ -446,11 +516,11 @@ static void planet_seek_compass_handler(CompassHeadingData data) {
   s_planet_seek_compass_low_accuracy = (data.compass_status != CompassStatusCalibrated);
 }
 
-// Exposed for background_layer.c's future rendering code -- see
-// shake_anim_mode's own eclipse_data.h comment for the current state
-// of what's actually implemented here.
+// Exposed for background_layer.c's rendering code -- the smoothed
+// heading (see s_planet_seek_heading_smoothed_fp's own comment), not
+// the raw compass sample.
 int32_t planet_seek_heading_deg(void) {
-  return s_planet_seek_heading_deg;
+  return s_planet_seek_heading_smoothed_fp >> 8;
 }
 
 bool planet_seek_compass_low_accuracy(void) {
@@ -569,7 +639,7 @@ static void shake_anim_timer_callback(void *data) {
   if (s_features_layer) layer_mark_dirty(s_features_layer);
   if (s_countdown_layer) layer_mark_dirty(s_countdown_layer);
   if (s_canvas_layer && s_data.shake_anim_mode == 4) {
-    eclipse_canvas_set_planet_seek(s_canvas_layer, still_active, s_shake_anim_elapsed_ms, s_planet_seek_heading_deg);
+    eclipse_canvas_set_planet_seek(s_canvas_layer, still_active, s_shake_anim_elapsed_ms, planet_seek_heading_deg());
   }
   if (s_canvas_layer && s_data.shake_anim_mode == 5) {
     eclipse_canvas_set_shake_paths(s_canvas_layer, still_active, s_shake_anim_elapsed_ms);
@@ -590,7 +660,15 @@ static void maybe_start_shake_animation(void) {
   s_shake_anim_duration_ms = (uint32_t)seconds * 1000;
   if (s_shake_anim_timer) app_timer_cancel(s_shake_anim_timer);
   s_shake_anim_timer = app_timer_register(SHAKE_ANIM_FRAME_MS, shake_anim_timer_callback, NULL);
-  if (s_data.shake_anim_mode == 4) compass_service_subscribe(planet_seek_compass_handler);
+  if (s_data.shake_anim_mode == 4) {
+    // Fresh compass smoothing state each time Planet seek (re)starts
+    // -- see s_planet_seek_heading_has_reading's own comment for why
+    // (otherwise the first reading of a new session would slowly
+    // smooth in from last session's leftover heading instead of
+    // jumping straight to wherever the compass actually says now).
+    s_planet_seek_heading_has_reading = false;
+    compass_service_subscribe(planet_seek_compass_handler);
+  }
 }
 
 static void hands_layer_update_proc(Layer *layer, GContext *ctx) {

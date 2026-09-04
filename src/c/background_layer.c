@@ -1542,27 +1542,16 @@ void draw_moon_phase(GContext *ctx, GRect bounds, GPoint center, int16_t radius,
   graphics_draw_circle(ctx, center, radius);
 }
 
-// A small black-backed label for the shake-to-reveal body names.
-// Placed to whichever side of `near` keeps it on-canvas, since a
-// body can be anywhere from the left edge to the right edge of the
-// sky depending on its own column position.
-// label_style: 0=Boxed (opaque rounded rect, white text -- the
-// original/default look), 1=Outlined (main_color text with a 4-
-// direction-shifted contrasting outline, via features_layer.h's
-// shared draw_text_outlined() -- same technique corner/edge feature
-// text and hand outlines already use), 2=Soft (plain light-gray text,
-// no background or outline at all). User setting, right below "Shake
-// to see labels" in the Style section.
-static void draw_label(GContext *ctx, GRect bounds, GPoint near, const char *text, uint8_t label_style, GColor main_color) {
-  int16_t w = 46, h = 14;
-  int16_t x = near.x + 8;
-  if (x + w > bounds.origin.x + bounds.size.w) x = near.x - w - 8;
-  if (x < bounds.origin.x) x = bounds.origin.x;
-  int16_t y = near.y - h / 2;
-  if (y < bounds.origin.y) y = bounds.origin.y;
-  if (y + h > bounds.origin.y + bounds.size.h) y = bounds.origin.y + bounds.size.h - h;
-
-  GRect r = GRect(x, y, w, h);
+// Draws `text` in the shake-to-reveal 3-style label look (see
+// draw_label()'s own label_style comment below) into exactly the box
+// the caller hands in -- no positioning logic of its own. Split out
+// of draw_label() so a caller that already knows precisely where the
+// label needs to go (draw_planet_seek_body()'s off-screen case, which
+// anchors directly against its own edge arrow rather than a generic
+// nearby point) can reuse the same 3-style rendering without
+// draw_label()'s own generic "flip whichever side stays on canvas"
+// placement getting in the way.
+static void draw_label_in_box(GContext *ctx, GRect r, const char *text, uint8_t label_style, GColor main_color) {
   GFont font = fonts_get_system_font(FONT_KEY_GOTHIC_14);
   GRect text_box = GRect(r.origin.x, r.origin.y - 2, r.size.w, r.size.h + 2);
 
@@ -1582,6 +1571,28 @@ static void draw_label(GContext *ctx, GRect bounds, GPoint near, const char *tex
   graphics_context_set_text_color(ctx, GColorWhite);
   graphics_draw_text(ctx, text, font, text_box,
                       GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
+}
+
+// A small black-backed label for the shake-to-reveal body names.
+// Placed to whichever side of `near` keeps it on-canvas, since a
+// body can be anywhere from the left edge to the right edge of the
+// sky depending on its own column position.
+// label_style: 0=Boxed (opaque rounded rect, white text -- the
+// original/default look), 1=Outlined (main_color text with a 4-
+// direction-shifted contrasting outline, via features_layer.h's
+// shared draw_text_outlined() -- same technique corner/edge feature
+// text and hand outlines already use), 2=Soft (plain light-gray text,
+// no background or outline at all). User setting, right below "Shake
+// to see labels" in the Style section.
+static void draw_label(GContext *ctx, GRect bounds, GPoint near, const char *text, uint8_t label_style, GColor main_color) {
+  int16_t w = 46, h = 14;
+  int16_t x = near.x + 8;
+  if (x + w > bounds.origin.x + bounds.size.w) x = near.x - w - 8;
+  if (x < bounds.origin.x) x = bounds.origin.x;
+  int16_t y = near.y - h / 2;
+  if (y < bounds.origin.y) y = bounds.origin.y;
+  if (y + h > bounds.origin.y + bounds.size.h) y = bounds.origin.y + bounds.size.h - h;
+  draw_label_in_box(ctx, GRect(x, y, w, h), text, label_style, main_color);
 }
 
 // A minimal 3x5-pixel digit font, drawn procedurally rather than
@@ -2205,8 +2216,12 @@ static int32_t planet_seek_az_offset_decideg(uint16_t az_decideg, int32_t headin
 // the standard Pebble primitive for exactly this ("simple flat-shaded
 // polygon") rather than a custom rasterizer, since it's a single
 // static 3-point shape with no need for subpixel.h's own machinery.
+// Its own base-to-tip width, shared with draw_planet_seek_edge_label()
+// below so the label can anchor directly against the arrow's flat
+// base rather than duplicating this number.
+#define PLANET_SEEK_ARROW_W 6
 static void draw_planet_seek_arrow(GContext *ctx, GPoint tip, bool points_left, GColor color) {
-  int16_t w = 6, h = 8;
+  int16_t w = PLANET_SEEK_ARROW_W, h = 8;
   GPoint pts_left[3] = { GPoint(tip.x, tip.y), GPoint(tip.x + w, tip.y - h / 2), GPoint(tip.x + w, tip.y + h / 2) };
   GPoint pts_right[3] = { GPoint(tip.x, tip.y), GPoint(tip.x - w, tip.y - h / 2), GPoint(tip.x - w, tip.y + h / 2) };
   GPathInfo info = { .num_points = 3, .points = points_left ? pts_left : pts_right };
@@ -2216,39 +2231,70 @@ static void draw_planet_seek_arrow(GContext *ctx, GPoint tip, bool points_left, 
   gpath_destroy(path);
 }
 
+// The off-screen edge label. Unlike draw_label()'s own generic "flip
+// whichever side keeps it on canvas" placement (tuned for a label
+// near an arbitrary point out in the open sky), this one anchors
+// directly against its own arrow's flat base with a small fixed gap,
+// so the two always sit right next to each other regardless of label
+// width or screen size. draw_label() used to be reused here too, but
+// its near-point flip logic put the label's own edge a further
+// ~30-40px away from the arrow depending on which way it flipped --
+// an inconsistent gap that had nothing to do with the arrow's actual
+// position, per the request.
+static void draw_planet_seek_edge_label(GContext *ctx, GRect bounds, GPoint arrow_tip, bool pin_right,
+                                         const char *text, uint8_t label_style, GColor main_color) {
+  int16_t w = 46, h = 14, gap = 2;
+  int16_t arrow_base_x = pin_right ? (arrow_tip.x - PLANET_SEEK_ARROW_W) : (arrow_tip.x + PLANET_SEEK_ARROW_W);
+  int16_t x = pin_right ? (arrow_base_x - gap - w) : (arrow_base_x + gap);
+  int16_t y = arrow_tip.y - h / 2;
+  if (y < bounds.origin.y) y = bounds.origin.y;
+  if (y + h > bounds.origin.y + bounds.size.h) y = bounds.origin.y + bounds.size.h - h;
+  draw_label_in_box(ctx, GRect(x, y, w, h), text, label_style, main_color);
+}
+
 static void draw_planet_seek_body(GContext *ctx, GRect bounds, const char *name,
                                    uint16_t az_decideg, GPoint normal_center, int16_t radius,
                                    GColor fill_color, int32_t heading_deg, int32_t blend_t_1000,
                                    uint8_t label_style, GColor main_color) {
   int32_t offset_decideg = planet_seek_az_offset_decideg(az_decideg, heading_deg);
   // 90deg field of view across the full screen width -- +-45deg maps
-  // to the left/right edges.
-  int32_t compass_x = bounds.origin.x + bounds.size.w / 2 + (int32_t)((int64_t)offset_decideg * bounds.size.w / 900);
-  int16_t blended_x = (int16_t)(normal_center.x + (((int32_t)compass_x - normal_center.x) * blend_t_1000) / 1000);
-  GPoint pos = GPoint(blended_x, normal_center.y);
+  // to the left/right edges. Whether this body ends up drawn as an
+  // on-screen circle or an off-screen edge arrow is decided from this
+  // raw (unblended) offset -- a fixed property of the body's real sky
+  // position vs the current heading -- so it doesn't flip back and
+  // forth mid-transition; only the drawn X position itself eases in
+  // via blend_t_1000 below, from the body's own normal (non-compass)
+  // position toward wherever it's actually headed, on-screen or off.
+  // This used to snap the off-screen case straight to its pinned edge
+  // position with no blend at all, which is what showed up as
+  // "planets just jump" in and out of the mode.
+  bool in_fov = (offset_decideg >= -450 && offset_decideg <= 450);
 
-  bool on_screen = (offset_decideg >= -450 && offset_decideg <= 450)
-    && pos.x >= bounds.origin.x - radius && pos.x <= bounds.origin.x + bounds.size.w + radius;
-
-  if (on_screen) {
-    graphics_context_set_fill_color(ctx, fill_color);
-    graphics_fill_circle(ctx, pos, radius);
-    draw_label(ctx, bounds, pos, name, label_style, main_color);
-    return;
+  if (in_fov) {
+    int32_t compass_x = bounds.origin.x + bounds.size.w / 2 + (int32_t)((int64_t)offset_decideg * bounds.size.w / 900);
+    int16_t blended_x = (int16_t)(normal_center.x + (((int32_t)compass_x - normal_center.x) * blend_t_1000) / 1000);
+    GPoint pos = GPoint(blended_x, normal_center.y);
+    if (pos.x >= bounds.origin.x - radius && pos.x <= bounds.origin.x + bounds.size.w + radius) {
+      graphics_context_set_fill_color(ctx, fill_color);
+      graphics_fill_circle(ctx, pos, radius);
+      draw_label(ctx, bounds, pos, name, label_style, main_color);
+      return;
+    }
   }
 
-  // Off screen: label pinned to whichever edge is the shorter way to
-  // turn to actually reach it, with an arrow pointing further off that
-  // same edge -- offset_decideg > 0 means the body is clockwise
-  // (east) of center, i.e. reached by turning right, hence pinned to
-  // the RIGHT edge (and vice versa for < 0/left) -- see the request's
-  // own worked example ("Sun behind on my left" -> left edge, left-
-  // pointing arrow).
+  // Off screen: label+arrow pinned to whichever edge is the shorter
+  // way to turn to actually reach it -- offset_decideg > 0 means the
+  // body is clockwise (east) of center, i.e. reached by turning
+  // right, hence pinned to the RIGHT edge (and vice versa for < 0/
+  // left) -- see the request's own worked example ("Sun behind on my
+  // left" -> left edge, left-pointing arrow). Slides in from the
+  // body's own normal position via blend_t_1000, same as the
+  // on-screen case above.
   bool pin_right = offset_decideg > 0;
-  int16_t edge_x = pin_right ? (bounds.origin.x + bounds.size.w - 30) : (bounds.origin.x + 30);
-  GPoint edge_pos = GPoint(edge_x, normal_center.y);
-  draw_label(ctx, bounds, edge_pos, name, label_style, main_color);
-  GPoint arrow_tip = GPoint(pin_right ? (bounds.origin.x + bounds.size.w - 2) : (bounds.origin.x + 2), normal_center.y);
+  int16_t edge_arrow_x = pin_right ? (bounds.origin.x + bounds.size.w - 2) : (bounds.origin.x + 2);
+  int16_t blended_arrow_x = (int16_t)(normal_center.x + (((int32_t)edge_arrow_x - normal_center.x) * blend_t_1000) / 1000);
+  GPoint arrow_tip = GPoint(blended_arrow_x, normal_center.y);
+  draw_planet_seek_edge_label(ctx, bounds, arrow_tip, pin_right, name, label_style, main_color);
   draw_planet_seek_arrow(ctx, arrow_tip, !pin_right, main_color);
 }
 
