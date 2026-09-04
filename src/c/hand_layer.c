@@ -606,7 +606,7 @@ static void draw_hand_outline_once_fp(GContext *ctx, FGPoint center, int32_t ang
   // combining "which pixels get skipped for translucency" with "what
   // color the ones that survive should be" is more than this is worth
   // -- a translucent hand's outline just doesn't gradient-shift.
-  uint8_t shake_shift;
+  int32_t shake_shift = 0; // Q8 fixed-point -- see shake_gradient_active()'s own comment
   if (!dithered && shake_gradient_active(&shake_shift)) {
     for (int i = 0; i < geo.n_polys; i++) {
       stroke_polygon_gradient_fp(ctx, geo.polys[i].pts, geo.polys[i].n, shake_shift);

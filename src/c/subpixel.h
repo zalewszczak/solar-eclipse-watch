@@ -712,7 +712,7 @@ static void fill_circle_ring_fp(GContext *ctx, FGPoint center, int32_t outer_r_f
 // above, but instead of one fixed color for the whole stroke, each
 // individual pixel's color is looked up from RAINBOW_OUTLINE_LUT based
 // on that pixel's own x coordinate -- a genuine gradient across the
-// SCREEN, not just a color that changes over time/by item. `shift`
+// SCREEN, not just a color that changes over time/by item. `shift_fp`
 // (updated once per animation frame, not per pixel -- see
 // pebble-eclipse-watch.c's shake_anim_timer_callback()) is the entire
 // "animation": it just moves where in the table screen_x=0 starts
@@ -732,15 +732,39 @@ static const uint8_t RAINBOW_OUTLINE_LUT[RAINBOW_LUT_SIZE] = {
   0xCF, 0xCB, 0xCB, 0xC7, 0xC3, 0xD3, 0xD3, 0xE3, 0xF3, 0xF2, 0xF2, 0xF1
 };
 
-static GColor rainbow_color_at_fp(int16_t screen_x, uint8_t shift) {
-  int32_t idx = (screen_x / 3 + shift) % RAINBOW_LUT_SIZE;
+static uint8_t blend_rainbow_packed_fp(uint8_t p0, uint8_t p1, int32_t frac_256) {
+  // Each channel is 2 bits (0-3, Pebble's own native color depth) --
+  // blend those directly rather than converting to 0-255 first, since
+  // the result gets packed right back into that same 2-bit-per-channel
+  // form regardless.
+  uint8_t a0 = (p0 >> 6) & 0x03, r0 = (p0 >> 4) & 0x03, g0 = (p0 >> 2) & 0x03, b0 = p0 & 0x03;
+  uint8_t a1 = (p1 >> 6) & 0x03, r1 = (p1 >> 4) & 0x03, g1 = (p1 >> 2) & 0x03, b1 = p1 & 0x03;
+  uint8_t a = (uint8_t)(a0 + (((int32_t)a1 - a0) * frac_256) / 256);
+  uint8_t r = (uint8_t)(r0 + (((int32_t)r1 - r0) * frac_256) / 256);
+  uint8_t g = (uint8_t)(g0 + (((int32_t)g1 - g0) * frac_256) / 256);
+  uint8_t b = (uint8_t)(b0 + (((int32_t)b1 - b0) * frac_256) / 256);
+  return (uint8_t)((a << 6) | (r << 4) | (g << 2) | b);
+}
+// shift_fp: how far the whole table has scrolled so far, in 1/256ths
+// of one LUT entry (Q8 fixed-point) rather than whole entries (see
+// pebble-eclipse-watch.c's own s_shake_gradient_shift_fp comment for
+// why) -- blended between the two nearest entries based on the
+// fractional part, so a small sub-entry step each frame reads as a
+// smooth continuous sweep instead of visibly hopping from one flat
+// color to the next.
+static GColor rainbow_color_at_fp(int16_t screen_x, int32_t shift_fp) {
+  int32_t pos_fp = (int32_t)(screen_x / 3) * 256 + shift_fp;
+  int32_t idx = (pos_fp / 256) % RAINBOW_LUT_SIZE;
   if (idx < 0) idx += RAINBOW_LUT_SIZE;
+  int32_t frac = pos_fp % 256;
+  if (frac < 0) frac += 256;
+  int32_t idx2 = (idx + 1) % RAINBOW_LUT_SIZE;
   GColor c;
-  c.argb = RAINBOW_OUTLINE_LUT[idx];
+  c.argb = blend_rainbow_packed_fp(RAINBOW_OUTLINE_LUT[idx], RAINBOW_OUTLINE_LUT[idx2], frac);
   return c;
 }
 
-static void stroke_line_gradient_fp(GContext *ctx, FGPoint a, FGPoint b, uint8_t shift) {
+static void stroke_line_gradient_fp(GContext *ctx, FGPoint a, FGPoint b, int32_t shift_fp) {
   int32_t dx = b.x - a.x;
   int32_t dy = b.y - a.y;
   int32_t max_len = abs(dx) > abs(dy) ? abs(dx) : abs(dy);
@@ -759,7 +783,7 @@ static void stroke_line_gradient_fp(GContext *ctx, FGPoint a, FGPoint b, uint8_t
     int16_t py = fp_round_to_px(cur_y);
 
     if (px != last_px || py != last_py) {
-      graphics_context_set_fill_color(ctx, rainbow_color_at_fp(px, shift));
+      graphics_context_set_fill_color(ctx, rainbow_color_at_fp(px, shift_fp));
       graphics_fill_rect(ctx, GRect(px, py, 1, 1), 0, GCornerNone);
       last_px = px;
       last_py = py;
@@ -769,13 +793,13 @@ static void stroke_line_gradient_fp(GContext *ctx, FGPoint a, FGPoint b, uint8_t
   }
 }
 
-static void stroke_polygon_gradient_fp(GContext *ctx, const FGPoint *pts, int n, uint8_t shift) {
+static void stroke_polygon_gradient_fp(GContext *ctx, const FGPoint *pts, int n, int32_t shift_fp) {
   for (int i = 0; i < n; i++) {
-    stroke_line_gradient_fp(ctx, pts[i], pts[(i + 1) % n], shift);
+    stroke_line_gradient_fp(ctx, pts[i], pts[(i + 1) % n], shift_fp);
   }
 }
 
-static void stroke_circle_gradient_fp(GContext *ctx, FGPoint center, int32_t radius_fp, uint8_t shift) {
+static void stroke_circle_gradient_fp(GContext *ctx, FGPoint center, int32_t radius_fp, int32_t shift_fp) {
   int16_t r_px = fp_round_to_px(radius_fp);
   if (r_px < 1) r_px = 1;
 
@@ -791,7 +815,7 @@ static void stroke_circle_gradient_fp(GContext *ctx, FGPoint center, int32_t rad
       GPoint(cx + y, cy - x), GPoint(cx + x, cy - y),
     };
     for (int i = 0; i < 8; i++) {
-      graphics_context_set_fill_color(ctx, rainbow_color_at_fp(pts[i].x, shift));
+      graphics_context_set_fill_color(ctx, rainbow_color_at_fp(pts[i].x, shift_fp));
       graphics_fill_rect(ctx, GRect(pts[i].x, pts[i].y, 1, 1), 0, GCornerNone);
     }
     y++;
