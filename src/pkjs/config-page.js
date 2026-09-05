@@ -1049,14 +1049,6 @@ function buildConfigHtml(current) {
   var fontOptions = fontOptionsHtml(clockFontId, true);
   var clockFontSmallOptions = fontOptionsHtml(clockFontSmallId, false);
 
-  function schemeOptionsHtml() {
-    var opts = '<option value="" selected>Choose a preset...</option>';
-    opts += COLOR_SCHEMES.map(function (s) {
-      return '<option value="' + s.id + '">' + esc(s.label) + '</option>';
-    }).join('');
-    return opts;
-  }
-
   function hexFromPackedByte(byte) {
     var b = parseInt(byte, 10);
     if (isNaN(b)) return '#000000';
@@ -1065,11 +1057,13 @@ function buildConfigHtml(current) {
     return '#' + ch(r2) + ch(g2) + ch(b2);
   }
   // Colors are always three concrete packed bytes now -- there's no
-  // "preset vs custom" mode to resolve here. Picking a preset (see
-  // onPresetChange() below) just writes its RGB straight into these
+  // "preset vs custom" mode stored anywhere. Picking a preset (see
+  // chooseColorPreset() below) just writes its RGB straight into these
   // same three hidden fields, same as tapping each swatch individually
   // would, so the page only ever has one representation of "current
-  // colors" to read back on load.
+  // colors" to read back on load -- whether that happens to currently
+  // match one of COLOR_SCHEMES is worked out fresh each time by
+  // matchingPresetId(), not tracked as its own separate state.
   function resolveInitialColors(bgByte, textByte, accentByte) {
     return {
       bg: hexFromPackedByte(bgByte),
@@ -1175,6 +1169,19 @@ function buildConfigHtml(current) {
 // even opens), just outside the grid and with its own top margin
 // matching where the <select> it replaces used to sit.
 '  .font-picker-trigger { margin-top: 6px; }' +
+// Color preset picker -- one full-width button per COLOR_SCHEMES entry
+// (see renderColorPresetGrid()'s own comment), the button's own
+// background set to that preset's actual background color so it reads
+// as a real preview, not just a swatch next to text. "selected" (the
+// one preset -- if any -- whose 3 colors exactly match the current
+// ones, see matchingPresetId()) gets a visibly pressed-in look
+// regardless of how light or dark that particular preset\'s own
+// background happens to be.
+'  .color-preset-btn { display: block; width: 100%; text-align: left; padding: 10px 14px; border: 1px solid var(--border); border-radius: 8px; margin-top: 8px; box-sizing: border-box; }' +
+'  .color-preset-btn.selected { border: 2px solid #ff9200; box-shadow: inset 0 2px 4px rgba(0,0,0,0.35); }' +
+'  .color-preset-main-line { display: block; font-size: 15px; font-weight: 700; }' +
+'  .color-preset-accent-line { display: block; font-size: 12px; font-weight: 600; margin-top: 2px; }' +
+'  .color-preset-trigger { margin-top: 6px; }' +
 '  .secondary-btn:active { background: var(--border-lighter); }' +
 '  .save-bar { position: fixed; left: 0; right: 0; bottom: 0; padding: 12px 20px calc(12px + env(safe-area-inset-bottom, 0px)); background: var(--page-bg); box-shadow: 0 -2px 6px rgba(0,0,0,0.1); }' +
 '  .save-bar button { width: 100%; padding: 14px; font-size: 16px; font-weight: 600; color: #fff; background: #ff9200; border: none; border-radius: 8px; }' +
@@ -1615,8 +1622,11 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '          <span class="color-role-label">Background</span>' +
 '        </button>' +
 '      </div>' +
-'      <label for="colorSchemePreset" style="margin-top:12px;">Or pick a preset</label>' +
-'      <select id="colorSchemePreset" onchange="onPresetChange()">' + schemeOptionsHtml() + '</select>' +
+'      <label style="margin-top:12px;">Or pick a preset</label>' +
+'      <button type="button" class="color-preset-btn color-preset-trigger" id="colorSchemePresetTrigger" onclick="openColorPresetPicker(\'day\')">' +
+'        <span class="color-preset-main-line"></span>' +
+'        <span class="color-preset-accent-line"></span>' +
+'      </button>' +
 '      <div class="help">Applies that preset\'s three colors immediately -- picking one is the same as tapping each swatch above and choosing that exact color.</div>' +
 '      <input type="hidden" id="customBgValue" value="' + esc(current.customBg || '255') + '">' +
 '      <input type="hidden" id="customTextValue" value="' + esc(current.customText || '192') + '">' +
@@ -1628,6 +1638,21 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '        <div class="modal-title" id="colorPickerTitle">Pick a color</div>' +
 '        <div class="hex-grid" id="hexColorGrid"></div>' +
 '        <button type="button" class="modal-cancel-btn" onclick="closeColorPicker()">Cancel</button>' +
+'      </div>' +
+'    </div>' +
+
+// Shared by both the day and night "Or pick a preset" triggers --
+// which one is currently open lives in CURRENT_PRESET_SCHEME (see
+// openColorPresetPicker() below), same "one popup, not two near-
+// identical copies" shape the font picker uses for its own 4 roles.
+// "Custom" is just the last button in the same list (see
+// renderColorPresetGrid()'s own comment) rather than a separate
+// footer action -- tapping it, same as tapping outside the popup,
+// closes without changing anything.
+'    <div class="modal-overlay" id="colorPresetPickerModal" onclick="if (event.target === this) closeColorPresetPicker();">' +
+'      <div class="modal-box">' +
+'        <div class="modal-title" id="colorPresetPickerTitle">Color preset</div>' +
+'        <div class="modal-scroll-body" id="colorPresetPickerGrid"></div>' +
 '      </div>' +
 '    </div>' +
 
@@ -1651,8 +1676,11 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '          <span class="color-role-label">Background</span>' +
 '        </button>' +
 '      </div>' +
-'      <label for="nightSchemePreset" style="margin-top:12px;">Or pick a preset</label>' +
-'      <select id="nightSchemePreset" onchange="onPresetChange(\'night\')">' + schemeOptionsHtml() + '</select>' +
+'      <label style="margin-top:12px;">Or pick a preset</label>' +
+'      <button type="button" class="color-preset-btn color-preset-trigger" id="nightSchemePresetTrigger" onclick="openColorPresetPicker(\'night\')">' +
+'        <span class="color-preset-main-line"></span>' +
+'        <span class="color-preset-accent-line"></span>' +
+'      </button>' +
 '      <div class="help">Applies that preset\'s three colors immediately -- picking one is the same as tapping each swatch above and choosing that exact color.</div>' +
 '      <input type="hidden" id="nightCustomBgValue" value="' + esc(current.nightCustomBg || '192') + '">' +
 '      <input type="hidden" id="nightCustomTextValue" value="' + esc(current.nightCustomText || '255') + '">' +
@@ -2105,13 +2133,18 @@ handEditorModalHtml('sec', 'Edit second hand') +
 'function hexFor(r2,g2,b2) { return "#" + chHex(r2) + chHex(g2) + chHex(b2); }' +
 'function hexFromByte(byte) { return hexFor((byte>>4)&3, (byte>>2)&3, byte&3); }' +
 
+// Runtime copy of the generator-side COLOR_SCHEMES table -- serialized
+// straight from that same array at page-generation time, same "can't
+// drift apart" reasoning as FONT_LOOKUP's own runtime copy. Shared by
+// findPresetById() below and the color preset picker popup further
+// down (matchingPresetId()/renderColorPresetGrid()).
+'var COLOR_SCHEMES = ' + JSON.stringify(COLOR_SCHEMES) + ';' +
 
 'function findPresetById(id) {' +
-'  var presets = ' + JSON.stringify(COLOR_SCHEMES) + ';' +
-'  for (var i = 0; i < presets.length; i++) {' +
-'    if (String(presets[i].id) === String(id)) return presets[i];' +
+'  for (var i = 0; i < COLOR_SCHEMES.length; i++) {' +
+'    if (String(COLOR_SCHEMES[i].id) === String(id)) return COLOR_SCHEMES[i];' +
 '  }' +
-'  return presets[0];' +
+'  return COLOR_SCHEMES[0];' +
 '}' +
 
 'function colorsFor(bgId, textId, accentId) {' +
@@ -3669,6 +3702,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  document.getElementById(prefix + "Main").style.background = colors.text;' +
 '  document.getElementById(prefix + "Accent").style.background = colors.accent;' +
 '  document.getElementById(prefix + "Bg").style.background = colors.bg;' +
+'  updateColorPresetTriggerLabel(scheme);' +
 '}' +
 
 'function hexToByte(hex) {' +
@@ -3677,19 +3711,105 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  return packedByteFor(to2bit(r), to2bit(g), to2bit(b));' +
 '}' +
 
-'function onPresetChange(scheme) {' +
-'  var presetSelectId = scheme === "night" ? "nightSchemePreset" : "colorSchemePreset";' +
-'  var select = document.getElementById(presetSelectId);' +
-'  var picked = select.value;' +
-'  if (!picked) return;' +
-'  var preset = findPresetById(picked);' +
+// ---- Color preset picker -------------------------------------------
+// A preset\'s own `label` is already written as "<Main> on <Background>"
+// (optionally followed by ", <Accent> accent" when the accent differs
+// from the main color -- see COLOR_SCHEMES\' own comment) -- these two
+// helpers split that one string back into the two separate pieces this
+// popup shows on its own two lines, rather than duplicating the accent
+// name a second time by showing the label\'s full text verbatim on line
+// 1 as well as again on line 2.
+'function mainColorPhrase(label) {' +
+'  var idx = label.indexOf(",");' +
+'  return idx === -1 ? label : label.substring(0, idx);' +
+'}' +
+'function accentColorName(label) {' +
+'  var m = /,\\s*(.+?)\\s+accent$/.exec(label);' +
+'  if (m) return m[1];' +
+'  var m2 = /^(.+?)\\s+on\\s+/.exec(label);' +
+'  return m2 ? m2[1] : label;' +
+'}' +
+// The one preset (if any) whose 3 colors exactly match the current
+// ones -- null means none do, i.e. the current colors are genuinely
+// custom. Used both to mark that one button "selected" in the popup
+// and to decide what the trigger button itself should say.
+'function matchingPresetId(colors) {' +
+'  for (var i = 0; i < COLOR_SCHEMES.length; i++) {' +
+'    var s = COLOR_SCHEMES[i];' +
+'    if (s.bg.toLowerCase() === colors.bg.toLowerCase() && s.text.toLowerCase() === colors.text.toLowerCase() && s.accent.toLowerCase() === colors.accent.toLowerCase()) {' +
+'      return s.id;' +
+'    }' +
+'  }' +
+'  return null;' +
+'}' +
+// Mirrors whatever the popup itself would show for the currently
+// active entry (a matching preset\'s own two lines, or the "Custom: ..."
+// pair when nothing matches) -- called from updateColorRoleButtons()
+// above, so it\'s always in sync with the swatches without needing its
+// own separate call site at every place colors can change.
+'function updateColorPresetTriggerLabel(scheme) {' +
+'  var colors = scheme === "night" ? nightColors() : dayColors();' +
+'  var trigger = document.getElementById(scheme === "night" ? "nightSchemePresetTrigger" : "colorSchemePresetTrigger");' +
+'  if (!trigger) return;' +
+'  var mainLine = trigger.querySelector(".color-preset-main-line");' +
+'  var accentLine = trigger.querySelector(".color-preset-accent-line");' +
+'  trigger.style.background = colors.bg;' +
+'  var matchId = matchingPresetId(colors);' +
+'  if (matchId !== null) {' +
+'    var preset = findPresetById(matchId);' +
+'    if (mainLine) { mainLine.textContent = mainColorPhrase(preset.label); mainLine.style.color = preset.text; }' +
+'    if (accentLine) { accentLine.textContent = accentColorName(preset.label) + " accent color"; accentLine.style.color = preset.accent; }' +
+'  } else {' +
+'    if (mainLine) { mainLine.textContent = "Custom: Main color on Background color"; mainLine.style.color = colors.text; }' +
+'    if (accentLine) { accentLine.textContent = "Accent color"; accentLine.style.color = colors.accent; }' +
+'  }' +
+'}' +
+'var CURRENT_PRESET_SCHEME = "day";' +
+'function openColorPresetPicker(scheme) {' +
+'  CURRENT_PRESET_SCHEME = scheme || "day";' +
+'  document.getElementById("colorPresetPickerTitle").textContent = (scheme === "night") ? "Night color preset" : "Color preset";' +
+'  renderColorPresetGrid();' +
+'  document.getElementById("colorPresetPickerModal").className = "modal-overlay open";' +
+'}' +
+'function closeColorPresetPicker() {' +
+'  document.getElementById("colorPresetPickerModal").className = "modal-overlay";' +
+'}' +
+// One button per COLOR_SCHEMES entry, colored in that preset\'s own
+// background, plus one final "Custom" button (see this file\'s own
+// request/comment above) showing whatever the current colors actually
+// are -- not a separate footer action, just the last item in the same
+// list. Re-run whenever the popup opens and whenever it matters which
+// entry counts as "selected" -- which is only ever "which one, if any,
+// matches the current colors", so there\'s nothing else to invalidate
+// this on.
+'function renderColorPresetGrid() {' +
+'  var scheme = CURRENT_PRESET_SCHEME;' +
+'  var colors = scheme === "night" ? nightColors() : dayColors();' +
+'  var matchId = matchingPresetId(colors);' +
+'  var html = "";' +
+'  COLOR_SCHEMES.forEach(function (s) {' +
+'    var selected = matchId !== null && String(matchId) === String(s.id);' +
+'    html += \'<button type="button" class="color-preset-btn\' + (selected ? " selected" : "") + \'" style="background:\' + s.bg + \';" onclick="chooseColorPreset(\' + s.id + \')">\' +' +
+'      \'<span class="color-preset-main-line" style="color:\' + s.text + \';">\' + esc(mainColorPhrase(s.label)) + "</span>" +' +
+'      \'<span class="color-preset-accent-line" style="color:\' + s.accent + \';">\' + esc(accentColorName(s.label) + " accent color") + "</span></button>";' +
+'  });' +
+'  var customSelected = matchId === null;' +
+'  html += \'<button type="button" class="color-preset-btn\' + (customSelected ? " selected" : "") + \'" style="background:\' + colors.bg + \';" onclick="chooseColorPreset(null)">\' +' +
+'    \'<span class="color-preset-main-line" style="color:\' + colors.text + \';">Custom: Main color on Background color</span>\' +' +
+'    \'<span class="color-preset-accent-line" style="color:\' + colors.accent + \';">Accent color</span></button>\';' +
+'  document.getElementById("colorPresetPickerGrid").innerHTML = html;' +
+'}' +
+// null id means "Custom" was tapped -- same as tapping outside the
+// popup, that just closes it without touching any colors (there\'s
+// nothing to "apply" -- the current colors already are what they are).
+'function chooseColorPreset(id) {' +
+'  var scheme = CURRENT_PRESET_SCHEME;' +
+'  closeColorPresetPicker();' +
+'  if (id === null || id === undefined) return;' +
+'  var preset = findPresetById(id);' +
 '  document.getElementById(customHiddenIdFor("text", scheme)).value = hexToByte(preset.text);' +
 '  document.getElementById(customHiddenIdFor("accent", scheme)).value = hexToByte(preset.accent);' +
 '  document.getElementById(customHiddenIdFor("bg", scheme)).value = hexToByte(preset.bg);' +
-// Reset to the placeholder -- this dropdown never represents "current
-// state", it's a one-shot apply, same as tapping each swatch and
-// picking that color would be.
-'  select.value = "";' +
 '  updateColorRoleButtons(scheme);' +
 '  if (scheme !== "night") updatePreview();' +
 '}' +
