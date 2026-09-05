@@ -176,51 +176,132 @@ var EXAMPLE_STYLE_PRESETS = require('./example-style-presets');
 // their own small-font box instead of grayed out entirely, same
 // reasoning font_lookup_is_wide()/use_small_seconds_for_digital_clock()
 // apply on the watch itself.
+// `sizePx` is the REAL on-watch bake size -- copied straight from each
+// custom font's own package.json resource name (the trailing _NN is
+// the actual point size Pebble's font tool renders that .ttf/.otf at,
+// not just a naming convention -- see package.json's "media" list).
+// System fonts (ids 0-15) aren't custom resources at all (no
+// package.json entry -- they're built into the firmware, referenced
+// via FONT_KEY_* constants), so there's nothing to copy for those;
+// `sizePx` falls back to `height`'s own already-approximate estimate.
+//
+// `google`/`weight`/`italic` identify the actual Google Font used for
+// this page's live font-picker previews (see googleFontsHref() and
+// the font-picker popup below) -- verified against fonts.google.com,
+// not guessed. `approx: true` marks a substitute rather than the real
+// face: the on-watch font itself isn't (and, as far as could be
+// verified, has never been) published on Google Fonts, so the picker
+// shows the closest visual analogue instead of the exact glyphs --
+// each one says why in its own comment. Every non-approx entry below
+// is the literal same family as what's baked into the watch resource.
 var FONT_LOOKUP = [
-  { id: 0,  label: 'System Small',        height: 14, preview: "font-family: Arial, sans-serif;", small: true },
-  { id: 1,  label: 'System Medium',       height: 18, preview: "font-family: Arial, sans-serif; font-weight: 700;", small: true },
-  { id: 2,  label: 'System Large',        height: 24, preview: "font-family: Arial, sans-serif; font-weight: 700;", small: true },
-  { id: 3,  label: 'System XL',           height: 32, preview: "font-family: Arial, sans-serif; font-weight: 700;", small: false },
-  { id: 4,  label: 'System XXL',          height: 36, preview: "font-family: Arial, sans-serif; font-weight: 700;", small: false },
-  { id: 5,  label: 'Leco Small',          height: 17, preview: "font-family: Arial, sans-serif; font-weight: 300;", small: true },
-  { id: 6,  label: 'Leco Medium',         height: 20, preview: "font-family: Arial, sans-serif; font-weight: 700;", small: true },
-  { id: 7,  label: 'Leco Large',          height: 23, preview: "font-family: Arial, sans-serif; font-weight: 700;", small: true },
-  { id: 8,  label: 'Leco XL',             height: 26, preview: "font-family: Arial, sans-serif; font-weight: 700;", small: true, mainClock: true, pairedSmallId: 5 },
-  { id: 9,  label: 'Droid Serif',         height: 17, preview: "font-family: Georgia, serif; font-weight: 700;", small: true },
-  { id: 10, label: 'Roboto Condensed',    height: 15, preview: "font-family: 'Roboto Condensed', Arial, sans-serif;", small: true },
-  { id: 11, label: 'Roboto Bold',         height: 30, preview: "font-family: 'Roboto', Arial, sans-serif; font-weight: 700;", small: true, mainClock: true, pairedSmallId: 10 },
-  { id: 12, label: 'Bitham Bold 30',      height: 19, preview: "font-family: 'Futura', 'Century Gothic', sans-serif; font-weight: 700;", small: true },
-  { id: 13, label: 'Bitham Medium 34',    height: 21, preview: "font-family: 'Futura', 'Century Gothic', sans-serif; font-weight: 500;", small: true },
-  { id: 14, label: 'Bitham Light',        height: 26, preview: "font-family: 'Futura', 'Century Gothic', sans-serif; font-weight: 300; letter-spacing: 1px;", small: true, mainClock: true, pairedSmallId: 4 },
-  { id: 15, label: 'Bitham Bold',         height: 26, preview: "font-family: 'Futura', 'Century Gothic', sans-serif; font-weight: 700; letter-spacing: 1px;", small: true, mainClock: true, pairedSmallId: 4 },
-  { id: 16, label: 'Digital Dream Small', height: 12, preview: "font-family: 'Courier New', monospace; letter-spacing: 2px; font-weight: 700;", small: true },
-  { id: 17, label: 'Digital Dream',       height: 40, preview: "font-family: 'Courier New', monospace; letter-spacing: 4px; font-weight: 700;", small: false, mainClock: true, pairedSmallId: 16 },
-  { id: 18, label: 'Minecrafter Small',   height: 12, preview: "font-family: 'Courier New', monospace; letter-spacing: 2px;", small: true },
-  { id: 19, label: 'Minecrafter',         height: 40, preview: "font-family: 'Courier New', monospace; letter-spacing: 3px;", small: false, mainClock: true, pairedSmallId: 18, wide: true, secondsDisabled: true },
-  { id: 20, label: 'SF Pixelate Small',   height: 14, preview: "font-family: 'Courier New', monospace; letter-spacing: 1px;", small: true },
-  { id: 21, label: 'SF Pixelate',         height: 40, preview: "font-family: 'Courier New', monospace; letter-spacing: 2px;", small: false, mainClock: true, pairedSmallId: 20, wide: true, secondsDisabled: true },
-  { id: 22, label: 'Alagard Small',       height: 19, preview: "font-family: 'Century Gothic', sans-serif; font-weight: 600;", small: true },
-  { id: 23, label: 'Alagard',             height: 40, preview: "font-family: 'Century Gothic', sans-serif; font-weight: 600;", small: false, mainClock: true, pairedSmallId: 22 },
-  { id: 24, label: 'Bebas Small',         height: 20, preview: "font-family: 'Bebas', 'Century Gothic', sans-serif; font-weight: 700; letter-spacing: 1px;", small: true },
-  { id: 25, label: 'Bebas',               height: 40, preview: "font-family: 'Bebas', 'Century Gothic', sans-serif; font-weight: 700; letter-spacing: 1px;", small: false, mainClock: true, pairedSmallId: 24 },
-  { id: 26, label: 'Amita',               height: 40, preview: "font-family: Impact, sans-serif; font-weight: 700; letter-spacing: 1px;", small: false, mainClock: true, pairedSmallId: 4 },
-  { id: 27, label: 'AveriaSerifLibre',    height: 40, preview: "font-family: 'Courier New', monospace; font-weight: 700;", small: false, mainClock: true, pairedSmallId: 4, wide: true, secondsDisabled: true },
-  { id: 28, label: 'Bagel',               height: 40, preview: "font-family: 'Courier New', monospace;", small: false, mainClock: true, pairedSmallId: 4, wide: true, secondsDisabled: true },
-  { id: 29, label: 'Bricolage Grotesque', height: 40, preview: "font-family: Impact, 'Arial Narrow', sans-serif;", small: false, mainClock: true, pairedSmallId: 4, wide: true, secondsDisabled: true },
-  { id: 30, label: 'Chango',              height: 40, preview: "font-family: 'Courier New', monospace; font-weight: 700; letter-spacing: 2px;", small: false, mainClock: true, pairedSmallId: 4 },
-  { id: 31, label: 'EmblemaOne',          height: 40, preview: "font-family: 'Arial Narrow', sans-serif; letter-spacing: 3px; font-weight: 700;", small: false, mainClock: true, pairedSmallId: 4 },
-  { id: 32, label: 'Fraunces',            height: 40, preview: "font-family: Georgia, serif; font-weight: 700;", small: false, mainClock: true, pairedSmallId: 4 },
-  { id: 33, label: 'Geostar Fill',        height: 40, preview: "font-family: Impact, sans-serif; font-weight: 900;", small: false, mainClock: true, pairedSmallId: 4 },
-  { id: 34, label: 'Michroma',            height: 40, preview: "font-family: 'Arial Black', sans-serif; letter-spacing: 1px;", small: false, mainClock: true, pairedSmallId: 4, wide: true, secondsDisabled: true },
-  { id: 35, label: 'National Park',       height: 40, preview: "font-family: Verdana, sans-serif; font-weight: 700;", small: false, mainClock: true, pairedSmallId: 4 },
-  { id: 36, label: 'Komika',              height: 40, preview: "font-family: 'Comic Sans MS', cursive; font-weight: 700;", small: false, mainClock: true, pairedSmallId: 4, wide: true, secondsDisabled: true },
-  { id: 37, label: 'Quantico',            height: 40, preview: "font-family: Impact, 'Arial Narrow', sans-serif; font-style: italic; letter-spacing: 1px;", small: false, mainClock: true, pairedSmallId: 4 },
-  { id: 38, label: 'Silkscreen',          height: 40, preview: "font-family: Impact, 'Arial Narrow', sans-serif; font-style: italic; letter-spacing: 1px;", small: false, mainClock: true, pairedSmallId: 4 },
-  { id: 39, label: 'StackSansHeadline',   height: 40, preview: "font-family: Impact, 'Arial Narrow', sans-serif; font-style: italic; letter-spacing: 1px;", small: false, mainClock: true, pairedSmallId: 4 },
-  { id: 40, label: 'Unbounded',           height: 40, preview: "font-family: Impact, 'Arial Narrow', sans-serif; font-style: italic; letter-spacing: 1px;", small: false, mainClock: true, pairedSmallId: 4 },
-  { id: 41, label: 'Wallpoet',            height: 40, preview: "font-family: Impact, 'Arial Narrow', sans-serif; font-style: italic; letter-spacing: 1px;", small: false, mainClock: true, pairedSmallId: 4 },
-  { id: 42, label: 'ZalandoSans',         height: 40, preview: "font-family: Impact, 'Arial Narrow', sans-serif; font-style: italic; letter-spacing: 1px;", small: false, mainClock: true, pairedSmallId: 4 }
+  { id: 0,  label: 'System Small',        height: 14, preview: "font-family: Arial, sans-serif;", small: true,
+    google: null, sizePx: 14, approx: true }, // Pebble's built-in "Gothic" system font -- no Google Fonts equivalent by name; Arial/Helvetica is the closest common grotesque.
+  { id: 1,  label: 'System Medium',       height: 18, preview: "font-family: Arial, sans-serif; font-weight: 700;", small: true,
+    google: null, sizePx: 18, approx: true }, // see id 0
+  { id: 2,  label: 'System Large',        height: 24, preview: "font-family: Arial, sans-serif; font-weight: 700;", small: true,
+    google: null, sizePx: 24, approx: true }, // see id 0
+  { id: 3,  label: 'System XL',           height: 32, preview: "font-family: Arial, sans-serif; font-weight: 700;", small: false,
+    google: null, sizePx: 32, approx: true }, // see id 0
+  { id: 4,  label: 'System XXL',          height: 36, preview: "font-family: Arial, sans-serif; font-weight: 700;", small: false,
+    google: null, sizePx: 36, approx: true }, // see id 0
+  { id: 5,  label: 'Leco Small',          height: 17, preview: "font-family: Arial, sans-serif; font-weight: 300;", small: true,
+    google: null, sizePx: 17, approx: true }, // Pebble's built-in rounded numerals font -- no Google Fonts equivalent; no substitute attempted beyond a plain sans, since Leco's own rounded-digit character is hard to approximate with a generic family.
+  { id: 6,  label: 'Leco Medium',         height: 20, preview: "font-family: Arial, sans-serif; font-weight: 700;", small: true,
+    google: null, sizePx: 20, approx: true }, // see id 5
+  { id: 7,  label: 'Leco Large',          height: 23, preview: "font-family: Arial, sans-serif; font-weight: 700;", small: true,
+    google: null, sizePx: 23, approx: true }, // see id 5
+  { id: 8,  label: 'Leco XL',             height: 26, preview: "font-family: Arial, sans-serif; font-weight: 700;", small: true, mainClock: true, pairedSmallId: 5,
+    google: null, sizePx: 26, approx: true }, // see id 5
+  { id: 9,  label: 'Droid Serif',         height: 17, preview: "font-family: 'Droid Serif', Georgia, serif; font-weight: 700;", small: true,
+    google: 'Droid Serif', weight: 700, sizePx: 17 }, // still genuinely on Google Fonts (legacy listing, but live)
+  { id: 10, label: 'Roboto Condensed',    height: 15, preview: "font-family: 'Roboto Condensed', Arial, sans-serif;", small: true,
+    google: 'Roboto Condensed', weight: 400, sizePx: 15 },
+  { id: 11, label: 'Roboto Bold',         height: 30, preview: "font-family: 'Roboto', Arial, sans-serif; font-weight: 700;", small: true, mainClock: true, pairedSmallId: 10,
+    google: 'Roboto', weight: 700, sizePx: 30 },
+  { id: 12, label: 'Bitham Bold 30',      height: 19, preview: "font-family: 'Futura', 'Century Gothic', sans-serif; font-weight: 700;", small: true,
+    google: null, sizePx: 19, approx: true }, // Pebble's built-in Bitham -- no Google Fonts equivalent; Futura/Century Gothic (neither actually Google Fonts either) are the closest geometric-sans stand-ins available without downloading anything.
+  { id: 13, label: 'Bitham Medium 34',    height: 21, preview: "font-family: 'Futura', 'Century Gothic', sans-serif; font-weight: 500;", small: true,
+    google: null, sizePx: 21, approx: true }, // see id 12
+  { id: 14, label: 'Bitham Light',        height: 26, preview: "font-family: 'Futura', 'Century Gothic', sans-serif; font-weight: 300; letter-spacing: 1px;", small: true, mainClock: true, pairedSmallId: 4,
+    google: null, sizePx: 26, approx: true }, // see id 12
+  { id: 15, label: 'Bitham Bold',         height: 26, preview: "font-family: 'Futura', 'Century Gothic', sans-serif; font-weight: 700; letter-spacing: 1px;", small: true, mainClock: true, pairedSmallId: 4,
+    google: null, sizePx: 26, approx: true }, // see id 12
+  { id: 16, label: 'Digital Dream Small', height: 12, preview: "font-family: 'VT323', 'Courier New', monospace; letter-spacing: 1px;", small: true,
+    google: 'VT323', weight: 400, sizePx: 12, approx: true }, // Digital Dream (Pizzadude, dafont-only) isn't on Google Fonts -- VT323's CRT/LCD terminal look is the closest digital-clock-style match Google Fonts has.
+  { id: 17, label: 'Digital Dream',       height: 40, preview: "font-family: 'VT323', 'Courier New', monospace; letter-spacing: 2px;", small: false, mainClock: true, pairedSmallId: 16,
+    google: 'VT323', weight: 400, sizePx: 48, approx: true }, // see id 16
+  { id: 18, label: 'Minecrafter Small',   height: 12, preview: "font-family: 'Press Start 2P', 'Courier New', monospace;", small: true,
+    google: 'Press Start 2P', weight: 400, sizePx: 12, approx: true }, // Minecrafter (dafont-only) isn't on Google Fonts -- Press Start 2P's blocky 8-bit game look is the closest match.
+  { id: 19, label: 'Minecrafter',         height: 40, preview: "font-family: 'Press Start 2P', 'Courier New', monospace;", small: false, mainClock: true, pairedSmallId: 18, wide: true, secondsDisabled: true,
+    google: 'Press Start 2P', weight: 400, sizePx: 48, approx: true }, // see id 18
+  { id: 20, label: 'SF Pixelate Small',   height: 14, preview: "font-family: 'DotGothic16', 'Courier New', monospace;", small: true,
+    google: 'DotGothic16', weight: 400, sizePx: 14, approx: true }, // SF Pixelate (dafont-only) isn't on Google Fonts -- DotGothic16's clean pixel-grid look is the closest match without reusing Minecrafter's/Digital Dream's own substitutes above.
+  { id: 21, label: 'SF Pixelate',         height: 40, preview: "font-family: 'DotGothic16', 'Courier New', monospace;", small: false, mainClock: true, pairedSmallId: 20, wide: true, secondsDisabled: true,
+    google: 'DotGothic16', weight: 400, sizePx: 48, approx: true }, // see id 20
+  { id: 22, label: 'Alagard Small',       height: 19, preview: "font-family: 'Pixelify Sans', 'Century Gothic', sans-serif; font-weight: 600;", small: true,
+    google: 'Pixelify Sans', weight: 600, sizePx: 19, approx: true }, // Alagard (dafont-only, Hewett Tsoi's 16px fantasy bitmap face) isn't on Google Fonts -- Pixelify Sans's blocky pixel-game look is the closest available match.
+  { id: 23, label: 'Alagard',             height: 40, preview: "font-family: 'Pixelify Sans', 'Century Gothic', sans-serif; font-weight: 600;", small: false, mainClock: true, pairedSmallId: 22,
+    google: 'Pixelify Sans', weight: 600, sizePx: 48, approx: true }, // see id 22
+  { id: 24, label: 'Bebas Small',         height: 20, preview: "font-family: 'Bebas Neue', 'Century Gothic', sans-serif; letter-spacing: 1px;", small: true,
+    google: 'Bebas Neue', weight: 400, sizePx: 20 },
+  { id: 25, label: 'Bebas',               height: 40, preview: "font-family: 'Bebas Neue', 'Century Gothic', sans-serif; letter-spacing: 1px;", small: false, mainClock: true, pairedSmallId: 24,
+    google: 'Bebas Neue', weight: 400, sizePx: 48 },
+  { id: 26, label: 'Amita',               height: 40, preview: "font-family: 'Amita', Impact, sans-serif; font-weight: 700;", small: false, mainClock: true, pairedSmallId: 4,
+    google: 'Amita', weight: 700, sizePx: 48 },
+  { id: 27, label: 'AveriaSerifLibre',    height: 40, preview: "font-family: 'Averia Serif Libre', 'Courier New', serif; font-weight: 700; font-style: italic;", small: false, mainClock: true, pairedSmallId: 4, wide: true, secondsDisabled: true,
+    google: 'Averia Serif Libre', weight: 700, italic: true, sizePx: 48 },
+  { id: 28, label: 'Bagel',               height: 40, preview: "font-family: 'Bagel Fat One', 'Courier New', monospace;", small: false, mainClock: true, pairedSmallId: 4, wide: true, secondsDisabled: true,
+    google: 'Bagel Fat One', weight: 400, sizePx: 48 },
+  { id: 29, label: 'Bricolage Grotesque', height: 40, preview: "font-family: 'Bricolage Grotesque', Impact, 'Arial Narrow', sans-serif; font-weight: 700;", small: false, mainClock: true, pairedSmallId: 4, wide: true, secondsDisabled: true,
+    google: 'Bricolage Grotesque', weight: 700, sizePx: 48 },
+  { id: 30, label: 'Chango',              height: 40, preview: "font-family: 'Chango', 'Courier New', monospace;", small: false, mainClock: true, pairedSmallId: 4,
+    google: 'Chango', weight: 400, sizePx: 48 },
+  { id: 31, label: 'EmblemaOne',          height: 40, preview: "font-family: 'Emblema One', 'Arial Narrow', sans-serif; letter-spacing: 1px;", small: false, mainClock: true, pairedSmallId: 4,
+    google: 'Emblema One', weight: 400, sizePx: 48 },
+  { id: 32, label: 'Fraunces',            height: 40, preview: "font-family: 'Fraunces', Georgia, serif; font-weight: 700;", small: false, mainClock: true, pairedSmallId: 4,
+    google: 'Fraunces', weight: 700, sizePx: 48 },
+  { id: 33, label: 'Geostar Fill',        height: 40, preview: "font-family: 'Geostar Fill', Impact, sans-serif;", small: false, mainClock: true, pairedSmallId: 4,
+    google: 'Geostar Fill', weight: 400, sizePx: 48 },
+  { id: 34, label: 'Michroma',            height: 40, preview: "font-family: 'Michroma', 'Arial Black', sans-serif; letter-spacing: 1px;", small: false, mainClock: true, pairedSmallId: 4, wide: true, secondsDisabled: true,
+    google: 'Michroma', weight: 400, sizePx: 48 },
+  { id: 35, label: 'National Park',       height: 40, preview: "font-family: 'National Park', Verdana, sans-serif; font-weight: 700;", small: false, mainClock: true, pairedSmallId: 4,
+    google: 'National Park', weight: 700, sizePx: 48 },
+  { id: 36, label: 'Komika',              height: 40, preview: "font-family: 'Bangers', 'Comic Sans MS', cursive;", small: false, mainClock: true, pairedSmallId: 4, wide: true, secondsDisabled: true,
+    google: 'Bangers', weight: 400, sizePx: 48, approx: true }, // Komika Hand (Apostrophic Labs, dafont-only) isn't on Google Fonts -- Bangers is the closest bold comic-lettering face Google Fonts actually has.
+  { id: 37, label: 'Quantico',            height: 40, preview: "font-family: 'Quantico', Impact, 'Arial Narrow', sans-serif; font-weight: 700; font-style: italic;", small: false, mainClock: true, pairedSmallId: 4,
+    google: 'Quantico', weight: 700, italic: true, sizePx: 48 },
+  { id: 38, label: 'Silkscreen',          height: 40, preview: "font-family: 'Silkscreen', Impact, 'Arial Narrow', sans-serif;", small: false, mainClock: true, pairedSmallId: 4,
+    google: 'Silkscreen', weight: 400, sizePx: 48 },
+  { id: 39, label: 'StackSansHeadline',   height: 40, preview: "font-family: 'Anton', 'Arial Narrow', sans-serif;", small: false, mainClock: true, pairedSmallId: 4,
+    google: 'Anton', weight: 400, sizePx: 48, approx: true }, // Stack Sans Headline isn't on Google Fonts (independent foundry release) -- Anton's ultra-bold condensed headline shape is the closest match.
+  { id: 40, label: 'Unbounded',           height: 40, preview: "font-family: 'Unbounded', Impact, 'Arial Narrow', sans-serif; font-weight: 500;", small: false, mainClock: true, pairedSmallId: 4,
+    google: 'Unbounded', weight: 500, sizePx: 48 },
+  { id: 41, label: 'Wallpoet',            height: 40, preview: "font-family: 'Wallpoet', Impact, 'Arial Narrow', sans-serif;", small: false, mainClock: true, pairedSmallId: 4,
+    google: 'Wallpoet', weight: 400, sizePx: 48 },
+  { id: 42, label: 'ZalandoSans',         height: 40, preview: "font-family: 'Zalando Sans Expanded', Impact, 'Arial Narrow', sans-serif; font-weight: 500;", small: false, mainClock: true, pairedSmallId: 4,
+    google: 'Zalando Sans Expanded', weight: 500, sizePx: 48 }
 ]; // remember to bump FONT_MAX_CONTENT_ID in index.js!!!
+
+// Builds one combined Google Fonts stylesheet URL covering every
+// `google` family (at its own specific weight/italic) FONT_LOOKUP
+// actually uses, deduplicated -- so the settings page only ever makes
+// one request instead of one per font. Used for the live font-picker
+// previews (see fontPickerModal below) -- purely cosmetic, the watch
+// itself never touches Google Fonts.
+function googleFontsHref() {
+  var seen = {};
+  var params = [];
+  FONT_LOOKUP.forEach(function (f) {
+    if (!f.google) return;
+    var italAxis = f.italic ? '1' : '0';
+    var key = f.google + '|' + italAxis + '|' + f.weight;
+    if (seen[key]) return;
+    seen[key] = true;
+    params.push('family=' + encodeURIComponent(f.google).replace(/%20/g, '+') + ':ital,wght@' + italAxis + ',' + f.weight);
+  });
+  return 'https://fonts.googleapis.com/css2?' + params.join('&') + '&display=swap';
+}
 
 // Fastest way to go from an id to its entry -- every font picker
 // needs this (rendering the current selection, gating Show Seconds,
@@ -573,10 +654,14 @@ function textMarkerModalHtml(current) {
 
 '    <div id="markerTextOptions" style="' + (current.markerTextTarget && current.markerTextTarget !== '0' ? '' : 'display:none;') + '">' +
 '      <label for="markerTextFont" style="margin-top:10px;">Font</label>' +
-'      <select id="markerTextFont" onchange="onMarkerTextFontChange()">' + fontOptionsHtml(parseInt(current.markerTextFont || '0', 10), false) + '</select>' +
+'      <select id="markerTextFont" onchange="onMarkerTextFontChange()" style="display:none;">' + fontOptionsHtml(parseInt(current.markerTextFont || '0', 10), false) + '</select>' +
+'      <button type="button" class="font-picker-btn font-picker-trigger" id="markerTextFontTrigger" onclick="openFontPicker(\'markerTextFont\')">' +
+'        <span class="font-picker-preview" id="markerTextFontTriggerPreview"></span>' +
+'        <span class="font-picker-name" id="markerTextFontTriggerName"></span>' +
+'      </button>' +
 
 '      <div class="checkbox-row" style="margin-top:12px;">' +
-'        <input type="checkbox" id="markerTextRoman" ' + (current.markerTextRoman === 'true' && !ROMAN_INCOMPATIBLE_FONTS[current.markerTextFont] ? 'checked' : '') + ' ' + (ROMAN_INCOMPATIBLE_FONTS[current.markerTextFont] ? 'disabled' : '') + '>' +
+'        <input type="checkbox" id="markerTextRoman" onchange="refreshAllFontTriggerLabels()" ' + (current.markerTextRoman === 'true' && !ROMAN_INCOMPATIBLE_FONTS[current.markerTextFont] ? 'checked' : '') + ' ' + (ROMAN_INCOMPATIBLE_FONTS[current.markerTextFont] ? 'disabled' : '') + '>' +
 '        <label for="markerTextRoman" style="margin:0;">Roman numerals</label>' +
 '      </div>' +
 '      <div class="help" id="markerTextRomanHelp">' + (ROMAN_INCOMPATIBLE_FONTS[current.markerTextFont] ? 'Not available with this font -- its glyphs don\'t support Roman numerals correctly.' : 'Shows I, II, III... instead of 1, 2, 3... -- independent of the font above.') + '</div>' +
@@ -908,12 +993,6 @@ function buildConfigHtml(current) {
   var secondsChecked = (current.showSeconds && !secondsUnsupported) ? 'checked' : '';
   var secondsDisabled = secondsUnsupported ? 'disabled' : '';
   var cornerFontId = parseInt(current.cornerFont || '1', 10);
-  // Defaults to checked (showing every font, not just the small ones)
-  // whenever the CURRENTLY saved selection for that picker is itself
-  // one of the fonts that would otherwise be hidden -- so loading the
-  // page never makes an already-picked font disappear from view.
-  var cornerFontShowIncompatible = !fontLookupEntry(cornerFontId).small;
-  var clockFontSmallShowIncompatible = !fontLookupEntry(clockFontSmallId).small;
 
   // One <button> per example-style slot (see EXAMPLE_STYLE_COUNT's own
   // comment above) -- a screenshot if one's been generated for that
@@ -993,6 +1072,9 @@ function buildConfigHtml(current) {
 '<html><head><meta charset="utf-8">' +
 '<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">' +
 '<title>Eclipz Settings</title>' +
+'<link rel="preconnect" href="https://fonts.googleapis.com">' +
+'<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>' +
+'<link rel="stylesheet" href="' + googleFontsHref() + '">' +
 '<style>' +
 '  :root { --page-bg: #f4f4f4; --card-bg: #fff; --text: #222; --text-strong: #333; --text-muted: #666; --text-faint: #888; --text-faint2: #555; --text-disabled: #999; --border: #ccc; --border-light: #eee; --border-lighter: #ddd; --btn-bg: #fafafa; }' +
 '  @media (prefers-color-scheme: dark) {' +
@@ -1055,6 +1137,24 @@ function buildConfigHtml(current) {
 '  .style-picker-btn-cap { position: absolute; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.55); color: #fff; font-size: 10px; font-weight: 700; padding: 3px 2px; text-align: center; line-height: 1.2; }' +
 '  .style-picker-custom-btn { width: 100%; box-sizing: border-box; padding: 12px; font-size: 14px; font-weight: 600; color: var(--text-strong); background: var(--btn-bg); border: 1px solid var(--border); border-radius: 8px; margin-top: 10px; }' +
 '  .style-picker-custom-btn:active { background: var(--border-light); }' +
+// Font picker -- one full-width row per font, left third showing that
+// font's own live preview text set in its actual (Google Fonts, where
+// available -- see FONT_LOOKUP's own comment) family at a size scaled
+// toward its real on-watch bake size, right two-thirds the font's
+// plain-text name at the page's normal UI size. Same overall shape as
+// .mode-btn-group-vertical's stacked rows, just with an internal
+// left/right split instead of plain centered text.
+'  .font-picker-btn { display: flex; align-items: stretch; width: 100%; box-sizing: border-box; text-align: left; padding: 0; background: var(--btn-bg); border: 1px solid var(--border); border-radius: 8px; margin-top: 8px; overflow: hidden; }' +
+'  .font-picker-btn:active { background: var(--border-light); }' +
+'  .font-picker-btn.selected { border-color: #ff9200; border-width: 2px; }' +
+'  .font-picker-preview { flex: 0 0 34%; display: flex; align-items: center; justify-content: center; padding: 10px 4px; box-sizing: border-box; border-right: 1px solid var(--border); overflow: hidden; white-space: nowrap; color: var(--text-strong); line-height: 1.1; }' +
+'  .font-picker-name { flex: 1 1 auto; display: flex; align-items: center; padding: 10px 12px; font-size: 13px; font-weight: 600; color: var(--text-strong); box-sizing: border-box; }' +
+// The always-visible trigger button that replaces each plain <select>
+// -- looks like one .font-picker-btn row (so the CURRENTLY chosen
+// font is already shown in its own real typeface before the popup
+// even opens), just outside the grid and with its own top margin
+// matching where the <select> it replaces used to sit.
+'  .font-picker-trigger { margin-top: 6px; }' +
 '  .secondary-btn:active { background: var(--border-lighter); }' +
 '  .save-bar { position: fixed; left: 0; right: 0; bottom: 0; padding: 12px 20px calc(12px + env(safe-area-inset-bottom, 0px)); background: var(--page-bg); box-shadow: 0 -2px 6px rgba(0,0,0,0.1); }' +
 '  .save-bar button { width: 100%; padding: 14px; font-size: 16px; font-weight: 600; color: #fff; background: #ff9200; border: none; border-radius: 8px; }' +
@@ -1279,6 +1379,30 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  </div>' +
 '</div>' +
 
+// Shared by all 4 font pickers (clock, clock\'s small companion,
+// corner/edge, marker numerals) -- which one is currently open lives
+// in currentFontPickerRole (see openFontPicker() below), so there\'s
+// one grid/modal to keep in sync rather than 4 near-identical copies.
+// "Show incompatible fonts" (only meaningful for the 2 pickers that
+// default to hiding the ~48px-scale display fonts -- see FONT_LOOKUP\'s
+// own `small` comment) lives at the bottom here now instead of inline
+// on the main page, and is hidden entirely for the other 2 pickers.
+'<div class="modal-overlay" id="fontPickerModal" onclick="if (event.target === this) closeFontPicker();">' +
+'  <div class="modal-box">' +
+'    <div class="modal-title" id="fontPickerTitle">Font</div>' +
+'    <div class="modal-scroll-body">' +
+'      <div id="fontPickerGrid"></div>' +
+'    </div>' +
+'    <div class="modal-footer">' +
+'      <div class="checkbox-row" id="fontPickerIncompatibleRow" style="margin-top:10px;">' +
+'        <input type="checkbox" id="fontPickerShowIncompatible" onchange="renderFontPickerGrid()">' +
+'        <label for="fontPickerShowIncompatible" style="margin:0;">Show incompatible fonts</label>' +
+'      </div>' +
+'      <button type="button" class="modal-cancel-btn" onclick="closeFontPicker()">Cancel</button>' +
+'    </div>' +
+'  </div>' +
+'</div>' +
+
 '<div class="modal-overlay" id="donateModal">' +
 '  <div class="modal-box">' +
 '    <div class="modal-title">Support this project</div>' +
@@ -1359,15 +1483,18 @@ handEditorModalHtml('sec', 'Edit second hand') +
 
 '    <div id="digitalOnlySettings" class="subsection" style="' + (bottomStyleVal === 'digital' ? '' : 'display:none;') + '">' +
 '      <label for="clockFont">Clock font</label>' +
-'      <select id="clockFont" onchange="onFontChange()">' + fontOptions + '</select>' +
+'      <select id="clockFont" onchange="onFontChange()" style="display:none;">' + fontOptions + '</select>' +
+'      <button type="button" class="font-picker-btn font-picker-trigger" id="clockFontTrigger" onclick="openFontPicker(\'clock\')">' +
+'        <span class="font-picker-preview" id="clockFontTriggerPreview"></span>' +
+'        <span class="font-picker-name" id="clockFontTriggerName"></span>' +
+'      </button>' +
 '      <label for="clockFontSmall" style="margin-top:10px;">Small companion font</label>' +
-'      <select id="clockFontSmall" onchange="onClockFontSmallChange()">' + clockFontSmallOptions + '</select>' +
-'      <div class="checkbox-row" style="margin-top:6px;">' +
-'        <input type="checkbox" id="clockFontSmallShowIncompatible" ' + (clockFontSmallShowIncompatible ? 'checked' : '') + ' onchange="onFontOptionFilterChange(\'clockFontSmall\', \'clockFontSmallShowIncompatible\')">' +
-'        <label for="clockFontSmallShowIncompatible" style="margin:0;">Show incompatible fonts</label>' +
-'      </div>' +
-'      <div class="help">Bigger display fonts are hidden here by default -- they\'re sized for the main clock, not a small companion readout.</div>' +
-'      <div class="help">Used for the seconds digits, sunrise/sunset time, and date line next to the clock -- picking a Clock font above suggests a matching one here automatically, but you can override it.</div>' +
+'      <select id="clockFontSmall" onchange="onClockFontSmallChange()" style="display:none;">' + clockFontSmallOptions + '</select>' +
+'      <button type="button" class="font-picker-btn font-picker-trigger" id="clockFontSmallTrigger" onclick="openFontPicker(\'clockFontSmall\')">' +
+'        <span class="font-picker-preview" id="clockFontSmallTriggerPreview"></span>' +
+'        <span class="font-picker-name" id="clockFontSmallTriggerName"></span>' +
+'      </button>' +
+'      <div class="help">Used for the seconds digits, sunrise/sunset time, and date line next to the clock -- picking a Clock font above suggests a matching one here automatically, but you can override it. Bigger display fonts are hidden by default in its own picker -- see "Show incompatible fonts" there.</div>' +
 '    </div>' +
 
 '    <div id="bigAnalogSettings" class="subsection" style="' + (isAnalog ? '' : 'display:none;') + '">' +
@@ -1536,13 +1663,12 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    </div>' +
 
 '    <label for="cornerFont">Font</label>' +
-'    <select id="cornerFont" onchange="onCornerFontChange()">' + fontOptionsHtml(cornerFontId, false) + '</select>' +
-'    <div class="checkbox-row" style="margin-top:6px;">' +
-'      <input type="checkbox" id="cornerFontShowIncompatible" ' + (cornerFontShowIncompatible ? 'checked' : '') + ' onchange="onFontOptionFilterChange(\'cornerFont\', \'cornerFontShowIncompatible\')">' +
-'      <label for="cornerFontShowIncompatible" style="margin:0;">Show incompatible fonts</label>' +
-'    </div>' +
-'    <div class="help">Bigger display fonts are hidden here by default -- they\'re sized for the main clock, not corner/edge readouts.</div>' +
-'    <div class="help">Applies to corner/edge feature text and the analog date.</div>' +
+'    <select id="cornerFont" onchange="onCornerFontChange()" style="display:none;">' + fontOptionsHtml(cornerFontId, false) + '</select>' +
+'    <button type="button" class="font-picker-btn font-picker-trigger" id="cornerFontTrigger" onclick="openFontPicker(\'cornerFont\')">' +
+'      <span class="font-picker-preview" id="cornerFontTriggerPreview"></span>' +
+'      <span class="font-picker-name" id="cornerFontTriggerName"></span>' +
+'    </button>' +
+'    <div class="help">Applies to corner/edge feature text and the analog date. Bigger display fonts are hidden by default in the picker -- see "Show incompatible fonts" there.</div>' +
 
 '    <div id="weatherIconStyleRow" style="' + (weatherIconFeatureInUse ? '' : 'display:none;') + '">' +
 '      <label for="weatherIconStyle">Weather icon style</label>' +
@@ -1988,7 +2114,134 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  var weightMatch = /font-weight:\\s*([^;]+);?/.exec(previewCss);' +
 '  var weight = weightMatch ? weightMatch[1].trim() : "400";' +
 '  var boldPrefix = (parseInt(weight, 10) >= 600 || weight === "bold") ? "bold " : "";' +
-'  return boldPrefix + px + "px " + family;' +
+'  var italicPrefix = /font-style:\\s*italic/.test(previewCss) ? "italic " : "";' +
+'  return italicPrefix + boldPrefix + px + "px " + family;' +
+'}' +
+
+// Runtime copy of this file's own top-level esc() -- needed here since
+// renderFontPickerGrid() below builds HTML strings client-side, in the
+// webview\'s own separate JS context, which can\'t reach that generator-
+// side function.
+'function esc(str) {' +
+'  return String(str == null ? "" : str).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");' +
+'}' +
+
+// Runtime copy of the generator-side FONT_LOOKUP table (see its own
+// comment there for what each field means) -- serialized straight
+// from that same array at page-generation time, not hand-duplicated,
+// so the two can never drift apart the way two independently-typed
+// copies could.
+'var FONT_LOOKUP = ' + JSON.stringify(FONT_LOOKUP) + ';' +
+'function fontLookupEntry(id) {' +
+'  id = parseInt(id, 10);' +
+'  for (var i = 0; i < FONT_LOOKUP.length; i++) {' +
+'    if (FONT_LOOKUP[i].id === id) return FONT_LOOKUP[i];' +
+'  }' +
+'  return FONT_LOOKUP[0];' +
+'}' +
+// Scales a font's real on-watch bake size (12-48px) down to something
+// that reads clearly inside a compact picker-button preview without
+// the biggest ones (the 48px-baked main clock faces) overflowing it --
+// same relative ordering as the real sizes (a 12px font\'s preview is
+// noticeably smaller than a 48px font\'s), just compressed into a
+// roughly 11-26px on-screen range.
+'function fontPickerPreviewPx(sizePx) {' +
+'  return Math.max(11, Math.min(26, Math.round(sizePx * 0.5)));' +
+'}' +
+
+// One entry per font-picker "role" -- which underlying <select> and
+// trigger button it drives, whether it\'s restricted to FONT_LOOKUP\'s
+// own `mainClock` subset (only the Clock font picker is), whether it
+// gets the "Show incompatible fonts" checkbox (only the 2 pickers that
+// default to hiding ~48px-scale display fonts do -- see FONT_LOOKUP\'s
+// own `small` comment), and what sample text its buttons preview --
+// value depends on the picker\'s own role per the request: a clock
+// reads a time, a corner/edge feature reads a temperature, the small
+// companion reads a short date, and the numerals picker reads a
+// number (Roman if that checkbox is on).
+'var FONT_PICKER_ROLES = {' +
+'  clock: { selectId: "clockFont", triggerId: "clockFontTrigger", title: "Clock font", onlyMainClock: true, showIncompatibleToggle: false,' +
+'    previewText: function () { return "12:34"; } },' +
+'  clockFontSmall: { selectId: "clockFontSmall", triggerId: "clockFontSmallTrigger", title: "Small companion font", onlyMainClock: false, showIncompatibleToggle: true,' +
+'    previewText: function () { return "Tue 12"; } },' +
+'  cornerFont: { selectId: "cornerFont", triggerId: "cornerFontTrigger", title: "Font", onlyMainClock: false, showIncompatibleToggle: true,' +
+'    previewText: function () { return "-10\\u00b0C"; } },' +
+'  markerTextFont: { selectId: "markerTextFont", triggerId: "markerTextFontTrigger", title: "Font", onlyMainClock: false, showIncompatibleToggle: false,' +
+'    previewText: function () { var roman = document.getElementById("markerTextRoman"); return (roman && roman.checked) ? "XII" : "12"; } }' +
+'};' +
+'var currentFontPickerRole = null;' +
+
+// Fills one trigger button\'s own preview/name spans from whatever its
+// underlying (now display:none) <select> currently holds -- called
+// after every pick, plus once at page load, so the collapsed trigger
+// always already shows the current font rendered in itself rather
+// than plain placeholder text.
+'function updateFontTriggerLabel(role) {' +
+'  var cfg = FONT_PICKER_ROLES[role];' +
+'  if (!cfg) return;' +
+'  var sel = document.getElementById(cfg.selectId);' +
+'  var trigger = document.getElementById(cfg.triggerId);' +
+'  if (!sel || !trigger) return;' +
+'  var entry = fontLookupEntry(sel.value);' +
+'  var preview = trigger.querySelector(".font-picker-preview");' +
+'  var name = trigger.querySelector(".font-picker-name");' +
+'  if (preview) {' +
+'    preview.setAttribute("style", entry.preview + " font-size:" + fontPickerPreviewPx(entry.sizePx) + "px;");' +
+'    preview.textContent = cfg.previewText();' +
+'  }' +
+'  if (name) name.textContent = entry.label;' +
+'}' +
+'function refreshAllFontTriggerLabels() {' +
+'  Object.keys(FONT_PICKER_ROLES).forEach(updateFontTriggerLabel);' +
+'}' +
+
+'function openFontPicker(role) {' +
+'  currentFontPickerRole = role;' +
+'  var cfg = FONT_PICKER_ROLES[role];' +
+'  document.getElementById("fontPickerTitle").textContent = cfg.title;' +
+'  var incompatibleRow = document.getElementById("fontPickerIncompatibleRow");' +
+'  incompatibleRow.style.display = cfg.showIncompatibleToggle ? "" : "none";' +
+'  if (cfg.showIncompatibleToggle) {' +
+'    var currentId = document.getElementById(cfg.selectId).value;' +
+'    document.getElementById("fontPickerShowIncompatible").checked = !fontLookupEntry(currentId).small;' +
+'  }' +
+'  renderFontPickerGrid();' +
+'  document.getElementById("fontPickerModal").className = "modal-overlay open";' +
+'}' +
+'function closeFontPicker() {' +
+'  document.getElementById("fontPickerModal").className = "modal-overlay";' +
+'}' +
+// Rebuilds the grid for whichever role is currently open -- called on
+// open and again whenever "Show incompatible fonts" changes, since
+// that changes which entries even appear rather than just their
+// styling.
+'function renderFontPickerGrid() {' +
+'  var cfg = FONT_PICKER_ROLES[currentFontPickerRole];' +
+'  if (!cfg) return;' +
+'  var sel = document.getElementById(cfg.selectId);' +
+'  var currentId = parseInt(sel.value, 10);' +
+'  var showIncompatible = cfg.showIncompatibleToggle ? document.getElementById("fontPickerShowIncompatible").checked : true;' +
+'  var previewText = cfg.previewText();' +
+'  var html = "";' +
+'  FONT_LOOKUP.forEach(function (f) {' +
+'    if (cfg.onlyMainClock && !f.mainClock) return;' +
+'    if (!showIncompatible && !f.small && f.id !== currentId) return;' +
+'    var previewStyle = f.preview + " font-size:" + fontPickerPreviewPx(f.sizePx) + "px;";' +
+'    html += \'<button type="button" class="font-picker-btn\' + (f.id === currentId ? " selected" : "") + \'" onclick="chooseFontOption(\' + f.id + \')">\' +' +
+'      \'<span class="font-picker-preview" style="\' + previewStyle + \'">\' + esc(previewText) + "</span>" +' +
+'      \'<span class="font-picker-name">\' + esc(f.label) + "</span></button>";' +
+'  });' +
+'  document.getElementById("fontPickerGrid").innerHTML = html;' +
+'}' +
+'function chooseFontOption(id) {' +
+'  var cfg = FONT_PICKER_ROLES[currentFontPickerRole];' +
+'  if (!cfg) return;' +
+'  var sel = document.getElementById(cfg.selectId);' +
+'  sel.value = id;' +
+'  if (typeof Event === "function") sel.dispatchEvent(new Event("change"));' +
+'  else { var evt = document.createEvent("HTMLEvents"); evt.initEvent("change", true, true); sel.dispatchEvent(evt); }' +
+'  closeFontPicker();' +
+'  refreshAllFontTriggerLabels();' +
 '}' +
 
 'function drawSkyLayer(ctx, x, y, w, h) {' +
@@ -2789,30 +3042,59 @@ handEditorModalHtml('sec', 'Edit second hand') +
 // scripts/generate-infographics.js as HAND_STYLE_IMAGES) -- keyed
 // "1".."9" to match those filenames, each with a display title plus
 // hour/min/sec field sets in the same shape applyHandPresetToKind()
-// below writes into the hidden custom-hand inputs. Picking one is a
-// one-shot copy into those same fields the manual "Edit hour/minute/
-// second hand" editors use -- nothing about it is remembered as a
-// distinct "preset" afterward, on this page or on the watch (see
-// hand_layer.h's own comment for why the watch doesn't need to know).
+// below writes into the hidden custom-hand inputs, PLUS a centerCircle
+// and shadow field set applied the same way to the standalone Center
+// circle/Shadow style settings (see applyHandPresetExtras() below) --
+// those two aren't per-hand, but still look like part of "the hand
+// style" to anyone picking a preset, so a preset now sets them too
+// instead of leaving whatever was there before. Picking a preset is a
+// one-shot copy into those same fields the manual "Edit ... hand" /
+// Center circle / Shadow style editors use -- nothing about it is
+// remembered as a distinct "preset" afterward, on this page or on the
+// watch (see hand_layer.h's own comment for why the watch doesn't need
+// to know).
 // These 9 are placeholders pairing the existing style shapes with
 // generic starter numbers -- replace the images and retune the field
 // sets here once real example styles are worked out.
 'var HAND_PRESETS = {' +
-'  "1": { title: "Galba", hour: {Style:"1",Width:"12",Length:"51",BackOffset:"0",Color:"0"}, min: {Style:"1",Width:"12",Length:"78",BackOffset:"0",Color:"0"}, sec: {Style:"0",Width:"2",Length:"85",BackOffset:"0",Color:"1"} },' +
-'  "2": { title: "Pencil", hour: {Style:"2",Width:"8",Length:"51",BackOffset:"0",Color:"0"}, min: {Style:"2",Width:"8",Length:"78",BackOffset:"0",Color:"0"}, sec: {Style:"0",Width:"2",Length:"85",BackOffset:"0",Color:"1"} },' +
-'  "3": { title: "Modern", hour: {Style:"2",Width:"6",Length:"51",BackOffset:"0",Color:"0"}, min: {Style:"2",Width:"6",Length:"78",BackOffset:"0",Color:"0"}, sec: {Style:"0",Width:"2",Length:"85",BackOffset:"0",Color:"1"} },' +
-'  "4": { title: "Classic Pebble", hour: {Style:"0",Width:"10",Length:"51",BackOffset:"0",Color:"1"}, min: {Style:"0",Width:"10",Length:"78",BackOffset:"0",Color:"0"}, sec: {Style:"0",Width:"2",Length:"85",BackOffset:"0",Color:"1"} },' +
-'  "5": { title: "Dauphine", hour: {Style:"3",Width:"10",Length:"51",BackOffset:"4",MiddleOffset:"10",Color:"0"}, min: {Style:"3",Width:"8",Length:"78",BackOffset:"4",MiddleOffset:"14",Color:"0"}, sec: {Style:"1",Width:"2",Length:"85",BackOffset:"6",Color:"1"} },' +
-'  "6": { title: "Sword", hour: {Style:"4",Width:"10",Length:"51",BackOffset:"6",MiddleOffset:"20",SecondaryWidth:"14",Color:"0"}, min: {Style:"4",Width:"8",Length:"78",BackOffset:"6",MiddleOffset:"30",SecondaryWidth:"12",Color:"0"}, sec: {Style:"1",Width:"2",Length:"85",BackOffset:"6",Color:"1"} },' +
-'  "7": { title: "Spade", hour: {Style:"6",Width:"8",Length:"51",BackOffset:"6",MiddleOffset:"8",SecondaryWidth:"10",Color:"0"}, min: {Style:"6",Width:"6",Length:"78",BackOffset:"6",MiddleOffset:"10",SecondaryWidth:"8",Color:"0"}, sec: {Style:"1",Width:"2",Length:"85",BackOffset:"6",Color:"1"} },' +
-'  "8": { title: "Leaf", hour: {Style:"8",Width:"10",Length:"51",BackOffset:"0",MiddleOffset:"5",Color:"0"}, min: {Style:"8",Width:"8",Length:"78",BackOffset:"0",MiddleOffset:"8",Color:"0"}, sec: {Style:"1",Width:"2",Length:"85",BackOffset:"6",Color:"1"} },' +
-'  "9": { title: "Serpentine", hour: {Style:"10",Width:"4",Length:"51",BackOffset:"0",MiddleOffset:"8",SecondaryWidth:"12",Color:"0"}, min: {Style:"10",Width:"3",Length:"78",BackOffset:"0",MiddleOffset:"10",SecondaryWidth:"10",Color:"0"}, sec: {Style:"1",Width:"2",Length:"85",BackOffset:"6",Color:"1"} }' +
+'  "1": { title: "Galba", hour: {Style:"1",Width:"12",Length:"51",BackOffset:"0",Color:"0"}, min: {Style:"1",Width:"12",Length:"78",BackOffset:"0",Color:"0"}, sec: {Style:"0",Width:"2",Length:"85",BackOffset:"0",Color:"1"}, centerCircle: {Radius:"4",Color:"0"}, shadow: {Translucent:"true",Angle:"120"} },' +
+'  "2": { title: "Pencil", hour: {Style:"2",Width:"8",Length:"51",BackOffset:"0",Color:"0"}, min: {Style:"2",Width:"8",Length:"78",BackOffset:"0",Color:"0"}, sec: {Style:"0",Width:"2",Length:"85",BackOffset:"0",Color:"1"}, centerCircle: {Radius:"3",Color:"0"}, shadow: {Translucent:"true",Angle:"120"} },' +
+'  "3": { title: "Modern", hour: {Style:"2",Width:"6",Length:"51",BackOffset:"0",Color:"0"}, min: {Style:"2",Width:"6",Length:"78",BackOffset:"0",Color:"0"}, sec: {Style:"0",Width:"2",Length:"85",BackOffset:"0",Color:"1"}, centerCircle: {Radius:"2",Color:"0"}, shadow: {Translucent:"true",Angle:"120"} },' +
+'  "4": { title: "Classic Pebble", hour: {Style:"0",Width:"10",Length:"51",BackOffset:"0",Color:"1"}, min: {Style:"0",Width:"10",Length:"78",BackOffset:"0",Color:"0"}, sec: {Style:"0",Width:"2",Length:"85",BackOffset:"0",Color:"1"}, centerCircle: {Radius:"5",Color:"1"}, shadow: {Translucent:"true",Angle:"120"} },' +
+'  "5": { title: "Dauphine", hour: {Style:"3",Width:"10",Length:"51",BackOffset:"4",MiddleOffset:"10",Color:"0"}, min: {Style:"3",Width:"8",Length:"78",BackOffset:"4",MiddleOffset:"14",Color:"0"}, sec: {Style:"1",Width:"2",Length:"85",BackOffset:"6",Color:"1"}, centerCircle: {Radius:"5",Color:"0"}, shadow: {Translucent:"true",Angle:"135"} },' +
+'  "6": { title: "Sword", hour: {Style:"4",Width:"10",Length:"51",BackOffset:"6",MiddleOffset:"20",SecondaryWidth:"14",Color:"0"}, min: {Style:"4",Width:"8",Length:"78",BackOffset:"6",MiddleOffset:"30",SecondaryWidth:"12",Color:"0"}, sec: {Style:"1",Width:"2",Length:"85",BackOffset:"6",Color:"1"}, centerCircle: {Radius:"6",Color:"0"}, shadow: {Translucent:"true",Angle:"135"} },' +
+'  "7": { title: "Spade", hour: {Style:"6",Width:"8",Length:"51",BackOffset:"6",MiddleOffset:"8",SecondaryWidth:"10",Color:"0"}, min: {Style:"6",Width:"6",Length:"78",BackOffset:"6",MiddleOffset:"10",SecondaryWidth:"8",Color:"0"}, sec: {Style:"1",Width:"2",Length:"85",BackOffset:"6",Color:"1"}, centerCircle: {Radius:"5",Color:"0"}, shadow: {Translucent:"true",Angle:"135"} },' +
+'  "8": { title: "Leaf", hour: {Style:"8",Width:"10",Length:"51",BackOffset:"0",MiddleOffset:"5",Color:"0"}, min: {Style:"8",Width:"8",Length:"78",BackOffset:"0",MiddleOffset:"8",Color:"0"}, sec: {Style:"1",Width:"2",Length:"85",BackOffset:"6",Color:"1"}, centerCircle: {Radius:"4",Color:"0"}, shadow: {Translucent:"true",Angle:"120"} },' +
+'  "9": { title: "Serpentine", hour: {Style:"10",Width:"4",Length:"51",BackOffset:"0",MiddleOffset:"8",SecondaryWidth:"12",Color:"0"}, min: {Style:"10",Width:"3",Length:"78",BackOffset:"0",MiddleOffset:"10",SecondaryWidth:"10",Color:"0"}, sec: {Style:"1",Width:"2",Length:"85",BackOffset:"6",Color:"1"}, centerCircle: {Radius:"4",Color:"1"}, shadow: {Translucent:"true",Angle:"150"} }' +
 '};' +
 'function applyHandPresetToKind(kind, preset) {' +
 '  var hp = heHiddenPrefix(kind);' +
 '  for (var f in preset) {' +
 '    var hidden = document.getElementById(hp + f);' +
 '    if (hidden) hidden.value = preset[f];' +
+'  }' +
+'}' +
+// Center circle/Shadow style aren't per-hand (no heHiddenPrefix() to
+// go through), and 2 of the 4 fields are sliders whose own displayed
+// "Val" span text (see centerCircleModal/shadowStyleModal\'s own HTML)
+// only updates from their oninput handler -- setting .value alone from
+// here wouldn\'t touch that span, so this sets both by hand for those.
+'function applyHandPresetExtras(entry) {' +
+'  if (entry.centerCircle) {' +
+'    if (entry.centerCircle.Radius !== undefined) {' +
+'      document.getElementById("centerCircleRadius").value = entry.centerCircle.Radius;' +
+'      var radiusVal = document.getElementById("centerCircleRadiusVal");' +
+'      if (radiusVal) radiusVal.textContent = entry.centerCircle.Radius + "px";' +
+'    }' +
+'    if (entry.centerCircle.Color !== undefined) document.getElementById("centerCircleColor").value = entry.centerCircle.Color;' +
+'  }' +
+'  if (entry.shadow) {' +
+'    if (entry.shadow.Translucent !== undefined) document.getElementById("shadowTranslucent").value = entry.shadow.Translucent;' +
+'    if (entry.shadow.Angle !== undefined) {' +
+'      document.getElementById("shadowAngle").value = entry.shadow.Angle;' +
+'      var angleVal = document.getElementById("shadowAngleVal");' +
+'      if (angleVal) angleVal.textContent = entry.shadow.Angle + "\\u00b0";' +
+'    }' +
 '  }' +
 '}' +
 // Populates #handStyleGrid with one button per HAND_PRESETS entry --
@@ -2845,6 +3127,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  applyHandPresetToKind("hour", entry.hour);' +
 '  applyHandPresetToKind("min", entry.min);' +
 '  applyHandPresetToKind("sec", entry.sec);' +
+'  applyHandPresetExtras(entry);' +
 '  closeHandStyleModal();' +
 '  updateHandStyleButtonLabel();' +
 '  updatePreview();' +
@@ -2852,7 +3135,8 @@ handEditorModalHtml('sec', 'Edit second hand') +
 // "Custom" -- same meaning the old dropdown\'s "Custom" option had:
 // leaves the hand fields exactly as they are (the 3 "Edit ... hand"
 // buttons are always available below regardless), just closes the
-// popup without applying any preset.
+// popup without applying any preset. Center circle/shadow are left
+// alone too, for the same reason.
 'function chooseHandStyleCustom() {' +
 '  closeHandStyleModal();' +
 '  updateHandStyleButtonLabel();' +
@@ -3011,8 +3295,6 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  });' +
 '  selectVerticalOption("bgAnimModeGroup", "bgAnimMode", document.getElementById("bgAnimMode").value);' +
 '  selectVerticalOption("shakeAnimModeGroup", "shakeAnimMode", document.getElementById("shakeAnimMode").value);' +
-'  applyFontOptionFilter("cornerFont", document.getElementById("cornerFontShowIncompatible").checked);' +
-'  applyFontOptionFilter("clockFontSmall", document.getElementById("clockFontSmallShowIncompatible").checked);' +
 '  onBottomStyleChange();' +
 '  onMarkerStyleChange();' +
 '  updateHandStyleButtonLabel();' +
@@ -3022,6 +3304,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  updateColorRoleButtons();' +
 '  updateColorRoleButtons("night");' +
 '  renderSlotPicker();' +
+'  refreshAllFontTriggerLabels();' +
 '  updatePreview();' +
 '}' +
 'function exportDesignJson() {' +
@@ -3304,30 +3587,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  renderSlotPicker();' +
 '  updatePreview();' +
 '}' +
-// Hides/reveals a font <option> list's own `data-small="0"` (bigger,
-// ~48px-scale) entries based on that picker's own "Show incompatible
-// fonts" checkbox -- shared by the corner/edge Font picker and the
-// clock\'s own Small companion font picker, the two pickers that get
-// this treatment (see FONT_LOOKUP\'s own `small` comment). The
-// currently-selected option is always exempted from hiding, even
-// with the checkbox off, so a saved big-font pick already in that
-// slot never disappears out from under the user -- just stays as the
-// one visible "incompatible" entry until they actively pick something
-// else.' +
-'function applyFontOptionFilter(selectId, showIncompatible) {' +
-'  var sel = document.getElementById(selectId);' +
-'  if (!sel) return;' +
-'  for (var i = 0; i < sel.options.length; i++) {' +
-'    var opt = sel.options[i];' +
-'    var isSmall = opt.getAttribute("data-small") === "1";' +
-'    opt.hidden = !showIncompatible && !isSmall && !opt.selected;' +
-'  }' +
-'}' +
-'function onFontOptionFilterChange(selectId, checkboxId) {' +
-'  applyFontOptionFilter(selectId, document.getElementById(checkboxId).checked);' +
-'}' +
 'function onClockFontSmallChange() {' +
-'  applyFontOptionFilter("clockFontSmall", document.getElementById("clockFontSmallShowIncompatible").checked);' +
 '  updatePreview();' +
 '}' +
 'function selectSunTimeMode(isSunTime) {' +
@@ -3358,7 +3618,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  var opt = fontSel.options[fontSel.selectedIndex];' +
 '  var pairedSmallId = opt.getAttribute("data-paired-small");' +
 '  if (pairedSmallId !== null) document.getElementById("clockFontSmall").value = pairedSmallId;' +
-'  applyFontOptionFilter("clockFontSmall", document.getElementById("clockFontSmallShowIncompatible").checked);' +
+'  refreshAllFontTriggerLabels();' +
 '  onBottomStyleChange();' +
 '}' +
 'function onAnalogStyleChange() { updatePreview(); }' +
@@ -3688,12 +3948,12 @@ handEditorModalHtml('sec', 'Edit second hand') +
 'onBottomStyleChange();' +
 'onMarkerStyleChange();' +
 'updateHandStyleButtonLabel();' +
-'applyFontOptionFilter("cornerFont", document.getElementById("cornerFontShowIncompatible").checked);' +
-'applyFontOptionFilter("clockFontSmall", document.getElementById("clockFontSmallShowIncompatible").checked);' +
+'refreshAllFontTriggerLabels();' +
 'renderHandStyleGrid();' +
 'renderMarkerStyleGrid();' +
 'updateWeatherIconStyleVisibility();' +
 'adjustTopBarSpacing();' +
+'if (document.fonts && document.fonts.ready) { document.fonts.ready.then(updatePreview); }' +
 'setInterval(updatePreview, 1000);' +
 '</script>' +
 '</body></html>';
