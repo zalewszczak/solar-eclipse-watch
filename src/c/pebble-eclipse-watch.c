@@ -656,6 +656,15 @@ static void maybe_start_shake_animation(void) {
   }
 }
 
+// Moved up from next to the rest of the "background on start" state
+// below (s_bg_anim_timer/s_bg_anim_played/bg_anim_timer_callback) --
+// only these 2 need to be visible this early, for
+// hands_layer_update_proc()'s own use of them (see its comment on the
+// Planets-sweep hand animation) below.
+#define BG_ANIM_MS 1400
+static bool s_bg_anim_active = false;
+static uint16_t s_bg_anim_elapsed_ms = 0;
+
 static void hands_layer_update_proc(Layer *layer, GContext *ctx) {
   // Unobstructed (not full) bounds -- this layer has no background
   // fill of its own to worry about leaving gaps in (it's a pure
