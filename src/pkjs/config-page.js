@@ -557,6 +557,24 @@ function modeButtonGroupHtml(groupId, hiddenId, options, currentValue, onclickFn
     '<input type="hidden" id="' + hiddenId + '" value="' + esc(currentValue) + '">';
 }
 
+// The plain 3-role (0=Main/1=Accent/2=Background, optionally 3=None)
+// color choice used all over these popups -- schemeColorOptionsHtml()'s
+// own <option> list turned into the same button-row shape as everything
+// else here instead, rather than the full swatch-preview color picker
+// the actual Colors section above uses (that one shows real colors
+// because it HAS 64 real ones to choose from; these 3-4 are just roles
+// that resolve to whatever the current color scheme says Main/Accent/
+// Background actually are, so naming them is all there is to show).
+function colorRoleButtonGroupHtml(groupId, hiddenId, currentValue, includeNone) {
+  var options = [
+    { value: '0', label: 'Main' },
+    { value: '1', label: 'Accent' },
+    { value: '2', label: 'Background' }
+  ];
+  if (includeNone) options.push({ value: '3', label: 'None' });
+  return modeButtonGroupHtml(groupId, hiddenId, options, currentValue || '0');
+}
+
 // Must match get_color_scheme() in pebble-eclipse-watch.c exactly --
 // same order, same id, same colors.
 var COLOR_SCHEMES = [
@@ -762,12 +780,12 @@ function customMarkerModalHtml(kind, title, thicknessMax) {
 '    <div class="modal-title">' + esc(title) + '</div>' +
 '    <div class="modal-scroll-body">' +
 
-'    <label for="' + p + 'Style">Shape</label>' +
-'    <select id="' + p + 'Style">' +
-'      <option value="0">Dot (round)</option>' +
-'      <option value="1">Line (flat ends)</option>' +
-'      <option value="2">Square (blocky ends)</option>' +
-'    </select>' +
+'    <label>Shape</label>' +
+      modeButtonGroupHtml(p + 'StyleGroup', p + 'Style', [
+        { value: '0', label: 'Dot' },
+        { value: '1', label: 'Line' },
+        { value: '2', label: 'Square' }
+      ], '0') +
 
 '    <div class="slider-row">' +
 '      <label for="' + p + 'Thickness">Thickness <span class="val" id="' + p + 'ThicknessVal"></span></label>' +
@@ -821,8 +839,8 @@ function customMarkerModalHtml(kind, title, thicknessMax) {
 '    </div>' +
 '    <div class="help">Dithers this ring (independent of the hour/second ring\'s own setting, and of Semi-transparent hands) to ~50% so the sky shows through.</div>' +
 
-'    <label for="' + p + 'Color" style="margin-top:12px;">Color</label>' +
-'    <select id="' + p + 'Color">' + schemeColorOptionsHtml('0') + '</select>' +
+'    <label style="margin-top:12px;">Color</label>' +
+      colorRoleButtonGroupHtml(p + 'ColorGroup', p + 'Color', '0', false) +
 '    <div class="help">Independent of the hour/second ring\'s own color -- pick a different one for each if you want them to stand apart.</div>' +
 
 '    <label style="margin-top:12px;">Presets (translated from the procedural styles)</label>' +
@@ -855,12 +873,12 @@ function textMarkerModalHtml(current) {
 '    <div class="modal-title">Edit numerals</div>' +
 '    <div class="modal-scroll-body">' +
 
-'    <label for="markerTextTarget">Numbers</label>' +
-'    <select id="markerTextTarget" onchange="onMarkerTextTargetChange()">' +
-'      <option value="0"' + (current.markerTextTarget === '0' || !current.markerTextTarget ? ' selected' : '') + '>Off</option>' +
-'      <option value="1"' + (current.markerTextTarget === '1' ? ' selected' : '') + '>On hour indices</option>' +
-'      <option value="2"' + (current.markerTextTarget === '2' ? ' selected' : '') + '>On seconds indices (every 5s)</option>' +
-'    </select>' +
+'    <label>Numbers</label>' +
+      modeButtonGroupHtml('markerTextTargetGroup', 'markerTextTarget', [
+        { value: '0', label: 'Off' },
+        { value: '1', label: 'On hours' },
+        { value: '2', label: 'Every 5s' }
+      ], current.markerTextTarget || '0', 'selectMarkerTextTarget') +
 '    <div class="help">Numbers can go on the hour ring or the second ring, not both at once.</div>' +
 
 '    <div id="markerTextOptions" style="' + (current.markerTextTarget && current.markerTextTarget !== '0' ? '' : 'display:none;') + '">' +
@@ -1380,7 +1398,19 @@ function buildConfigHtml(current) {
 '  .color-preset-btn.selected { border: 2px solid #ff9200; box-shadow: inset 0 2px 4px rgba(0,0,0,0.35); }' +
 '  .color-preset-main-line { display: block; font-size: 15px; font-weight: 700; }' +
 '  .color-preset-accent-line { display: block; font-size: 12px; font-weight: 600; margin-top: 2px; }' +
-'  .color-preset-trigger { margin-top: 6px; }' +
+// The trigger itself needs to visibly read as "opens something" --
+// unlike a plain .color-preset-btn grid item (which IS the
+// destination, not a door to one), it shows the CURRENT state filling
+// its whole background/text, which on its own looked identical to a
+// plain non-interactive status readout. A trailing chevron (the same
+// "&rsaquo;" affordance every other button-that-opens-a-popup in this
+// file already uses -- see .marker-edit-btn) fixes that; needs its own
+// flex row (text block on the left, chevron pinned right) since the
+// plain .color-preset-btn layout above is just a stacked block with no
+// room reserved for one.
+'  .color-preset-trigger { margin-top: 6px; display: flex; align-items: center; justify-content: space-between; gap: 10px; }' +
+'  .color-preset-trigger-text { display: flex; flex-direction: column; min-width: 0; }' +
+'  .color-preset-chevron { font-size: 24px; font-weight: 700; opacity: 0.5; flex-shrink: 0; }' +
 '  .secondary-btn:active { background: var(--border-lighter); }' +
 '  .save-bar { position: fixed; left: 0; right: 0; bottom: 0; padding: 12px 20px calc(12px + env(safe-area-inset-bottom, 0px)); background: var(--page-bg); box-shadow: 0 -2px 6px rgba(0,0,0,0.1); }' +
 '  .save-bar button { width: 100%; padding: 14px; font-size: 16px; font-weight: 600; color: #fff; background: #ff9200; border: none; border-radius: 8px; }' +
@@ -1584,11 +1614,11 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  <div class="modal-box">' +
 '    <div class="modal-title">Shadow style</div>' +
 
-'    <label for="shadowTranslucent">Shadow style</label>' +
-'    <select id="shadowTranslucent" onchange="updatePreview()">' +
-'      <option value="true"' + (current.shadowTranslucent !== 'false' ? ' selected' : '') + '>Translucent</option>' +
-'      <option value="false"' + (current.shadowTranslucent === 'false' ? ' selected' : '') + '>Solid</option>' +
-'    </select>' +
+'    <label>Shadow style</label>' +
+      modeButtonGroupHtml('shadowTranslucentGroup', 'shadowTranslucent', [
+        { value: 'false', label: 'Solid' },
+        { value: 'true', label: 'Translucent' }
+      ], current.shadowTranslucent !== 'false' ? 'true' : 'false', 'selectShadowTranslucent') +
 '    <div class="help">Applies to every hand\'s shadow, preset or custom -- translucent dithers to ~50% (~25% for a hand that\'s itself semi-transparent), solid is fully opaque black.</div>' +
 
 '    <div class="slider-row">' +
@@ -1738,7 +1768,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      <button type="button" class="marker-edit-btn" onclick="openShadowStyleEditor()">Edit shadow style &rsaquo;</button>' +
 
 '      <label style="margin-top:12px;">Hour/seconds indices style</label>' +
-'      <button type="button" class="marker-edit-btn" id="markerStyleTriggerBtn" style="margin-top:8px;" onclick="openMarkerStyleModal()">Marker style: <span id="markerStyleTriggerLabel"></span> &rsaquo;</button>' +
+'      <button type="button" class="marker-edit-btn" id="markerStyleTriggerBtn" style="margin-top:8px;" onclick="openMarkerStyleModal()">Indices style: <span id="markerStyleTriggerLabel"></span> &rsaquo;</button>' +
 '      <select id="bigAnalogMarkerStyle" style="display:none;" onchange="onMarkerStyleChange()">' +
 '        <option value="9"' + (current.bigAnalogMarkerStyle === '9' ? ' selected' : '') + '>None</option>' +
 '        <option value="0"' + (current.bigAnalogMarkerStyle === '0' || !current.bigAnalogMarkerStyle ? ' selected' : '') + '>Minimal (thin hour indices only)</option>' +
@@ -1824,8 +1854,11 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      </div>' +
 '      <label style="margin-top:12px;">Or pick a preset</label>' +
 '      <button type="button" class="color-preset-btn color-preset-trigger" id="colorSchemePresetTrigger" onclick="openColorPresetPicker(\'day\')">' +
-'        <span class="color-preset-main-line"></span>' +
-'        <span class="color-preset-accent-line"></span>' +
+'        <span class="color-preset-trigger-text">' +
+'          <span class="color-preset-main-line"></span>' +
+'          <span class="color-preset-accent-line"></span>' +
+'        </span>' +
+'        <span class="color-preset-chevron">&rsaquo;</span>' +
 '      </button>' +
 '      <div class="help">Applies that preset\'s three colors immediately -- picking one is the same as tapping each swatch above and choosing that exact color.</div>' +
 '      <input type="hidden" id="customBgValue" value="' + esc(current.customBg || '255') + '">' +
@@ -1878,8 +1911,11 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      </div>' +
 '      <label style="margin-top:12px;">Or pick a preset</label>' +
 '      <button type="button" class="color-preset-btn color-preset-trigger" id="nightSchemePresetTrigger" onclick="openColorPresetPicker(\'night\')">' +
-'        <span class="color-preset-main-line"></span>' +
-'        <span class="color-preset-accent-line"></span>' +
+'        <span class="color-preset-trigger-text">' +
+'          <span class="color-preset-main-line"></span>' +
+'          <span class="color-preset-accent-line"></span>' +
+'        </span>' +
+'        <span class="color-preset-chevron">&rsaquo;</span>' +
 '      </button>' +
 '      <div class="help">Applies that preset\'s three colors immediately -- picking one is the same as tapping each swatch above and choosing that exact color.</div>' +
 '      <input type="hidden" id="nightCustomBgValue" value="' + esc(current.nightCustomBg || '192') + '">' +
@@ -3204,6 +3240,8 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    if (!hidden || !popupEl) return;' +
 '    if (CM_CHECKBOX_FIELDS.indexOf(f) !== -1) { popupEl.checked = hidden.value === "true"; } else { popupEl.value = hidden.value; }' +
 '  });' +
+'  refreshModeButtonGroup(p + "StyleGroup", p + "Style");' +
+'  refreshModeButtonGroup(p + "ColorGroup", p + "Color");' +
 '  document.getElementById(p + "OuterBorder").min = document.getElementById(p + "InnerBorder").value;' +
 '  updateCustomMarkerValLabels(kind);' +
 '  document.getElementById("customMarkerModal-" + kind).className = "modal-overlay open";' +
@@ -3231,6 +3269,8 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    if (!el || preset[f] === undefined) return;' +
 '    if (CM_CHECKBOX_FIELDS.indexOf(f) !== -1) { el.checked = preset[f] === true || preset[f] === "true"; } else { el.value = preset[f]; }' +
 '  });' +
+'  refreshModeButtonGroup(p + "StyleGroup", p + "Style");' +
+'  refreshModeButtonGroup(p + "ColorGroup", p + "Color");' +
 '  document.getElementById(p + "OuterBorder").min = document.getElementById(p + "InnerBorder").value;' +
 '  updateCustomMarkerValLabels(kind);' +
 '}' +
@@ -3248,6 +3288,10 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  });' +
 '  document.getElementById(p + "OuterBorder").min = document.getElementById(p + "InnerBorder").value;' +
 '  updateCustomMarkerValLabels(kind);' +
+'}' +
+'function selectMarkerTextTarget(val) {' +
+'  selectModeButton("markerTextTargetGroup", "markerTextTarget", val);' +
+'  onMarkerTextTargetChange();' +
 '}' +
 'function onMarkerTextTargetChange() {' +
 '  var val = document.getElementById("markerTextTarget").value;' +
@@ -3362,7 +3406,10 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    if (entry.centerCircle.Color !== undefined) document.getElementById("centerCircleColor").value = entry.centerCircle.Color;' +
 '  }' +
 '  if (entry.shadow) {' +
-'    if (entry.shadow.Translucent !== undefined) document.getElementById("shadowTranslucent").value = entry.shadow.Translucent;' +
+'    if (entry.shadow.Translucent !== undefined) {' +
+'      document.getElementById("shadowTranslucent").value = entry.shadow.Translucent;' +
+'      refreshModeButtonGroup("shadowTranslucentGroup", "shadowTranslucent");' +
+'    }' +
 '    if (entry.shadow.Angle !== undefined) {' +
 '      document.getElementById("shadowAngle").value = entry.shadow.Angle;' +
 '      var angleVal = document.getElementById("shadowAngleVal");' +
@@ -3898,9 +3945,30 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    buttons[i].className = "mode-btn" + (buttons[i].getAttribute("data-value") === val ? " active" : "");' +
 '  }' +
 '}' +
+// For the few places something OTHER than a direct button tap changes
+// one of these hidden fields\' value -- a preset being applied, or a
+// popup being pre-filled from already-saved state on open -- and the
+// button group needs to catch up to reflect it, since setting
+// .value on the hidden input alone (the way any of those already did
+// before the field in question was a plain <select>) doesn\'t touch
+// the buttons\' own "active" class the way a real tap does via
+// selectModeButton() above.
+'function refreshModeButtonGroup(groupId, hiddenId) {' +
+'  var group = document.getElementById(groupId);' +
+'  var hidden = document.getElementById(hiddenId);' +
+'  if (!group || !hidden) return;' +
+'  var buttons = group.getElementsByClassName("mode-btn");' +
+'  for (var i = 0; i < buttons.length; i++) {' +
+'    buttons[i].className = "mode-btn" + (buttons[i].getAttribute("data-value") === hidden.value ? " active" : "");' +
+'  }' +
+'}' +
 'function selectSkyMode(val) {' +
 '  selectModeButton("skyModeGroup", "skyMode", val);' +
 '  onSkyModeChange();' +
+'}' +
+'function selectShadowTranslucent(val) {' +
+'  selectModeButton("shadowTranslucentGroup", "shadowTranslucent", val);' +
+'  updatePreview();' +
 '}' +
 'function onFontChange() {' +
 '  var fontSel = document.getElementById("clockFont");' +
