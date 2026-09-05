@@ -193,8 +193,11 @@ int16_t draw_sun_time_icon(GContext *ctx, GPoint top_left, bool is_sunrise, GCol
 // User setting ("Style" section, on by default): on launch, the clock
 // sweeps in from a cold-start position up to the real time instead of
 // just appearing already showing it -- digital/small-analog count up
-// from 00:00:00, big-analog's custom hands grow out from a center dot
-// and sweep into place. Driven by a fast repeating AppTimer (this is
+// from 120 minutes before the real time, big-analog's custom hands
+// grow out from a center dot and sweep into place (chasing that same
+// 120-minutes-ago starting point too, if the "Planets" background
+// sweep is also running -- see hands_layer_update_proc's own comment).
+// Driven by a fast repeating AppTimer (this is
 // the one place in the app that redraws faster than once a second,
 // let alone once a minute -- deliberately bounded to under
 // STARTUP_CLOCK_ANIM_MS and played at most once per app launch, so it
@@ -213,7 +216,7 @@ static uint16_t s_startup_anim_elapsed_ms = 0;
 // height_frac1000) rather than floating point.
 
 // Starts slow, accelerates toward the end -- used for the digital-
-// clock/small-analog "counting up from 00:00" effect in
+// clock/small-analog "counting up from 120 minutes ago" effect in
 // bottom_canvas_update_proc, so the displayed time visibly speeds up
 // as it approaches the real one.
 static int32_t ease_in_cubic_1000(int32_t t) {
@@ -700,9 +703,33 @@ static void hands_layer_update_proc(Layer *layer, GContext *ctx) {
   // 1000 = full length/no substitution for a normal, non-animated draw.
   uint16_t hour_length_scale_1000 = 1000, min_length_scale_1000 = 1000, sec_length_scale_1000 = 1000;
   if (s_startup_clock_anim_active) {
-    compute_startup_hand_anim(hour_angle, s_startup_anim_elapsed_ms, &hour_angle, &hour_length_scale_1000);
-    compute_startup_hand_anim(min_angle, s_startup_anim_elapsed_ms, &min_angle, &min_length_scale_1000);
-    compute_startup_hand_anim(sec_angle, s_startup_anim_elapsed_ms, &sec_angle, &sec_length_scale_1000);
+    int32_t target_hour_angle = hour_angle, target_min_angle = min_angle, target_sec_angle = sec_angle;
+    // If the "Planets" background sweep (bg_anim_mode 2) is ALSO
+    // running right now, the hands chase the SAME swept time the sky
+    // itself is sweeping through (see canvas_update_proc's own sky_now
+    // substitution in background_layer.c) instead of the real, fixed
+    // current time -- so the hands visibly advance through the same
+    // ~2 hours the planets are moving through in the background,
+    // rather than the sky alone appearing to animate while the hands
+    // just swing into their already-correct resting position. Shares
+    // BG_ANIM_MS as its own total duration (both are 1400ms) and
+    // ease_out_cubic_1000 (identical curve to background_layer.c's own
+    // bg_anim_ease_out_1000 -- see that function's own comment) so the
+    // two sweeps advance in step with each other.
+    if (s_bg_anim_active && s_data.bg_anim_mode == 2) {
+      int32_t progress = ((int32_t)s_bg_anim_elapsed_ms * 1000) / BG_ANIM_MS;
+      if (progress > 1000) progress = 1000;
+      int32_t eased = ease_out_cubic_1000(progress);
+      time_t past = now - 120 * 60;
+      time_t swept_now = past + (time_t)(((int64_t)(now - past) * eased) / 1000);
+      struct tm *st = localtime(&swept_now);
+      target_hour_angle = (int32_t)(((int64_t)((st->tm_hour % 12) * 3600 + st->tm_min * 60 + st->tm_sec) * TRIG_MAX_ANGLE) / (12 * 3600));
+      target_min_angle = ((st->tm_min * 60 + st->tm_sec) * TRIG_MAX_ANGLE) / (60 * 60);
+      target_sec_angle = (st->tm_sec * TRIG_MAX_ANGLE) / 60;
+    }
+    compute_startup_hand_anim(target_hour_angle, s_startup_anim_elapsed_ms, &hour_angle, &hour_length_scale_1000);
+    compute_startup_hand_anim(target_min_angle, s_startup_anim_elapsed_ms, &min_angle, &min_length_scale_1000);
+    compute_startup_hand_anim(target_sec_angle, s_startup_anim_elapsed_ms, &sec_angle, &sec_length_scale_1000);
   }
 
   // Every hand style is a "custom" hand now, whether the person got
@@ -750,25 +777,28 @@ static void bottom_canvas_update_proc(Layer *layer, GContext *ctx) {
   time_t now = time(NULL);
   struct tm *t = localtime(&now);
 
-  // Startup animation: substitutes an eased count-up from midnight to
-  // the real time for the DISPLAYED time only -- `now`/the color
-  // scheme below still use the real current time. Every read of
-  // `t->tm_hour`/`tm_min`/`tm_sec` below shares this one struct tm,
-  // so the digital HH:MM(:SS) text gets the count-up for free from
-  // this single substitution. Uses the same shared ease-out table
-  // every other "settles gracefully into place" animation in this
-  // app uses (fast at first, gradually slowing into the real time)
-  // -- this used to accelerate INTO the stop instead (ease-in), which
-  // read as an abrupt halt right at the end.
+  // Startup animation: substitutes an eased count-up from 120 minutes
+  // before the real time (not all the way from midnight -- a many-
+  // hour jump used to make the digits blur through most of the day
+  // in under 1.5s, which read as noisy digit-flicker rather than a
+  // deliberate sweep) up to the real time, for the DISPLAYED time
+  // only -- `now`/the color scheme below still use the real current
+  // time. Every read of `t->tm_hour`/`tm_min`/`tm_sec` below shares
+  // this one struct tm, so the digital HH:MM(:SS) text gets the
+  // count-up for free from this single substitution. Uses the same
+  // shared ease-out table every other "settles gracefully into place"
+  // animation in this app uses (fast at first, gradually slowing into
+  // the real time) -- this used to accelerate INTO the stop instead
+  // (ease-in), which read as an abrupt halt right at the end.
   struct tm anim_tm;
   if (s_startup_clock_anim_active) {
     int32_t progress = ((int32_t)s_startup_anim_elapsed_ms * 1000) / STARTUP_CLOCK_ANIM_MS;
     if (progress > 1000) progress = 1000;
     int32_t eased = ease_out_lut_1000(progress);
-    int32_t seconds_since_midnight = t->tm_hour * 3600 + t->tm_min * 60 + t->tm_sec;
-    int32_t fake_seconds = (int32_t)(((int64_t)seconds_since_midnight * eased) / 1000);
-    time_t midnight = now - seconds_since_midnight;
-    time_t fake_time = midnight + fake_seconds;
+    time_t anim_start = now - 120 * 60; // 2 hours before the real time
+    int32_t total_seconds = (int32_t)(now - anim_start);
+    int32_t fake_seconds = (int32_t)(((int64_t)total_seconds * eased) / 1000);
+    time_t fake_time = anim_start + fake_seconds;
     anim_tm = *localtime(&fake_time);
     t = &anim_tm;
   }
@@ -1046,13 +1076,10 @@ static void maybe_start_startup_clock_animation(void) {
 // -- the two settings are independent, and either, both, or neither
 // can be on -- but the same "fast timer, bounded duration, played once
 // per session" shape.
-#define BG_ANIM_MS 1400
 #define BG_ANIM_FRAME_MS 40 // matches STARTUP_ANIM_FRAME_MS -- see its own comment
 
 static AppTimer *s_bg_anim_timer = NULL;
-static bool s_bg_anim_active = false;
 static bool s_bg_anim_played = false;
-static uint16_t s_bg_anim_elapsed_ms = 0;
 
 static void bg_anim_timer_callback(void *data) {
   s_bg_anim_elapsed_ms += BG_ANIM_FRAME_MS;

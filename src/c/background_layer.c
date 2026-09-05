@@ -2437,7 +2437,17 @@ static void draw_bg_anim_planets_overlay(GContext *ctx, CanvasState *state, cons
     // shared cached value itself), plus animated rays
     // (see draw_sun_rays()) since this whole overlay only exists
     // while the "Planets" startup animation is actually running.
-    GColor sun_fill = GColorFromRGB(SUN_COLOR_SPACE_R, SUN_COLOR_SPACE_G, SUN_COLOR_SPACE_B);
+    // Weather/Clear sky modes use the real altitude-based color
+    // instead -- state->cached_sun_fill_color already reflects
+    // wherever sky_now (the animated sweep) currently sits, so the
+    // Sun genuinely shades from white through orange to red as it
+    // sweeps toward the horizon, the same way it would on a normal
+    // (non-animated) redraw -- rather than staying one flat color for
+    // the whole sweep, which is what made this look like a different,
+    // simplified "cartoon sun" instead of this app's own real one.
+    GColor sun_fill = (d->sky_mode == 2)
+      ? GColorFromRGB(SUN_COLOR_SPACE_R, SUN_COLOR_SPACE_G, SUN_COLOR_SPACE_B)
+      : state->cached_sun_fill_color;
     draw_sun_rays(ctx, state->cached_sun_center, state->cached_sun_r, sun_fill, state->bg_anim_elapsed_ms);
     graphics_context_set_fill_color(ctx, sun_fill);
     graphics_fill_circle(ctx, state->cached_sun_center, state->cached_sun_r);

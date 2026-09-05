@@ -21,6 +21,47 @@ pebble build
 pebble install --emulator emery
 ```
 
+## Build-time scripts
+
+The settings page is one self-contained `data:` URI with no server
+behind it, so it can't load external image files when it's actually
+open on the phone -- anything it previews (fonts, hand shapes, marker
+art, weather icons, ...) has to already be embedded as base64 by the
+time the app is built. Each of the scripts below handles one such
+preview set; every one of them is safe to run even before you've
+added its own source PNGs (a missing source image just means that one
+preview shows no picture in settings -- not an error, and it never
+affects that feature working on the watch itself).
+
+Run them all at once, in the one order that actually matters
+(`generate_hand_style_icons.py` has to run before
+`generate-hand-style-icons.js`, since the latter bakes the former's
+own output):
+
+```
+node scripts/generate-all.js
+```
+
+This keeps going even if one script fails (e.g. a missing optional
+dependency like `pngjs` or Pillow -- see each script's own section
+below) and prints a pass/fail summary at the end, so one broken
+generator never blocks the others from still updating. See "Running
+it automatically" further down for wiring this into your own build
+step instead of remembering to run it by hand.
+
+Quick reference (details for each are in their own section below):
+
+| Script | Runtime | What it embeds |
+| --- | --- | --- |
+| `generate-all.js` | Node | Runs every script below, in order |
+| `generate-marker-previews.js` | Node | Bitmap marker style artwork (Modern/Swiss/Tally/Bell/Brown) |
+| `generate-infographics.js` | Node | Hand-style picker pictures, marker-preset pictures, hand-editor explainer diagrams |
+| `generate-example-style-previews.js` | Node | Example style gallery preview images |
+| `generate-font-previews.js` | Node | Real on-watch renderings for the font picker (Gothic/Bitham/LECO) |
+| `generate_hand_style_icons.py` | Python 3 + Pillow | Renders the 11 hand-style shape icons |
+| `generate-hand-style-icons.js` | Node | Bakes those 11 icons for the hand-style picker popup |
+| `generate-weather-icon-previews.js` | Node + `pngjs` | Weather icon style picker previews |
+
 ## Style Presets: Example styles and custom presets
 
 The settings page has two related but separate ways to save/share a
@@ -218,12 +259,16 @@ remembering this step by hand, either:
 
   ```json
   "scripts": {
-    "build": "node scripts/generate-marker-previews.js && pebble build"
+    "build": "node scripts/generate-all.js && pebble build"
   }
   ```
 
-- Or add `node scripts/generate-marker-previews.js` to whatever shell
-  alias/CI step you already use to invoke `pebble build`.
+- Or add `node scripts/generate-all.js` to whatever shell alias/CI
+  step you already use to invoke `pebble build`.
+
+(`generate-all.js` runs every script in this file's own "Build-time
+scripts" section above, including this one -- there's no need to also
+list `generate-marker-previews.js` separately once you're using it.)
 
 ### Keep the source PNGs reasonably small
 
@@ -234,3 +279,151 @@ white-on-transparent mask art these marker styles already use is
 fine. Full-resolution photos or anything visually complex will bloat
 the page and risk hitting inconsistent limits across different
 phones/OS versions.
+
+## Font picker previews
+
+The font picker popup (Clock font / Small companion font / corner-
+feature font / marker numerals font) shows each option rendered in
+its own real typeface, loaded live from Google Fonts -- see
+`FONT_LOOKUP` in `config-page.js` for the full table and which of
+these are the exact same family as the on-watch font versus a close
+visual substitute (`approx: true`, with a comment explaining why for
+each one).
+
+Three of the watch's built-in system fonts have no substitute at all
+in that table: Gothic ("System"), Bitham, and LECO. These are
+commercially licensed typefaces (Bitham is a renamed/relicensed
+Gotham from Hoefler&Co/Typography.com; Gothic is Mark Simonson's
+Raster Gothic; LECO 1976 is licensed from MyFonts), so embedding them
+as a live webfont for the settings page to render arbitrary text with
+isn't something their licenses cover, even though the app itself is
+licensed to use them on the watch. `scripts/generate_hand_style_icons.py`'s
+sibling for this, `scripts/generate-font-previews.js`, sidesteps that
+by baking in a small PNG of one real on-watch RENDERING of the
+picker's own sample text instead -- you're using a font you're
+already licensed to use to flatten your own fixed string to an image,
+not redistributing the font file itself for a browser to render
+arbitrary text with, the same distinction most font EULAs draw between
+ordinary desktop use and a separate webfont license.
+
+### Producing the source PNGs
+
+There's no automated renderer for these three (they only exist inside
+Pebble's firmware) -- you make them yourself, once, using the actual
+`FONT_KEY_*` constant each font id maps to (see `font_lookup.c`):
+
+```c
+GFont font = fonts_get_system_font(FONT_KEY_LECO_42_NUMBERS);
+graphics_context_set_text_color(ctx, GColorWhite);
+graphics_draw_text(ctx, "12:34", font, bounds, GTextOverflowModeWordWrap, GTextAlignmentCenter, NULL);
+```
+
+White text (not black) on a transparent/black background -- see
+"Keep it themed" below for why. Run this in a throwaway watchapp in
+the emulator, screenshot it, and crop tight to the text.
+
+Save each as `resources/font-previews/<fontId>_<role>.png`, where
+`fontId` is that font's own numeric id in `FONT_LOOKUP` and `role` is
+one of `clock`, `clockFontSmall`, `cornerFont`, `markerTextFont`
+(matching `FONT_PICKER_ROLES` in `config-page.js`) -- whichever
+picker(s) that font can actually appear in, each with its own sample
+text ("12:34", "Tue 12", "-10°C", "12"/"XII"). You don't need every
+combination -- a font with no PNG for a given role just falls back to
+its existing CSS-approximation text preview for that one button.
+`fontLookupEntry(id).mainClock` tells you whether a font is eligible
+for the Clock font role at all.
+
+Then bake it in:
+
+```
+node scripts/generate-font-previews.js
+```
+
+which reads `resources/font-previews/*.png` and writes
+`src/pkjs/font-preview-images.js`.
+
+### Keep it themed
+
+The picker previews render as white-on-transparent and get CSS-
+inverted for light mode (`filter: invert(1)`, undone via
+`prefers-color-scheme: dark`) -- the same trick `bitmap-marker-img`
+already uses. Author your screenshot with light/white text so it
+already looks right in dark mode without any extra work.
+
+## Hand style picker icons
+
+The hand style picker popup (inside each "Edit hour/minute/second
+hand" editor) shows a small silhouette icon per `HandConfig.style`
+value (Baton/Galba/Pencil/Dauphine/Sword/Pomme/Spade/Arrow/Leaf/
+Syringe/Serpentine) next to its name. Unlike the full-width labeled
+explainer diagram already covered above (`resources/infographics/
+<style name>.png`, via `generate-infographics.js`), these are plain
+unlabeled shapes meant to read at a glance in a compact button list --
+a separate image set in its own `resources/hand-style-icons/`
+subfolder, so the two never collide on a filename.
+
+This is a two-step pipeline, since actually rendering a shape (rather
+than just packaging an existing file, which is all the other
+generate-*.js scripts here do) needs a real rasterizer, and plain
+Node.js has none built in without a native `canvas` dependency:
+
+```
+python3 scripts/generate_hand_style_icons.py
+node scripts/generate-hand-style-icons.js
+```
+
+The first is a from-scratch Python + Pillow port of this project's
+own `compute_hand_geometry_fp()` (`hand_layer.c`) -- the exact same
+capsule/taper/kite/pentagon/etc. construction the watch itself uses,
+just oriented flat (pointing right) and rendered directly instead of
+returned as polygon data for a Pebble `GContext` to fill, using
+representative width/length/offset parameters chosen to resemble this
+project's own reference diagrams rather than any particular preset.
+Requires Pillow (`pip install pillow`, or `pip install pillow
+--break-system-packages` if your system's `pip` refuses to install
+outside a virtualenv). It writes PNGs straight into
+`resources/hand-style-icons/`.
+
+The second bakes those PNGs into `src/pkjs/hand-style-icon-images.js`,
+the same shape every other generate-*.js script here uses.
+
+### Tweaking a shape
+
+Every style's own proportions (width, length, back offset, middle
+offset, secondary width, all in the same "px" units `HandConfig`
+itself uses) are plain local variables at the top of that style's own
+`style_<name>(draw)` function in `generate_hand_style_icons.py` --
+change them and re-run both scripts above to see the result. The
+white pivot-marker dot's own position (`STYLES`'s third entry per
+style) has to land somewhere already solidly inside that style's own
+black shape, or it'll just draw on empty transparent canvas -- most
+styles just need an axial (x) position, but serpentine's own wavy
+centerline needs its actual curve position at that point too (see
+`serpentine_dot_point()`).
+
+## Weather icon style previews
+
+The Weather icon style picker (Simple/Hollow/Full color) shows one
+representative icon -- the "partly cloudy" one -- from each style's
+own resource set (`resources/images/icon_<style>_partly_cloudy.png`;
+see `draw_weather_icon_simple()`/`_hollow()`/`_filled()` in
+`features_layer.c`), scaled up so it's actually legible next to the
+option's name in the picker's own button row.
+
+```
+npm install pngjs --save-dev   # once
+node scripts/generate-weather-icon-previews.js
+```
+
+Requires `pngjs` (a pure-JS PNG decoder/encoder, no native bindings)
+since, like the hand-style icon script above, this does real pixel
+work rather than just packaging an existing file -- specifically,
+nearest-neighbor upscaling (never smooth/bilinear interpolation,
+which would blur these into a soft smudge) so the enlarged preview
+stays crisp and true to the icon's actual on-watch blocky look, the
+same reasoning the picker's own CSS (`image-rendering: pixelated`)
+backs up on the display side. The scale factor is always a whole
+number, chosen per source image so the result lands close to
+`TARGET_HEIGHT` (a constant near the top of the script) -- tweak that
+constant, not the source PNGs, if the previews come out too small or
+large next to the option names.
