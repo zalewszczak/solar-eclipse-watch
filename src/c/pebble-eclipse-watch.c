@@ -1,4 +1,5 @@
 #include <pebble.h>
+#include <stddef.h> // offsetof() -- used by inbox_received_handler's SIMPLE_FIELD_MAP
 #include "eclipse_data.h"
 #include "background_layer.h"
 #include "features_layer.h"
@@ -1151,8 +1152,230 @@ static void update_tick_subscription(void) {
   tick_timer_service_subscribe(need_seconds ? SECOND_UNIT : MINUTE_UNIT, tick_handler);
 }
 
+// ---- Table-driven plain-copy message fields ---------------------------
+// Roughly 3 in 4 of this app's ~193 AppMessage keys resolve to nothing
+// more than "copy this value into this EclipseData field, with this
+// one conversion" -- no clamping, no derived state, no layer redraw to
+// trigger. Those are handled once, generically, via this table +
+// apply_simple_fields() below, instead of each getting its own hand-
+// written `if ((t = dict_find(iter, KEY))) s_data.field = ...;` block.
+// The remaining ~46 keys (validation/clamping, derived fields like
+// has_eclipse, byte-blob arrays, and anything that needs to mark a
+// layer dirty or call apply_layout()/apply_clock_font()) keep their
+// own explicit code below, unchanged -- forcing those into this same
+// table would need a per-field side-effect callback, which is most of
+// this table's own complexity right back again for comparatively
+// little further size win. Order doesn't matter: every field here is
+// independent of every other one (and of the ~46 explicit fields) --
+// nothing here reads any s_data field, so there's no way processing
+// them via one generic loop instead of scattered inline can observe a
+// different result than the original hand-written order did. Run
+// first, before any of the ~46 explicit blocks below, purely so that
+// something like corner-content's own features_layer_set_data() call
+// (further down) always sees this message's freshly-applied values
+// rather than last message's -- moving a field out of this table
+// always needs the same "does anything downstream read it" check.
+typedef enum {
+  F_U8,             // s_data.FIELD = t->value->uint8;
+  F_BOOL,           // s_data.FIELD = t->value->uint8 != 0;
+  F_I16,            // s_data.FIELD = t->value->int16;
+  F_I8_FROM_I16,    // s_data.FIELD = (int8_t)t->value->int16;
+  F_U16,            // s_data.FIELD = t->value->uint16;
+  F_U32,            // s_data.FIELD = t->value->uint32;
+  F_TIME,           // s_data.FIELD = (time_t)t->value->int32;
+} SimpleFieldType;
+
+typedef struct {
+  uint32_t message_key;
+  SimpleFieldType type;
+  size_t offset;      // offsetof(EclipseData, field) -- supports dotted paths
+                        // (hand_hour.style etc.) same as any other offsetof use
+} SimpleFieldMapping;
+
+static const SimpleFieldMapping SIMPLE_FIELD_MAP[] = {
+  // Hand system (hand_hour/hand_minute/hand_second, see hand_layer.h) --
+  // every hand (however it was picked on the settings page -- a preset
+  // button or the manual editor) is sent as one of these full field
+  // sets; the watch itself has no separate "preset" concept, so these
+  // are plain copies same as anything else here.
+  { MESSAGE_KEY_ERROR_CODE, F_U8, offsetof(EclipseData, error_code) },
+  { MESSAGE_KEY_TEMP_UNIT, F_U8, offsetof(EclipseData, temp_unit) },
+  { MESSAGE_KEY_WIND_SPEED_UNIT, F_U8, offsetof(EclipseData, wind_speed_unit) },
+  { MESSAGE_KEY_SHAKE_LABEL_SECONDS, F_U8, offsetof(EclipseData, shake_label_seconds) },
+  { MESSAGE_KEY_VIBRATE_ON_PHASE_CHANGE, F_BOOL, offsetof(EclipseData, vibrate_on_phase_change) },
+  { MESSAGE_KEY_STARTUP_CLOCK_ANIMATION_ENABLED, F_BOOL, offsetof(EclipseData, startup_clock_animation_enabled) },
+  { MESSAGE_KEY_OUTLINE_ENABLED, F_BOOL, offsetof(EclipseData, outline_enabled) },
+  { MESSAGE_KEY_CORNER_FONT, F_U8, offsetof(EclipseData, corner_font) },
+  { MESSAGE_KEY_HAND_HOUR_STYLE, F_U8, offsetof(EclipseData, hand_hour.style) },
+  { MESSAGE_KEY_HAND_HOUR_WIDTH, F_U8, offsetof(EclipseData, hand_hour.width) },
+  { MESSAGE_KEY_HAND_HOUR_LENGTH, F_U8, offsetof(EclipseData, hand_hour.length) },
+  { MESSAGE_KEY_HAND_HOUR_BACK_OFFSET, F_I8_FROM_I16, offsetof(EclipseData, hand_hour.back_offset) },
+  { MESSAGE_KEY_HAND_HOUR_MIDDLE_OFFSET, F_I8_FROM_I16, offsetof(EclipseData, hand_hour.middle_offset) },
+  { MESSAGE_KEY_HAND_HOUR_SECONDARY_WIDTH, F_U8, offsetof(EclipseData, hand_hour.secondary_width) },
+  { MESSAGE_KEY_HAND_HOUR_COLOR, F_U8, offsetof(EclipseData, hand_hour.color) },
+  { MESSAGE_KEY_HAND_HOUR_OUTLINE_ENABLED, F_BOOL, offsetof(EclipseData, hand_hour.outline_enabled) },
+  { MESSAGE_KEY_HAND_HOUR_OUTLINE_COLOR, F_U8, offsetof(EclipseData, hand_hour.outline_color) },
+  { MESSAGE_KEY_HAND_HOUR_TRANSLUCENT, F_BOOL, offsetof(EclipseData, hand_hour.translucent) },
+  { MESSAGE_KEY_HAND_HOUR_SHADOW_ENABLED, F_BOOL, offsetof(EclipseData, hand_hour.shadow_enabled) },
+  { MESSAGE_KEY_HAND_HOUR_SHADOW_DISTANCE, F_U8, offsetof(EclipseData, hand_hour.shadow_distance_px) },
+  { MESSAGE_KEY_HAND_HOUR_HOLLOW, F_BOOL, offsetof(EclipseData, hand_hour.hollow) },
+  { MESSAGE_KEY_HAND_HOUR_HOLLOW_THICKNESS, F_U8, offsetof(EclipseData, hand_hour.hollow_thickness) },
+  { MESSAGE_KEY_HAND_MIN_STYLE, F_U8, offsetof(EclipseData, hand_minute.style) },
+  { MESSAGE_KEY_HAND_MIN_WIDTH, F_U8, offsetof(EclipseData, hand_minute.width) },
+  { MESSAGE_KEY_HAND_MIN_LENGTH, F_U8, offsetof(EclipseData, hand_minute.length) },
+  { MESSAGE_KEY_HAND_MIN_BACK_OFFSET, F_I8_FROM_I16, offsetof(EclipseData, hand_minute.back_offset) },
+  { MESSAGE_KEY_HAND_MIN_MIDDLE_OFFSET, F_I8_FROM_I16, offsetof(EclipseData, hand_minute.middle_offset) },
+  { MESSAGE_KEY_HAND_MIN_SECONDARY_WIDTH, F_U8, offsetof(EclipseData, hand_minute.secondary_width) },
+  { MESSAGE_KEY_HAND_MIN_COLOR, F_U8, offsetof(EclipseData, hand_minute.color) },
+  { MESSAGE_KEY_HAND_MIN_OUTLINE_ENABLED, F_BOOL, offsetof(EclipseData, hand_minute.outline_enabled) },
+  { MESSAGE_KEY_HAND_MIN_OUTLINE_COLOR, F_U8, offsetof(EclipseData, hand_minute.outline_color) },
+  { MESSAGE_KEY_HAND_MIN_TRANSLUCENT, F_BOOL, offsetof(EclipseData, hand_minute.translucent) },
+  { MESSAGE_KEY_HAND_MIN_SHADOW_ENABLED, F_BOOL, offsetof(EclipseData, hand_minute.shadow_enabled) },
+  { MESSAGE_KEY_HAND_MIN_SHADOW_DISTANCE, F_U8, offsetof(EclipseData, hand_minute.shadow_distance_px) },
+  { MESSAGE_KEY_HAND_MIN_HOLLOW, F_BOOL, offsetof(EclipseData, hand_minute.hollow) },
+  { MESSAGE_KEY_HAND_MIN_HOLLOW_THICKNESS, F_U8, offsetof(EclipseData, hand_minute.hollow_thickness) },
+  { MESSAGE_KEY_HAND_SEC_STYLE, F_U8, offsetof(EclipseData, hand_second.style) },
+  { MESSAGE_KEY_HAND_SEC_WIDTH, F_U8, offsetof(EclipseData, hand_second.width) },
+  { MESSAGE_KEY_HAND_SEC_LENGTH, F_U8, offsetof(EclipseData, hand_second.length) },
+  { MESSAGE_KEY_HAND_SEC_BACK_OFFSET, F_I8_FROM_I16, offsetof(EclipseData, hand_second.back_offset) },
+  { MESSAGE_KEY_HAND_SEC_MIDDLE_OFFSET, F_I8_FROM_I16, offsetof(EclipseData, hand_second.middle_offset) },
+  { MESSAGE_KEY_HAND_SEC_SECONDARY_WIDTH, F_U8, offsetof(EclipseData, hand_second.secondary_width) },
+  { MESSAGE_KEY_HAND_SEC_COLOR, F_U8, offsetof(EclipseData, hand_second.color) },
+  { MESSAGE_KEY_HAND_SEC_OUTLINE_ENABLED, F_BOOL, offsetof(EclipseData, hand_second.outline_enabled) },
+  { MESSAGE_KEY_HAND_SEC_OUTLINE_COLOR, F_U8, offsetof(EclipseData, hand_second.outline_color) },
+  { MESSAGE_KEY_HAND_SEC_TRANSLUCENT, F_BOOL, offsetof(EclipseData, hand_second.translucent) },
+  { MESSAGE_KEY_HAND_SEC_SHADOW_ENABLED, F_BOOL, offsetof(EclipseData, hand_second.shadow_enabled) },
+  { MESSAGE_KEY_HAND_SEC_SHADOW_DISTANCE, F_U8, offsetof(EclipseData, hand_second.shadow_distance_px) },
+  { MESSAGE_KEY_HAND_SEC_HOLLOW, F_BOOL, offsetof(EclipseData, hand_second.hollow) },
+  { MESSAGE_KEY_HAND_SEC_HOLLOW_THICKNESS, F_U8, offsetof(EclipseData, hand_second.hollow_thickness) },
+  { MESSAGE_KEY_CENTER_CIRCLE_RADIUS, F_U8, offsetof(EclipseData, center_circle_radius) },
+  { MESSAGE_KEY_CENTER_CIRCLE_COLOR, F_U8, offsetof(EclipseData, center_circle_color) },
+  // Custom marker system (big_analog_marker_style == 8) -- see
+  // eclipse_data.h (MarkerRingConfig/MarkerTextConfig) and
+  // background_layer.c (where these now actually get drawn, as part
+  // of its own cached redraw). No per-key dirty-marking needed here
+  // beyond copying the values in -- every inbox message
+  // unconditionally forces a full canvas redraw at the end of this
+  // handler (see refresh_status_and_maybe_canvas(true) below).
+  { MESSAGE_KEY_CUSTOM_HOUR_STYLE, F_U8, offsetof(EclipseData, custom_hour_marker.style) },
+  { MESSAGE_KEY_CUSTOM_HOUR_THICKNESS, F_U8, offsetof(EclipseData, custom_hour_marker.thickness) },
+  { MESSAGE_KEY_CUSTOM_HOUR_INNER_ECC, F_U8, offsetof(EclipseData, custom_hour_marker.inner_eccentricity) },
+  { MESSAGE_KEY_CUSTOM_HOUR_OUTER_ECC, F_U8, offsetof(EclipseData, custom_hour_marker.outer_eccentricity) },
+  { MESSAGE_KEY_CUSTOM_HOUR_INNER_BORDER, F_U8, offsetof(EclipseData, custom_hour_marker.inner_border_pct) },
+  { MESSAGE_KEY_CUSTOM_HOUR_OUTER_BORDER, F_U8, offsetof(EclipseData, custom_hour_marker.outer_border_pct) },
+  { MESSAGE_KEY_CUSTOM_HOUR_TRANSLUCENT, F_BOOL, offsetof(EclipseData, custom_hour_marker.translucent) },
+  { MESSAGE_KEY_CUSTOM_HOUR_COLOR, F_U8, offsetof(EclipseData, custom_hour_marker.color) },
+  { MESSAGE_KEY_CUSTOM_SEC_STYLE, F_U8, offsetof(EclipseData, custom_second_marker.style) },
+  { MESSAGE_KEY_CUSTOM_SEC_THICKNESS, F_U8, offsetof(EclipseData, custom_second_marker.thickness) },
+  { MESSAGE_KEY_CUSTOM_SEC_INNER_ECC, F_U8, offsetof(EclipseData, custom_second_marker.inner_eccentricity) },
+  { MESSAGE_KEY_CUSTOM_SEC_OUTER_ECC, F_U8, offsetof(EclipseData, custom_second_marker.outer_eccentricity) },
+  { MESSAGE_KEY_CUSTOM_SEC_INNER_BORDER, F_U8, offsetof(EclipseData, custom_second_marker.inner_border_pct) },
+  { MESSAGE_KEY_CUSTOM_SEC_OUTER_BORDER, F_U8, offsetof(EclipseData, custom_second_marker.outer_border_pct) },
+  { MESSAGE_KEY_CUSTOM_SEC_TRANSLUCENT, F_BOOL, offsetof(EclipseData, custom_second_marker.translucent) },
+  { MESSAGE_KEY_CUSTOM_SEC_COLOR, F_U8, offsetof(EclipseData, custom_second_marker.color) },
+  { MESSAGE_KEY_BITMAP_MARKER_TRANSPARENT, F_BOOL, offsetof(EclipseData, bitmap_marker_transparent) },
+  { MESSAGE_KEY_MARKER_TEXT_TARGET, F_U8, offsetof(EclipseData, marker_text.target) },
+  { MESSAGE_KEY_MARKER_TEXT_FONT, F_U8, offsetof(EclipseData, marker_text.font_choice) },
+  { MESSAGE_KEY_MARKER_TEXT_OFFSET, F_I8_FROM_I16, offsetof(EclipseData, marker_text.offset_px) },
+  { MESSAGE_KEY_MARKER_TEXT_HOUR_MASK, F_U16, offsetof(EclipseData, marker_text.hour_mask) },
+  { MESSAGE_KEY_MARKER_TEXT_SEC_MASK, F_U16, offsetof(EclipseData, marker_text.second_mask) },
+  { MESSAGE_KEY_MARKER_TEXT_ROMAN, F_BOOL, offsetof(EclipseData, marker_text.roman_numerals) },
+  { MESSAGE_KEY_UPPER_MIDDLE_LINE1_CONTENT, F_U8, offsetof(EclipseData, upper_middle_line1_content) },
+  { MESSAGE_KEY_UPPER_MIDDLE_LINE1_COLOR_MODE, F_U8, offsetof(EclipseData, upper_middle_line1_color_mode) },
+  { MESSAGE_KEY_UPPER_MIDDLE_LINE2_CONTENT, F_U8, offsetof(EclipseData, upper_middle_line2_content) },
+  { MESSAGE_KEY_UPPER_MIDDLE_LINE2_COLOR_MODE, F_U8, offsetof(EclipseData, upper_middle_line2_color_mode) },
+  { MESSAGE_KEY_BOTTOM_MIDDLE_LINE1_CONTENT, F_U8, offsetof(EclipseData, bottom_middle_line1_content) },
+  { MESSAGE_KEY_BOTTOM_MIDDLE_LINE1_COLOR_MODE, F_U8, offsetof(EclipseData, bottom_middle_line1_color_mode) },
+  { MESSAGE_KEY_BOTTOM_MIDDLE_LINE2_CONTENT, F_U8, offsetof(EclipseData, bottom_middle_line2_content) },
+  { MESSAGE_KEY_BOTTOM_MIDDLE_LINE2_COLOR_MODE, F_U8, offsetof(EclipseData, bottom_middle_line2_color_mode) },
+  { MESSAGE_KEY_MIDDLE_LEFT_LINE1_CONTENT, F_U8, offsetof(EclipseData, middle_left_line1_content) },
+  { MESSAGE_KEY_MIDDLE_LEFT_LINE1_COLOR_MODE, F_U8, offsetof(EclipseData, middle_left_line1_color_mode) },
+  { MESSAGE_KEY_MIDDLE_LEFT_LINE2_CONTENT, F_U8, offsetof(EclipseData, middle_left_line2_content) },
+  { MESSAGE_KEY_MIDDLE_LEFT_LINE2_COLOR_MODE, F_U8, offsetof(EclipseData, middle_left_line2_color_mode) },
+  { MESSAGE_KEY_MIDDLE_RIGHT_LINE1_CONTENT, F_U8, offsetof(EclipseData, middle_right_line1_content) },
+  { MESSAGE_KEY_MIDDLE_RIGHT_LINE1_COLOR_MODE, F_U8, offsetof(EclipseData, middle_right_line1_color_mode) },
+  { MESSAGE_KEY_MIDDLE_RIGHT_LINE2_CONTENT, F_U8, offsetof(EclipseData, middle_right_line2_content) },
+  { MESSAGE_KEY_MIDDLE_RIGHT_LINE2_COLOR_MODE, F_U8, offsetof(EclipseData, middle_right_line2_color_mode) },
+  { MESSAGE_KEY_DAILY_STEP_GOAL, F_U16, offsetof(EclipseData, daily_step_goal) },
+  { MESSAGE_KEY_CUSTOM_BG, F_U8, offsetof(EclipseData, custom_bg) },
+  { MESSAGE_KEY_CUSTOM_TEXT, F_U8, offsetof(EclipseData, custom_text) },
+  { MESSAGE_KEY_CUSTOM_ACCENT, F_U8, offsetof(EclipseData, custom_accent) },
+  { MESSAGE_KEY_NIGHT_CUSTOM_BG, F_U8, offsetof(EclipseData, night_custom_bg) },
+  { MESSAGE_KEY_NIGHT_CUSTOM_TEXT, F_U8, offsetof(EclipseData, night_custom_text) },
+  { MESSAGE_KEY_NIGHT_CUSTOM_ACCENT, F_U8, offsetof(EclipseData, night_custom_accent) },
+  { MESSAGE_KEY_C1_TIME, F_TIME, offsetof(EclipseData, c1) },
+  { MESSAGE_KEY_C2_TIME, F_TIME, offsetof(EclipseData, c2) },
+  { MESSAGE_KEY_MAX_TIME, F_TIME, offsetof(EclipseData, max_t) },
+  { MESSAGE_KEY_C3_TIME, F_TIME, offsetof(EclipseData, c3) },
+  { MESSAGE_KEY_C4_TIME, F_TIME, offsetof(EclipseData, c4) },
+  { MESSAGE_KEY_SUNSET_TIME, F_TIME, offsetof(EclipseData, sunset) },
+  { MESSAGE_KEY_MAGNITUDE, F_U8, offsetof(EclipseData, magnitude_pct) },
+  { MESSAGE_KEY_POS_ANGLE, F_I16, offsetof(EclipseData, pos_angle_deg) },
+  { MESSAGE_KEY_SAMPLE_START, F_TIME, offsetof(EclipseData, sample_start) },
+  { MESSAGE_KEY_SAMPLE_INTERVAL, F_U32, offsetof(EclipseData, sample_interval_s) },
+  { MESSAGE_KEY_RADIUS_RATIO_PCT, F_U8, offsetof(EclipseData, radius_ratio_pct) },
+  { MESSAGE_KEY_CLOUD_COVER, F_U8, offsetof(EclipseData, cloud_cover_pct) },
+  { MESSAGE_KEY_VIS_SCORE, F_U8, offsetof(EclipseData, vis_score_pct) },
+  { MESSAGE_KEY_WEATHER_SOURCES, F_U8, offsetof(EclipseData, weather_sources) },
+  { MESSAGE_KEY_WEATHER_CONDITION, F_U8, offsetof(EclipseData, weather_condition) },
+  { MESSAGE_KEY_WIND_DIR_DEG, F_I16, offsetof(EclipseData, wind_dir_deg) },
+  { MESSAGE_KEY_DEW_POINT_C, F_I16, offsetof(EclipseData, dew_point_c) },
+  { MESSAGE_KEY_PRESSURE_HPA, F_I16, offsetof(EclipseData, pressure_hpa) },
+  { MESSAGE_KEY_PRESSURE_TREND, F_U8, offsetof(EclipseData, pressure_trend) },
+  { MESSAGE_KEY_AQI_US, F_U16, offsetof(EclipseData, aqi_us) },
+  { MESSAGE_KEY_AQI_EU, F_U16, offsetof(EclipseData, aqi_eu) },
+  { MESSAGE_KEY_ALTITUDE_M, F_I16, offsetof(EclipseData, altitude_m) },
+  { MESSAGE_KEY_AURORA_KP_X10, F_U8, offsetof(EclipseData, aurora_kp_x10) },
+  { MESSAGE_KEY_AURORA_ERROR_CODE, F_U8, offsetof(EclipseData, aurora_error_code) },
+  { MESSAGE_KEY_WEATHER_TEMP_C, F_I16, offsetof(EclipseData, weather_temp_c) },
+  { MESSAGE_KEY_WEATHER_TEMP_HIGH_C, F_I16, offsetof(EclipseData, temp_high_c) },
+  { MESSAGE_KEY_WEATHER_TEMP_LOW_C, F_I16, offsetof(EclipseData, temp_low_c) },
+  { MESSAGE_KEY_UV_INDEX_X10, F_U8, offsetof(EclipseData, uv_index_x10) },
+  { MESSAGE_KEY_RAIN_CHANCE_PCT, F_U8, offsetof(EclipseData, rain_chance_pct) },
+  { MESSAGE_KEY_HUMIDITY_PCT, F_U8, offsetof(EclipseData, humidity_pct) },
+  { MESSAGE_KEY_WIND_SPEED_KMH, F_I16, offsetof(EclipseData, wind_speed_kmh) },
+  { MESSAGE_KEY_SKY_SAMPLE_START, F_TIME, offsetof(EclipseData, sky_sample_start) },
+  { MESSAGE_KEY_SKY_SAMPLE_INTERVAL, F_U32, offsetof(EclipseData, sky_sample_interval_s) },
+  { MESSAGE_KEY_CLOUD_ALTITUDE_PCT, F_U8, offsetof(EclipseData, cloud_altitude_pct) },
+  { MESSAGE_KEY_SATURN_RING_OPEN_PCT, F_U8, offsetof(EclipseData, saturn_ring_open_pct) },
+  { MESSAGE_KEY_SKY_SCALE_MAX_ALT, F_I16, offsetof(EclipseData, sky_scale_max_alt_decideg) },
+  { MESSAGE_KEY_MOON_PHASE_PCT, F_U8, offsetof(EclipseData, moon_phase_pct) },
+  { MESSAGE_KEY_MOON_WAXING, F_BOOL, offsetof(EclipseData, moon_waxing) },
+  { MESSAGE_KEY_SUN_RISE, F_TIME, offsetof(EclipseData, sun_rise) },
+  { MESSAGE_KEY_SUN_SET, F_TIME, offsetof(EclipseData, sun_set) },
+  { MESSAGE_KEY_SUN_RISE_TOMORROW, F_TIME, offsetof(EclipseData, sun_rise_tomorrow) },
+  { MESSAGE_KEY_MOON_RISE, F_TIME, offsetof(EclipseData, moon_rise) },
+  { MESSAGE_KEY_MOON_SET, F_TIME, offsetof(EclipseData, moon_set) },
+  { MESSAGE_KEY_METEOR_INTENSITY, F_U8, offsetof(EclipseData, meteor_intensity) },
+  { MESSAGE_KEY_ISS_ALT, F_I16, offsetof(EclipseData, iss_alt_deg) },
+  { MESSAGE_KEY_ISS_AZ, F_U16, offsetof(EclipseData, iss_az_deg) },
+  { MESSAGE_KEY_ISS_COMPUTED_AT, F_TIME, offsetof(EclipseData, iss_computed_at) },
+  { MESSAGE_KEY_ISS_NEXT_PASS, F_TIME, offsetof(EclipseData, iss_next_pass) },
+  { MESSAGE_KEY_ISS_ERROR_CODE, F_U8, offsetof(EclipseData, iss_error_code) },
+};
+#define SIMPLE_FIELD_MAP_COUNT (sizeof(SIMPLE_FIELD_MAP) / sizeof(SIMPLE_FIELD_MAP[0]))
+
+static void apply_simple_fields(DictionaryIterator *iter) {
+  for (size_t i = 0; i < SIMPLE_FIELD_MAP_COUNT; i++) {
+    Tuple *st = dict_find(iter, SIMPLE_FIELD_MAP[i].message_key);
+    if (!st) continue;
+    uint8_t *dst = (uint8_t *)&s_data + SIMPLE_FIELD_MAP[i].offset;
+    switch (SIMPLE_FIELD_MAP[i].type) {
+      case F_U8:          *dst = st->value->uint8; break;
+      case F_BOOL:        *(bool *)dst = st->value->uint8 != 0; break;
+      case F_I16:         *(int16_t *)dst = st->value->int16; break;
+      case F_I8_FROM_I16:  *(int8_t *)dst = (int8_t)st->value->int16; break;
+      case F_U16:         *(uint16_t *)dst = st->value->uint16; break;
+      case F_U32:         *(uint32_t *)dst = st->value->uint32; break;
+      case F_TIME:        *(time_t *)dst = (time_t)st->value->int32; break;
+    }
+  }
+}
+
 static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   Tuple *t;
+
+  apply_simple_fields(iter); // see its own comment -- every plain-copy field, in one pass, before anything below can read one
 
   // Purely diagnostic -- every field below is still applied via its
   // own dict_find(), which already tolerates a partial dictionary, so
@@ -1171,9 +1394,6 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
       s_request_retry_timer = NULL;
     }
   }
-  if ((t = dict_find(iter, MESSAGE_KEY_ERROR_CODE))) {
-    s_data.error_code = t->value->uint8;
-  }
   // Parsed (and applied) before the early-return below so a
   // font-only settings update still takes effect even if the watch
   // hasn't received a valid eclipse payload yet.
@@ -1187,12 +1407,6 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
     clock_font_changed = true;
   }
   if (clock_font_changed) apply_clock_font();
-  if ((t = dict_find(iter, MESSAGE_KEY_TEMP_UNIT))) {
-    s_data.temp_unit = t->value->uint8;
-  }
-  if ((t = dict_find(iter, MESSAGE_KEY_WIND_SPEED_UNIT))) {
-    s_data.wind_speed_unit = t->value->uint8;
-  }
   if ((t = dict_find(iter, MESSAGE_KEY_SHOW_SECONDS))) {
     s_data.show_seconds = t->value->uint8 != 0;
     if (s_hands_layer) layer_mark_dirty(s_hands_layer);
@@ -1213,9 +1427,6 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
     s_data.sky_mode = t->value->uint8;
     if (s_canvas_layer) eclipse_canvas_set_data(s_canvas_layer, &s_data); // force immediately, not just mark dirty -- the canvas throttles plain redraws internally
   }
-  if ((t = dict_find(iter, MESSAGE_KEY_SHAKE_LABEL_SECONDS))) {
-    s_data.shake_label_seconds = t->value->uint8;
-  }
   if ((t = dict_find(iter, MESSAGE_KEY_LABEL_STYLE))) {
     s_data.label_style = t->value->uint8;
     if (s_canvas_layer) layer_mark_dirty(s_canvas_layer);
@@ -1224,12 +1435,6 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
     s_data.bottom_info_bar_mode = t->value->uint8;
     if (s_canvas_layer) layer_mark_dirty(s_canvas_layer);
   }
-  if ((t = dict_find(iter, MESSAGE_KEY_VIBRATE_ON_PHASE_CHANGE))) {
-    s_data.vibrate_on_phase_change = t->value->uint8 != 0;
-  }
-  if ((t = dict_find(iter, MESSAGE_KEY_STARTUP_CLOCK_ANIMATION_ENABLED))) {
-    s_data.startup_clock_animation_enabled = t->value->uint8 != 0;
-  }
   if ((t = dict_find(iter, MESSAGE_KEY_BG_ANIM_MODE))) {
     uint8_t v = t->value->uint8;
     s_data.bg_anim_mode = (v <= 3) ? v : 0; // clamped -- used as a raw array-free switch/compare, but still worth guarding against a stray out-of-range byte
@@ -1237,12 +1442,6 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   if ((t = dict_find(iter, MESSAGE_KEY_SHAKE_ANIM_MODE))) {
     uint8_t v = t->value->uint8;
     s_data.shake_anim_mode = (v <= 4) ? v : 0;
-  }
-  if ((t = dict_find(iter, MESSAGE_KEY_OUTLINE_ENABLED))) {
-    s_data.outline_enabled = t->value->uint8 != 0;
-  }
-  if ((t = dict_find(iter, MESSAGE_KEY_CORNER_FONT))) {
-    s_data.corner_font = t->value->uint8;
   }
   if ((t = dict_find(iter, MESSAGE_KEY_SHADOW_TRANSLUCENT))) {
     s_data.shadow_translucent = t->value->uint8 != 0;
@@ -1256,142 +1455,9 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
     s_data.draw_features_beneath_hands = t->value->uint8 != 0;
     apply_layout(); // re-orders the hands/features layers if this actually changed -- see its own comment
   }
-  // Hand system -- see hand_layer.h. Every hand (however it was picked
-  // on the settings page -- a preset button or the manual editor) is
-  // sent as one of these full field sets; the watch itself has no
-  // separate "preset" concept.
-  if ((t = dict_find(iter, MESSAGE_KEY_HAND_HOUR_STYLE))) s_data.hand_hour.style = t->value->uint8;
-  if ((t = dict_find(iter, MESSAGE_KEY_HAND_HOUR_WIDTH))) s_data.hand_hour.width = t->value->uint8;
-  if ((t = dict_find(iter, MESSAGE_KEY_HAND_HOUR_LENGTH))) s_data.hand_hour.length = t->value->uint8;
-  if ((t = dict_find(iter, MESSAGE_KEY_HAND_HOUR_BACK_OFFSET))) s_data.hand_hour.back_offset = (int8_t)t->value->int16;
-  if ((t = dict_find(iter, MESSAGE_KEY_HAND_HOUR_MIDDLE_OFFSET))) s_data.hand_hour.middle_offset = (int8_t)t->value->int16;
-  if ((t = dict_find(iter, MESSAGE_KEY_HAND_HOUR_SECONDARY_WIDTH))) s_data.hand_hour.secondary_width = t->value->uint8;
-  if ((t = dict_find(iter, MESSAGE_KEY_HAND_HOUR_COLOR))) s_data.hand_hour.color = t->value->uint8;
-  if ((t = dict_find(iter, MESSAGE_KEY_HAND_HOUR_OUTLINE_ENABLED))) s_data.hand_hour.outline_enabled = t->value->uint8 != 0;
-  if ((t = dict_find(iter, MESSAGE_KEY_HAND_HOUR_OUTLINE_COLOR))) s_data.hand_hour.outline_color = t->value->uint8;
-  if ((t = dict_find(iter, MESSAGE_KEY_HAND_HOUR_TRANSLUCENT))) s_data.hand_hour.translucent = t->value->uint8 != 0;
-  if ((t = dict_find(iter, MESSAGE_KEY_HAND_HOUR_SHADOW_ENABLED))) s_data.hand_hour.shadow_enabled = t->value->uint8 != 0;
-  if ((t = dict_find(iter, MESSAGE_KEY_HAND_HOUR_SHADOW_DISTANCE))) s_data.hand_hour.shadow_distance_px = t->value->uint8;
-  if ((t = dict_find(iter, MESSAGE_KEY_HAND_HOUR_HOLLOW))) s_data.hand_hour.hollow = t->value->uint8 != 0;
-  if ((t = dict_find(iter, MESSAGE_KEY_HAND_HOUR_HOLLOW_THICKNESS))) s_data.hand_hour.hollow_thickness = t->value->uint8;
-  if ((t = dict_find(iter, MESSAGE_KEY_HAND_MIN_STYLE))) s_data.hand_minute.style = t->value->uint8;
-  if ((t = dict_find(iter, MESSAGE_KEY_HAND_MIN_WIDTH))) s_data.hand_minute.width = t->value->uint8;
-  if ((t = dict_find(iter, MESSAGE_KEY_HAND_MIN_LENGTH))) s_data.hand_minute.length = t->value->uint8;
-  if ((t = dict_find(iter, MESSAGE_KEY_HAND_MIN_BACK_OFFSET))) s_data.hand_minute.back_offset = (int8_t)t->value->int16;
-  if ((t = dict_find(iter, MESSAGE_KEY_HAND_MIN_MIDDLE_OFFSET))) s_data.hand_minute.middle_offset = (int8_t)t->value->int16;
-  if ((t = dict_find(iter, MESSAGE_KEY_HAND_MIN_SECONDARY_WIDTH))) s_data.hand_minute.secondary_width = t->value->uint8;
-  if ((t = dict_find(iter, MESSAGE_KEY_HAND_MIN_COLOR))) s_data.hand_minute.color = t->value->uint8;
-  if ((t = dict_find(iter, MESSAGE_KEY_HAND_MIN_OUTLINE_ENABLED))) s_data.hand_minute.outline_enabled = t->value->uint8 != 0;
-  if ((t = dict_find(iter, MESSAGE_KEY_HAND_MIN_OUTLINE_COLOR))) s_data.hand_minute.outline_color = t->value->uint8;
-  if ((t = dict_find(iter, MESSAGE_KEY_HAND_MIN_TRANSLUCENT))) s_data.hand_minute.translucent = t->value->uint8 != 0;
-  if ((t = dict_find(iter, MESSAGE_KEY_HAND_MIN_SHADOW_ENABLED))) s_data.hand_minute.shadow_enabled = t->value->uint8 != 0;
-  if ((t = dict_find(iter, MESSAGE_KEY_HAND_MIN_SHADOW_DISTANCE))) s_data.hand_minute.shadow_distance_px = t->value->uint8;
-  if ((t = dict_find(iter, MESSAGE_KEY_HAND_MIN_HOLLOW))) s_data.hand_minute.hollow = t->value->uint8 != 0;
-  if ((t = dict_find(iter, MESSAGE_KEY_HAND_MIN_HOLLOW_THICKNESS))) s_data.hand_minute.hollow_thickness = t->value->uint8;
-  if ((t = dict_find(iter, MESSAGE_KEY_HAND_SEC_STYLE))) s_data.hand_second.style = t->value->uint8;
-  if ((t = dict_find(iter, MESSAGE_KEY_HAND_SEC_WIDTH))) s_data.hand_second.width = t->value->uint8;
-  if ((t = dict_find(iter, MESSAGE_KEY_HAND_SEC_LENGTH))) s_data.hand_second.length = t->value->uint8;
-  if ((t = dict_find(iter, MESSAGE_KEY_HAND_SEC_BACK_OFFSET))) s_data.hand_second.back_offset = (int8_t)t->value->int16;
-  if ((t = dict_find(iter, MESSAGE_KEY_HAND_SEC_MIDDLE_OFFSET))) s_data.hand_second.middle_offset = (int8_t)t->value->int16;
-  if ((t = dict_find(iter, MESSAGE_KEY_HAND_SEC_SECONDARY_WIDTH))) s_data.hand_second.secondary_width = t->value->uint8;
-  if ((t = dict_find(iter, MESSAGE_KEY_HAND_SEC_COLOR))) s_data.hand_second.color = t->value->uint8;
-  if ((t = dict_find(iter, MESSAGE_KEY_HAND_SEC_OUTLINE_ENABLED))) s_data.hand_second.outline_enabled = t->value->uint8 != 0;
-  if ((t = dict_find(iter, MESSAGE_KEY_HAND_SEC_OUTLINE_COLOR))) s_data.hand_second.outline_color = t->value->uint8;
-  if ((t = dict_find(iter, MESSAGE_KEY_HAND_SEC_TRANSLUCENT))) s_data.hand_second.translucent = t->value->uint8 != 0;
-  if ((t = dict_find(iter, MESSAGE_KEY_HAND_SEC_SHADOW_ENABLED))) s_data.hand_second.shadow_enabled = t->value->uint8 != 0;
-  if ((t = dict_find(iter, MESSAGE_KEY_HAND_SEC_SHADOW_DISTANCE))) s_data.hand_second.shadow_distance_px = t->value->uint8;
-  if ((t = dict_find(iter, MESSAGE_KEY_HAND_SEC_HOLLOW))) s_data.hand_second.hollow = t->value->uint8 != 0;
-  if ((t = dict_find(iter, MESSAGE_KEY_HAND_SEC_HOLLOW_THICKNESS))) s_data.hand_second.hollow_thickness = t->value->uint8;
-  if ((t = dict_find(iter, MESSAGE_KEY_CENTER_CIRCLE_RADIUS))) s_data.center_circle_radius = t->value->uint8;
-  if ((t = dict_find(iter, MESSAGE_KEY_CENTER_CIRCLE_COLOR))) s_data.center_circle_color = t->value->uint8;
   if ((t = dict_find(iter, MESSAGE_KEY_BIG_ANALOG_MARKER_STYLE))) {
     s_data.big_analog_marker_style = t->value->uint8;
     if (s_hands_layer) layer_mark_dirty(s_hands_layer);
-  }
-  // Custom marker system (big_analog_marker_style == 8) -- see eclipse_data.h
-  // (MarkerRingConfig/MarkerTextConfig) and background_layer.c (where these
-  // now actually get drawn, as part of its own cached redraw). No per-key
-  // dirty-marking needed here beyond copying the values in -- every inbox
-  // message unconditionally forces a full canvas redraw at the end of this
-  // handler (see refresh_status_and_maybe_canvas(true) below).
-  if ((t = dict_find(iter, MESSAGE_KEY_CUSTOM_HOUR_STYLE))) s_data.custom_hour_marker.style = t->value->uint8;
-  if ((t = dict_find(iter, MESSAGE_KEY_CUSTOM_HOUR_THICKNESS))) s_data.custom_hour_marker.thickness = t->value->uint8;
-  if ((t = dict_find(iter, MESSAGE_KEY_CUSTOM_HOUR_INNER_ECC))) s_data.custom_hour_marker.inner_eccentricity = t->value->uint8;
-  if ((t = dict_find(iter, MESSAGE_KEY_CUSTOM_HOUR_OUTER_ECC))) s_data.custom_hour_marker.outer_eccentricity = t->value->uint8;
-  if ((t = dict_find(iter, MESSAGE_KEY_CUSTOM_HOUR_INNER_BORDER))) s_data.custom_hour_marker.inner_border_pct = t->value->uint8;
-  if ((t = dict_find(iter, MESSAGE_KEY_CUSTOM_HOUR_OUTER_BORDER))) s_data.custom_hour_marker.outer_border_pct = t->value->uint8;
-  if ((t = dict_find(iter, MESSAGE_KEY_CUSTOM_HOUR_TRANSLUCENT))) s_data.custom_hour_marker.translucent = t->value->uint8 != 0;
-  if ((t = dict_find(iter, MESSAGE_KEY_CUSTOM_HOUR_COLOR))) s_data.custom_hour_marker.color = t->value->uint8;
-  if ((t = dict_find(iter, MESSAGE_KEY_CUSTOM_SEC_STYLE))) s_data.custom_second_marker.style = t->value->uint8;
-  if ((t = dict_find(iter, MESSAGE_KEY_CUSTOM_SEC_THICKNESS))) s_data.custom_second_marker.thickness = t->value->uint8;
-  if ((t = dict_find(iter, MESSAGE_KEY_CUSTOM_SEC_INNER_ECC))) s_data.custom_second_marker.inner_eccentricity = t->value->uint8;
-  if ((t = dict_find(iter, MESSAGE_KEY_CUSTOM_SEC_OUTER_ECC))) s_data.custom_second_marker.outer_eccentricity = t->value->uint8;
-  if ((t = dict_find(iter, MESSAGE_KEY_CUSTOM_SEC_INNER_BORDER))) s_data.custom_second_marker.inner_border_pct = t->value->uint8;
-  if ((t = dict_find(iter, MESSAGE_KEY_CUSTOM_SEC_OUTER_BORDER))) s_data.custom_second_marker.outer_border_pct = t->value->uint8;
-  if ((t = dict_find(iter, MESSAGE_KEY_CUSTOM_SEC_TRANSLUCENT))) s_data.custom_second_marker.translucent = t->value->uint8 != 0;
-  if ((t = dict_find(iter, MESSAGE_KEY_CUSTOM_SEC_COLOR))) s_data.custom_second_marker.color = t->value->uint8;
-  if ((t = dict_find(iter, MESSAGE_KEY_BITMAP_MARKER_TRANSPARENT))) s_data.bitmap_marker_transparent = t->value->uint8 != 0;
-  if ((t = dict_find(iter, MESSAGE_KEY_MARKER_TEXT_TARGET))) s_data.marker_text.target = t->value->uint8;
-  if ((t = dict_find(iter, MESSAGE_KEY_MARKER_TEXT_FONT))) {
-    // No manual clamp needed (unlike before font resolution moved to
-    // font_lookup.c) -- font_lookup_resolve()/_height()/_y_offset()
-    // all defend against an out-of-range id themselves now, same as
-    // clock_font/clock_font_small/corner_font already rely on below.
-    s_data.marker_text.font_choice = t->value->uint8;
-  }
-  if ((t = dict_find(iter, MESSAGE_KEY_MARKER_TEXT_OFFSET))) s_data.marker_text.offset_px = (int8_t)t->value->int16;
-  if ((t = dict_find(iter, MESSAGE_KEY_MARKER_TEXT_HOUR_MASK))) s_data.marker_text.hour_mask = t->value->uint16;
-  if ((t = dict_find(iter, MESSAGE_KEY_MARKER_TEXT_SEC_MASK))) s_data.marker_text.second_mask = t->value->uint16;
-  if ((t = dict_find(iter, MESSAGE_KEY_MARKER_TEXT_ROMAN))) s_data.marker_text.roman_numerals = t->value->uint8 != 0;
-  // (no explicit layer_mark_dirty here -- refresh_status_and_maybe_canvas()
-  // below already unconditionally marks s_hands_layer dirty every inbox batch)
-  if ((t = dict_find(iter, MESSAGE_KEY_UPPER_MIDDLE_LINE1_CONTENT))) {
-    s_data.upper_middle_line1_content = t->value->uint8;
-  }
-  if ((t = dict_find(iter, MESSAGE_KEY_UPPER_MIDDLE_LINE1_COLOR_MODE))) {
-    s_data.upper_middle_line1_color_mode = t->value->uint8;
-  }
-  if ((t = dict_find(iter, MESSAGE_KEY_UPPER_MIDDLE_LINE2_CONTENT))) {
-    s_data.upper_middle_line2_content = t->value->uint8;
-  }
-  if ((t = dict_find(iter, MESSAGE_KEY_UPPER_MIDDLE_LINE2_COLOR_MODE))) {
-    s_data.upper_middle_line2_color_mode = t->value->uint8;
-  }
-  if ((t = dict_find(iter, MESSAGE_KEY_BOTTOM_MIDDLE_LINE1_CONTENT))) {
-    s_data.bottom_middle_line1_content = t->value->uint8;
-  }
-  if ((t = dict_find(iter, MESSAGE_KEY_BOTTOM_MIDDLE_LINE1_COLOR_MODE))) {
-    s_data.bottom_middle_line1_color_mode = t->value->uint8;
-  }
-  if ((t = dict_find(iter, MESSAGE_KEY_BOTTOM_MIDDLE_LINE2_CONTENT))) {
-    s_data.bottom_middle_line2_content = t->value->uint8;
-  }
-  if ((t = dict_find(iter, MESSAGE_KEY_BOTTOM_MIDDLE_LINE2_COLOR_MODE))) {
-    s_data.bottom_middle_line2_color_mode = t->value->uint8;
-  }
-  if ((t = dict_find(iter, MESSAGE_KEY_MIDDLE_LEFT_LINE1_CONTENT))) {
-    s_data.middle_left_line1_content = t->value->uint8;
-  }
-  if ((t = dict_find(iter, MESSAGE_KEY_MIDDLE_LEFT_LINE1_COLOR_MODE))) {
-    s_data.middle_left_line1_color_mode = t->value->uint8;
-  }
-  if ((t = dict_find(iter, MESSAGE_KEY_MIDDLE_LEFT_LINE2_CONTENT))) {
-    s_data.middle_left_line2_content = t->value->uint8;
-  }
-  if ((t = dict_find(iter, MESSAGE_KEY_MIDDLE_LEFT_LINE2_COLOR_MODE))) {
-    s_data.middle_left_line2_color_mode = t->value->uint8;
-  }
-  if ((t = dict_find(iter, MESSAGE_KEY_MIDDLE_RIGHT_LINE1_CONTENT))) {
-    s_data.middle_right_line1_content = t->value->uint8;
-  }
-  if ((t = dict_find(iter, MESSAGE_KEY_MIDDLE_RIGHT_LINE1_COLOR_MODE))) {
-    s_data.middle_right_line1_color_mode = t->value->uint8;
-  }
-  if ((t = dict_find(iter, MESSAGE_KEY_MIDDLE_RIGHT_LINE2_CONTENT))) {
-    s_data.middle_right_line2_content = t->value->uint8;
-  }
-  if ((t = dict_find(iter, MESSAGE_KEY_MIDDLE_RIGHT_LINE2_COLOR_MODE))) {
-    s_data.middle_right_line2_color_mode = t->value->uint8;
   }
   if ((t = dict_find(iter, MESSAGE_KEY_SHOW_SUN_TIME))) {
     s_data.show_sun_time = t->value->uint8 != 0;
@@ -1417,19 +1483,10 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
     if (n > 4) n = 4;
     for (int i = 0; i < n; i++) s_data.corner_color_mode[i] = raw[i];
   }
-  if ((t = dict_find(iter, MESSAGE_KEY_DAILY_STEP_GOAL))) {
-    s_data.daily_step_goal = t->value->uint16;
-  }
-  if ((t = dict_find(iter, MESSAGE_KEY_CUSTOM_BG))) s_data.custom_bg = t->value->uint8;
-  if ((t = dict_find(iter, MESSAGE_KEY_CUSTOM_TEXT))) s_data.custom_text = t->value->uint8;
-  if ((t = dict_find(iter, MESSAGE_KEY_CUSTOM_ACCENT))) s_data.custom_accent = t->value->uint8;
   if ((t = dict_find(iter, MESSAGE_KEY_NIGHT_SCHEME_ENABLED))) {
     s_data.night_scheme_enabled = t->value->uint8 != 0;
     if (s_bottom_layer) layer_mark_dirty(s_bottom_layer);
   }
-  if ((t = dict_find(iter, MESSAGE_KEY_NIGHT_CUSTOM_BG))) s_data.night_custom_bg = t->value->uint8;
-  if ((t = dict_find(iter, MESSAGE_KEY_NIGHT_CUSTOM_TEXT))) s_data.night_custom_text = t->value->uint8;
-  if ((t = dict_find(iter, MESSAGE_KEY_NIGHT_CUSTOM_ACCENT))) s_data.night_custom_accent = t->value->uint8;
 
   // Every field parsed above this point that affects the features
   // overlay's layout (style/marker-style/bottom-info-bar-mode, and all
@@ -1451,22 +1508,11 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   }
   s_data.error_code = 0;
 
-  if ((t = dict_find(iter, MESSAGE_KEY_C1_TIME))) s_data.c1 = (time_t)t->value->int32;
-  if ((t = dict_find(iter, MESSAGE_KEY_C2_TIME))) s_data.c2 = (time_t)t->value->int32;
-  if ((t = dict_find(iter, MESSAGE_KEY_MAX_TIME))) s_data.max_t = (time_t)t->value->int32;
-  if ((t = dict_find(iter, MESSAGE_KEY_C3_TIME))) s_data.c3 = (time_t)t->value->int32;
-  if ((t = dict_find(iter, MESSAGE_KEY_C4_TIME))) s_data.c4 = (time_t)t->value->int32;
-  if ((t = dict_find(iter, MESSAGE_KEY_SUNSET_TIME))) s_data.sunset = (time_t)t->value->int32;
-
-  if ((t = dict_find(iter, MESSAGE_KEY_MAGNITUDE))) s_data.magnitude_pct = t->value->uint8;
   if ((t = dict_find(iter, MESSAGE_KEY_ECLIPSE_TYPE))) {
-    s_data.type = (EclipseType)t->value->uint8;
+    s_data.type = t->value->uint8;
     s_data.has_eclipse = s_data.type != ECLIPSE_TYPE_NONE;
   }
-  if ((t = dict_find(iter, MESSAGE_KEY_POS_ANGLE))) s_data.pos_angle_deg = t->value->int16;
 
-  if ((t = dict_find(iter, MESSAGE_KEY_SAMPLE_START))) s_data.sample_start = (time_t)t->value->int32;
-  if ((t = dict_find(iter, MESSAGE_KEY_SAMPLE_INTERVAL))) s_data.sample_interval_s = t->value->uint32;
   if ((t = dict_find(iter, MESSAGE_KEY_SAMPLE_COUNT))) {
     uint8_t count = t->value->uint8;
     s_data.sample_count = count > MAX_SEP_SAMPLES ? MAX_SEP_SAMPLES : count;
@@ -1488,11 +1534,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
       s_data.mag_pct_samples[i] = raw[i];
     }
   }
-  if ((t = dict_find(iter, MESSAGE_KEY_RADIUS_RATIO_PCT))) s_data.radius_ratio_pct = t->value->uint8;
 
-  if ((t = dict_find(iter, MESSAGE_KEY_CLOUD_COVER))) s_data.cloud_cover_pct = t->value->uint8;
-  if ((t = dict_find(iter, MESSAGE_KEY_VIS_SCORE))) s_data.vis_score_pct = t->value->uint8;
-  if ((t = dict_find(iter, MESSAGE_KEY_WEATHER_SOURCES))) s_data.weather_sources = t->value->uint8;
   if ((t = dict_find(iter, MESSAGE_KEY_WEATHER_ERROR_CODE))) {
     s_data.weather_error_code = t->value->uint8;
     if (s_data.weather_error_code == 0) {
@@ -1503,24 +1545,14 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
     }
     if (s_features_layer) layer_mark_dirty(s_features_layer);
   }
-  if ((t = dict_find(iter, MESSAGE_KEY_WEATHER_CONDITION))) s_data.weather_condition = t->value->uint8;
   if ((t = dict_find(iter, MESSAGE_KEY_WEATHER_ICON_STYLE))) {
     s_data.weather_icon_style = t->value->uint8;
     if (s_features_layer) layer_mark_dirty(s_features_layer);
   }
-  if ((t = dict_find(iter, MESSAGE_KEY_WIND_DIR_DEG))) s_data.wind_dir_deg = t->value->int16;
-  if ((t = dict_find(iter, MESSAGE_KEY_DEW_POINT_C))) s_data.dew_point_c = t->value->int16;
-  if ((t = dict_find(iter, MESSAGE_KEY_PRESSURE_HPA))) s_data.pressure_hpa = t->value->int16;
-  if ((t = dict_find(iter, MESSAGE_KEY_PRESSURE_TREND))) s_data.pressure_trend = t->value->uint8;
-  if ((t = dict_find(iter, MESSAGE_KEY_AQI_US))) s_data.aqi_us = t->value->uint16;
-  if ((t = dict_find(iter, MESSAGE_KEY_AQI_EU))) s_data.aqi_eu = t->value->uint16;
   if ((t = dict_find(iter, MESSAGE_KEY_AQI_UNIT))) {
     s_data.aqi_unit = t->value->uint8;
     if (s_features_layer) layer_mark_dirty(s_features_layer);
   }
-  if ((t = dict_find(iter, MESSAGE_KEY_ALTITUDE_M))) s_data.altitude_m = t->value->int16;
-  if ((t = dict_find(iter, MESSAGE_KEY_AURORA_KP_X10))) s_data.aurora_kp_x10 = t->value->uint8;
-  if ((t = dict_find(iter, MESSAGE_KEY_AURORA_ERROR_CODE))) s_data.aurora_error_code = t->value->uint8;
   if ((t = dict_find(iter, MESSAGE_KEY_AURORA_VISIBILITY_PCT))) {
     s_data.aurora_visibility_pct = t->value->uint8;
     if (s_canvas_layer) eclipse_canvas_set_data(s_canvas_layer, &s_data); // force immediately -- affects whether the sky glow draws at all
@@ -1529,13 +1561,6 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
     s_data.altitude_unit = t->value->uint8;
     if (s_features_layer) layer_mark_dirty(s_features_layer);
   }
-  if ((t = dict_find(iter, MESSAGE_KEY_WEATHER_TEMP_C))) s_data.weather_temp_c = t->value->int16;
-  if ((t = dict_find(iter, MESSAGE_KEY_WEATHER_TEMP_HIGH_C))) s_data.temp_high_c = t->value->int16;
-  if ((t = dict_find(iter, MESSAGE_KEY_WEATHER_TEMP_LOW_C))) s_data.temp_low_c = t->value->int16;
-  if ((t = dict_find(iter, MESSAGE_KEY_UV_INDEX_X10))) s_data.uv_index_x10 = t->value->uint8;
-  if ((t = dict_find(iter, MESSAGE_KEY_RAIN_CHANCE_PCT))) s_data.rain_chance_pct = t->value->uint8;
-  if ((t = dict_find(iter, MESSAGE_KEY_HUMIDITY_PCT))) s_data.humidity_pct = t->value->uint8;
-  if ((t = dict_find(iter, MESSAGE_KEY_WIND_SPEED_KMH))) s_data.wind_speed_kmh = t->value->int16;
   if ((t = dict_find(iter, MESSAGE_KEY_LOCATION_NAME))) {
     strncpy(s_data.location_name, t->value->cstring, sizeof(s_data.location_name) - 1);
     s_data.location_name[sizeof(s_data.location_name) - 1] = '\0';
@@ -1543,8 +1568,6 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
 
   // Full-day sky background: sun altitude + cloud cover samples,
   // used to render the gradient and dithered clouds behind the sun.
-  if ((t = dict_find(iter, MESSAGE_KEY_SKY_SAMPLE_START))) s_data.sky_sample_start = (time_t)t->value->int32;
-  if ((t = dict_find(iter, MESSAGE_KEY_SKY_SAMPLE_INTERVAL))) s_data.sky_sample_interval_s = t->value->uint32;
   if ((t = dict_find(iter, MESSAGE_KEY_SKY_SAMPLE_COUNT))) {
     uint8_t count = t->value->uint8;
     s_data.sky_sample_count = count > MAX_SKY_SAMPLES ? MAX_SKY_SAMPLES : count;
@@ -1578,7 +1601,6 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
       s_data.cloud_pct_samples[i] = raw[i];
     }
   }
-  if ((t = dict_find(iter, MESSAGE_KEY_CLOUD_ALTITUDE_PCT))) s_data.cloud_altitude_pct = t->value->uint8;
   if ((t = dict_find(iter, MESSAGE_KEY_MOON_ALT_SAMPLES))) {
     uint8_t *raw = t->value->data;
     int n = t->length / 2;
@@ -1644,15 +1666,6 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
       s_data.planet_set[p] = (time_t)(int32_t)u;
     }
   }
-  if ((t = dict_find(iter, MESSAGE_KEY_SATURN_RING_OPEN_PCT))) s_data.saturn_ring_open_pct = t->value->uint8;
-  if ((t = dict_find(iter, MESSAGE_KEY_SKY_SCALE_MAX_ALT))) s_data.sky_scale_max_alt_decideg = t->value->int16;
-  if ((t = dict_find(iter, MESSAGE_KEY_MOON_PHASE_PCT))) s_data.moon_phase_pct = t->value->uint8;
-  if ((t = dict_find(iter, MESSAGE_KEY_MOON_WAXING))) s_data.moon_waxing = t->value->uint8 != 0;
-  if ((t = dict_find(iter, MESSAGE_KEY_SUN_RISE))) s_data.sun_rise = (time_t)t->value->int32;
-  if ((t = dict_find(iter, MESSAGE_KEY_SUN_SET))) s_data.sun_set = (time_t)t->value->int32;
-  if ((t = dict_find(iter, MESSAGE_KEY_SUN_RISE_TOMORROW))) s_data.sun_rise_tomorrow = (time_t)t->value->int32;
-  if ((t = dict_find(iter, MESSAGE_KEY_MOON_RISE))) s_data.moon_rise = (time_t)t->value->int32;
-  if ((t = dict_find(iter, MESSAGE_KEY_MOON_SET))) s_data.moon_set = (time_t)t->value->int32;
   if ((t = dict_find(iter, MESSAGE_KEY_STAR_ALT_SAMPLES))) {
     // Byte blob of int16 (little-endian) tenths-of-a-degree values,
     // same packing as SUN_ALT_SAMPLES above -- see star_alt_decideg's
@@ -1675,16 +1688,10 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
       s_data.star_az_decideg[i] = (uint16_t)raw[i * 2] | ((uint16_t)raw[i * 2 + 1] << 8);
     }
   }
-  if ((t = dict_find(iter, MESSAGE_KEY_METEOR_INTENSITY))) s_data.meteor_intensity = t->value->uint8;
   if ((t = dict_find(iter, MESSAGE_KEY_METEOR_SHOWER_NAME))) {
     strncpy(s_data.meteor_shower_name, t->value->cstring, sizeof(s_data.meteor_shower_name) - 1);
     s_data.meteor_shower_name[sizeof(s_data.meteor_shower_name) - 1] = '\0';
   }
-  if ((t = dict_find(iter, MESSAGE_KEY_ISS_ALT))) s_data.iss_alt_deg = t->value->int16;
-  if ((t = dict_find(iter, MESSAGE_KEY_ISS_AZ))) s_data.iss_az_deg = t->value->uint16;
-  if ((t = dict_find(iter, MESSAGE_KEY_ISS_COMPUTED_AT))) s_data.iss_computed_at = (time_t)t->value->int32;
-  if ((t = dict_find(iter, MESSAGE_KEY_ISS_NEXT_PASS))) s_data.iss_next_pass = (time_t)(int32_t)t->value->int32;
-  if ((t = dict_find(iter, MESSAGE_KEY_ISS_ERROR_CODE))) s_data.iss_error_code = t->value->uint8;
 
   update_tick_subscription(); // re-checks whether live seconds are actually needed -- switches SECOND_UNIT/MINUTE_UNIT if this settings update changed that (show_seconds, or which content a corner/edge slot now shows)
   save_data();

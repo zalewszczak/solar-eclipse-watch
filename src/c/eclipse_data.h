@@ -336,6 +336,16 @@ typedef struct {
                              // when that particular hand is itself translucent too. A single
                              // global style choice, unlike shadow_enabled/distance which are
                              // per-hand -- see hand_layer.h. Defaults to true (translucent).
+  bool draw_features_beneath_hands; // user setting ("Style" section, analog only): when
+                                      // true, apply_layout() adds the features overlay layer
+                                      // BEFORE the hands layer instead of after, so hands draw
+                                      // on top of corners/edges info instead of under it.
+                                      // Meaningless (and hidden on the settings page) outside
+                                      // bottom_style == 1. Declared here (right after
+                                      // shadow_translucent, ahead of shadow_angle_deg below)
+                                      // purely to close what would otherwise be a 1-byte
+                                      // alignment gap in front of that uint16_t -- no relation
+                                      // to shadow otherwise.
   uint16_t shadow_angle_deg; // user setting ("Style" section, right below shadow_translucent):
                               // single shared light-source direction for every hand's shadow, 0-359,
                               // same "0 = 12 o'clock, clockwise" convention as every other angle in
@@ -343,12 +353,6 @@ typedef struct {
                               // separately-adjustable angle per hand (as this briefly was) made no
                               // real sense -- only shadow_enabled/distance stayed per-hand. Defaults
                               // to 120.
-  bool draw_features_beneath_hands; // user setting ("Style" section, analog only): when
-                                      // true, apply_layout() adds the features overlay layer
-                                      // BEFORE the hands layer instead of after, so hands draw
-                                      // on top of corners/edges info instead of under it.
-                                      // Meaningless (and hidden on the settings page) outside
-                                      // bottom_style == 1.
 
   // bottom_style==1 (analog) hands -- rendered in their own
   // always-on-top layer (see pebble-eclipse-watch.c), separate from
@@ -410,7 +414,11 @@ typedef struct {
   time_t sunset;             // today's sunset, used to cap the animation
 
   uint8_t magnitude_pct;    // 0-100, fraction of the sun's disc covered at max
-  EclipseType type;
+  uint8_t type;              // one of the EclipseType enum values -- stored as a plain uint8_t rather
+                               // than the enum itself (same reasoning clock_font's own comment gives:
+                               // a C enum defaults to a 4-byte int, and the 4 real values here fit a
+                               // single byte with room to spare) -- compare/assign against the
+                               // ECLIPSE_TYPE_* constants exactly as before, they're still just ints.
 
   int16_t pos_angle_deg;    // direction (0-359) the moon approaches from,
                              // in on-screen "clock" degrees, 0 = straight up
@@ -421,10 +429,15 @@ typedef struct {
   time_t sample_start;
   uint32_t sample_interval_s;
   uint8_t sample_count;
+  uint8_t radius_ratio_pct;                  // moon radius / sun radius at greatest eclipse, x100;
+                                               // <100 = annular (ring stays visible), >=100 = total.
+                                               // Declared here (right after sample_count, ahead of
+                                               // the two arrays below) purely to close what would
+                                               // otherwise be a 1-byte alignment gap in front of
+                                               // sep_samples_centideg -- still the same "separation
+                                               // samples" field group either way.
   uint16_t sep_samples_centideg[MAX_SEP_SAMPLES];
   uint8_t mag_pct_samples[MAX_SEP_SAMPLES]; // live "% of Sun covered", same grid as above
-  uint8_t radius_ratio_pct;                  // moon radius / sun radius at greatest eclipse, x100;
-                                               // <100 = annular (ring stays visible), >=100 = total
 
   uint8_t cloud_cover_pct;   // 0-100 averaged over the eclipse window
   uint8_t vis_score_pct;     // 0-100 "chance you'll actually see it" score
@@ -474,9 +487,13 @@ typedef struct {
   int16_t dew_point_c;       // whole degrees Celsius (converted on-watch like weather_temp_c)
   int16_t pressure_hpa;      // sea-level-adjusted, hectopascals (~950-1050 in practice)
   uint8_t pressure_trend;    // 0=flat, 1=rising, 2=falling -- vs. ~3 hours ago
+  uint8_t aqi_unit;          // user setting: 0=show aqi_us, 1=show aqi_eu -- declared here (right
+                               // after pressure_trend, ahead of the two uint16_t AQI fields below)
+                               // purely to close what would otherwise be a 1-byte alignment gap in
+                               // front of aqi_us; still the same "weather-extra" field group either
+                               // way.
   uint16_t aqi_us;           // US EPA AQI scale (0-500+), 0 = not available
   uint16_t aqi_eu;           // European AQI scale (0-100+), 0 = not available
-  uint8_t aqi_unit;          // user setting: 0=show aqi_us, 1=show aqi_eu
 
   // GPS altitude -- meters above the WGS84 ellipsoid, same source
   // already used for the horizon-dip correction (see astro.js), just
