@@ -289,6 +289,13 @@ var MARKER_PRESET_IMAGES = require('./marker-preset-images');
 // from HAND_STYLE_IMAGES above, which is the style PICKER popup's
 // thumbnail grid, not the editor's in-popup diagram.
 var HAND_STYLE_DIAGRAM_IMAGES = require('./hand-style-diagram-images');
+// Small unlabeled silhouette icons for the hand-style PICKER's own
+// button list (see scripts/generate_hand_style_icons.py and
+// scripts/generate-hand-style-icons.js) -- a different image set from
+// HAND_STYLE_DIAGRAM_IMAGES just above, which is the full-width
+// labeled explainer diagram at the top of the editor popup instead.
+// Both are keyed the same way: HandConfig.style id as a string.
+var HAND_STYLE_ICON_IMAGES = require('./hand-style-icon-images');
 
 // "Example styles" grid (first section on the settings page) -- each
 // numbered slot pairs a screenshot (resources/example-styles/<n>.png,
@@ -982,8 +989,8 @@ function handEditorModalHtml(kind, title) {
 '    <img class="hand-editor-diagram" id="' + p + 'Diagram" src="" alt="">' +
 '    <div class="modal-scroll-body">' +
 
-'    <label for="' + p + 'Style">Shape</label>' +
-'    <select id="' + p + 'Style" onchange="onCustomHandStyleChange(\'' + kind + '\')">' +
+'    <label>Shape</label>' +
+'    <select id="' + p + 'Style" style="display:none;" onchange="onCustomHandStyleChange(\'' + kind + '\')">' +
 '      <option value="0">Baton</option>' +
 '      <option value="1">Galba</option>' +
 '      <option value="2">Pencil</option>' +
@@ -996,6 +1003,10 @@ function handEditorModalHtml(kind, title) {
 '      <option value="9">Syringe</option>' +
 '      <option value="10">Serpentine</option>' +
 '    </select>' +
+'    <button type="button" class="font-picker-btn font-picker-trigger" id="' + p + 'StyleTrigger" onclick="openHandStyleIconPicker(\'' + p + '\', \'' + kind + '\')">' +
+'      <span class="font-picker-preview hand-style-icon-preview"></span>' +
+'      <span class="font-picker-name"></span>' +
+'    </button>' +
 
 '    <div class="slider-row">' +
 '      <label for="' + p + 'Width">A. Width <span class="val" id="' + p + 'WidthVal"></span></label>' +
@@ -1304,6 +1315,7 @@ function buildConfigHtml(current) {
 '    :root { --page-bg: #1c1c1e; --card-bg: #2c2c2e; --text: #f2f2f2; --text-strong: #e5e5e5; --text-muted: #aaa; --text-faint: #999; --text-faint2: #bbb; --text-disabled: #777; --border: #48484a; --border-light: #3a3a3c; --border-lighter: #545456; --btn-bg: #3a3a3c; }' +
 '    .bitmap-marker-img { filter: none; }' +
 '    .font-preview-img { filter: none; }' +
+'    .hand-style-icon-preview img { filter: none; }' +
 '  }' +
 '  body { font-family: -apple-system, Helvetica, Arial, sans-serif; margin: 0; padding: 16px 20px 90px; background: var(--page-bg); color: var(--text); }' +
 '  html, body { touch-action: manipulation; }' + // belt-and-suspenders alongside the viewport meta tag --
@@ -1380,6 +1392,16 @@ function buildConfigHtml(current) {
 // filter: none there) and invert it for light mode instead of needing
 // a second, separately-authored light-mode source image.
 '  .font-preview-img { max-width: 100%; max-height: 100%; filter: invert(1); }' +
+// Hand-style icon picker buttons -- same .font-picker-btn/-preview/
+// -name shape the font picker uses (left cell + right cell, trigger
+// variant included), just a 1/4-3/4 split instead of that one's own
+// ~1/3-2/3, per this button\'s own request. The icons themselves are
+// plain black-on-transparent PNGs (see generate_hand_style_icons.py),
+// so -- same reasoning as .font-preview-img just above and
+// .bitmap-marker-img elsewhere -- they\'d disappear entirely in dark
+// mode without the same invert-for-dark-mode treatment.
+'  .hand-style-icon-preview { flex: 0 0 25%; }' +
+'  .hand-style-icon-preview img { max-width: 100%; max-height: 100%; display: block; filter: invert(1); }' +
 // The always-visible trigger button that replaces each plain <select>
 // -- looks like one .font-picker-btn row (so the CURRENTLY chosen
 // font is already shown in its own real typeface before the popup
@@ -1656,6 +1678,18 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      </div>' +
 '      <button type="button" class="modal-cancel-btn" onclick="closeFontPicker()">Cancel</button>' +
 '    </div>' +
+'  </div>' +
+'</div>' +
+
+// Shared by all 3 hand editor popups\' own Shape picker (hour/min/sec)
+// -- which popup-field-prefix is currently being edited lives in
+// HAND_STYLE_ICON_PREFIX (see openHandStyleIconPicker() below), same
+// "one popup, not 3 near-identical copies" shape the color preset
+// picker uses for its own day/night pair.
+'<div class="modal-overlay" id="handStyleIconPickerModal" onclick="if (event.target === this) closeHandStyleIconPicker();">' +
+'  <div class="modal-box">' +
+'    <div class="modal-title">Shape</div>' +
+'    <div class="modal-scroll-body" id="handStyleIconPickerGrid"></div>' +
 '  </div>' +
 '</div>' +
 
@@ -2239,6 +2273,11 @@ handEditorModalHtml('sec', 'Edit second hand') +
 'var HAND_STYLE_IMAGES = ' + JSON.stringify(HAND_STYLE_IMAGES) + ';' +
 'var MARKER_PRESET_IMAGES = ' + JSON.stringify(MARKER_PRESET_IMAGES) + ';' +
 'var HAND_STYLE_DIAGRAM_IMAGES = ' + JSON.stringify(HAND_STYLE_DIAGRAM_IMAGES) + ';' +
+'var HAND_STYLE_ICON_IMAGES = ' + JSON.stringify(HAND_STYLE_ICON_IMAGES) + ';' +
+// Matches the Shape <option> list\'s own order/values exactly (see
+// handEditorModalHtml() and STYLE_IDS_BY_NAME in
+// scripts/generate-hand-style-icons.js).
+'var HAND_STYLE_NAMES = ["Baton", "Galba", "Pencil", "Dauphine", "Sword", "Pomme", "Spade", "Arrow", "Leaf", "Syringe", "Serpentine"];' +
 // EXAMPLE_STYLE_PRESETS is { title, description, preset } per slot
 // (or null for an empty one) -- the popup below reads title/
 // description directly, and applies `.preset` (the same shape
@@ -3834,6 +3873,53 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    diagramImg.style.display = src ? "" : "none";' +
 '    diagramImg.src = src || "";' +
 '  }' +
+'  updateHandStyleIconTriggerLabel(p);' +
+'}' +
+// Fills one editor popup\'s own Shape trigger button from whatever its
+// underlying (now display:none) <select> currently holds -- same
+// "trigger button mirrors a hidden real control" shape
+// updateFontTriggerLabel()/updateColorPresetTriggerLabel() already use
+// for their own pickers. Called from updateHandFieldVisibility() above
+// so it never needs its own separate call site.
+'function updateHandStyleIconTriggerLabel(p) {' +
+'  var sel = document.getElementById(p + "Style");' +
+'  var trigger = document.getElementById(p + "StyleTrigger");' +
+'  if (!sel || !trigger) return;' +
+'  var preview = trigger.querySelector(".hand-style-icon-preview");' +
+'  var name = trigger.querySelector(".font-picker-name");' +
+'  var src = HAND_STYLE_ICON_IMAGES[sel.value];' +
+'  if (preview) preview.innerHTML = src ? \'<img src="\' + src + \'" alt="">\' : "";' +
+'  if (name) name.textContent = HAND_STYLE_NAMES[parseInt(sel.value, 10)] || "";' +
+'}' +
+'var HAND_STYLE_ICON_PREFIX = null;' +
+'var HAND_STYLE_ICON_KIND = null;' +
+'function openHandStyleIconPicker(p, kind) {' +
+'  HAND_STYLE_ICON_PREFIX = p;' +
+'  HAND_STYLE_ICON_KIND = kind;' +
+'  renderHandStyleIconGrid();' +
+'  document.getElementById("handStyleIconPickerModal").className = "modal-overlay open";' +
+'}' +
+'function closeHandStyleIconPicker() {' +
+'  document.getElementById("handStyleIconPickerModal").className = "modal-overlay";' +
+'}' +
+'function renderHandStyleIconGrid() {' +
+'  var sel = document.getElementById(HAND_STYLE_ICON_PREFIX + "Style");' +
+'  var currentVal = sel ? sel.value : "0";' +
+'  var html = "";' +
+'  for (var i = 0; i < HAND_STYLE_NAMES.length; i++) {' +
+'    var src = HAND_STYLE_ICON_IMAGES[String(i)];' +
+'    var selected = String(i) === String(currentVal);' +
+'    html += \'<button type="button" class="font-picker-btn\' + (selected ? " selected" : "") + \'" onclick="chooseHandStyleIcon(\' + i + \')">\' +' +
+'      \'<span class="font-picker-preview hand-style-icon-preview">\' + (src ? \'<img src="\' + src + \'" alt="">\' : "") + "</span>" +' +
+'      \'<span class="font-picker-name">\' + esc(HAND_STYLE_NAMES[i]) + "</span></button>";' +
+'  }' +
+'  document.getElementById("handStyleIconPickerGrid").innerHTML = html;' +
+'}' +
+'function chooseHandStyleIcon(value) {' +
+'  var sel = document.getElementById(HAND_STYLE_ICON_PREFIX + "Style");' +
+'  if (sel) sel.value = value;' +
+'  closeHandStyleIconPicker();' +
+'  onCustomHandStyleChange(HAND_STYLE_ICON_KIND);' +
 '}' +
 // Shows/hides the Hollow thickness slider based on the Hollow
 // checkbox -- called both on the checkbox's own onchange and once up
