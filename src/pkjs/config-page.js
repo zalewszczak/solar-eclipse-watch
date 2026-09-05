@@ -296,6 +296,10 @@ var HAND_STYLE_DIAGRAM_IMAGES = require('./hand-style-diagram-images');
 // labeled explainer diagram at the top of the editor popup instead.
 // Both are keyed the same way: HandConfig.style id as a string.
 var HAND_STYLE_ICON_IMAGES = require('./hand-style-icon-images');
+// One representative ("partly cloudy") icon per weather_icon_style
+// value, nearest-neighbor upscaled to stay crisp -- see
+// scripts/generate-weather-icon-previews.js for how these get made.
+var WEATHER_ICON_STYLE_PREVIEWS = require('./weather-icon-style-previews');
 
 // "Example styles" grid (first section on the settings page) -- each
 // numbered slot pairs a screenshot (resources/example-styles/<n>.png,
@@ -1402,6 +1406,15 @@ function buildConfigHtml(current) {
 // mode without the same invert-for-dark-mode treatment.
 '  .hand-style-icon-preview { flex: 0 0 25%; }' +
 '  .hand-style-icon-preview img { max-width: 100%; max-height: 100%; display: block; filter: invert(1); }' +
+// Weather icon style previews -- unlike the plain black-on-transparent
+// hand-style icons just above, these are actual on-watch artwork (a
+// real image with its own colors/background, per features_layer.c's
+// own comment on how these are authored), so shown as-is here with no
+// invert-for-dark-mode filter -- inverting real artwork would misrepresent
+// what it actually looks like rather than just adapting a silhouette's
+// polarity to the theme.
+'  .weather-icon-style-preview { flex: 0 0 25%; }' +
+'  .weather-icon-style-preview img { max-width: 100%; max-height: 100%; display: block; image-rendering: pixelated; }' +
 // The always-visible trigger button that replaces each plain <select>
 // -- looks like one .font-picker-btn row (so the CURRENTLY chosen
 // font is already shown in its own real typeface before the popup
@@ -1613,7 +1626,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      <label for="centerCircleRadius">Radius <span class="val" id="centerCircleRadiusVal">' + esc(current.centerCircleRadius || '3') + 'px</span></label>' +
 '    <div class="slider-with-buttons">' +
 '    <button type="button" class="slider-step-btn" onclick="stepSlider(\'centerCircleRadius\', -1)">&minus;</button>' +
-'      <input type="range" id="centerCircleRadius" min="0" max="30" step="1" value="' + esc(current.centerCircleRadius || '3') + '" oninput="document.getElementById(\'centerCircleRadiusVal\').textContent = this.value + \'px\';">' +
+'      <input type="range" id="centerCircleRadius" min="0" max="30" step="1" value="' + esc(current.centerCircleRadius || '3') + '" oninput="document.getElementById(\'centerCircleRadiusVal\').textContent = this.value + \'px\'; refreshEditButtonLabels();">' +
 '    <button type="button" class="slider-step-btn" onclick="stepSlider(\'centerCircleRadius\', 1)">+</button>' +
 '    </div>' +
 '    </div>' +
@@ -1690,6 +1703,13 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  <div class="modal-box">' +
 '    <div class="modal-title">Shape</div>' +
 '    <div class="modal-scroll-body" id="handStyleIconPickerGrid"></div>' +
+'  </div>' +
+'</div>' +
+
+'<div class="modal-overlay" id="weatherIconStylePickerModal" onclick="if (event.target === this) closeWeatherIconStylePicker();">' +
+'  <div class="modal-box">' +
+'    <div class="modal-title">Weather icon style</div>' +
+'    <div class="modal-scroll-body" id="weatherIconStylePickerGrid"></div>' +
 '  </div>' +
 '</div>' +
 
@@ -1793,13 +1813,13 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      <div class="help">To show the date behind the hands, pick "Short date" as a line in the Features section below (bottom-middle line 1 does this by default).</div>' +
 
 '      <div id="customHandSection">' +
-'        <button type="button" class="marker-edit-btn" onclick="openHandEditor(\'hour\')">Edit hour hand &rsaquo;</button>' +
-'        <button type="button" class="marker-edit-btn" onclick="openHandEditor(\'min\')">Edit minute hand &rsaquo;</button>' +
-'        <button type="button" class="marker-edit-btn" id="editSecHandBtn" ' + (secondsChecked ? '' : 'disabled') + ' onclick="openHandEditor(\'sec\')">Edit second hand &rsaquo;</button>' +
-'        <button type="button" class="marker-edit-btn" onclick="openCenterCircleEditor()">Edit center circle &rsaquo;</button>' +
+'        <button type="button" class="marker-edit-btn" onclick="openHandEditor(\'hour\')">Edit hour hand: <span id="handHourStatusLabel"></span> &rsaquo;</button>' +
+'        <button type="button" class="marker-edit-btn" onclick="openHandEditor(\'min\')">Edit minute hand: <span id="handMinStatusLabel"></span> &rsaquo;</button>' +
+'        <button type="button" class="marker-edit-btn" id="editSecHandBtn" ' + (secondsChecked ? '' : 'disabled') + ' onclick="openHandEditor(\'sec\')">Edit second hand: <span id="handSecStatusLabel"></span> &rsaquo;</button>' +
+'        <button type="button" class="marker-edit-btn" onclick="openCenterCircleEditor()">Edit center circle: <span id="centerCircleStatusLabel"></span> &rsaquo;</button>' +
           handHiddenInputsHtml(current) +
 '      </div>' +
-'      <button type="button" class="marker-edit-btn" onclick="openShadowStyleEditor()">Edit shadow style &rsaquo;</button>' +
+'      <button type="button" class="marker-edit-btn" onclick="openShadowStyleEditor()">Edit shadow style: <span id="shadowStyleStatusLabel"></span> &rsaquo;</button>' +
 
 '      <label style="margin-top:12px;">Hour/seconds indices style</label>' +
 '      <button type="button" class="marker-edit-btn" id="markerStyleTriggerBtn" style="margin-top:8px;" onclick="openMarkerStyleModal()">Indices style: <span id="markerStyleTriggerLabel"></span> &rsaquo;</button>' +
@@ -1823,9 +1843,9 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      <div class="help">When an eclipse is actually happening, the Sun fills the whole screen as a background behind the hands.</div>' +
 
 '      <div id="customMarkerSection" style="' + (current.bigAnalogMarkerStyle === '8' ? '' : 'display:none;') + '">' +
-'        <button type="button" class="marker-edit-btn" onclick="openCustomMarkerEditor(\'hour\')">Edit hour indices &rsaquo;</button>' +
-'        <button type="button" class="marker-edit-btn" onclick="openCustomMarkerEditor(\'sec\')">Edit seconds indices &rsaquo;</button>' +
-'        <button type="button" class="marker-edit-btn" onclick="openTextMarkerEditor()">Edit numerals &rsaquo;</button>' +
+'        <button type="button" class="marker-edit-btn" onclick="openCustomMarkerEditor(\'hour\')">Edit hour indices: <span id="cmHourStatusLabel"></span> &rsaquo;</button>' +
+'        <button type="button" class="marker-edit-btn" onclick="openCustomMarkerEditor(\'sec\')">Edit seconds indices: <span id="cmSecStatusLabel"></span> &rsaquo;</button>' +
+'        <button type="button" class="marker-edit-btn" onclick="openTextMarkerEditor()">Numerals: <span id="numeralsStatusLabel"></span> &rsaquo;</button>' +
           customMarkerHiddenInputsHtml(current) +
 '      </div>' +
 '    </div>' +
@@ -1989,12 +2009,16 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    <div class="help">Applies to corner/edge feature text and the analog date. Bigger display fonts are hidden by default in the picker -- see "Show incompatible fonts" there.</div>' +
 
 '    <div id="weatherIconStyleRow" style="' + (weatherIconFeatureInUse ? '' : 'display:none;') + '">' +
-'      <label for="weatherIconStyle">Weather icon style</label>' +
-'      <select id="weatherIconStyle">' +
+'      <label>Weather icon style</label>' +
+'      <select id="weatherIconStyle" style="display:none;">' +
 '        <option value="0"' + (current.weatherIconStyle === '0' ? ' selected' : '') + '>Simple</option>' +
 '        <option value="1"' + (current.weatherIconStyle === '1' || !current.weatherIconStyle ? ' selected' : '') + '>Hollow</option>' +
 '        <option value="2"' + (current.weatherIconStyle === '2' ? ' selected' : '') + '>Full color</option>' +
 '      </select>' +
+'      <button type="button" class="font-picker-btn font-picker-trigger" id="weatherIconStyleTrigger" onclick="openWeatherIconStylePicker()">' +
+'        <span class="font-picker-preview weather-icon-style-preview"></span>' +
+'        <span class="font-picker-name"></span>' +
+'      </button>' +
 '      <div class="help">"Simple" is a placeholder for now. Hollow follows the slot\'s own color mode like any other icon; Full color is a genuine multi-color image with its own baked-in colors (see README.md), so it ignores the slot\'s color mode entirely. Shown here because a Weather icon feature is picked below.</div>' +
 '    </div>' +
 
@@ -2274,6 +2298,9 @@ handEditorModalHtml('sec', 'Edit second hand') +
 'var MARKER_PRESET_IMAGES = ' + JSON.stringify(MARKER_PRESET_IMAGES) + ';' +
 'var HAND_STYLE_DIAGRAM_IMAGES = ' + JSON.stringify(HAND_STYLE_DIAGRAM_IMAGES) + ';' +
 'var HAND_STYLE_ICON_IMAGES = ' + JSON.stringify(HAND_STYLE_ICON_IMAGES) + ';' +
+'var WEATHER_ICON_STYLE_PREVIEWS = ' + JSON.stringify(WEATHER_ICON_STYLE_PREVIEWS) + ';' +
+// Matches weather_icon_style\'s own <option> list exactly.
+'var WEATHER_ICON_STYLE_NAMES = ["Simple", "Hollow", "Full color"];' +
 // Matches the Shape <option> list\'s own order/values exactly (see
 // handEditorModalHtml() and STYLE_IDS_BY_NAME in
 // scripts/generate-hand-style-icons.js).
@@ -3017,6 +3044,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  bottomMiddleLine2: { contentId: "bottomMiddleLine2Content", colorId: "bottomMiddleLine2Color", btnId: "slotBtn-bottomMiddleLine2", label: "Bottom-middle, line 2", avail: function (a) { return a.bottom; } },' +
 '  middleLeftLine1: { contentId: "middleLeftLine1Content", colorId: "middleLeftLine1Color", btnId: "slotBtn-middleLeftLine1", label: "Middle-left, line 1", avail: function (a) { return a.left; } },' +
 '  middleLeftLine2: { contentId: "middleLeftLine2Content", colorId: "middleLeftLine2Color", btnId: "slotBtn-middleLeftLine2", label: "Middle-left, line 2", avail: function (a) { return a.left; } },' +
+'  middleRightLine1: { contentId: "middleRightLine1Content", colorId: "middleRightLine1Color", btnId: "slotBtn-middleRightLine1", label: "Middle-right, line 1", avail: function (a) { return a.right; } },' +
 '  middleRightLine2: { contentId: "middleRightLine2Content", colorId: "middleRightLine2Color", btnId: "slotBtn-middleRightLine2", label: "Middle-right, line 2", avail: function (a) { return a.right; } }' +
 '};' +
 'var CURRENT_SLOT_KEY = null;' +
@@ -3150,6 +3178,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  });' +
 '  var row = document.getElementById("weatherIconStyleRow");' +
 '  if (row) row.style.display = inUse ? "" : "none";' +
+'  updateWeatherIconStyleTriggerLabel();' +
 '}' +
 
 // ---- collapsible sections + slider step buttons ------------------------
@@ -3297,6 +3326,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    hidden.value = (CM_CHECKBOX_FIELDS.indexOf(f) !== -1) ? String(popupEl.checked) : popupEl.value;' +
 '  });' +
 '  closeCustomMarkerEditor(kind);' +
+'  refreshEditButtonLabels();' +
 '  updatePreview();' +
 '}' +
 'function applyMarkerPreset(kind, name) {' +
@@ -3331,6 +3361,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 'function selectMarkerTextTarget(val) {' +
 '  selectModeButton("markerTextTargetGroup", "markerTextTarget", val);' +
 '  onMarkerTextTargetChange();' +
+'  refreshEditButtonLabels();' +
 '}' +
 'function onMarkerTextTargetChange() {' +
 '  var val = document.getElementById("markerTextTarget").value;' +
@@ -3489,6 +3520,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  applyHandPresetExtras(entry);' +
 '  closeHandStyleModal();' +
 '  updateHandStyleButtonLabel();' +
+'  refreshEditButtonLabels();' +
 '  updatePreview();' +
 '}' +
 // "Custom" -- same meaning the old dropdown\'s "Custom" option had:
@@ -3664,6 +3696,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  updateColorRoleButtons("night");' +
 '  renderSlotPicker();' +
 '  refreshAllFontTriggerLabels();' +
+'  refreshEditButtonLabels();' +
 '  updatePreview();' +
 '}' +
 'function exportDesignJson() {' +
@@ -3881,6 +3914,47 @@ handEditorModalHtml('sec', 'Edit second hand') +
 // updateFontTriggerLabel()/updateColorPresetTriggerLabel() already use
 // for their own pickers. Called from updateHandFieldVisibility() above
 // so it never needs its own separate call site.
+// Fills in the "current status" shown right on each Edit .../Numerals
+// trigger button (see this file's own request/comment) -- one shared
+// function covering all 7 rather than 7 separate single-purpose ones,
+// called after anything that can actually change one of these values:
+// saving a hand/indices editor, applying a hand or marker preset,
+// tapping a Shadow style/Numerals button, dragging the center circle
+// slider, or loading/importing a whole style. A little more than any
+// one call site strictly needs, but safer than trying to track exactly
+// which of the 7 a given change could touch.
+'function customMarkerStyleLabel(val) {' +
+'  return ["Dot", "Line", "Square"][parseInt(val, 10)] || "Dot";' +
+'}' +
+'function markerTextTargetLabel(val) {' +
+'  if (val === "1") return "On hours";' +
+'  if (val === "2") return "Every 5s";' +
+'  return "Off";' +
+'}' +
+'function refreshEditButtonLabels() {' +
+'  ["hour", "min", "sec"].forEach(function (kind) {' +
+'    var el = document.getElementById(heHiddenPrefix(kind) + "Style");' +
+'    var span = document.getElementById("hand" + kind.charAt(0).toUpperCase() + kind.slice(1) + "StatusLabel");' +
+'    if (el && span) span.textContent = HAND_STYLE_NAMES[parseInt(el.value, 10)] || "Baton";' +
+'  });' +
+'  var ccSpan = document.getElementById("centerCircleStatusLabel");' +
+'  var ccEl = document.getElementById("centerCircleRadius");' +
+'  if (ccSpan && ccEl) {' +
+'    var ccVal = parseInt(ccEl.value, 10) || 0;' +
+'    ccSpan.textContent = ccVal > 0 ? (ccVal + "px") : "Off";' +
+'  }' +
+'  var shSpan = document.getElementById("shadowStyleStatusLabel");' +
+'  var shEl = document.getElementById("shadowTranslucent");' +
+'  if (shSpan && shEl) shSpan.textContent = shEl.value === "false" ? "Solid" : "Translucent";' +
+'  ["Hour", "Sec"].forEach(function (kindCap) {' +
+'    var span = document.getElementById("cm" + kindCap + "StatusLabel");' +
+'    var el = document.getElementById("custom" + kindCap + "Style");' +
+'    if (el && span) span.textContent = customMarkerStyleLabel(el.value);' +
+'  });' +
+'  var numSpan = document.getElementById("numeralsStatusLabel");' +
+'  var numEl = document.getElementById("markerTextTarget");' +
+'  if (numSpan && numEl) numSpan.textContent = markerTextTargetLabel(numEl.value);' +
+'}' +
 'function updateHandStyleIconTriggerLabel(p) {' +
 '  var sel = document.getElementById(p + "Style");' +
 '  var trigger = document.getElementById(p + "StyleTrigger");' +
@@ -3920,6 +3994,45 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  if (sel) sel.value = value;' +
 '  closeHandStyleIconPicker();' +
 '  onCustomHandStyleChange(HAND_STYLE_ICON_KIND);' +
+'}' +
+
+// Same shape as the hand-style icon picker just above, for
+// weather_icon_style\'s own 3 options instead of HandConfig.style\'s 11.
+'function updateWeatherIconStyleTriggerLabel() {' +
+'  var sel = document.getElementById("weatherIconStyle");' +
+'  var trigger = document.getElementById("weatherIconStyleTrigger");' +
+'  if (!sel || !trigger) return;' +
+'  var preview = trigger.querySelector(".weather-icon-style-preview");' +
+'  var name = trigger.querySelector(".font-picker-name");' +
+'  var src = WEATHER_ICON_STYLE_PREVIEWS[sel.value];' +
+'  if (preview) preview.innerHTML = src ? \'<img src="\' + src + \'" alt="">\' : "";' +
+'  if (name) name.textContent = WEATHER_ICON_STYLE_NAMES[parseInt(sel.value, 10)] || "";' +
+'}' +
+'function openWeatherIconStylePicker() {' +
+'  renderWeatherIconStylePickerGrid();' +
+'  document.getElementById("weatherIconStylePickerModal").className = "modal-overlay open";' +
+'}' +
+'function closeWeatherIconStylePicker() {' +
+'  document.getElementById("weatherIconStylePickerModal").className = "modal-overlay";' +
+'}' +
+'function renderWeatherIconStylePickerGrid() {' +
+'  var sel = document.getElementById("weatherIconStyle");' +
+'  var currentVal = sel ? sel.value : "1";' +
+'  var html = "";' +
+'  for (var i = 0; i < WEATHER_ICON_STYLE_NAMES.length; i++) {' +
+'    var src = WEATHER_ICON_STYLE_PREVIEWS[String(i)];' +
+'    var selected = String(i) === String(currentVal);' +
+'    html += \'<button type="button" class="font-picker-btn\' + (selected ? " selected" : "") + \'" onclick="chooseWeatherIconStyle(\' + i + \')">\' +' +
+'      \'<span class="font-picker-preview weather-icon-style-preview">\' + (src ? \'<img src="\' + src + \'" alt="">\' : "") + "</span>" +' +
+'      \'<span class="font-picker-name">\' + esc(WEATHER_ICON_STYLE_NAMES[i]) + "</span></button>";' +
+'  }' +
+'  document.getElementById("weatherIconStylePickerGrid").innerHTML = html;' +
+'}' +
+'function chooseWeatherIconStyle(value) {' +
+'  var sel = document.getElementById("weatherIconStyle");' +
+'  if (sel) sel.value = value;' +
+'  closeWeatherIconStylePicker();' +
+'  updateWeatherIconStyleTriggerLabel();' +
 '}' +
 // Shows/hides the Hollow thickness slider based on the Hollow
 // checkbox -- called both on the checkbox's own onchange and once up
@@ -3970,6 +4083,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  });' +
 '  closeHandEditor(kind);' +
 '  updateHandStyleButtonLabel();' +
+'  refreshEditButtonLabels();' +
 '  updatePreview();' +
 '}' +
 // Copies the OTHER hand's last-saved settings into this popup's draft
@@ -4054,6 +4168,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '}' +
 'function selectShadowTranslucent(val) {' +
 '  selectModeButton("shadowTranslucentGroup", "shadowTranslucent", val);' +
+'  refreshEditButtonLabels();' +
 '  updatePreview();' +
 '}' +
 'function onFontChange() {' +
@@ -4479,6 +4594,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 'onMarkerStyleChange();' +
 'updateHandStyleButtonLabel();' +
 'refreshAllFontTriggerLabels();' +
+'refreshEditButtonLabels();' +
 'renderHandStyleGrid();' +
 'renderMarkerStyleGrid();' +
 'updateWeatherIconStyleVisibility();' +
