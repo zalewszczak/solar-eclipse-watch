@@ -82,6 +82,184 @@ var MODE_BTN_ICONS = {
     '<line x1="100" y1="114" x2="138" y2="140" stroke-width="9"/>' +
     '<circle cx="60" cy="60" r="4" fill="currentColor" stroke="none"/>' +
     '<circle cx="150" cy="170" r="4" fill="currentColor" stroke="none"/>' +
+    '</svg>',
+
+  // Sun (top) + a solid cloud silhouette (3 overlapping circles over a
+  // rounded base -- the standard "puffy cloud" icon shape) + 3 rain
+  // lines at 45deg below it + a half-lit moon (bottom-left, via the
+  // same mask-punches-a-hole trick as the DIGITAL icon's own info
+  // band above, so the "dark" half reads correctly against whatever
+  // color is actually behind the icon in each button state).
+  skyWeather:
+    '<svg viewBox="0 0 200 228" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">' +
+    '<rect x="4" y="4" width="192" height="220" rx="20"/>' +
+    '<circle cx="100" cy="32" r="18" fill="currentColor" stroke="none"/>' +
+    '<circle cx="70" cy="100" r="24" fill="currentColor" stroke="none"/>' +
+    '<circle cx="100" cy="88" r="30" fill="currentColor" stroke="none"/>' +
+    '<circle cx="132" cy="100" r="22" fill="currentColor" stroke="none"/>' +
+    '<rect x="52" y="96" width="96" height="32" rx="16" fill="currentColor" stroke="none"/>' +
+    '<line x1="75" y1="134" x2="97" y2="156" stroke-width="8"/>' +
+    '<line x1="100" y1="134" x2="122" y2="156" stroke-width="8"/>' +
+    '<line x1="125" y1="134" x2="147" y2="156" stroke-width="8"/>' +
+    '<mask id="modeIconSkyWeatherMoonMask">' +
+    '<rect x="24" y="159" width="16" height="32" fill="#fff"/>' +
+    '<rect x="40" y="159" width="16" height="32" fill="#000"/>' +
+    '</mask>' +
+    '<circle cx="40" cy="175" r="16" fill="currentColor" stroke="none" mask="url(#modeIconSkyWeatherMoonMask)"/>' +
+    '</svg>',
+  // Identical sun/moon placement to skyWeather above (reads as the
+  // same sky with the weather stripped out), just missing the cloud
+  // and rain entirely -- see this button\'s own request/comment.
+  skyClear:
+    '<svg viewBox="0 0 200 228" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">' +
+    '<rect x="4" y="4" width="192" height="220" rx="20"/>' +
+    '<circle cx="100" cy="32" r="18" fill="currentColor" stroke="none"/>' +
+    '<mask id="modeIconSkyClearMoonMask">' +
+    '<rect x="24" y="159" width="16" height="32" fill="#fff"/>' +
+    '<rect x="40" y="159" width="16" height="32" fill="#000"/>' +
+    '</mask>' +
+    '<circle cx="40" cy="175" r="16" fill="currentColor" stroke="none" mask="url(#modeIconSkyClearMoonMask)"/>' +
+    '</svg>',
+  // Solid black regardless of theme/active state (this is the one icon
+  // that deliberately doesn\'t use currentColor for its background --
+  // it\'s depicting an actual night sky, not a themeable shape), with a
+  // scatter of white dots in a few different sizes for stars. Still
+  // gets a currentColor border stroke on top of the black fill so the
+  // icon\'s own edge stays visible even against a similarly-dark
+  // button background in dark mode.
+  skySpace:
+    '<svg viewBox="0 0 200 228" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">' +
+    '<rect x="4" y="4" width="192" height="220" rx="20" fill="#000"/>' +
+    '<circle cx="30" cy="30" r="3" fill="#fff" stroke="none"/>' +
+    '<circle cx="70" cy="24" r="4" fill="#fff" stroke="none"/>' +
+    '<circle cx="118" cy="18" r="2" fill="#fff" stroke="none"/>' +
+    '<circle cx="160" cy="36" r="5" fill="#fff" stroke="none"/>' +
+    '<circle cx="45" cy="70" r="2" fill="#fff" stroke="none"/>' +
+    '<circle cx="90" cy="55" r="3" fill="#fff" stroke="none"/>' +
+    '<circle cx="150" cy="82" r="4" fill="#fff" stroke="none"/>' +
+    '<circle cx="30" cy="120" r="3" fill="#fff" stroke="none"/>' +
+    '<circle cx="172" cy="130" r="2" fill="#fff" stroke="none"/>' +
+    '<circle cx="60" cy="160" r="4" fill="#fff" stroke="none"/>' +
+    '<circle cx="130" cy="175" r="3" fill="#fff" stroke="none"/>' +
+    '<circle cx="100" cy="202" r="2" fill="#fff" stroke="none"/>' +
+    '<circle cx="168" cy="196" r="3" fill="#fff" stroke="none"/>' +
+    '</svg>',
+
+  // "Realistic" -- the same puffy 3-bump cloud shape as skyWeather
+  // above, shifted up a little to leave room for 5 closely-spaced
+  // thin rain lines (a "larger number" of them, per this button\'s own
+  // request) below it.
+  cloudRealistic:
+    '<svg viewBox="0 0 200 228" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">' +
+    '<rect x="4" y="4" width="192" height="220" rx="20" stroke-width="8"/>' +
+    '<circle cx="70" cy="90" r="26" fill="currentColor" stroke="none"/>' +
+    '<circle cx="100" cy="76" r="32" fill="currentColor" stroke="none"/>' +
+    '<circle cx="132" cy="90" r="24" fill="currentColor" stroke="none"/>' +
+    '<rect x="50" y="86" width="100" height="34" rx="17" fill="currentColor" stroke="none"/>' +
+    '<line x1="56" y1="128" x2="78" y2="150"/>' +
+    '<line x1="78" y1="128" x2="100" y2="150"/>' +
+    '<line x1="100" y1="128" x2="122" y2="150"/>' +
+    '<line x1="122" y1="128" x2="144" y2="150"/>' +
+    '<line x1="144" y1="128" x2="166" y2="150"/>' +
+    '</svg>',
+  // "Simple" -- a single plain blob (one bump circle over a less-
+  // rounded base, rather than 3 overlapping bumps) with only 3 rain
+  // lines, but each noticeably thicker -- "less amount of thick rain
+  // lines", per this button\'s own request, as the deliberate visual
+  // opposite of cloudRealistic\'s own many-thin-lines look.
+  cloudSimple:
+    '<svg viewBox="0 0 200 228" fill="none" stroke="currentColor" stroke-width="13" stroke-linecap="round" stroke-linejoin="round">' +
+    '<rect x="4" y="4" width="192" height="220" rx="20" stroke-width="8"/>' +
+    '<circle cx="100" cy="85" r="30" fill="currentColor" stroke="none"/>' +
+    '<rect x="55" y="90" width="90" height="34" rx="10" fill="currentColor" stroke="none"/>' +
+    '<line x1="65" y1="132" x2="90" y2="157"/>' +
+    '<line x1="100" y1="132" x2="125" y2="157"/>' +
+    '<line x1="135" y1="132" x2="160" y2="157"/>' +
+    '</svg>',
+
+  // Plain sun/moon circles (no half-mask -- this one\'s purely about
+  // relative size, not phase) at 4 fixed radii scaled from this app\'s
+  // own real on-watch base sizes (SUN_R_NORMAL=20, MOON_R_NORMAL=16 in
+  // background_layer.c, times this option\'s own pct, times a constant
+  // icon-scale factor of 1.4 to make the smallest size still legible
+  // at icon scale) -- same fixed screen-shaped box and fixed sun/moon
+  // centers across all 4, so only the circles\' own size changes
+  // between buttons, giving a direct size-to-size comparison exactly
+  // like the request asks for.
+  sunMoon100:
+    '<svg viewBox="0 0 200 228" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">' +
+    '<rect x="4" y="4" width="192" height="220" rx="20"/>' +
+    '<circle cx="68" cy="114" r="28" fill="currentColor" stroke="none"/>' +
+    '<circle cx="136" cy="114" r="22" fill="currentColor" stroke="none"/>' +
+    '</svg>',
+  sunMoon75:
+    '<svg viewBox="0 0 200 228" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">' +
+    '<rect x="4" y="4" width="192" height="220" rx="20"/>' +
+    '<circle cx="68" cy="114" r="21" fill="currentColor" stroke="none"/>' +
+    '<circle cx="136" cy="114" r="17" fill="currentColor" stroke="none"/>' +
+    '</svg>',
+  sunMoon50:
+    '<svg viewBox="0 0 200 228" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">' +
+    '<rect x="4" y="4" width="192" height="220" rx="20"/>' +
+    '<circle cx="68" cy="114" r="14" fill="currentColor" stroke="none"/>' +
+    '<circle cx="136" cy="114" r="11" fill="currentColor" stroke="none"/>' +
+    '</svg>',
+  sunMoon25:
+    '<svg viewBox="0 0 200 228" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">' +
+    '<rect x="4" y="4" width="192" height="220" rx="20"/>' +
+    '<circle cx="68" cy="114" r="7" fill="currentColor" stroke="none"/>' +
+    '<circle cx="136" cy="114" r="6" fill="currentColor" stroke="none"/>' +
+    '</svg>',
+
+  // Same word ("Sun") rendered the same 3 ways label_style actually
+  // draws it on the watch (see draw_label() in background_layer.c):
+  // Boxed is an opaque box behind the text -- drawn here as a solid
+  // currentColor box with the word itself cut out via a mask (the
+  // DIGITAL icon\'s own "punch a hole" trick again), since there\'s no
+  // one fixed color available to draw literal white text with that
+  // would still read correctly on an orange active button. Outlined
+  // is heavier/bolder text (a small self-stroke, standing in for a
+  // real contrasting outline for the same reason). Soft is thin,
+  // reduced-opacity text with neither.
+  labelBoxed:
+    '<svg viewBox="0 0 200 228" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">' +
+    '<rect x="4" y="4" width="192" height="220" rx="20"/>' +
+    '<mask id="modeIconLabelBoxedMask">' +
+    '<rect x="50" y="94" width="100" height="40" rx="10" fill="#fff"/>' +
+    '<text x="100" y="123" font-size="34" font-weight="700" font-family="sans-serif" text-anchor="middle" fill="#000">Sun</text>' +
+    '</mask>' +
+    '<rect x="50" y="94" width="100" height="40" rx="10" fill="currentColor" stroke="none" mask="url(#modeIconLabelBoxedMask)"/>' +
+    '</svg>',
+  labelOutlined:
+    '<svg viewBox="0 0 200 228" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">' +
+    '<rect x="4" y="4" width="192" height="220" rx="20"/>' +
+    '<text x="100" y="128" font-size="44" font-weight="700" font-family="sans-serif" text-anchor="middle" fill="currentColor" stroke="currentColor" stroke-width="3" paint-order="stroke">Sun</text>' +
+    '</svg>',
+  labelSoft:
+    '<svg viewBox="0 0 200 228" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">' +
+    '<rect x="4" y="4" width="192" height="220" rx="20"/>' +
+    '<text x="100" y="128" font-size="38" font-weight="400" font-family="sans-serif" text-anchor="middle" fill="currentColor" opacity="0.5">Sun</text>' +
+    '</svg>',
+
+  // Off/On shake/Permanent -- an empty screen, a dashed (i.e. not
+  // always there) outlined bar with an upward chevron above it
+  // suggesting it slides up into view, and a solid always-there bar,
+  // respectively. Same bar position/size across the latter two so
+  // only "solid vs dashed-plus-arrow" differs between them.
+  barOff:
+    '<svg viewBox="0 0 200 228" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">' +
+    '<rect x="4" y="4" width="192" height="220" rx="20"/>' +
+    '</svg>',
+  barShake:
+    '<svg viewBox="0 0 200 228" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">' +
+    '<rect x="4" y="4" width="192" height="220" rx="20"/>' +
+    '<path d="M85 155 L100 133 L115 155"/>' +
+    '<rect x="16" y="176" width="168" height="36" rx="8" stroke-width="6" stroke-dasharray="14 10"/>' +
+    '</svg>',
+  barPermanent:
+    '<svg viewBox="0 0 200 228" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">' +
+    '<rect x="4" y="4" width="192" height="220" rx="20"/>' +
+    '<rect x="16" y="176" width="168" height="36" rx="8" fill="currentColor" stroke="none"/>' +
     '</svg>'
 };
 
@@ -355,6 +533,27 @@ function verticalButtonGroupHtml(groupId, hiddenId, options, currentValue) {
     return '<button type="button" class="mode-btn-vertical' + (active ? ' active' : '') + '" data-value="' + esc(opt.value) + '" onclick="selectVerticalOption(\'' + groupId + '\', \'' + hiddenId + '\', \'' + esc(opt.value) + '\')">' + esc(opt.label) + '</button>';
   }).join('');
   return '<div class="mode-btn-group-vertical" id="' + groupId + '">' + buttons + '</div>' +
+    '<input type="hidden" id="' + hiddenId + '" value="' + esc(currentValue) + '">';
+}
+
+// Same idea as verticalButtonGroupHtml() above, but for a short (2-4
+// option) side-by-side row in the exact same style the Layout
+// section's own DIGITAL/ANALOG buttons use (.mode-btn/.mode-btn-group)
+// -- an optional icon (one of MODE_BTN_ICONS, or any other inline SVG
+// string) above the label, same as those two already have. `onclickFn`
+// lets one caller (the Sky style row) hook its own extra side effect
+// (showing/hiding the Weather-drawing-style row underneath) in on top
+// of the plain "set the hidden field, toggle .active" behavior every
+// other row just uses directly -- see selectSkyMode()'s own comment.
+function modeButtonGroupHtml(groupId, hiddenId, options, currentValue, onclickFn) {
+  var buttons = options.map(function (opt) {
+    var active = String(currentValue) === String(opt.value);
+    var call = onclickFn ?
+      onclickFn + '(\'' + esc(opt.value) + '\')' :
+      'selectModeButton(\'' + groupId + '\', \'' + hiddenId + '\', \'' + esc(opt.value) + '\')';
+    return '<button type="button" class="mode-btn' + (active ? ' active' : '') + '" data-value="' + esc(opt.value) + '" onclick="' + call + '">' + (opt.icon || '') + '<span>' + esc(opt.label) + '</span></button>';
+  }).join('');
+  return '<div class="mode-btn-group" id="' + groupId + '">' + buttons + '</div>' +
     '<input type="hidden" id="' + hiddenId + '" value="' + esc(currentValue) + '">';
 }
 
@@ -1567,20 +1766,21 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      </div>' +
 '    </div>' +
 
-'    <label for="skyMode" style="margin-top:12px;">Sky style</label>' +
-'    <select id="skyMode" onchange="onSkyModeChange()">' +
-'      <option value="0"' + (current.skyMode === '0' || !current.skyMode ? ' selected' : '') + '>Weather sky</option>' +
-'      <option value="1"' + (current.skyMode === '1' ? ' selected' : '') + '>Clear sky</option>' +
-'      <option value="2"' + (current.skyMode === '2' ? ' selected' : '') + '>Space view</option>' +
-'    </select>' +
+'    <label style="margin-top:12px;">Sky style</label>' +
+'    <div class="mode-btn-group" id="skyModeGroup">' +
+'      <button type="button" class="mode-btn' + ((current.skyMode === '0' || !current.skyMode) ? ' active' : '') + '" data-value="0" onclick="selectSkyMode(\'0\')">' + MODE_BTN_ICONS.skyWeather + '<span>WEATHER</span></button>' +
+'      <button type="button" class="mode-btn' + (current.skyMode === '1' ? ' active' : '') + '" data-value="1" onclick="selectSkyMode(\'1\')">' + MODE_BTN_ICONS.skyClear + '<span>CLEAR</span></button>' +
+'      <button type="button" class="mode-btn' + (current.skyMode === '2' ? ' active' : '') + '" data-value="2" onclick="selectSkyMode(\'2\')">' + MODE_BTN_ICONS.skySpace + '<span>SPACE</span></button>' +
+'    </div>' +
+'    <input type="hidden" id="skyMode" value="' + esc(current.skyMode || '0') + '">' +
 '    <div class="help">Weather sky shows clouds/rain/snow and the day-night gradient. Clear sky keeps the gradient but never draws weather. Space view drops the gradient entirely for a fixed dark sky, always shows the Sun/Moon/planets when above the horizon regardless of time of day, and adds a field of bright named stars (tap/shake to reveal names).</div>' +
 
 '    <div id="cloudRenderStyleRow" style="' + (current.skyMode && current.skyMode !== '0' ? 'display:none;' : '') + '">' +
-'    <label for="cloudRenderStyle" style="margin-top:12px;">Weather drawing style</label>' +
-'    <select id="cloudRenderStyle">' +
-'      <option value="1"' + (current.cloudRenderStyle === '1' || !current.cloudRenderStyle ? ' selected' : '') + '>Realistic</option>' +
-'      <option value="0"' + (current.cloudRenderStyle === '0' ? ' selected' : '') + '>Simple (battery friendly)</option>' +
-'    </select>' +
+'    <label style="margin-top:12px;">Weather drawing style</label>' +
+      modeButtonGroupHtml('cloudRenderStyleGroup', 'cloudRenderStyle', [
+        { value: '1', label: 'REALISTIC', icon: MODE_BTN_ICONS.cloudRealistic },
+        { value: '0', label: 'SIMPLE', icon: MODE_BTN_ICONS.cloudSimple }
+      ], current.cloudRenderStyle || '1') +
 '    <div class="help">Realistic clouds are a soft painterly shape shaded by the Sun\'s actual position -- costs more battery per redraw, and adds occasional lightning during a storm. Simple uses plain circle puffs instead.</div>' +
 '    </div>' +
 
@@ -1833,35 +2033,35 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    <label for="owmKey">OpenWeatherMap API key (optional)</label>' +
 '    <input type="text" id="owmKey" placeholder="leave blank to skip" value="' + esc(current.owmKey) + '">' +
 
-'    <label for="tempUnit" style="margin-top:10px;">Temperature unit</label>' +
-'    <select id="tempUnit">' +
-'      <option value="C"' + (current.tempUnit === 'C' || !current.tempUnit ? ' selected' : '') + '>Celsius</option>' +
-'      <option value="F"' + (current.tempUnit === 'F' ? ' selected' : '') + '>Fahrenheit</option>' +
-'      <option value="K"' + (current.tempUnit === 'K' ? ' selected' : '') + '>Kelvin</option>' +
-'    </select>' +
+'    <label style="margin-top:10px;">Temperature unit</label>' +
+      modeButtonGroupHtml('tempUnitGroup', 'tempUnit', [
+        { value: 'C', label: '\u00b0C' },
+        { value: 'F', label: '\u00b0F' },
+        { value: 'K', label: 'K' }
+      ], current.tempUnit || 'C') +
 '    <div class="help">Used everywhere temperature is shown, including the Features section below.</div>' +
 
-'    <label for="windSpeedUnit" style="margin-top:10px;">Wind speed unit</label>' +
-'    <select id="windSpeedUnit">' +
-'      <option value="kmh"' + (current.windSpeedUnit === 'kmh' || !current.windSpeedUnit ? ' selected' : '') + '>km/h</option>' +
-'      <option value="mph"' + (current.windSpeedUnit === 'mph' ? ' selected' : '') + '>mph</option>' +
-'      <option value="ms"' + (current.windSpeedUnit === 'ms' ? ' selected' : '') + '>m/s</option>' +
-'      <option value="kn"' + (current.windSpeedUnit === 'kn' ? ' selected' : '') + '>knots</option>' +
-'    </select>' +
+'    <label style="margin-top:10px;">Wind speed unit</label>' +
+      modeButtonGroupHtml('windSpeedUnitGroup', 'windSpeedUnit', [
+        { value: 'kmh', label: 'KM/H' },
+        { value: 'mph', label: 'MPH' },
+        { value: 'ms', label: 'M/S' },
+        { value: 'kn', label: 'KNOTS' }
+      ], current.windSpeedUnit || 'kmh') +
 '    <div class="help">Used by the "Wind" corner content.</div>' +
 
-'    <label for="aqiUnit" style="margin-top:10px;">Air quality index scale</label>' +
-'    <select id="aqiUnit">' +
-'      <option value="0"' + (current.aqiUnit === '0' || !current.aqiUnit ? ' selected' : '') + '>US AQI (EPA, 0-500)</option>' +
-'      <option value="1"' + (current.aqiUnit === '1' ? ' selected' : '') + '>European AQI (0-100+)</option>' +
-'    </select>' +
+'    <label style="margin-top:10px;">Air quality index scale</label>' +
+      modeButtonGroupHtml('aqiUnitGroup', 'aqiUnit', [
+        { value: '0', label: 'US AQI' },
+        { value: '1', label: 'EUROPEAN' }
+      ], current.aqiUnit || '0') +
 '    <div class="help">Used by the "Air quality" corner content.</div>' +
 
-'    <label for="altitudeUnit" style="margin-top:10px;">Altitude unit</label>' +
-'    <select id="altitudeUnit">' +
-'      <option value="0"' + (current.altitudeUnit === '0' || !current.altitudeUnit ? ' selected' : '') + '>Meters</option>' +
-'      <option value="1"' + (current.altitudeUnit === '1' ? ' selected' : '') + '>Feet</option>' +
-'    </select>' +
+'    <label style="margin-top:10px;">Altitude unit</label>' +
+      modeButtonGroupHtml('altitudeUnitGroup', 'altitudeUnit', [
+        { value: '0', label: 'METERS' },
+        { value: '1', label: 'FEET' }
+      ], current.altitudeUnit || '0') +
 '    <div class="help">Used by the "Altitude" corner content. Comes from GPS, so it needs "Use GPS automatically" turned on in Location below, and not every phone reports it -- shows "N/A" when it\'s not available.</div>' +
 
 '    </div>' +
@@ -1871,13 +2071,13 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    <div class="section-legend" onclick="toggleSection(\'astronomy\')">Astronomy <span class="chevron" id="chev-astronomy">&#9656;</span></div>' +
 '    <div class="section-body" id="section-astronomy" style="display:none;">' +
 
-'    <label for="sunMoonSize">Sun &amp; Moon size</label>' +
-'    <select id="sunMoonSize">' +
-'      <option value="100"' + (current.sunMoonSize === '100' ? ' selected' : '') + '>Large</option>' +
-'      <option value="75"' + (current.sunMoonSize === '75' || !current.sunMoonSize ? ' selected' : '') + '>Medium</option>' +
-'      <option value="50"' + (current.sunMoonSize === '50' ? ' selected' : '') + '>Small</option>' +
-'      <option value="25"' + (current.sunMoonSize === '25' ? ' selected' : '') + '>Extra small</option>' +
-'    </select>' +
+'    <label>Sun &amp; Moon size</label>' +
+      modeButtonGroupHtml('sunMoonSizeGroup', 'sunMoonSize', [
+        { value: '100', label: 'LARGE', icon: MODE_BTN_ICONS.sunMoon100 },
+        { value: '75', label: 'MEDIUM', icon: MODE_BTN_ICONS.sunMoon75 },
+        { value: '50', label: 'SMALL', icon: MODE_BTN_ICONS.sunMoon50 },
+        { value: '25', label: 'X-SMALL', icon: MODE_BTN_ICONS.sunMoon25 }
+      ], current.sunMoonSize || '75') +
 '    <div class="help">Ignored during an actual eclipse, which sizes the Sun and Moon by their real geometry instead.</div>' +
 
 '    <div class="subsection">' +
@@ -1885,22 +2085,22 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      <input type="number" id="shakeLabelSeconds" min="1" max="10" step="1" value="' + esc(current.shakeLabelSeconds || '3') + '"> seconds' +
 '    </div>' +
 
-'    <label for="labelStyle">Label style</label>' +
-'    <select id="labelStyle">' +
-'      <option value="0"' + (current.labelStyle === '0' || !current.labelStyle ? ' selected' : '') + '>Boxed</option>' +
-'      <option value="1"' + (current.labelStyle === '1' ? ' selected' : '') + '>Outlined</option>' +
-'      <option value="2"' + (current.labelStyle === '2' ? ' selected' : '') + '>Soft</option>' +
-'    </select>' +
+'    <label>Label style</label>' +
+      modeButtonGroupHtml('labelStyleGroup', 'labelStyle', [
+        { value: '0', label: 'BOXED', icon: MODE_BTN_ICONS.labelBoxed },
+        { value: '1', label: 'OUTLINED', icon: MODE_BTN_ICONS.labelOutlined },
+        { value: '2', label: 'SOFT', icon: MODE_BTN_ICONS.labelSoft }
+      ], current.labelStyle || '0') +
 '    <div class="help">Boxed is an opaque rounded box with white text (the original look). Outlined uses your main color with a contrasting outline. Soft is plain light-gray text with no background or outline.</div>' +
 
 '    <div class="subsection">' +
-'      <label for="bottomInfoBarMode">Clouds/visibility/location bar (bottom of sky view)</label>' +
-'      <select id="bottomInfoBarMode">' +
-'        <option value="0"' + (current.bottomInfoBarMode === '0' ? ' selected' : '') + '>Off</option>' +
-'        <option value="1"' + (current.bottomInfoBarMode === '1' || !current.bottomInfoBarMode ? ' selected' : '') + '>On shake (with the name labels above)</option>' +
-'        <option value="2"' + (current.bottomInfoBarMode === '2' ? ' selected' : '') + '>Permanent</option>' +
-'      </select>' +
-'      <div class="help">Permanent shifts the sky view up 20px to make room, rather than the bar overlapping it. Not shown in analog mode, which already has this in its persistent info panel.</div>' +
+'      <label>Clouds/visibility/location bar (bottom of sky view)</label>' +
+        modeButtonGroupHtml('bottomInfoBarModeGroup', 'bottomInfoBarMode', [
+          { value: '0', label: 'OFF', icon: MODE_BTN_ICONS.barOff },
+          { value: '1', label: 'ON SHAKE', icon: MODE_BTN_ICONS.barShake },
+          { value: '2', label: 'PERMANENT', icon: MODE_BTN_ICONS.barPermanent }
+        ], current.bottomInfoBarMode || '1') +
+'      <div class="help">On shake shows it (with the name labels above) only briefly. Permanent shifts the sky view up 20px to make room, rather than the bar overlapping it. Not shown in analog mode, which already has this in its persistent info panel.</div>' +
 '    </div>' +
 
 '    <div class="checkbox-row subsection">' +
@@ -3685,6 +3885,22 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    buttons[i].className = "mode-btn-vertical" + (buttons[i].getAttribute("data-value") === val ? " active" : "");' +
 '  }' +
 '  updatePreview();' +
+'}' +
+// Same "hidden field is the real value, buttons just reflect it"
+// mechanics as selectVerticalOption() above, for a modeButtonGroupHtml()
+// row instead of a verticalButtonGroupHtml() one -- shared by every
+// converted dropdown below except Sky style, which needs its own
+// extra step (see selectSkyMode() right after this).
+'function selectModeButton(groupId, hiddenId, val) {' +
+'  document.getElementById(hiddenId).value = val;' +
+'  var buttons = document.getElementById(groupId).getElementsByClassName("mode-btn");' +
+'  for (var i = 0; i < buttons.length; i++) {' +
+'    buttons[i].className = "mode-btn" + (buttons[i].getAttribute("data-value") === val ? " active" : "");' +
+'  }' +
+'}' +
+'function selectSkyMode(val) {' +
+'  selectModeButton("skyModeGroup", "skyMode", val);' +
+'  onSkyModeChange();' +
 '}' +
 'function onFontChange() {' +
 '  var fontSel = document.getElementById("clockFont");' +
