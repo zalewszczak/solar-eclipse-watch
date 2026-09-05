@@ -1192,170 +1192,172 @@ typedef struct {
                         // (hand_hour.style etc.) same as any other offsetof use
 } SimpleFieldMapping;
 
-static const SimpleFieldMapping SIMPLE_FIELD_MAP[] = {
-  // Hand system (hand_hour/hand_minute/hand_second, see hand_layer.h) --
-  // every hand (however it was picked on the settings page -- a preset
-  // button or the manual editor) is sent as one of these full field
-  // sets; the watch itself has no separate "preset" concept, so these
-  // are plain copies same as anything else here.
-  { MESSAGE_KEY_ERROR_CODE, F_U8, offsetof(EclipseData, error_code) },
-  { MESSAGE_KEY_TEMP_UNIT, F_U8, offsetof(EclipseData, temp_unit) },
-  { MESSAGE_KEY_WIND_SPEED_UNIT, F_U8, offsetof(EclipseData, wind_speed_unit) },
-  { MESSAGE_KEY_SHAKE_LABEL_SECONDS, F_U8, offsetof(EclipseData, shake_label_seconds) },
-  { MESSAGE_KEY_VIBRATE_ON_PHASE_CHANGE, F_BOOL, offsetof(EclipseData, vibrate_on_phase_change) },
-  { MESSAGE_KEY_STARTUP_CLOCK_ANIMATION_ENABLED, F_BOOL, offsetof(EclipseData, startup_clock_animation_enabled) },
-  { MESSAGE_KEY_OUTLINE_ENABLED, F_BOOL, offsetof(EclipseData, outline_enabled) },
-  { MESSAGE_KEY_CORNER_FONT, F_U8, offsetof(EclipseData, corner_font) },
-  { MESSAGE_KEY_HAND_HOUR_STYLE, F_U8, offsetof(EclipseData, hand_hour.style) },
-  { MESSAGE_KEY_HAND_HOUR_WIDTH, F_U8, offsetof(EclipseData, hand_hour.width) },
-  { MESSAGE_KEY_HAND_HOUR_LENGTH, F_U8, offsetof(EclipseData, hand_hour.length) },
-  { MESSAGE_KEY_HAND_HOUR_BACK_OFFSET, F_I8_FROM_I16, offsetof(EclipseData, hand_hour.back_offset) },
-  { MESSAGE_KEY_HAND_HOUR_MIDDLE_OFFSET, F_I8_FROM_I16, offsetof(EclipseData, hand_hour.middle_offset) },
-  { MESSAGE_KEY_HAND_HOUR_SECONDARY_WIDTH, F_U8, offsetof(EclipseData, hand_hour.secondary_width) },
-  { MESSAGE_KEY_HAND_HOUR_COLOR, F_U8, offsetof(EclipseData, hand_hour.color) },
-  { MESSAGE_KEY_HAND_HOUR_OUTLINE_ENABLED, F_BOOL, offsetof(EclipseData, hand_hour.outline_enabled) },
-  { MESSAGE_KEY_HAND_HOUR_OUTLINE_COLOR, F_U8, offsetof(EclipseData, hand_hour.outline_color) },
-  { MESSAGE_KEY_HAND_HOUR_TRANSLUCENT, F_BOOL, offsetof(EclipseData, hand_hour.translucent) },
-  { MESSAGE_KEY_HAND_HOUR_SHADOW_ENABLED, F_BOOL, offsetof(EclipseData, hand_hour.shadow_enabled) },
-  { MESSAGE_KEY_HAND_HOUR_SHADOW_DISTANCE, F_U8, offsetof(EclipseData, hand_hour.shadow_distance_px) },
-  { MESSAGE_KEY_HAND_HOUR_HOLLOW, F_BOOL, offsetof(EclipseData, hand_hour.hollow) },
-  { MESSAGE_KEY_HAND_HOUR_HOLLOW_THICKNESS, F_U8, offsetof(EclipseData, hand_hour.hollow_thickness) },
-  { MESSAGE_KEY_HAND_MIN_STYLE, F_U8, offsetof(EclipseData, hand_minute.style) },
-  { MESSAGE_KEY_HAND_MIN_WIDTH, F_U8, offsetof(EclipseData, hand_minute.width) },
-  { MESSAGE_KEY_HAND_MIN_LENGTH, F_U8, offsetof(EclipseData, hand_minute.length) },
-  { MESSAGE_KEY_HAND_MIN_BACK_OFFSET, F_I8_FROM_I16, offsetof(EclipseData, hand_minute.back_offset) },
-  { MESSAGE_KEY_HAND_MIN_MIDDLE_OFFSET, F_I8_FROM_I16, offsetof(EclipseData, hand_minute.middle_offset) },
-  { MESSAGE_KEY_HAND_MIN_SECONDARY_WIDTH, F_U8, offsetof(EclipseData, hand_minute.secondary_width) },
-  { MESSAGE_KEY_HAND_MIN_COLOR, F_U8, offsetof(EclipseData, hand_minute.color) },
-  { MESSAGE_KEY_HAND_MIN_OUTLINE_ENABLED, F_BOOL, offsetof(EclipseData, hand_minute.outline_enabled) },
-  { MESSAGE_KEY_HAND_MIN_OUTLINE_COLOR, F_U8, offsetof(EclipseData, hand_minute.outline_color) },
-  { MESSAGE_KEY_HAND_MIN_TRANSLUCENT, F_BOOL, offsetof(EclipseData, hand_minute.translucent) },
-  { MESSAGE_KEY_HAND_MIN_SHADOW_ENABLED, F_BOOL, offsetof(EclipseData, hand_minute.shadow_enabled) },
-  { MESSAGE_KEY_HAND_MIN_SHADOW_DISTANCE, F_U8, offsetof(EclipseData, hand_minute.shadow_distance_px) },
-  { MESSAGE_KEY_HAND_MIN_HOLLOW, F_BOOL, offsetof(EclipseData, hand_minute.hollow) },
-  { MESSAGE_KEY_HAND_MIN_HOLLOW_THICKNESS, F_U8, offsetof(EclipseData, hand_minute.hollow_thickness) },
-  { MESSAGE_KEY_HAND_SEC_STYLE, F_U8, offsetof(EclipseData, hand_second.style) },
-  { MESSAGE_KEY_HAND_SEC_WIDTH, F_U8, offsetof(EclipseData, hand_second.width) },
-  { MESSAGE_KEY_HAND_SEC_LENGTH, F_U8, offsetof(EclipseData, hand_second.length) },
-  { MESSAGE_KEY_HAND_SEC_BACK_OFFSET, F_I8_FROM_I16, offsetof(EclipseData, hand_second.back_offset) },
-  { MESSAGE_KEY_HAND_SEC_MIDDLE_OFFSET, F_I8_FROM_I16, offsetof(EclipseData, hand_second.middle_offset) },
-  { MESSAGE_KEY_HAND_SEC_SECONDARY_WIDTH, F_U8, offsetof(EclipseData, hand_second.secondary_width) },
-  { MESSAGE_KEY_HAND_SEC_COLOR, F_U8, offsetof(EclipseData, hand_second.color) },
-  { MESSAGE_KEY_HAND_SEC_OUTLINE_ENABLED, F_BOOL, offsetof(EclipseData, hand_second.outline_enabled) },
-  { MESSAGE_KEY_HAND_SEC_OUTLINE_COLOR, F_U8, offsetof(EclipseData, hand_second.outline_color) },
-  { MESSAGE_KEY_HAND_SEC_TRANSLUCENT, F_BOOL, offsetof(EclipseData, hand_second.translucent) },
-  { MESSAGE_KEY_HAND_SEC_SHADOW_ENABLED, F_BOOL, offsetof(EclipseData, hand_second.shadow_enabled) },
-  { MESSAGE_KEY_HAND_SEC_SHADOW_DISTANCE, F_U8, offsetof(EclipseData, hand_second.shadow_distance_px) },
-  { MESSAGE_KEY_HAND_SEC_HOLLOW, F_BOOL, offsetof(EclipseData, hand_second.hollow) },
-  { MESSAGE_KEY_HAND_SEC_HOLLOW_THICKNESS, F_U8, offsetof(EclipseData, hand_second.hollow_thickness) },
-  { MESSAGE_KEY_CENTER_CIRCLE_RADIUS, F_U8, offsetof(EclipseData, center_circle_radius) },
-  { MESSAGE_KEY_CENTER_CIRCLE_COLOR, F_U8, offsetof(EclipseData, center_circle_color) },
-  // Custom marker system (big_analog_marker_style == 8) -- see
-  // eclipse_data.h (MarkerRingConfig/MarkerTextConfig) and
-  // background_layer.c (where these now actually get drawn, as part
-  // of its own cached redraw). No per-key dirty-marking needed here
-  // beyond copying the values in -- every inbox message
-  // unconditionally forces a full canvas redraw at the end of this
-  // handler (see refresh_status_and_maybe_canvas(true) below).
-  { MESSAGE_KEY_CUSTOM_HOUR_STYLE, F_U8, offsetof(EclipseData, custom_hour_marker.style) },
-  { MESSAGE_KEY_CUSTOM_HOUR_THICKNESS, F_U8, offsetof(EclipseData, custom_hour_marker.thickness) },
-  { MESSAGE_KEY_CUSTOM_HOUR_INNER_ECC, F_U8, offsetof(EclipseData, custom_hour_marker.inner_eccentricity) },
-  { MESSAGE_KEY_CUSTOM_HOUR_OUTER_ECC, F_U8, offsetof(EclipseData, custom_hour_marker.outer_eccentricity) },
-  { MESSAGE_KEY_CUSTOM_HOUR_INNER_BORDER, F_U8, offsetof(EclipseData, custom_hour_marker.inner_border_pct) },
-  { MESSAGE_KEY_CUSTOM_HOUR_OUTER_BORDER, F_U8, offsetof(EclipseData, custom_hour_marker.outer_border_pct) },
-  { MESSAGE_KEY_CUSTOM_HOUR_TRANSLUCENT, F_BOOL, offsetof(EclipseData, custom_hour_marker.translucent) },
-  { MESSAGE_KEY_CUSTOM_HOUR_COLOR, F_U8, offsetof(EclipseData, custom_hour_marker.color) },
-  { MESSAGE_KEY_CUSTOM_SEC_STYLE, F_U8, offsetof(EclipseData, custom_second_marker.style) },
-  { MESSAGE_KEY_CUSTOM_SEC_THICKNESS, F_U8, offsetof(EclipseData, custom_second_marker.thickness) },
-  { MESSAGE_KEY_CUSTOM_SEC_INNER_ECC, F_U8, offsetof(EclipseData, custom_second_marker.inner_eccentricity) },
-  { MESSAGE_KEY_CUSTOM_SEC_OUTER_ECC, F_U8, offsetof(EclipseData, custom_second_marker.outer_eccentricity) },
-  { MESSAGE_KEY_CUSTOM_SEC_INNER_BORDER, F_U8, offsetof(EclipseData, custom_second_marker.inner_border_pct) },
-  { MESSAGE_KEY_CUSTOM_SEC_OUTER_BORDER, F_U8, offsetof(EclipseData, custom_second_marker.outer_border_pct) },
-  { MESSAGE_KEY_CUSTOM_SEC_TRANSLUCENT, F_BOOL, offsetof(EclipseData, custom_second_marker.translucent) },
-  { MESSAGE_KEY_CUSTOM_SEC_COLOR, F_U8, offsetof(EclipseData, custom_second_marker.color) },
-  { MESSAGE_KEY_BITMAP_MARKER_TRANSPARENT, F_BOOL, offsetof(EclipseData, bitmap_marker_transparent) },
-  { MESSAGE_KEY_MARKER_TEXT_TARGET, F_U8, offsetof(EclipseData, marker_text.target) },
-  { MESSAGE_KEY_MARKER_TEXT_FONT, F_U8, offsetof(EclipseData, marker_text.font_choice) },
-  { MESSAGE_KEY_MARKER_TEXT_OFFSET, F_I8_FROM_I16, offsetof(EclipseData, marker_text.offset_px) },
-  { MESSAGE_KEY_MARKER_TEXT_HOUR_MASK, F_U16, offsetof(EclipseData, marker_text.hour_mask) },
-  { MESSAGE_KEY_MARKER_TEXT_SEC_MASK, F_U16, offsetof(EclipseData, marker_text.second_mask) },
-  { MESSAGE_KEY_MARKER_TEXT_ROMAN, F_BOOL, offsetof(EclipseData, marker_text.roman_numerals) },
-  { MESSAGE_KEY_UPPER_MIDDLE_LINE1_CONTENT, F_U8, offsetof(EclipseData, upper_middle_line1_content) },
-  { MESSAGE_KEY_UPPER_MIDDLE_LINE1_COLOR_MODE, F_U8, offsetof(EclipseData, upper_middle_line1_color_mode) },
-  { MESSAGE_KEY_UPPER_MIDDLE_LINE2_CONTENT, F_U8, offsetof(EclipseData, upper_middle_line2_content) },
-  { MESSAGE_KEY_UPPER_MIDDLE_LINE2_COLOR_MODE, F_U8, offsetof(EclipseData, upper_middle_line2_color_mode) },
-  { MESSAGE_KEY_BOTTOM_MIDDLE_LINE1_CONTENT, F_U8, offsetof(EclipseData, bottom_middle_line1_content) },
-  { MESSAGE_KEY_BOTTOM_MIDDLE_LINE1_COLOR_MODE, F_U8, offsetof(EclipseData, bottom_middle_line1_color_mode) },
-  { MESSAGE_KEY_BOTTOM_MIDDLE_LINE2_CONTENT, F_U8, offsetof(EclipseData, bottom_middle_line2_content) },
-  { MESSAGE_KEY_BOTTOM_MIDDLE_LINE2_COLOR_MODE, F_U8, offsetof(EclipseData, bottom_middle_line2_color_mode) },
-  { MESSAGE_KEY_MIDDLE_LEFT_LINE1_CONTENT, F_U8, offsetof(EclipseData, middle_left_line1_content) },
-  { MESSAGE_KEY_MIDDLE_LEFT_LINE1_COLOR_MODE, F_U8, offsetof(EclipseData, middle_left_line1_color_mode) },
-  { MESSAGE_KEY_MIDDLE_LEFT_LINE2_CONTENT, F_U8, offsetof(EclipseData, middle_left_line2_content) },
-  { MESSAGE_KEY_MIDDLE_LEFT_LINE2_COLOR_MODE, F_U8, offsetof(EclipseData, middle_left_line2_color_mode) },
-  { MESSAGE_KEY_MIDDLE_RIGHT_LINE1_CONTENT, F_U8, offsetof(EclipseData, middle_right_line1_content) },
-  { MESSAGE_KEY_MIDDLE_RIGHT_LINE1_COLOR_MODE, F_U8, offsetof(EclipseData, middle_right_line1_color_mode) },
-  { MESSAGE_KEY_MIDDLE_RIGHT_LINE2_CONTENT, F_U8, offsetof(EclipseData, middle_right_line2_content) },
-  { MESSAGE_KEY_MIDDLE_RIGHT_LINE2_COLOR_MODE, F_U8, offsetof(EclipseData, middle_right_line2_color_mode) },
-  { MESSAGE_KEY_DAILY_STEP_GOAL, F_U16, offsetof(EclipseData, daily_step_goal) },
-  { MESSAGE_KEY_CUSTOM_BG, F_U8, offsetof(EclipseData, custom_bg) },
-  { MESSAGE_KEY_CUSTOM_TEXT, F_U8, offsetof(EclipseData, custom_text) },
-  { MESSAGE_KEY_CUSTOM_ACCENT, F_U8, offsetof(EclipseData, custom_accent) },
-  { MESSAGE_KEY_NIGHT_CUSTOM_BG, F_U8, offsetof(EclipseData, night_custom_bg) },
-  { MESSAGE_KEY_NIGHT_CUSTOM_TEXT, F_U8, offsetof(EclipseData, night_custom_text) },
-  { MESSAGE_KEY_NIGHT_CUSTOM_ACCENT, F_U8, offsetof(EclipseData, night_custom_accent) },
-  { MESSAGE_KEY_C1_TIME, F_TIME, offsetof(EclipseData, c1) },
-  { MESSAGE_KEY_C2_TIME, F_TIME, offsetof(EclipseData, c2) },
-  { MESSAGE_KEY_MAX_TIME, F_TIME, offsetof(EclipseData, max_t) },
-  { MESSAGE_KEY_C3_TIME, F_TIME, offsetof(EclipseData, c3) },
-  { MESSAGE_KEY_C4_TIME, F_TIME, offsetof(EclipseData, c4) },
-  { MESSAGE_KEY_SUNSET_TIME, F_TIME, offsetof(EclipseData, sunset) },
-  { MESSAGE_KEY_MAGNITUDE, F_U8, offsetof(EclipseData, magnitude_pct) },
-  { MESSAGE_KEY_POS_ANGLE, F_I16, offsetof(EclipseData, pos_angle_deg) },
-  { MESSAGE_KEY_SAMPLE_START, F_TIME, offsetof(EclipseData, sample_start) },
-  { MESSAGE_KEY_SAMPLE_INTERVAL, F_U32, offsetof(EclipseData, sample_interval_s) },
-  { MESSAGE_KEY_RADIUS_RATIO_PCT, F_U8, offsetof(EclipseData, radius_ratio_pct) },
-  { MESSAGE_KEY_CLOUD_COVER, F_U8, offsetof(EclipseData, cloud_cover_pct) },
-  { MESSAGE_KEY_VIS_SCORE, F_U8, offsetof(EclipseData, vis_score_pct) },
-  { MESSAGE_KEY_WEATHER_SOURCES, F_U8, offsetof(EclipseData, weather_sources) },
-  { MESSAGE_KEY_WEATHER_CONDITION, F_U8, offsetof(EclipseData, weather_condition) },
-  { MESSAGE_KEY_WIND_DIR_DEG, F_I16, offsetof(EclipseData, wind_dir_deg) },
-  { MESSAGE_KEY_DEW_POINT_C, F_I16, offsetof(EclipseData, dew_point_c) },
-  { MESSAGE_KEY_PRESSURE_HPA, F_I16, offsetof(EclipseData, pressure_hpa) },
-  { MESSAGE_KEY_PRESSURE_TREND, F_U8, offsetof(EclipseData, pressure_trend) },
-  { MESSAGE_KEY_AQI_US, F_U16, offsetof(EclipseData, aqi_us) },
-  { MESSAGE_KEY_AQI_EU, F_U16, offsetof(EclipseData, aqi_eu) },
-  { MESSAGE_KEY_ALTITUDE_M, F_I16, offsetof(EclipseData, altitude_m) },
-  { MESSAGE_KEY_AURORA_KP_X10, F_U8, offsetof(EclipseData, aurora_kp_x10) },
-  { MESSAGE_KEY_AURORA_ERROR_CODE, F_U8, offsetof(EclipseData, aurora_error_code) },
-  { MESSAGE_KEY_WEATHER_TEMP_C, F_I16, offsetof(EclipseData, weather_temp_c) },
-  { MESSAGE_KEY_WEATHER_TEMP_HIGH_C, F_I16, offsetof(EclipseData, temp_high_c) },
-  { MESSAGE_KEY_WEATHER_TEMP_LOW_C, F_I16, offsetof(EclipseData, temp_low_c) },
-  { MESSAGE_KEY_UV_INDEX_X10, F_U8, offsetof(EclipseData, uv_index_x10) },
-  { MESSAGE_KEY_RAIN_CHANCE_PCT, F_U8, offsetof(EclipseData, rain_chance_pct) },
-  { MESSAGE_KEY_HUMIDITY_PCT, F_U8, offsetof(EclipseData, humidity_pct) },
-  { MESSAGE_KEY_WIND_SPEED_KMH, F_I16, offsetof(EclipseData, wind_speed_kmh) },
-  { MESSAGE_KEY_SKY_SAMPLE_START, F_TIME, offsetof(EclipseData, sky_sample_start) },
-  { MESSAGE_KEY_SKY_SAMPLE_INTERVAL, F_U32, offsetof(EclipseData, sky_sample_interval_s) },
-  { MESSAGE_KEY_CLOUD_ALTITUDE_PCT, F_U8, offsetof(EclipseData, cloud_altitude_pct) },
-  { MESSAGE_KEY_SATURN_RING_OPEN_PCT, F_U8, offsetof(EclipseData, saturn_ring_open_pct) },
-  { MESSAGE_KEY_SKY_SCALE_MAX_ALT, F_I16, offsetof(EclipseData, sky_scale_max_alt_decideg) },
-  { MESSAGE_KEY_MOON_PHASE_PCT, F_U8, offsetof(EclipseData, moon_phase_pct) },
-  { MESSAGE_KEY_MOON_WAXING, F_BOOL, offsetof(EclipseData, moon_waxing) },
-  { MESSAGE_KEY_SUN_RISE, F_TIME, offsetof(EclipseData, sun_rise) },
-  { MESSAGE_KEY_SUN_SET, F_TIME, offsetof(EclipseData, sun_set) },
-  { MESSAGE_KEY_SUN_RISE_TOMORROW, F_TIME, offsetof(EclipseData, sun_rise_tomorrow) },
-  { MESSAGE_KEY_MOON_RISE, F_TIME, offsetof(EclipseData, moon_rise) },
-  { MESSAGE_KEY_MOON_SET, F_TIME, offsetof(EclipseData, moon_set) },
-  { MESSAGE_KEY_METEOR_INTENSITY, F_U8, offsetof(EclipseData, meteor_intensity) },
-  { MESSAGE_KEY_ISS_ALT, F_I16, offsetof(EclipseData, iss_alt_deg) },
-  { MESSAGE_KEY_ISS_AZ, F_U16, offsetof(EclipseData, iss_az_deg) },
-  { MESSAGE_KEY_ISS_COMPUTED_AT, F_TIME, offsetof(EclipseData, iss_computed_at) },
-  { MESSAGE_KEY_ISS_NEXT_PASS, F_TIME, offsetof(EclipseData, iss_next_pass) },
-  { MESSAGE_KEY_ISS_ERROR_CODE, F_U8, offsetof(EclipseData, iss_error_code) },
-};
-#define SIMPLE_FIELD_MAP_COUNT (sizeof(SIMPLE_FIELD_MAP) / sizeof(SIMPLE_FIELD_MAP[0]))
+// MESSAGE_KEY_* constants are extern variables resolved at link time
+// (their actual values depend on which resources get compiled in), NOT
+// compile-time constants -- so, unlike everything else here, this table
+// can't be a plain static const initializer list; the compiler rejects
+// "initializer element is not constant" for exactly that reason. offsetof()
+// itself IS a compile-time constant, only the message_key half of each row
+// isn't. Populated once, at runtime, by init_simple_field_map() below
+// instead -- same 147 rows, just assigned as statements rather than listed
+// as an initializer.
+#define SIMPLE_FIELD_MAP_COUNT 147
+static SimpleFieldMapping SIMPLE_FIELD_MAP[SIMPLE_FIELD_MAP_COUNT];
+static bool s_simple_field_map_ready = false;
+
+static void init_simple_field_map(void) {
+  SIMPLE_FIELD_MAP[0].message_key = MESSAGE_KEY_ERROR_CODE; SIMPLE_FIELD_MAP[0].type = F_U8; SIMPLE_FIELD_MAP[0].offset = offsetof(EclipseData, error_code);
+  SIMPLE_FIELD_MAP[1].message_key = MESSAGE_KEY_TEMP_UNIT; SIMPLE_FIELD_MAP[1].type = F_U8; SIMPLE_FIELD_MAP[1].offset = offsetof(EclipseData, temp_unit);
+  SIMPLE_FIELD_MAP[2].message_key = MESSAGE_KEY_WIND_SPEED_UNIT; SIMPLE_FIELD_MAP[2].type = F_U8; SIMPLE_FIELD_MAP[2].offset = offsetof(EclipseData, wind_speed_unit);
+  SIMPLE_FIELD_MAP[3].message_key = MESSAGE_KEY_SHAKE_LABEL_SECONDS; SIMPLE_FIELD_MAP[3].type = F_U8; SIMPLE_FIELD_MAP[3].offset = offsetof(EclipseData, shake_label_seconds);
+  SIMPLE_FIELD_MAP[4].message_key = MESSAGE_KEY_VIBRATE_ON_PHASE_CHANGE; SIMPLE_FIELD_MAP[4].type = F_BOOL; SIMPLE_FIELD_MAP[4].offset = offsetof(EclipseData, vibrate_on_phase_change);
+  SIMPLE_FIELD_MAP[5].message_key = MESSAGE_KEY_STARTUP_CLOCK_ANIMATION_ENABLED; SIMPLE_FIELD_MAP[5].type = F_BOOL; SIMPLE_FIELD_MAP[5].offset = offsetof(EclipseData, startup_clock_animation_enabled);
+  SIMPLE_FIELD_MAP[6].message_key = MESSAGE_KEY_OUTLINE_ENABLED; SIMPLE_FIELD_MAP[6].type = F_BOOL; SIMPLE_FIELD_MAP[6].offset = offsetof(EclipseData, outline_enabled);
+  SIMPLE_FIELD_MAP[7].message_key = MESSAGE_KEY_CORNER_FONT; SIMPLE_FIELD_MAP[7].type = F_U8; SIMPLE_FIELD_MAP[7].offset = offsetof(EclipseData, corner_font);
+  SIMPLE_FIELD_MAP[8].message_key = MESSAGE_KEY_HAND_HOUR_STYLE; SIMPLE_FIELD_MAP[8].type = F_U8; SIMPLE_FIELD_MAP[8].offset = offsetof(EclipseData, hand_hour.style);
+  SIMPLE_FIELD_MAP[9].message_key = MESSAGE_KEY_HAND_HOUR_WIDTH; SIMPLE_FIELD_MAP[9].type = F_U8; SIMPLE_FIELD_MAP[9].offset = offsetof(EclipseData, hand_hour.width);
+  SIMPLE_FIELD_MAP[10].message_key = MESSAGE_KEY_HAND_HOUR_LENGTH; SIMPLE_FIELD_MAP[10].type = F_U8; SIMPLE_FIELD_MAP[10].offset = offsetof(EclipseData, hand_hour.length);
+  SIMPLE_FIELD_MAP[11].message_key = MESSAGE_KEY_HAND_HOUR_BACK_OFFSET; SIMPLE_FIELD_MAP[11].type = F_I8_FROM_I16; SIMPLE_FIELD_MAP[11].offset = offsetof(EclipseData, hand_hour.back_offset);
+  SIMPLE_FIELD_MAP[12].message_key = MESSAGE_KEY_HAND_HOUR_MIDDLE_OFFSET; SIMPLE_FIELD_MAP[12].type = F_I8_FROM_I16; SIMPLE_FIELD_MAP[12].offset = offsetof(EclipseData, hand_hour.middle_offset);
+  SIMPLE_FIELD_MAP[13].message_key = MESSAGE_KEY_HAND_HOUR_SECONDARY_WIDTH; SIMPLE_FIELD_MAP[13].type = F_U8; SIMPLE_FIELD_MAP[13].offset = offsetof(EclipseData, hand_hour.secondary_width);
+  SIMPLE_FIELD_MAP[14].message_key = MESSAGE_KEY_HAND_HOUR_COLOR; SIMPLE_FIELD_MAP[14].type = F_U8; SIMPLE_FIELD_MAP[14].offset = offsetof(EclipseData, hand_hour.color);
+  SIMPLE_FIELD_MAP[15].message_key = MESSAGE_KEY_HAND_HOUR_OUTLINE_ENABLED; SIMPLE_FIELD_MAP[15].type = F_BOOL; SIMPLE_FIELD_MAP[15].offset = offsetof(EclipseData, hand_hour.outline_enabled);
+  SIMPLE_FIELD_MAP[16].message_key = MESSAGE_KEY_HAND_HOUR_OUTLINE_COLOR; SIMPLE_FIELD_MAP[16].type = F_U8; SIMPLE_FIELD_MAP[16].offset = offsetof(EclipseData, hand_hour.outline_color);
+  SIMPLE_FIELD_MAP[17].message_key = MESSAGE_KEY_HAND_HOUR_TRANSLUCENT; SIMPLE_FIELD_MAP[17].type = F_BOOL; SIMPLE_FIELD_MAP[17].offset = offsetof(EclipseData, hand_hour.translucent);
+  SIMPLE_FIELD_MAP[18].message_key = MESSAGE_KEY_HAND_HOUR_SHADOW_ENABLED; SIMPLE_FIELD_MAP[18].type = F_BOOL; SIMPLE_FIELD_MAP[18].offset = offsetof(EclipseData, hand_hour.shadow_enabled);
+  SIMPLE_FIELD_MAP[19].message_key = MESSAGE_KEY_HAND_HOUR_SHADOW_DISTANCE; SIMPLE_FIELD_MAP[19].type = F_U8; SIMPLE_FIELD_MAP[19].offset = offsetof(EclipseData, hand_hour.shadow_distance_px);
+  SIMPLE_FIELD_MAP[20].message_key = MESSAGE_KEY_HAND_HOUR_HOLLOW; SIMPLE_FIELD_MAP[20].type = F_BOOL; SIMPLE_FIELD_MAP[20].offset = offsetof(EclipseData, hand_hour.hollow);
+  SIMPLE_FIELD_MAP[21].message_key = MESSAGE_KEY_HAND_HOUR_HOLLOW_THICKNESS; SIMPLE_FIELD_MAP[21].type = F_U8; SIMPLE_FIELD_MAP[21].offset = offsetof(EclipseData, hand_hour.hollow_thickness);
+  SIMPLE_FIELD_MAP[22].message_key = MESSAGE_KEY_HAND_MIN_STYLE; SIMPLE_FIELD_MAP[22].type = F_U8; SIMPLE_FIELD_MAP[22].offset = offsetof(EclipseData, hand_minute.style);
+  SIMPLE_FIELD_MAP[23].message_key = MESSAGE_KEY_HAND_MIN_WIDTH; SIMPLE_FIELD_MAP[23].type = F_U8; SIMPLE_FIELD_MAP[23].offset = offsetof(EclipseData, hand_minute.width);
+  SIMPLE_FIELD_MAP[24].message_key = MESSAGE_KEY_HAND_MIN_LENGTH; SIMPLE_FIELD_MAP[24].type = F_U8; SIMPLE_FIELD_MAP[24].offset = offsetof(EclipseData, hand_minute.length);
+  SIMPLE_FIELD_MAP[25].message_key = MESSAGE_KEY_HAND_MIN_BACK_OFFSET; SIMPLE_FIELD_MAP[25].type = F_I8_FROM_I16; SIMPLE_FIELD_MAP[25].offset = offsetof(EclipseData, hand_minute.back_offset);
+  SIMPLE_FIELD_MAP[26].message_key = MESSAGE_KEY_HAND_MIN_MIDDLE_OFFSET; SIMPLE_FIELD_MAP[26].type = F_I8_FROM_I16; SIMPLE_FIELD_MAP[26].offset = offsetof(EclipseData, hand_minute.middle_offset);
+  SIMPLE_FIELD_MAP[27].message_key = MESSAGE_KEY_HAND_MIN_SECONDARY_WIDTH; SIMPLE_FIELD_MAP[27].type = F_U8; SIMPLE_FIELD_MAP[27].offset = offsetof(EclipseData, hand_minute.secondary_width);
+  SIMPLE_FIELD_MAP[28].message_key = MESSAGE_KEY_HAND_MIN_COLOR; SIMPLE_FIELD_MAP[28].type = F_U8; SIMPLE_FIELD_MAP[28].offset = offsetof(EclipseData, hand_minute.color);
+  SIMPLE_FIELD_MAP[29].message_key = MESSAGE_KEY_HAND_MIN_OUTLINE_ENABLED; SIMPLE_FIELD_MAP[29].type = F_BOOL; SIMPLE_FIELD_MAP[29].offset = offsetof(EclipseData, hand_minute.outline_enabled);
+  SIMPLE_FIELD_MAP[30].message_key = MESSAGE_KEY_HAND_MIN_OUTLINE_COLOR; SIMPLE_FIELD_MAP[30].type = F_U8; SIMPLE_FIELD_MAP[30].offset = offsetof(EclipseData, hand_minute.outline_color);
+  SIMPLE_FIELD_MAP[31].message_key = MESSAGE_KEY_HAND_MIN_TRANSLUCENT; SIMPLE_FIELD_MAP[31].type = F_BOOL; SIMPLE_FIELD_MAP[31].offset = offsetof(EclipseData, hand_minute.translucent);
+  SIMPLE_FIELD_MAP[32].message_key = MESSAGE_KEY_HAND_MIN_SHADOW_ENABLED; SIMPLE_FIELD_MAP[32].type = F_BOOL; SIMPLE_FIELD_MAP[32].offset = offsetof(EclipseData, hand_minute.shadow_enabled);
+  SIMPLE_FIELD_MAP[33].message_key = MESSAGE_KEY_HAND_MIN_SHADOW_DISTANCE; SIMPLE_FIELD_MAP[33].type = F_U8; SIMPLE_FIELD_MAP[33].offset = offsetof(EclipseData, hand_minute.shadow_distance_px);
+  SIMPLE_FIELD_MAP[34].message_key = MESSAGE_KEY_HAND_MIN_HOLLOW; SIMPLE_FIELD_MAP[34].type = F_BOOL; SIMPLE_FIELD_MAP[34].offset = offsetof(EclipseData, hand_minute.hollow);
+  SIMPLE_FIELD_MAP[35].message_key = MESSAGE_KEY_HAND_MIN_HOLLOW_THICKNESS; SIMPLE_FIELD_MAP[35].type = F_U8; SIMPLE_FIELD_MAP[35].offset = offsetof(EclipseData, hand_minute.hollow_thickness);
+  SIMPLE_FIELD_MAP[36].message_key = MESSAGE_KEY_HAND_SEC_STYLE; SIMPLE_FIELD_MAP[36].type = F_U8; SIMPLE_FIELD_MAP[36].offset = offsetof(EclipseData, hand_second.style);
+  SIMPLE_FIELD_MAP[37].message_key = MESSAGE_KEY_HAND_SEC_WIDTH; SIMPLE_FIELD_MAP[37].type = F_U8; SIMPLE_FIELD_MAP[37].offset = offsetof(EclipseData, hand_second.width);
+  SIMPLE_FIELD_MAP[38].message_key = MESSAGE_KEY_HAND_SEC_LENGTH; SIMPLE_FIELD_MAP[38].type = F_U8; SIMPLE_FIELD_MAP[38].offset = offsetof(EclipseData, hand_second.length);
+  SIMPLE_FIELD_MAP[39].message_key = MESSAGE_KEY_HAND_SEC_BACK_OFFSET; SIMPLE_FIELD_MAP[39].type = F_I8_FROM_I16; SIMPLE_FIELD_MAP[39].offset = offsetof(EclipseData, hand_second.back_offset);
+  SIMPLE_FIELD_MAP[40].message_key = MESSAGE_KEY_HAND_SEC_MIDDLE_OFFSET; SIMPLE_FIELD_MAP[40].type = F_I8_FROM_I16; SIMPLE_FIELD_MAP[40].offset = offsetof(EclipseData, hand_second.middle_offset);
+  SIMPLE_FIELD_MAP[41].message_key = MESSAGE_KEY_HAND_SEC_SECONDARY_WIDTH; SIMPLE_FIELD_MAP[41].type = F_U8; SIMPLE_FIELD_MAP[41].offset = offsetof(EclipseData, hand_second.secondary_width);
+  SIMPLE_FIELD_MAP[42].message_key = MESSAGE_KEY_HAND_SEC_COLOR; SIMPLE_FIELD_MAP[42].type = F_U8; SIMPLE_FIELD_MAP[42].offset = offsetof(EclipseData, hand_second.color);
+  SIMPLE_FIELD_MAP[43].message_key = MESSAGE_KEY_HAND_SEC_OUTLINE_ENABLED; SIMPLE_FIELD_MAP[43].type = F_BOOL; SIMPLE_FIELD_MAP[43].offset = offsetof(EclipseData, hand_second.outline_enabled);
+  SIMPLE_FIELD_MAP[44].message_key = MESSAGE_KEY_HAND_SEC_OUTLINE_COLOR; SIMPLE_FIELD_MAP[44].type = F_U8; SIMPLE_FIELD_MAP[44].offset = offsetof(EclipseData, hand_second.outline_color);
+  SIMPLE_FIELD_MAP[45].message_key = MESSAGE_KEY_HAND_SEC_TRANSLUCENT; SIMPLE_FIELD_MAP[45].type = F_BOOL; SIMPLE_FIELD_MAP[45].offset = offsetof(EclipseData, hand_second.translucent);
+  SIMPLE_FIELD_MAP[46].message_key = MESSAGE_KEY_HAND_SEC_SHADOW_ENABLED; SIMPLE_FIELD_MAP[46].type = F_BOOL; SIMPLE_FIELD_MAP[46].offset = offsetof(EclipseData, hand_second.shadow_enabled);
+  SIMPLE_FIELD_MAP[47].message_key = MESSAGE_KEY_HAND_SEC_SHADOW_DISTANCE; SIMPLE_FIELD_MAP[47].type = F_U8; SIMPLE_FIELD_MAP[47].offset = offsetof(EclipseData, hand_second.shadow_distance_px);
+  SIMPLE_FIELD_MAP[48].message_key = MESSAGE_KEY_HAND_SEC_HOLLOW; SIMPLE_FIELD_MAP[48].type = F_BOOL; SIMPLE_FIELD_MAP[48].offset = offsetof(EclipseData, hand_second.hollow);
+  SIMPLE_FIELD_MAP[49].message_key = MESSAGE_KEY_HAND_SEC_HOLLOW_THICKNESS; SIMPLE_FIELD_MAP[49].type = F_U8; SIMPLE_FIELD_MAP[49].offset = offsetof(EclipseData, hand_second.hollow_thickness);
+  SIMPLE_FIELD_MAP[50].message_key = MESSAGE_KEY_CENTER_CIRCLE_RADIUS; SIMPLE_FIELD_MAP[50].type = F_U8; SIMPLE_FIELD_MAP[50].offset = offsetof(EclipseData, center_circle_radius);
+  SIMPLE_FIELD_MAP[51].message_key = MESSAGE_KEY_CENTER_CIRCLE_COLOR; SIMPLE_FIELD_MAP[51].type = F_U8; SIMPLE_FIELD_MAP[51].offset = offsetof(EclipseData, center_circle_color);
+  SIMPLE_FIELD_MAP[52].message_key = MESSAGE_KEY_CUSTOM_HOUR_STYLE; SIMPLE_FIELD_MAP[52].type = F_U8; SIMPLE_FIELD_MAP[52].offset = offsetof(EclipseData, custom_hour_marker.style);
+  SIMPLE_FIELD_MAP[53].message_key = MESSAGE_KEY_CUSTOM_HOUR_THICKNESS; SIMPLE_FIELD_MAP[53].type = F_U8; SIMPLE_FIELD_MAP[53].offset = offsetof(EclipseData, custom_hour_marker.thickness);
+  SIMPLE_FIELD_MAP[54].message_key = MESSAGE_KEY_CUSTOM_HOUR_INNER_ECC; SIMPLE_FIELD_MAP[54].type = F_U8; SIMPLE_FIELD_MAP[54].offset = offsetof(EclipseData, custom_hour_marker.inner_eccentricity);
+  SIMPLE_FIELD_MAP[55].message_key = MESSAGE_KEY_CUSTOM_HOUR_OUTER_ECC; SIMPLE_FIELD_MAP[55].type = F_U8; SIMPLE_FIELD_MAP[55].offset = offsetof(EclipseData, custom_hour_marker.outer_eccentricity);
+  SIMPLE_FIELD_MAP[56].message_key = MESSAGE_KEY_CUSTOM_HOUR_INNER_BORDER; SIMPLE_FIELD_MAP[56].type = F_U8; SIMPLE_FIELD_MAP[56].offset = offsetof(EclipseData, custom_hour_marker.inner_border_pct);
+  SIMPLE_FIELD_MAP[57].message_key = MESSAGE_KEY_CUSTOM_HOUR_OUTER_BORDER; SIMPLE_FIELD_MAP[57].type = F_U8; SIMPLE_FIELD_MAP[57].offset = offsetof(EclipseData, custom_hour_marker.outer_border_pct);
+  SIMPLE_FIELD_MAP[58].message_key = MESSAGE_KEY_CUSTOM_HOUR_TRANSLUCENT; SIMPLE_FIELD_MAP[58].type = F_BOOL; SIMPLE_FIELD_MAP[58].offset = offsetof(EclipseData, custom_hour_marker.translucent);
+  SIMPLE_FIELD_MAP[59].message_key = MESSAGE_KEY_CUSTOM_HOUR_COLOR; SIMPLE_FIELD_MAP[59].type = F_U8; SIMPLE_FIELD_MAP[59].offset = offsetof(EclipseData, custom_hour_marker.color);
+  SIMPLE_FIELD_MAP[60].message_key = MESSAGE_KEY_CUSTOM_SEC_STYLE; SIMPLE_FIELD_MAP[60].type = F_U8; SIMPLE_FIELD_MAP[60].offset = offsetof(EclipseData, custom_second_marker.style);
+  SIMPLE_FIELD_MAP[61].message_key = MESSAGE_KEY_CUSTOM_SEC_THICKNESS; SIMPLE_FIELD_MAP[61].type = F_U8; SIMPLE_FIELD_MAP[61].offset = offsetof(EclipseData, custom_second_marker.thickness);
+  SIMPLE_FIELD_MAP[62].message_key = MESSAGE_KEY_CUSTOM_SEC_INNER_ECC; SIMPLE_FIELD_MAP[62].type = F_U8; SIMPLE_FIELD_MAP[62].offset = offsetof(EclipseData, custom_second_marker.inner_eccentricity);
+  SIMPLE_FIELD_MAP[63].message_key = MESSAGE_KEY_CUSTOM_SEC_OUTER_ECC; SIMPLE_FIELD_MAP[63].type = F_U8; SIMPLE_FIELD_MAP[63].offset = offsetof(EclipseData, custom_second_marker.outer_eccentricity);
+  SIMPLE_FIELD_MAP[64].message_key = MESSAGE_KEY_CUSTOM_SEC_INNER_BORDER; SIMPLE_FIELD_MAP[64].type = F_U8; SIMPLE_FIELD_MAP[64].offset = offsetof(EclipseData, custom_second_marker.inner_border_pct);
+  SIMPLE_FIELD_MAP[65].message_key = MESSAGE_KEY_CUSTOM_SEC_OUTER_BORDER; SIMPLE_FIELD_MAP[65].type = F_U8; SIMPLE_FIELD_MAP[65].offset = offsetof(EclipseData, custom_second_marker.outer_border_pct);
+  SIMPLE_FIELD_MAP[66].message_key = MESSAGE_KEY_CUSTOM_SEC_TRANSLUCENT; SIMPLE_FIELD_MAP[66].type = F_BOOL; SIMPLE_FIELD_MAP[66].offset = offsetof(EclipseData, custom_second_marker.translucent);
+  SIMPLE_FIELD_MAP[67].message_key = MESSAGE_KEY_CUSTOM_SEC_COLOR; SIMPLE_FIELD_MAP[67].type = F_U8; SIMPLE_FIELD_MAP[67].offset = offsetof(EclipseData, custom_second_marker.color);
+  SIMPLE_FIELD_MAP[68].message_key = MESSAGE_KEY_BITMAP_MARKER_TRANSPARENT; SIMPLE_FIELD_MAP[68].type = F_BOOL; SIMPLE_FIELD_MAP[68].offset = offsetof(EclipseData, bitmap_marker_transparent);
+  SIMPLE_FIELD_MAP[69].message_key = MESSAGE_KEY_MARKER_TEXT_TARGET; SIMPLE_FIELD_MAP[69].type = F_U8; SIMPLE_FIELD_MAP[69].offset = offsetof(EclipseData, marker_text.target);
+  SIMPLE_FIELD_MAP[70].message_key = MESSAGE_KEY_MARKER_TEXT_FONT; SIMPLE_FIELD_MAP[70].type = F_U8; SIMPLE_FIELD_MAP[70].offset = offsetof(EclipseData, marker_text.font_choice);
+  SIMPLE_FIELD_MAP[71].message_key = MESSAGE_KEY_MARKER_TEXT_OFFSET; SIMPLE_FIELD_MAP[71].type = F_I8_FROM_I16; SIMPLE_FIELD_MAP[71].offset = offsetof(EclipseData, marker_text.offset_px);
+  SIMPLE_FIELD_MAP[72].message_key = MESSAGE_KEY_MARKER_TEXT_HOUR_MASK; SIMPLE_FIELD_MAP[72].type = F_U16; SIMPLE_FIELD_MAP[72].offset = offsetof(EclipseData, marker_text.hour_mask);
+  SIMPLE_FIELD_MAP[73].message_key = MESSAGE_KEY_MARKER_TEXT_SEC_MASK; SIMPLE_FIELD_MAP[73].type = F_U16; SIMPLE_FIELD_MAP[73].offset = offsetof(EclipseData, marker_text.second_mask);
+  SIMPLE_FIELD_MAP[74].message_key = MESSAGE_KEY_MARKER_TEXT_ROMAN; SIMPLE_FIELD_MAP[74].type = F_BOOL; SIMPLE_FIELD_MAP[74].offset = offsetof(EclipseData, marker_text.roman_numerals);
+  SIMPLE_FIELD_MAP[75].message_key = MESSAGE_KEY_UPPER_MIDDLE_LINE1_CONTENT; SIMPLE_FIELD_MAP[75].type = F_U8; SIMPLE_FIELD_MAP[75].offset = offsetof(EclipseData, upper_middle_line1_content);
+  SIMPLE_FIELD_MAP[76].message_key = MESSAGE_KEY_UPPER_MIDDLE_LINE1_COLOR_MODE; SIMPLE_FIELD_MAP[76].type = F_U8; SIMPLE_FIELD_MAP[76].offset = offsetof(EclipseData, upper_middle_line1_color_mode);
+  SIMPLE_FIELD_MAP[77].message_key = MESSAGE_KEY_UPPER_MIDDLE_LINE2_CONTENT; SIMPLE_FIELD_MAP[77].type = F_U8; SIMPLE_FIELD_MAP[77].offset = offsetof(EclipseData, upper_middle_line2_content);
+  SIMPLE_FIELD_MAP[78].message_key = MESSAGE_KEY_UPPER_MIDDLE_LINE2_COLOR_MODE; SIMPLE_FIELD_MAP[78].type = F_U8; SIMPLE_FIELD_MAP[78].offset = offsetof(EclipseData, upper_middle_line2_color_mode);
+  SIMPLE_FIELD_MAP[79].message_key = MESSAGE_KEY_BOTTOM_MIDDLE_LINE1_CONTENT; SIMPLE_FIELD_MAP[79].type = F_U8; SIMPLE_FIELD_MAP[79].offset = offsetof(EclipseData, bottom_middle_line1_content);
+  SIMPLE_FIELD_MAP[80].message_key = MESSAGE_KEY_BOTTOM_MIDDLE_LINE1_COLOR_MODE; SIMPLE_FIELD_MAP[80].type = F_U8; SIMPLE_FIELD_MAP[80].offset = offsetof(EclipseData, bottom_middle_line1_color_mode);
+  SIMPLE_FIELD_MAP[81].message_key = MESSAGE_KEY_BOTTOM_MIDDLE_LINE2_CONTENT; SIMPLE_FIELD_MAP[81].type = F_U8; SIMPLE_FIELD_MAP[81].offset = offsetof(EclipseData, bottom_middle_line2_content);
+  SIMPLE_FIELD_MAP[82].message_key = MESSAGE_KEY_BOTTOM_MIDDLE_LINE2_COLOR_MODE; SIMPLE_FIELD_MAP[82].type = F_U8; SIMPLE_FIELD_MAP[82].offset = offsetof(EclipseData, bottom_middle_line2_color_mode);
+  SIMPLE_FIELD_MAP[83].message_key = MESSAGE_KEY_MIDDLE_LEFT_LINE1_CONTENT; SIMPLE_FIELD_MAP[83].type = F_U8; SIMPLE_FIELD_MAP[83].offset = offsetof(EclipseData, middle_left_line1_content);
+  SIMPLE_FIELD_MAP[84].message_key = MESSAGE_KEY_MIDDLE_LEFT_LINE1_COLOR_MODE; SIMPLE_FIELD_MAP[84].type = F_U8; SIMPLE_FIELD_MAP[84].offset = offsetof(EclipseData, middle_left_line1_color_mode);
+  SIMPLE_FIELD_MAP[85].message_key = MESSAGE_KEY_MIDDLE_LEFT_LINE2_CONTENT; SIMPLE_FIELD_MAP[85].type = F_U8; SIMPLE_FIELD_MAP[85].offset = offsetof(EclipseData, middle_left_line2_content);
+  SIMPLE_FIELD_MAP[86].message_key = MESSAGE_KEY_MIDDLE_LEFT_LINE2_COLOR_MODE; SIMPLE_FIELD_MAP[86].type = F_U8; SIMPLE_FIELD_MAP[86].offset = offsetof(EclipseData, middle_left_line2_color_mode);
+  SIMPLE_FIELD_MAP[87].message_key = MESSAGE_KEY_MIDDLE_RIGHT_LINE1_CONTENT; SIMPLE_FIELD_MAP[87].type = F_U8; SIMPLE_FIELD_MAP[87].offset = offsetof(EclipseData, middle_right_line1_content);
+  SIMPLE_FIELD_MAP[88].message_key = MESSAGE_KEY_MIDDLE_RIGHT_LINE1_COLOR_MODE; SIMPLE_FIELD_MAP[88].type = F_U8; SIMPLE_FIELD_MAP[88].offset = offsetof(EclipseData, middle_right_line1_color_mode);
+  SIMPLE_FIELD_MAP[89].message_key = MESSAGE_KEY_MIDDLE_RIGHT_LINE2_CONTENT; SIMPLE_FIELD_MAP[89].type = F_U8; SIMPLE_FIELD_MAP[89].offset = offsetof(EclipseData, middle_right_line2_content);
+  SIMPLE_FIELD_MAP[90].message_key = MESSAGE_KEY_MIDDLE_RIGHT_LINE2_COLOR_MODE; SIMPLE_FIELD_MAP[90].type = F_U8; SIMPLE_FIELD_MAP[90].offset = offsetof(EclipseData, middle_right_line2_color_mode);
+  SIMPLE_FIELD_MAP[91].message_key = MESSAGE_KEY_DAILY_STEP_GOAL; SIMPLE_FIELD_MAP[91].type = F_U16; SIMPLE_FIELD_MAP[91].offset = offsetof(EclipseData, daily_step_goal);
+  SIMPLE_FIELD_MAP[92].message_key = MESSAGE_KEY_CUSTOM_BG; SIMPLE_FIELD_MAP[92].type = F_U8; SIMPLE_FIELD_MAP[92].offset = offsetof(EclipseData, custom_bg);
+  SIMPLE_FIELD_MAP[93].message_key = MESSAGE_KEY_CUSTOM_TEXT; SIMPLE_FIELD_MAP[93].type = F_U8; SIMPLE_FIELD_MAP[93].offset = offsetof(EclipseData, custom_text);
+  SIMPLE_FIELD_MAP[94].message_key = MESSAGE_KEY_CUSTOM_ACCENT; SIMPLE_FIELD_MAP[94].type = F_U8; SIMPLE_FIELD_MAP[94].offset = offsetof(EclipseData, custom_accent);
+  SIMPLE_FIELD_MAP[95].message_key = MESSAGE_KEY_NIGHT_CUSTOM_BG; SIMPLE_FIELD_MAP[95].type = F_U8; SIMPLE_FIELD_MAP[95].offset = offsetof(EclipseData, night_custom_bg);
+  SIMPLE_FIELD_MAP[96].message_key = MESSAGE_KEY_NIGHT_CUSTOM_TEXT; SIMPLE_FIELD_MAP[96].type = F_U8; SIMPLE_FIELD_MAP[96].offset = offsetof(EclipseData, night_custom_text);
+  SIMPLE_FIELD_MAP[97].message_key = MESSAGE_KEY_NIGHT_CUSTOM_ACCENT; SIMPLE_FIELD_MAP[97].type = F_U8; SIMPLE_FIELD_MAP[97].offset = offsetof(EclipseData, night_custom_accent);
+  SIMPLE_FIELD_MAP[98].message_key = MESSAGE_KEY_C1_TIME; SIMPLE_FIELD_MAP[98].type = F_TIME; SIMPLE_FIELD_MAP[98].offset = offsetof(EclipseData, c1);
+  SIMPLE_FIELD_MAP[99].message_key = MESSAGE_KEY_C2_TIME; SIMPLE_FIELD_MAP[99].type = F_TIME; SIMPLE_FIELD_MAP[99].offset = offsetof(EclipseData, c2);
+  SIMPLE_FIELD_MAP[100].message_key = MESSAGE_KEY_MAX_TIME; SIMPLE_FIELD_MAP[100].type = F_TIME; SIMPLE_FIELD_MAP[100].offset = offsetof(EclipseData, max_t);
+  SIMPLE_FIELD_MAP[101].message_key = MESSAGE_KEY_C3_TIME; SIMPLE_FIELD_MAP[101].type = F_TIME; SIMPLE_FIELD_MAP[101].offset = offsetof(EclipseData, c3);
+  SIMPLE_FIELD_MAP[102].message_key = MESSAGE_KEY_C4_TIME; SIMPLE_FIELD_MAP[102].type = F_TIME; SIMPLE_FIELD_MAP[102].offset = offsetof(EclipseData, c4);
+  SIMPLE_FIELD_MAP[103].message_key = MESSAGE_KEY_SUNSET_TIME; SIMPLE_FIELD_MAP[103].type = F_TIME; SIMPLE_FIELD_MAP[103].offset = offsetof(EclipseData, sunset);
+  SIMPLE_FIELD_MAP[104].message_key = MESSAGE_KEY_MAGNITUDE; SIMPLE_FIELD_MAP[104].type = F_U8; SIMPLE_FIELD_MAP[104].offset = offsetof(EclipseData, magnitude_pct);
+  SIMPLE_FIELD_MAP[105].message_key = MESSAGE_KEY_POS_ANGLE; SIMPLE_FIELD_MAP[105].type = F_I16; SIMPLE_FIELD_MAP[105].offset = offsetof(EclipseData, pos_angle_deg);
+  SIMPLE_FIELD_MAP[106].message_key = MESSAGE_KEY_SAMPLE_START; SIMPLE_FIELD_MAP[106].type = F_TIME; SIMPLE_FIELD_MAP[106].offset = offsetof(EclipseData, sample_start);
+  SIMPLE_FIELD_MAP[107].message_key = MESSAGE_KEY_SAMPLE_INTERVAL; SIMPLE_FIELD_MAP[107].type = F_U32; SIMPLE_FIELD_MAP[107].offset = offsetof(EclipseData, sample_interval_s);
+  SIMPLE_FIELD_MAP[108].message_key = MESSAGE_KEY_RADIUS_RATIO_PCT; SIMPLE_FIELD_MAP[108].type = F_U8; SIMPLE_FIELD_MAP[108].offset = offsetof(EclipseData, radius_ratio_pct);
+  SIMPLE_FIELD_MAP[109].message_key = MESSAGE_KEY_CLOUD_COVER; SIMPLE_FIELD_MAP[109].type = F_U8; SIMPLE_FIELD_MAP[109].offset = offsetof(EclipseData, cloud_cover_pct);
+  SIMPLE_FIELD_MAP[110].message_key = MESSAGE_KEY_VIS_SCORE; SIMPLE_FIELD_MAP[110].type = F_U8; SIMPLE_FIELD_MAP[110].offset = offsetof(EclipseData, vis_score_pct);
+  SIMPLE_FIELD_MAP[111].message_key = MESSAGE_KEY_WEATHER_SOURCES; SIMPLE_FIELD_MAP[111].type = F_U8; SIMPLE_FIELD_MAP[111].offset = offsetof(EclipseData, weather_sources);
+  SIMPLE_FIELD_MAP[112].message_key = MESSAGE_KEY_WEATHER_CONDITION; SIMPLE_FIELD_MAP[112].type = F_U8; SIMPLE_FIELD_MAP[112].offset = offsetof(EclipseData, weather_condition);
+  SIMPLE_FIELD_MAP[113].message_key = MESSAGE_KEY_WIND_DIR_DEG; SIMPLE_FIELD_MAP[113].type = F_I16; SIMPLE_FIELD_MAP[113].offset = offsetof(EclipseData, wind_dir_deg);
+  SIMPLE_FIELD_MAP[114].message_key = MESSAGE_KEY_DEW_POINT_C; SIMPLE_FIELD_MAP[114].type = F_I16; SIMPLE_FIELD_MAP[114].offset = offsetof(EclipseData, dew_point_c);
+  SIMPLE_FIELD_MAP[115].message_key = MESSAGE_KEY_PRESSURE_HPA; SIMPLE_FIELD_MAP[115].type = F_I16; SIMPLE_FIELD_MAP[115].offset = offsetof(EclipseData, pressure_hpa);
+  SIMPLE_FIELD_MAP[116].message_key = MESSAGE_KEY_PRESSURE_TREND; SIMPLE_FIELD_MAP[116].type = F_U8; SIMPLE_FIELD_MAP[116].offset = offsetof(EclipseData, pressure_trend);
+  SIMPLE_FIELD_MAP[117].message_key = MESSAGE_KEY_AQI_US; SIMPLE_FIELD_MAP[117].type = F_U16; SIMPLE_FIELD_MAP[117].offset = offsetof(EclipseData, aqi_us);
+  SIMPLE_FIELD_MAP[118].message_key = MESSAGE_KEY_AQI_EU; SIMPLE_FIELD_MAP[118].type = F_U16; SIMPLE_FIELD_MAP[118].offset = offsetof(EclipseData, aqi_eu);
+  SIMPLE_FIELD_MAP[119].message_key = MESSAGE_KEY_ALTITUDE_M; SIMPLE_FIELD_MAP[119].type = F_I16; SIMPLE_FIELD_MAP[119].offset = offsetof(EclipseData, altitude_m);
+  SIMPLE_FIELD_MAP[120].message_key = MESSAGE_KEY_AURORA_KP_X10; SIMPLE_FIELD_MAP[120].type = F_U8; SIMPLE_FIELD_MAP[120].offset = offsetof(EclipseData, aurora_kp_x10);
+  SIMPLE_FIELD_MAP[121].message_key = MESSAGE_KEY_AURORA_ERROR_CODE; SIMPLE_FIELD_MAP[121].type = F_U8; SIMPLE_FIELD_MAP[121].offset = offsetof(EclipseData, aurora_error_code);
+  SIMPLE_FIELD_MAP[122].message_key = MESSAGE_KEY_WEATHER_TEMP_C; SIMPLE_FIELD_MAP[122].type = F_I16; SIMPLE_FIELD_MAP[122].offset = offsetof(EclipseData, weather_temp_c);
+  SIMPLE_FIELD_MAP[123].message_key = MESSAGE_KEY_WEATHER_TEMP_HIGH_C; SIMPLE_FIELD_MAP[123].type = F_I16; SIMPLE_FIELD_MAP[123].offset = offsetof(EclipseData, temp_high_c);
+  SIMPLE_FIELD_MAP[124].message_key = MESSAGE_KEY_WEATHER_TEMP_LOW_C; SIMPLE_FIELD_MAP[124].type = F_I16; SIMPLE_FIELD_MAP[124].offset = offsetof(EclipseData, temp_low_c);
+  SIMPLE_FIELD_MAP[125].message_key = MESSAGE_KEY_UV_INDEX_X10; SIMPLE_FIELD_MAP[125].type = F_U8; SIMPLE_FIELD_MAP[125].offset = offsetof(EclipseData, uv_index_x10);
+  SIMPLE_FIELD_MAP[126].message_key = MESSAGE_KEY_RAIN_CHANCE_PCT; SIMPLE_FIELD_MAP[126].type = F_U8; SIMPLE_FIELD_MAP[126].offset = offsetof(EclipseData, rain_chance_pct);
+  SIMPLE_FIELD_MAP[127].message_key = MESSAGE_KEY_HUMIDITY_PCT; SIMPLE_FIELD_MAP[127].type = F_U8; SIMPLE_FIELD_MAP[127].offset = offsetof(EclipseData, humidity_pct);
+  SIMPLE_FIELD_MAP[128].message_key = MESSAGE_KEY_WIND_SPEED_KMH; SIMPLE_FIELD_MAP[128].type = F_I16; SIMPLE_FIELD_MAP[128].offset = offsetof(EclipseData, wind_speed_kmh);
+  SIMPLE_FIELD_MAP[129].message_key = MESSAGE_KEY_SKY_SAMPLE_START; SIMPLE_FIELD_MAP[129].type = F_TIME; SIMPLE_FIELD_MAP[129].offset = offsetof(EclipseData, sky_sample_start);
+  SIMPLE_FIELD_MAP[130].message_key = MESSAGE_KEY_SKY_SAMPLE_INTERVAL; SIMPLE_FIELD_MAP[130].type = F_U32; SIMPLE_FIELD_MAP[130].offset = offsetof(EclipseData, sky_sample_interval_s);
+  SIMPLE_FIELD_MAP[131].message_key = MESSAGE_KEY_CLOUD_ALTITUDE_PCT; SIMPLE_FIELD_MAP[131].type = F_U8; SIMPLE_FIELD_MAP[131].offset = offsetof(EclipseData, cloud_altitude_pct);
+  SIMPLE_FIELD_MAP[132].message_key = MESSAGE_KEY_SATURN_RING_OPEN_PCT; SIMPLE_FIELD_MAP[132].type = F_U8; SIMPLE_FIELD_MAP[132].offset = offsetof(EclipseData, saturn_ring_open_pct);
+  SIMPLE_FIELD_MAP[133].message_key = MESSAGE_KEY_SKY_SCALE_MAX_ALT; SIMPLE_FIELD_MAP[133].type = F_I16; SIMPLE_FIELD_MAP[133].offset = offsetof(EclipseData, sky_scale_max_alt_decideg);
+  SIMPLE_FIELD_MAP[134].message_key = MESSAGE_KEY_MOON_PHASE_PCT; SIMPLE_FIELD_MAP[134].type = F_U8; SIMPLE_FIELD_MAP[134].offset = offsetof(EclipseData, moon_phase_pct);
+  SIMPLE_FIELD_MAP[135].message_key = MESSAGE_KEY_MOON_WAXING; SIMPLE_FIELD_MAP[135].type = F_BOOL; SIMPLE_FIELD_MAP[135].offset = offsetof(EclipseData, moon_waxing);
+  SIMPLE_FIELD_MAP[136].message_key = MESSAGE_KEY_SUN_RISE; SIMPLE_FIELD_MAP[136].type = F_TIME; SIMPLE_FIELD_MAP[136].offset = offsetof(EclipseData, sun_rise);
+  SIMPLE_FIELD_MAP[137].message_key = MESSAGE_KEY_SUN_SET; SIMPLE_FIELD_MAP[137].type = F_TIME; SIMPLE_FIELD_MAP[137].offset = offsetof(EclipseData, sun_set);
+  SIMPLE_FIELD_MAP[138].message_key = MESSAGE_KEY_SUN_RISE_TOMORROW; SIMPLE_FIELD_MAP[138].type = F_TIME; SIMPLE_FIELD_MAP[138].offset = offsetof(EclipseData, sun_rise_tomorrow);
+  SIMPLE_FIELD_MAP[139].message_key = MESSAGE_KEY_MOON_RISE; SIMPLE_FIELD_MAP[139].type = F_TIME; SIMPLE_FIELD_MAP[139].offset = offsetof(EclipseData, moon_rise);
+  SIMPLE_FIELD_MAP[140].message_key = MESSAGE_KEY_MOON_SET; SIMPLE_FIELD_MAP[140].type = F_TIME; SIMPLE_FIELD_MAP[140].offset = offsetof(EclipseData, moon_set);
+  SIMPLE_FIELD_MAP[141].message_key = MESSAGE_KEY_METEOR_INTENSITY; SIMPLE_FIELD_MAP[141].type = F_U8; SIMPLE_FIELD_MAP[141].offset = offsetof(EclipseData, meteor_intensity);
+  SIMPLE_FIELD_MAP[142].message_key = MESSAGE_KEY_ISS_ALT; SIMPLE_FIELD_MAP[142].type = F_I16; SIMPLE_FIELD_MAP[142].offset = offsetof(EclipseData, iss_alt_deg);
+  SIMPLE_FIELD_MAP[143].message_key = MESSAGE_KEY_ISS_AZ; SIMPLE_FIELD_MAP[143].type = F_U16; SIMPLE_FIELD_MAP[143].offset = offsetof(EclipseData, iss_az_deg);
+  SIMPLE_FIELD_MAP[144].message_key = MESSAGE_KEY_ISS_COMPUTED_AT; SIMPLE_FIELD_MAP[144].type = F_TIME; SIMPLE_FIELD_MAP[144].offset = offsetof(EclipseData, iss_computed_at);
+  SIMPLE_FIELD_MAP[145].message_key = MESSAGE_KEY_ISS_NEXT_PASS; SIMPLE_FIELD_MAP[145].type = F_TIME; SIMPLE_FIELD_MAP[145].offset = offsetof(EclipseData, iss_next_pass);
+  SIMPLE_FIELD_MAP[146].message_key = MESSAGE_KEY_ISS_ERROR_CODE; SIMPLE_FIELD_MAP[146].type = F_U8; SIMPLE_FIELD_MAP[146].offset = offsetof(EclipseData, iss_error_code);
+  s_simple_field_map_ready = true;
+}
 
 static void apply_simple_fields(DictionaryIterator *iter) {
+  if (!s_simple_field_map_ready) init_simple_field_map();
   for (size_t i = 0; i < SIMPLE_FIELD_MAP_COUNT; i++) {
     Tuple *st = dict_find(iter, SIMPLE_FIELD_MAP[i].message_key);
     if (!st) continue;
