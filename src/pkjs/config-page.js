@@ -125,6 +125,18 @@ var EXAMPLE_STYLE_COUNT = 9;
 var EXAMPLE_STYLE_IMAGES = require('./example-style-images');
 var EXAMPLE_STYLE_PRESETS = require('./example-style-presets');
 
+// Base64 data: URIs for the font picker popup's real on-watch
+// renderings of its own sample text -- resources/font-previews/
+// <fontId>_<role>.png, see scripts/generate-font-previews.js and its
+// own top-of-file comment for why this exists (Gothic/Bitham/LECO
+// have no free live-webfont equivalent to preview with) and the exact
+// filename convention. Same "generated at build time, embedded
+// gracefully missing-or-not" story as MARKER_PREVIEW_IMAGES/
+// HAND_STYLE_IMAGES above -- a font/role with no PNG yet just falls
+// back to the existing CSS-approximation text preview for that one
+// button.
+var FONT_PREVIEW_IMAGES = require('./font-preview-images');
+
 // One canonical font table, id-for-id identical to font_lookup.c's
 // FONT_TABLE on the watch -- every font this app uses anywhere,
 // custom-resource or system, all four font pickers (main clock,
@@ -1080,6 +1092,7 @@ function buildConfigHtml(current) {
 '  @media (prefers-color-scheme: dark) {' +
 '    :root { --page-bg: #1c1c1e; --card-bg: #2c2c2e; --text: #f2f2f2; --text-strong: #e5e5e5; --text-muted: #aaa; --text-faint: #999; --text-faint2: #bbb; --text-disabled: #777; --border: #48484a; --border-light: #3a3a3c; --border-lighter: #545456; --btn-bg: #3a3a3c; }' +
 '    .bitmap-marker-img { filter: none; }' +
+'    .font-preview-img { filter: none; }' +
 '  }' +
 '  body { font-family: -apple-system, Helvetica, Arial, sans-serif; margin: 0; padding: 16px 20px 90px; background: var(--page-bg); color: var(--text); }' +
 '  html, body { touch-action: manipulation; }' + // belt-and-suspenders alongside the viewport meta tag --
@@ -1149,6 +1162,13 @@ function buildConfigHtml(current) {
 '  .font-picker-btn.selected { border-color: #ff9200; border-width: 2px; }' +
 '  .font-picker-preview { flex: 0 0 34%; display: flex; align-items: center; justify-content: center; padding: 10px 4px; box-sizing: border-box; border-right: 1px solid var(--border); overflow: hidden; white-space: nowrap; color: var(--text-strong); line-height: 1.1; }' +
 '  .font-picker-name { flex: 1 1 auto; display: flex; align-items: center; padding: 10px 12px; font-size: 13px; font-weight: 600; color: var(--text-strong); box-sizing: border-box; }' +
+// Real on-watch renderings (see FONT_PREVIEW_IMAGES's own comment)
+// rather than styled text, for the fonts that have one -- same
+// light/dark trick .bitmap-marker-img uses below: render white text
+// on a transparent background (looks right in dark mode as-is,
+// filter: none there) and invert it for light mode instead of needing
+// a second, separately-authored light-mode source image.
+'  .font-preview-img { max-width: 100%; max-height: 100%; filter: invert(1); }' +
 // The always-visible trigger button that replaces each plain <select>
 // -- looks like one .font-picker-btn row (so the CURRENTLY chosen
 // font is already shown in its own real typeface before the popup
@@ -2132,6 +2152,13 @@ handEditorModalHtml('sec', 'Edit second hand') +
 // so the two can never drift apart the way two independently-typed
 // copies could.
 'var FONT_LOOKUP = ' + JSON.stringify(FONT_LOOKUP) + ';' +
+// Same reasoning as FONT_LOOKUP just above -- serialized straight from
+// the generator-side FONT_PREVIEW_IMAGES (itself just require()'d from
+// the generated src/pkjs/font-preview-images.js) rather than
+// hand-duplicated. Empty ({}) whenever no font-preview PNGs have been
+// added yet -- every lookup against it below already handles that
+// gracefully.
+'var FONT_PREVIEW_IMAGES = ' + JSON.stringify(FONT_PREVIEW_IMAGES) + ';' +
 'function fontLookupEntry(id) {' +
 '  id = parseInt(id, 10);' +
 '  for (var i = 0; i < FONT_LOOKUP.length; i++) {' +
@@ -2171,6 +2198,19 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '};' +
 'var currentFontPickerRole = null;' +
 
+// Builds whatever goes inside a .font-picker-preview cell for one
+// (fontId, role) pair -- a real on-watch rendering (see
+// FONT_PREVIEW_IMAGES's own comment) when one exists, the existing
+// CSS-approximation text otherwise. Shared by updateFontTriggerLabel()
+// and renderFontPickerGrid() below so the two can never fall out of
+// sync on which fonts actually have a real image.
+'function fontPreviewInnerHtml(fontId, role, text) {' +
+'  var images = FONT_PREVIEW_IMAGES[fontId];' +
+'  var src = images && images[role];' +
+'  if (src) return \'<img class="font-preview-img" src="\' + src + \'" alt="\' + esc(text) + \'">\';' +
+'  return esc(text);' +
+'}' +
+
 // Fills one trigger button\'s own preview/name spans from whatever its
 // underlying (now display:none) <select> currently holds -- called
 // after every pick, plus once at page load, so the collapsed trigger
@@ -2187,7 +2227,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  var name = trigger.querySelector(".font-picker-name");' +
 '  if (preview) {' +
 '    preview.setAttribute("style", entry.preview + " font-size:" + fontPickerPreviewPx(entry.sizePx) + "px;");' +
-'    preview.textContent = cfg.previewText();' +
+'    preview.innerHTML = fontPreviewInnerHtml(entry.id, role, cfg.previewText());' +
 '  }' +
 '  if (name) name.textContent = entry.label;' +
 '}' +
@@ -2228,7 +2268,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    if (!showIncompatible && !f.small && f.id !== currentId) return;' +
 '    var previewStyle = f.preview + " font-size:" + fontPickerPreviewPx(f.sizePx) + "px;";' +
 '    html += \'<button type="button" class="font-picker-btn\' + (f.id === currentId ? " selected" : "") + \'" onclick="chooseFontOption(\' + f.id + \')">\' +' +
-'      \'<span class="font-picker-preview" style="\' + previewStyle + \'">\' + esc(previewText) + "</span>" +' +
+'      \'<span class="font-picker-preview" style="\' + previewStyle + \'">\' + fontPreviewInnerHtml(f.id, currentFontPickerRole, previewText) + "</span>" +' +
 '      \'<span class="font-picker-name">\' + esc(f.label) + "</span></button>";' +
 '  });' +
 '  document.getElementById("fontPickerGrid").innerHTML = html;' +
