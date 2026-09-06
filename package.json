@@ -654,6 +654,7 @@
     }
   },
   "devDependencies": {
-    "pngjs": "^7.0.0"
+    "pngjs": "^7.0.0",
+    "sharp": "^0.35.4"
   }
 }

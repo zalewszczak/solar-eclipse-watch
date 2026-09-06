@@ -63,6 +63,7 @@
 
 var fs = require('fs');
 var path = require('path');
+var sharp = require('sharp');
 
 var SOURCE_DIR = path.join(__dirname, '..', 'resources', 'font-previews');
 var OUTPUT_FILE = path.join(__dirname, '..', 'src', 'pkjs', 'font-preview-images.js');
@@ -87,10 +88,55 @@ files.forEach(function (file) {
   }
   var fontId = m[1];
   var role = m[2];
-  var buf = fs.readFileSync(path.join(SOURCE_DIR, file));
-  totalBytes += buf.length;
+//  var buf = fs.readFileSync(path.join(SOURCE_DIR, file));
+  
+  var sourcePath = path.join(SOURCE_DIR, file);
+
+  // Read original PNG.
+  var sourceBuffer = fs.readFileSync(sourcePath);
+
+  totalBytes += sourceBuffer.length;
+
+  // -------------------------------------------------------------------------
+  // Get original image dimensions.
+  // -------------------------------------------------------------------------
+
+  var metadata = sharp(sourceBuffer).metadata();
+
+  if (!metadata.width || !metadata.height) {
+    console.error(
+      'generate-font-previews: could not determine dimensions of ' + file
+    );
+    return;
+  }
+
+  // -------------------------------------------------------------------------
+  // Crop to the upper 1/3 of the image.
+  //
+  // Example:
+  //   180 px high source image
+  //   -> first 60 px are retained
+  //
+  // The width remains unchanged.
+  // -------------------------------------------------------------------------
+
+  var cropHeight = Math.floor(metadata.height / 3);
+
+  var croppedBuffer = sharp(sourceBuffer)
+    .extract({
+      left: 0,
+      top: 0,
+      width: metadata.width,
+      height: cropHeight
+    })
+    .png()
+    .toBuffer();
+
+//  totalOutputBytes += croppedBuffer.length;
+  
+  totalBytes += croppedBuffer.length;
   if (!entries[fontId]) entries[fontId] = {};
-  entries[fontId][role] = 'data:image/png;base64,' + buf.toString('base64');
+  entries[fontId][role] = 'data:image/png;base64,' + croppedBuffer.toString('base64');
   found.push(file);
 });
 
