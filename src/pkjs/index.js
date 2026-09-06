@@ -8,6 +8,7 @@ var servicelog = require('./servicelog');
 var TYPE_CODE = { none: 0, partial: 1, total: 2, annular: 3 };
 
 var MAX_FEATURES = 83; // highest corner/edge content id -- see CORNER_CONTENT_OPTIONS in config-page.js
+var FONT_MAX_CONTENT_ID = 42;
 
 // ---- AppMessage chunking -------------------------------------------------
 //
@@ -404,14 +405,14 @@ function skyFieldsDict(sky, cloudGrid, moonPhase, riseSet, meteorShower, cloudAl
 // mapping layer needed here anymore -- clamped to FONT_LOOKUP's own
 // 0-37 range (see FONT_LOOKUP in config-page.js) rather than trusting
 // whatever the webview sent.
-function clampFontId(v) { return clampInt(v, 0, 37, 8); } // 8 = Leco XL, the main clock's own default
+function clampFontId(v) { return clampInt(v, 0, FONT_MAX_CONTENT_ID, 8); } // 8 = Leco XL, the main clock's own default
 
 function clockFontCode() {
   return clampFontId(getSetting('CONFIG_CLOCK_FONT', '8'));
 }
 
 function clockFontSmallCode() {
-  return clampInt(getSetting('CONFIG_CLOCK_FONT_SMALL', '0'), 0, 37, 0);
+  return clampInt(getSetting('CONFIG_CLOCK_FONT_SMALL', '0'), 0, FONT_MAX_CONTENT_ID, 0);
 }
 
 function tempUnitCode() {
@@ -587,7 +588,7 @@ function customSecOuterBorderCode() {
 function customSecTranslucentCode() { return getSetting('CONFIG_CUSTOM_SEC_TRANSLUCENT', 'false') === 'true' ? 1 : 0; }
 function customSecColorCode() { return clampInt(getSetting('CONFIG_CUSTOM_SEC_COLOR', '0'), 0, 2, 0); }
 function markerTextTargetCode() { return clampInt(getSetting('CONFIG_MARKER_TEXT_TARGET', '0'), 0, 2, 0); }
-function markerTextFontCode() { return clampInt(getSetting('CONFIG_MARKER_TEXT_FONT', '0'), 0, 35, 0); }
+function markerTextFontCode() { return clampInt(getSetting('CONFIG_MARKER_TEXT_FONT', '0'), 0, FONT_MAX_CONTENT_ID, 0); }
 function markerTextOffsetCode() { return clampInt(getSetting('CONFIG_MARKER_TEXT_OFFSET', '0'), -50, 50, 0); }
 function markerTextHourMaskCode() { return clampInt(getSetting('CONFIG_MARKER_TEXT_HOUR_MASK', '4095'), 0, 4095, 4095); }
 function markerTextSecMaskCode() { return clampInt(getSetting('CONFIG_MARKER_TEXT_SEC_MASK', '4095'), 0, 4095, 4095); }
@@ -775,7 +776,7 @@ function shakeAnimModeCode() {
 }
 function outlineEnabledCode() { return getSetting('CONFIG_OUTLINE_ENABLED', 'true') === 'true' ? 1 : 0; }
 function cornerFontCode() {
-  return clampInt(getSetting('CONFIG_CORNER_FONT', '1'), 0, 37, 1); // 1 = System Medium, the old default
+  return clampInt(getSetting('CONFIG_CORNER_FONT', '1'), 0, FONT_MAX_CONTENT_ID, 1); // 1 = System Medium, the old default
 }
 
 // Corners: 4 slots (0=top-left, 1=top-right, 2=bottom-left,
