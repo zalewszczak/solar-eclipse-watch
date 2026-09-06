@@ -402,31 +402,31 @@ var FONT_LOOKUP = [
     google: null, sizePx: 18, approx: true }, // see id 0
   { id: 2,  label: 'System Large',        height: 24, preview: "font-family: Arial, sans-serif; font-weight: 700;", small: true,
     google: null, sizePx: 24, approx: true }, // see id 0
-  { id: 3,  label: 'System XL',           height: 32, preview: "font-family: Arial, sans-serif; font-weight: 700;", small: false,
+  { id: 3,  label: 'System XL',           height: 32, preview: "font-family: Arial, sans-serif; font-weight: 700;", small: true,
     google: null, sizePx: 32, approx: true }, // see id 0
-  { id: 4,  label: 'System XXL',          height: 36, preview: "font-family: Arial, sans-serif; font-weight: 700;", small: false,
+  { id: 4,  label: 'System XXL',          height: 36, preview: "font-family: Arial, sans-serif; font-weight: 700;", small: true,
     google: null, sizePx: 36, approx: true }, // see id 0
-  { id: 5,  label: 'Leco Small',          height: 17, preview: "font-family: Arial, sans-serif; font-weight: 300;", small: true,
+  { id: 5,  label: 'Leco Small',          height: 17, preview: "font-family: Arial, sans-serif; font-weight: 300;", small: false, mainClock: true, pairedSmallId: 10,
     google: null, sizePx: 17, approx: true }, // Pebble's built-in rounded numerals font -- no Google Fonts equivalent; no substitute attempted beyond a plain sans, since Leco's own rounded-digit character is hard to approximate with a generic family.
-  { id: 6,  label: 'Leco Medium',         height: 20, preview: "font-family: Arial, sans-serif; font-weight: 700;", small: true,
+  { id: 6,  label: 'Leco Medium',         height: 20, preview: "font-family: Arial, sans-serif; font-weight: 700;", small: false, mainClock: true, pairedSmallId: 10,
     google: null, sizePx: 20, approx: true }, // see id 5
-  { id: 7,  label: 'Leco Large',          height: 23, preview: "font-family: Arial, sans-serif; font-weight: 700;", small: true,
+  { id: 7,  label: 'Leco Large',          height: 23, preview: "font-family: Arial, sans-serif; font-weight: 700;", small: false, mainClock: true, pairedSmallId: 10,
     google: null, sizePx: 23, approx: true }, // see id 5
-  { id: 8,  label: 'Leco XL',             height: 26, preview: "font-family: Arial, sans-serif; font-weight: 700;", small: true, mainClock: true, pairedSmallId: 5,
+  { id: 8,  label: 'Leco XL',             height: 26, preview: "font-family: Arial, sans-serif; font-weight: 700;", small: false, mainClock: true, pairedSmallId: 10,
     google: null, sizePx: 26, approx: true }, // see id 5
   { id: 9,  label: 'Droid Serif',         height: 17, preview: "font-family: 'Droid Serif', Georgia, serif; font-weight: 700;", small: true,
     google: 'Droid Serif', weight: 700, sizePx: 17 }, // still genuinely on Google Fonts (legacy listing, but live)
   { id: 10, label: 'Roboto Condensed',    height: 15, preview: "font-family: 'Roboto Condensed', Arial, sans-serif;", small: true,
     google: 'Roboto Condensed', weight: 400, sizePx: 15 },
-  { id: 11, label: 'Roboto Bold',         height: 30, preview: "font-family: 'Roboto', Arial, sans-serif; font-weight: 700;", small: true, mainClock: true, pairedSmallId: 10,
+  { id: 11, label: 'Roboto Bold',         height: 30, preview: "font-family: 'Roboto', Arial, sans-serif; font-weight: 700;", small: false, mainClock: true, pairedSmallId: 10,
     google: 'Roboto', weight: 700, sizePx: 30 },
-  { id: 12, label: 'Bitham Bold 30',      height: 19, preview: "font-family: 'Futura', 'Century Gothic', sans-serif; font-weight: 700;", small: true,
+  { id: 12, label: 'Bitham Bold 30',      height: 19, preview: "font-family: 'Futura', 'Century Gothic', sans-serif; font-weight: 700;", small: false, mainClock: true, pairedSmallId: 3,
     google: null, sizePx: 19, approx: true }, // Pebble's built-in Bitham -- no Google Fonts equivalent; Futura/Century Gothic (neither actually Google Fonts either) are the closest geometric-sans stand-ins available without downloading anything.
-  { id: 13, label: 'Bitham Medium 34',    height: 21, preview: "font-family: 'Futura', 'Century Gothic', sans-serif; font-weight: 500;", small: true,
+  { id: 13, label: 'Bitham Medium 34',    height: 21, preview: "font-family: 'Futura', 'Century Gothic', sans-serif; font-weight: 500;", small: false, mainClock: true, pairedSmallId: 3,
     google: null, sizePx: 21, approx: true }, // see id 12
-  { id: 14, label: 'Bitham Light',        height: 26, preview: "font-family: 'Futura', 'Century Gothic', sans-serif; font-weight: 300; letter-spacing: 1px;", small: true, mainClock: true, pairedSmallId: 4,
+  { id: 14, label: 'Bitham Light',        height: 26, preview: "font-family: 'Futura', 'Century Gothic', sans-serif; font-weight: 300; letter-spacing: 1px;", small: false, mainClock: true, pairedSmallId: 3,
     google: null, sizePx: 26, approx: true }, // see id 12
-  { id: 15, label: 'Bitham Bold',         height: 26, preview: "font-family: 'Futura', 'Century Gothic', sans-serif; font-weight: 700; letter-spacing: 1px;", small: true, mainClock: true, pairedSmallId: 4,
+  { id: 15, label: 'Bitham Bold',         height: 26, preview: "font-family: 'Futura', 'Century Gothic', sans-serif; font-weight: 700; letter-spacing: 1px;", small: true, mainClock: true, pairedSmallId: 3,
     google: null, sizePx: 26, approx: true }, // see id 12
   { id: 16, label: 'Digital Dream Small', height: 12, preview: "font-family: 'VT323', 'Courier New', monospace; letter-spacing: 1px;", small: true,
     google: 'VT323', weight: 400, sizePx: 12, approx: true }, // Digital Dream (Pizzadude, dafont-only) isn't on Google Fonts -- VT323's CRT/LCD terminal look is the closest digital-clock-style match Google Fonts has.
@@ -448,33 +448,33 @@ var FONT_LOOKUP = [
     google: 'Bebas Neue', weight: 400, sizePx: 20 },
   { id: 25, label: 'Bebas',               height: 40, preview: "font-family: 'Bebas Neue', 'Century Gothic', sans-serif; letter-spacing: 1px;", small: false, mainClock: true, pairedSmallId: 24,
     google: 'Bebas Neue', weight: 400, sizePx: 48 },
-  { id: 26, label: 'Amita',               height: 40, preview: "font-family: 'Amita', Impact, sans-serif; font-weight: 700;", small: false, mainClock: true, pairedSmallId: 4,
+  { id: 26, label: 'Amita',               height: 40, preview: "font-family: 'Amita', Impact, sans-serif; font-weight: 700;", small: false, mainClock: true, pairedSmallId: 3,
     google: 'Amita', weight: 700, sizePx: 48 },
-  { id: 27, label: 'AveriaSerifLibre',    height: 40, preview: "font-family: 'Averia Serif Libre', 'Courier New', serif; font-weight: 700; font-style: italic;", small: false, mainClock: true, pairedSmallId: 4, wide: true, secondsDisabled: true,
+  { id: 27, label: 'AveriaSerifLibre',    height: 40, preview: "font-family: 'Averia Serif Libre', 'Courier New', serif; font-weight: 700; font-style: italic;", small: false, mainClock: true, pairedSmallId: 3, wide: true, secondsDisabled: true,
     google: 'Averia Serif Libre', weight: 700, italic: true, sizePx: 48 },
-  { id: 28, label: 'Bagel',               height: 40, preview: "font-family: 'Bagel Fat One', 'Courier New', monospace;", small: false, mainClock: true, pairedSmallId: 4, wide: true, secondsDisabled: true,
+  { id: 28, label: 'Bagel',               height: 40, preview: "font-family: 'Bagel Fat One', 'Courier New', monospace;", small: false, mainClock: true, pairedSmallId: 3, wide: true, secondsDisabled: true,
     google: 'Bagel Fat One', weight: 400, sizePx: 48 },
-  { id: 29, label: 'Bricolage Grotesque', height: 40, preview: "font-family: 'Bricolage Grotesque', Impact, 'Arial Narrow', sans-serif; font-weight: 700;", small: false, mainClock: true, pairedSmallId: 4, wide: true, secondsDisabled: true,
+  { id: 29, label: 'Bricolage Grotesque', height: 40, preview: "font-family: 'Bricolage Grotesque', Impact, 'Arial Narrow', sans-serif; font-weight: 700;", small: false, mainClock: true, pairedSmallId: 3, wide: true, secondsDisabled: true,
     google: 'Bricolage Grotesque', weight: 700, sizePx: 48 },
-  { id: 30, label: 'Chango',              height: 40, preview: "font-family: 'Chango', 'Courier New', monospace;", small: false, mainClock: true, pairedSmallId: 4,
+  { id: 30, label: 'Chango',              height: 40, preview: "font-family: 'Chango', 'Courier New', monospace;", small: false, mainClock: true, pairedSmallId: 3,
     google: 'Chango', weight: 400, sizePx: 48 },
-  { id: 31, label: 'EmblemaOne',          height: 40, preview: "font-family: 'Emblema One', 'Arial Narrow', sans-serif; letter-spacing: 1px;", small: false, mainClock: true, pairedSmallId: 4,
+  { id: 31, label: 'EmblemaOne',          height: 40, preview: "font-family: 'Emblema One', 'Arial Narrow', sans-serif; letter-spacing: 1px;", small: false, mainClock: true, pairedSmallId: 3,
     google: 'Emblema One', weight: 400, sizePx: 48 },
-  { id: 32, label: 'Fraunces',            height: 40, preview: "font-family: 'Fraunces', Georgia, serif; font-weight: 700;", small: false, mainClock: true, pairedSmallId: 4,
+  { id: 32, label: 'Fraunces',            height: 40, preview: "font-family: 'Fraunces', Georgia, serif; font-weight: 700;", small: false, mainClock: true, pairedSmallId: 3,
     google: 'Fraunces', weight: 700, sizePx: 48 },
-  { id: 33, label: 'Geostar Fill',        height: 40, preview: "font-family: 'Geostar Fill', Impact, sans-serif;", small: false, mainClock: true, pairedSmallId: 4,
+  { id: 33, label: 'Geostar Fill',        height: 40, preview: "font-family: 'Geostar Fill', Impact, sans-serif;", small: false, mainClock: true, pairedSmallId: 3,
     google: 'Geostar Fill', weight: 400, sizePx: 48 },
-  { id: 34, label: 'Michroma',            height: 40, preview: "font-family: 'Michroma', 'Arial Black', sans-serif; letter-spacing: 1px;", small: false, mainClock: true, pairedSmallId: 4, wide: true, secondsDisabled: true,
+  { id: 34, label: 'Michroma',            height: 40, preview: "font-family: 'Michroma', 'Arial Black', sans-serif; letter-spacing: 1px;", small: false, mainClock: true, pairedSmallId: 3, wide: true, secondsDisabled: true,
     google: 'Michroma', weight: 400, sizePx: 48 },
-  { id: 35, label: 'National Park',       height: 40, preview: "font-family: 'National Park', Verdana, sans-serif; font-weight: 700;", small: false, mainClock: true, pairedSmallId: 4,
+  { id: 35, label: 'National Park',       height: 40, preview: "font-family: 'National Park', Verdana, sans-serif; font-weight: 700;", small: false, mainClock: true, pairedSmallId: 3,
     google: 'National Park', weight: 700, sizePx: 48 },
-  { id: 36, label: 'Komika',              height: 40, preview: "font-family: 'Bangers', 'Comic Sans MS', cursive;", small: false, mainClock: true, pairedSmallId: 4, wide: true, secondsDisabled: true,
+  { id: 36, label: 'Komika',              height: 40, preview: "font-family: 'Bangers', 'Comic Sans MS', cursive;", small: false, mainClock: true, pairedSmallId: 3, wide: true, secondsDisabled: true,
     google: 'Bangers', weight: 400, sizePx: 48, approx: true }, // Komika Hand (Apostrophic Labs, dafont-only) isn't on Google Fonts -- Bangers is the closest bold comic-lettering face Google Fonts actually has.
-  { id: 37, label: 'Quantico',            height: 40, preview: "font-family: 'Quantico', Impact, 'Arial Narrow', sans-serif; font-weight: 700; font-style: italic;", small: false, mainClock: true, pairedSmallId: 4,
+  { id: 37, label: 'Quantico',            height: 40, preview: "font-family: 'Quantico', Impact, 'Arial Narrow', sans-serif; font-weight: 700; font-style: italic;", small: false, mainClock: true, pairedSmallId: 3,
     google: 'Quantico', weight: 700, italic: true, sizePx: 48 },
-  { id: 38, label: 'Silkscreen',          height: 40, preview: "font-family: 'Silkscreen', Impact, 'Arial Narrow', sans-serif;", small: false, mainClock: true, pairedSmallId: 4,
+  { id: 38, label: 'Silkscreen',          height: 40, preview: "font-family: 'Silkscreen', Impact, 'Arial Narrow', sans-serif;", small: false, mainClock: true, pairedSmallId: 3,
     google: 'Silkscreen', weight: 400, sizePx: 48 },
-  { id: 39, label: 'StackSansHeadline',   height: 40, preview: "font-family: 'Anton', 'Arial Narrow', sans-serif;", small: false, mainClock: true, pairedSmallId: 4,
+  { id: 39, label: 'StackSansHeadline',   height: 40, preview: "font-family: 'Anton', 'Arial Narrow', sans-serif;", small: false, mainClock: true, pairedSmallId: 3,
     google: 'Anton', weight: 400, sizePx: 48, approx: true }, // Stack Sans Headline isn't on Google Fonts (independent foundry release) -- Anton's ultra-bold condensed headline shape is the closest match.
   { id: 40, label: 'Unbounded',           height: 40, preview: "font-family: 'Unbounded', Impact, 'Arial Narrow', sans-serif; font-weight: 500;", small: false, mainClock: true, pairedSmallId: 4,
     google: 'Unbounded', weight: 500, sizePx: 48 },

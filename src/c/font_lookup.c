@@ -24,17 +24,17 @@ typedef struct {
 static const FontLookupEntry FONT_TABLE[] = {
   [0]  = { .system_key = FONT_KEY_GOTHIC_14,                .height = 14 }, // System Small
   [1]  = { .system_key = FONT_KEY_GOTHIC_14_BOLD,           .height = 18 }, // System Medium
-  [2]  = { .system_key = FONT_KEY_GOTHIC_18_BOLD,           .height = 24 }, // System Large
-  [3]  = { .system_key = FONT_KEY_GOTHIC_24_BOLD,           .height = 32 }, // System XL
-  [4]  = { .system_key = FONT_KEY_GOTHIC_28_BOLD,           .height = 36 }, // System XXL
+  [2]  = { .system_key = FONT_KEY_GOTHIC_18_BOLD,           .height = 24, .y_offset = -6  }, // System Large
+  [3]  = { .system_key = FONT_KEY_GOTHIC_24_BOLD,           .height = 32, .y_offset = -8 }, // System XL
+  [4]  = { .system_key = FONT_KEY_GOTHIC_28_BOLD,           .height = 36, .y_offset = -10 }, // System XXL
   [5]  = { .system_key = FONT_KEY_LECO_28_LIGHT_NUMBERS,    .height = 17 }, // Leco Small
   [6]  = { .system_key = FONT_KEY_LECO_32_BOLD_NUMBERS,     .height = 20 }, // Leco Medium
   [7]  = { .system_key = FONT_KEY_LECO_36_BOLD_NUMBERS,     .height = 23 }, // Leco Large
   [8]  = { .system_key = FONT_KEY_LECO_42_NUMBERS,          .height = 26 }, // Leco XL (main clock's own default)
-  [9]  = { .system_key = FONT_KEY_DROID_SERIF_28_BOLD,      .height = 17 }, // Droid Serif
-  [10] = { .system_key = FONT_KEY_ROBOTO_CONDENSED_21,      .height = 15, .y_offset = -2 }, // Roboto Condensed
+  [9]  = { .system_key = FONT_KEY_DROID_SERIF_28_BOLD,      .height = 17, .y_offset = -12 }, // Droid Serif
+  [10] = { .system_key = FONT_KEY_ROBOTO_CONDENSED_21,      .height = 15, .y_offset = -10 }, // Roboto Condensed
   [11] = { .system_key = FONT_KEY_ROBOTO_BOLD_SUBSET_49,    .height = 30, .y_offset = -2 }, // Roboto Bold (big)
-  [12] = { .system_key = FONT_KEY_BITHAM_30_BLACK,          .height = 19 }, // Bitham Bold 30
+  [12] = { .system_key = FONT_KEY_BITHAM_30_BLACK,          .height = 30 }, // Bitham Bold 30
   [13] = { .system_key = FONT_KEY_BITHAM_34_MEDIUM_NUMBERS, .height = 21 }, // Bitham Medium 34
   [14] = { .system_key = FONT_KEY_BITHAM_42_LIGHT,          .height = 26 }, // Bitham Light (big)
   [15] = { .system_key = FONT_KEY_BITHAM_42_BOLD,           .height = 26 }, // Bitham Bold (big)

@@ -1742,6 +1742,7 @@ void features_draw_item(GContext *ctx, GRect bounds, const EclipseData *data,
 
   GFont font = font_lookup_resolve(&s_corner_font_slot, data->corner_font);
   int16_t font_h = font_lookup_height(data->corner_font);
+  int16_t font_offset = font_lookup_y_offset(data->corner_font) / 2; // We want to be in the middle of the feature line
   GSize text_size = graphics_text_layout_get_content_size(buf, font, GRect(0, 0, 200, font_h + 10),
                                                             GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft);
   int16_t icon_gap_w = icon_plus_gap_width(icon_kind);
@@ -1993,11 +1994,11 @@ void features_draw_item(GContext *ctx, GRect bounds, const EclipseData *data,
     GColor lo_color = seven_stop_gradient(data->temp_low_c, -10, 40);
     int16_t half_w = (CORNER_BOX_W - (text_x - box_x)) / 2;
     draw_text_outlined(ctx, hi_buf, font,
-                        GRect(text_x, box_y + (CORNER_ROW_H - font_h) / 2, half_w, font_h + 2),
+                        GRect(text_x, box_y + (CORNER_ROW_H - font_h) / 2 + font_offset, half_w, font_h + 2),
                         GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft,
                         hi_color, allow_outline && data->outline_enabled);
     draw_text_outlined(ctx, lo_buf, font,
-                        GRect(text_x + half_w, box_y + (CORNER_ROW_H - font_h) / 2, half_w, font_h + 2),
+                        GRect(text_x + half_w, box_y + (CORNER_ROW_H - font_h) / 2 + font_offset, half_w, font_h + 2),
                         GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft,
                         lo_color, allow_outline && data->outline_enabled);
     return;
@@ -2005,7 +2006,7 @@ void features_draw_item(GContext *ctx, GRect bounds, const EclipseData *data,
 
   if (content != 17) {
     draw_text_outlined(ctx, buf, font,
-                       GRect(text_x, box_y + (CORNER_ROW_H - font_h) / 2, text_size.w + 2, font_h + 2),
+                       GRect(text_x, box_y + (CORNER_ROW_H - font_h) / 2 + font_offset, text_size.w + 2, font_h + 2),
                        GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft,
                        color, allow_outline && data->outline_enabled);
   }
