@@ -331,7 +331,7 @@ static int32_t ease_out_lut_1000(int32_t t) {
   int32_t hi = EASE_OUT_LUT[idx + 1];
   return lo + ((hi - lo) * frac) / 50;
 }
-
+/*
 // ---- rainbow outline gradient -----------------------------------------
 // The actual LUT/blend/lookup (RAINBOW_OUTLINE_LUT/blend_rainbow_packed_fp/
 // rainbow_color_at_fp) now live once, in subpixel.h -- already transitively
@@ -345,7 +345,7 @@ static int32_t ease_out_lut_1000(int32_t t) {
 // advanced by SHAKE_GRADIENT_STEP_FP (not a whole LUT entry) each
 // shake_anim_timer_callback() tick while gradient mode is on.
 static int32_t s_shake_gradient_shift_fp = 0;
-
+*/
 // Returns the color to actually draw an outline pixel/item in right
 // now. screen_x is that pixel/item's own x coordinate, used to sample
 // the scrolling rainbow strip above when gradient mode
@@ -360,11 +360,9 @@ static int32_t s_shake_gradient_shift_fp = 0;
 // items different colors based on where they are, just not an
 // internal gradient within a single item's own outline.
 GColor shake_outline_color(GColor normal_color, int16_t screen_x) {
-  if (!s_shake_anim_active) return normal_color;
-  if (!(s_data.shake_anim_mode == 1 || s_data.shake_anim_mode == 3)) return normal_color;
-  return rainbow_color_at_fp(screen_x, s_shake_gradient_shift_fp);
+  return normal_color;
 }
-
+/*
 // hand_layer.c's own version of the above -- hand outlines are drawn
 // through this project's own subpixel rasterizer (see subpixel.h's
 // stroke_*_gradient_fp() functions), which CAN sample a color per
@@ -379,7 +377,7 @@ bool shake_gradient_active(int32_t *out_shift) {
   *out_shift = s_shake_gradient_shift_fp;
   return true;
 }
-
+*/
 // Planet seek's own watch-side compass reading -- subscribed only for
 // as long as the animation itself runs (compass/magnetometer use has
 // a real, ongoing power cost, unlike a plain timer), storing just the
@@ -617,9 +615,11 @@ static void shake_anim_timer_callback(void *data) {
     // whole entry every 33ms used to. SHAKE_GRADIENT_STEP_FP=32 (1/8 of
     // an entry) means a full 24-entry cycle takes ~192 frames, ~6.3s at
     // 30fps -- about 8x slower than before, per the request.
+    /*
     #define SHAKE_GRADIENT_STEP_FP 32
     s_shake_gradient_shift_fp = (s_shake_gradient_shift_fp + SHAKE_GRADIENT_STEP_FP) % (RAINBOW_LUT_SIZE * 256);
     #undef SHAKE_GRADIENT_STEP_FP
+     */
     s_shake_anim_timer = app_timer_register(SHAKE_ANIM_FRAME_MS, shake_anim_timer_callback, NULL);
   }
   if (s_data.shake_anim_mode == 4) update_planet_seek_accuracy_label(still_active);
@@ -640,7 +640,7 @@ static void maybe_start_shake_animation(void) {
   if (s_data.shake_anim_mode == 4 && s_data.has_eclipse) return; // Planet seek never runs on an eclipse day, per request
   s_shake_anim_active = true;
   s_shake_anim_elapsed_ms = 0;
-  s_shake_gradient_shift_fp = 0;
+//  s_shake_gradient_shift_fp = 0;
   uint8_t seconds = s_data.shake_label_seconds > 0 ? s_data.shake_label_seconds : 3;
   s_shake_anim_duration_ms = (uint32_t)seconds * 1000;
   if (s_shake_anim_timer) app_timer_cancel(s_shake_anim_timer);
