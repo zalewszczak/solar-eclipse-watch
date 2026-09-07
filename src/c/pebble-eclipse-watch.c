@@ -556,7 +556,7 @@ static void compass_feature_timer_callback(void *data) {
   } else {
     s_compass_feature_timer = app_timer_register(COMPASS_FEATURE_FRAME_MS, compass_feature_timer_callback, NULL);
   }
-  if (s_features_layer) layer_mark_dirty(s_features_layer);
+  if (s_features_layer) features_layer_refresh_content(s_features_layer, 85); // compass -- live heading, recompute only the slot(s) showing it
 }
 
 // Called from tap_handler() below, once per shake -- restarts the
@@ -764,13 +764,14 @@ static void hands_layer_update_proc(Layer *layer, GContext *ctx) {
 
 // ---- corners/edges feature overlay ---------------------------------------
 // The whole always-on-top text/icon overlay (icon bitmaps, weather/
-// timezone/gradient/sleep helpers, features_draw_item(), the metadata
-// cache, and the layer itself) now lives in features_layer.c/.h -- see
-// that file's own top-of-file note. s_features_layer below is now
-// s_features_layer, created via features_layer_create()/destroyed via
-// features_layer_destroy() in apply_layout()/window_unload(), and fed
-// with features_layer_set_data()/features_layer_set_labels_visible()
-// instead of being recomputed on every redraw.
+// timezone/gradient/sleep helpers, the table-driven per-slot recompute/
+// draw split, and the layer itself) lives in features_layer.c/.h -- see
+// that file's own top-of-file note. s_features_layer below is created
+// via features_layer_create()/destroyed via features_layer_destroy() in
+// apply_layout()/window_unload(), and fed with
+// features_layer_set_data()/set_labels_visible()/refresh_values()/
+// refresh_second_slots()/refresh_content() instead of being recomputed
+// on every redraw.
 
 
 // ---- rendering ---------------------------------------------------------
@@ -1237,7 +1238,7 @@ typedef struct {
 // isn't. Populated once, at runtime, by init_simple_field_map() below
 // instead -- same 147 rows, just assigned as statements rather than listed
 // as an initializer.
-#define SIMPLE_FIELD_MAP_COUNT 147
+#define SIMPLE_FIELD_MAP_COUNT 148
 static SimpleFieldMapping SIMPLE_FIELD_MAP[SIMPLE_FIELD_MAP_COUNT];
 static bool s_simple_field_map_ready = false;
 
@@ -1389,6 +1390,7 @@ static void init_simple_field_map(void) {
   SIMPLE_FIELD_MAP[144].message_key = MESSAGE_KEY_ISS_COMPUTED_AT; SIMPLE_FIELD_MAP[144].type = F_TIME; SIMPLE_FIELD_MAP[144].offset = offsetof(EclipseData, iss_computed_at);
   SIMPLE_FIELD_MAP[145].message_key = MESSAGE_KEY_ISS_NEXT_PASS; SIMPLE_FIELD_MAP[145].type = F_TIME; SIMPLE_FIELD_MAP[145].offset = offsetof(EclipseData, iss_next_pass);
   SIMPLE_FIELD_MAP[146].message_key = MESSAGE_KEY_ISS_ERROR_CODE; SIMPLE_FIELD_MAP[146].type = F_U8; SIMPLE_FIELD_MAP[146].offset = offsetof(EclipseData, iss_error_code);
+  SIMPLE_FIELD_MAP[147].message_key = MESSAGE_KEY_WEATHER_LAST_UPDATE; SIMPLE_FIELD_MAP[147].type = F_TIME; SIMPLE_FIELD_MAP[147].offset = offsetof(EclipseData, weather_last_update);
   s_simple_field_map_ready = true;
 }
 
@@ -1531,12 +1533,12 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   // of the corner/edge content+color fields) has now been applied to
   // s_data -- one recompute here replaces the many individual
   // layer_mark_dirty(s_features_layer) calls the old per-field handling
-  // used, since features_layer_set_data() both recomputes the cached
-  // slot metadata AND marks the layer dirty. Content-only fields parsed
-  // further below (weather icon style, AQI/altitude units, ...) don't
-  // affect layout, so they keep their own plain layer_mark_dirty() --
-  // features_draw_item() reads them straight from s_data at draw time
-  // regardless.
+  // used, since features_layer_set_data() recomputes every slot's
+  // layout AND value in one pass and marks the layer dirty. Content-
+  // only fields parsed further below (weather icon style, AQI/altitude
+  // units, ...) don't affect layout, so they instead call
+  // features_layer_refresh_values() themselves right after landing in
+  // s_data, to re-resolve just the VALUE half.
   if (s_features_layer) features_layer_set_data(s_features_layer, &s_data);
 
   if (!s_data.valid) {
@@ -1581,15 +1583,15 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
     } else if (s_data.weather_error_streak < 250) { // saturate well clear of overflow -- only ">= 10" is ever checked
       s_data.weather_error_streak++;
     }
-    if (s_features_layer) layer_mark_dirty(s_features_layer);
+    if (s_features_layer) features_layer_refresh_values(s_features_layer); // recompute -- not just redraw -- so the fresh error code actually lands
   }
   if ((t = dict_find(iter, MESSAGE_KEY_WEATHER_ICON_STYLE))) {
     s_data.weather_icon_style = t->value->uint8;
-    if (s_features_layer) layer_mark_dirty(s_features_layer);
+    if (s_features_layer) features_layer_refresh_values(s_features_layer);
   }
   if ((t = dict_find(iter, MESSAGE_KEY_AQI_UNIT))) {
     s_data.aqi_unit = t->value->uint8;
-    if (s_features_layer) layer_mark_dirty(s_features_layer);
+    if (s_features_layer) features_layer_refresh_values(s_features_layer);
   }
   if ((t = dict_find(iter, MESSAGE_KEY_AURORA_VISIBILITY_PCT))) {
     s_data.aurora_visibility_pct = t->value->uint8;
@@ -1597,7 +1599,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   }
   if ((t = dict_find(iter, MESSAGE_KEY_ALTITUDE_UNIT))) {
     s_data.altitude_unit = t->value->uint8;
-    if (s_features_layer) layer_mark_dirty(s_features_layer);
+    if (s_features_layer) features_layer_refresh_values(s_features_layer);
   }
   if ((t = dict_find(iter, MESSAGE_KEY_LOCATION_NAME))) {
     strncpy(s_data.location_name, t->value->cstring, sizeof(s_data.location_name) - 1);
@@ -1750,7 +1752,7 @@ static void tick_handler(struct tm *tick_time, TimeUnits units_changed) {
   // per-second updates -- see need_second_precision()'s own comment.
   // Never fires when this subscription is at MINUTE_UNIT, since
   // s_tick_unit_is_seconds is false in that case.
-  if (s_tick_unit_is_seconds && s_features_layer) layer_mark_dirty(s_features_layer);
+  if (s_tick_unit_is_seconds && s_features_layer) features_layer_refresh_second_slots(s_features_layer);
 }
 
 static void select_click_handler(ClickRecognizerRef recognizer, void *context) {
@@ -1816,12 +1818,12 @@ static void tap_handler(AccelAxisType axis, int32_t direction) {
 // need_second_precision() already requests when that content is
 // active, which gives it genuinely live per-second updates instead of
 // whatever staleness this cadence would otherwise leave it with.
-#define CORNERS_REFRESH_MS 60000
+// CORNERS_REFRESH_MS retired -- see FEATURES_REFRESH_MS in features_layer.h
 static AppTimer *s_corners_timer = NULL;
 
 static void corners_timer_callback(void *data) {
-  if (s_features_layer) layer_mark_dirty(s_features_layer);
-  s_corners_timer = app_timer_register(CORNERS_REFRESH_MS, corners_timer_callback, NULL);
+  if (s_features_layer) features_layer_refresh_values(s_features_layer);
+  s_corners_timer = app_timer_register(FEATURES_REFRESH_MS, corners_timer_callback, NULL);
 }
 
 // ---- window lifecycle ----------------------------------------------------
@@ -2043,7 +2045,7 @@ static void init(void) {
   update_tick_subscription();
   accel_tap_service_subscribe(tap_handler);
   unobstructed_area_service_subscribe(s_unobstructed_handlers, NULL);
-  s_corners_timer = app_timer_register(CORNERS_REFRESH_MS, corners_timer_callback, NULL);
+  s_corners_timer = app_timer_register(FEATURES_REFRESH_MS, corners_timer_callback, NULL);
 
   app_message_register_inbox_received(inbox_received_handler);
   app_message_register_inbox_dropped(inbox_dropped_handler);

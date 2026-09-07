@@ -96,3 +96,18 @@ uint8_t background_count_visible_planets(const EclipseData *d, time_t now);
 // angle is in native TRIG_MAX_ANGLE units, 0 = 12 o'clock, clockwise.
 GPoint point_on_ring(GPoint center, GRect screen, int32_t angle,
                       uint8_t pct, uint8_t eccentricity_pct);
+
+// The tightest (closest-to-center) inner-border reach among a
+// procedural marker style's hour/second rings -- i.e. how far into
+// the middle of the face that style's own artwork actually goes --
+// plus the eccentricity of whichever ring that reach belongs to.
+// Lets features_layer.c compute its inner-empty-area margins the same
+// point_on_ring()-based way for the procedural presets (0/1/2) and
+// "none" (9, no ring drawn -- reports a full 100% reach, so it never
+// constrains anything beyond the caller's own floor margin) that it
+// already does for custom rings, instead of the flat hardcoded
+// numbers those styles used to be stuck with. Meaningless for bitmap
+// styles (3-7, no ring geometry at all) and for custom (8, which
+// reads its own live MarkerRingConfig directly instead) -- callers
+// shouldn't call this for those.
+void background_marker_inner_reach(uint8_t marker_style, uint8_t *out_pct, uint8_t *out_eccentricity);

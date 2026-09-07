@@ -231,7 +231,8 @@
       "HAND_MIN_HOLLOW",
       "HAND_MIN_HOLLOW_THICKNESS",
       "HAND_SEC_HOLLOW",
-      "HAND_SEC_HOLLOW_THICKNESS"
+      "HAND_SEC_HOLLOW_THICKNESS",
+      "WEATHER_LAST_UPDATE"
     ],
     "resources": {
       "media": [

@@ -472,6 +472,11 @@ typedef struct {
   uint8_t weather_error_code;
   uint8_t weather_error_streak;
   bool weather_ever_valid;
+  time_t weather_last_update;  // epoch time of this device's last successful weather fetch (stamped
+                                 // phone-side, same instant weatherOk gates WEATHER_TEMP_C etc. in
+                                 // index.js's sendEclipseData()/sendNoEclipseToday()) -- 0 if never
+                                 // yet fetched. Feeds the "last weather update" corner content's
+                                 // white->red staleness gradient in features_layer.c.
   char location_name[32];    // reverse-geocoded place name, e.g. "Innsbruck, Austria"
 
   uint8_t timezone_id;       // index into the TIMEZONES[] table in pebble-eclipse-watch.c --

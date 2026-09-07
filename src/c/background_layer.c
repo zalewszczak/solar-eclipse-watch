@@ -2019,6 +2019,27 @@ static const MarkerRingConfig MARKER_STYLE_SECOND_PRESETS[3] = {
   { .style = 1, .thickness = 1, .inner_eccentricity = 0, .outer_eccentricity = 0, .inner_border_pct = 65, .outer_border_pct = 85 }, // 2: big
 };
 
+void background_marker_inner_reach(uint8_t marker_style, uint8_t *out_pct, uint8_t *out_eccentricity) {
+  if (marker_style > 2) { // "none" (9), or any other non-procedural style a caller shouldn't be asking about
+    *out_pct = 100; // fully retracted -- never the tighter reach against a caller's own floor margin
+    *out_eccentricity = 0;
+    return;
+  }
+  const MarkerRingConfig *hour = &MARKER_STYLE_HOUR_PRESETS[marker_style];
+  const MarkerRingConfig *sec = &MARKER_STYLE_SECOND_PRESETS[marker_style];
+  // Whichever ring reaches CLOSER to center (the smaller inner_border_pct)
+  // is the one that actually constrains the inner empty area -- a
+  // thickness-0 ring (style 0's second ring) still has a border_pct
+  // set, but draws nothing, so it's excluded from the comparison.
+  if (sec->thickness == 0 || hour->inner_border_pct <= sec->inner_border_pct) {
+    *out_pct = hour->inner_border_pct;
+    *out_eccentricity = hour->inner_eccentricity;
+  } else {
+    *out_pct = sec->inner_border_pct;
+    *out_eccentricity = sec->inner_eccentricity;
+  }
+}
+
 // Marker text's own font is resolved via font_lookup_resolve()
 // (state->marker_text_font_slot) directly at each call site now --
 // see font_lookup.c for the shared table every font-selecting system

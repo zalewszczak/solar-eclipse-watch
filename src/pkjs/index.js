@@ -60,7 +60,7 @@ var KEY_TYPE_MAP = (function () {
     'WEATHER_TEMP_C', 'WEATHER_TEMP_HIGH_C', 'WEATHER_TEMP_LOW_C',
     'UV_INDEX_X10', 'RAIN_CHANCE_PCT', 'HUMIDITY_PCT', 'WIND_SPEED_KMH',
     'WIND_DIR_DEG', 'DEW_POINT_C', 'PRESSURE_HPA', 'PRESSURE_TREND',
-    'AQI_US', 'AQI_EU', 'ALTITUDE_M'
+    'AQI_US', 'AQI_EU', 'ALTITUDE_M', 'WEATHER_LAST_UPDATE'
   ]);
 
   assign(MSG_TYPE.ASTRONOMY, [
@@ -1834,6 +1834,7 @@ function sendNoEclipseToday(sky, cloudGrid, headlineCloud, headlineSources, loca
     dict['RAIN_CHANCE_PCT'] = (typeof rainChancePct === 'number') ? Math.round(rainChancePct) : 0;
     dict['HUMIDITY_PCT'] = (typeof humidityPct === 'number') ? Math.round(humidityPct) : 0;
     dict['WIND_SPEED_KMH'] = (typeof windSpeedKmh === 'number') ? Math.round(windSpeedKmh) : 0;
+    dict['WEATHER_LAST_UPDATE'] = Math.floor(Date.now() / 1000);
   }
   var sky_ = skyFieldsDict(sky, cloudGrid, moonPhase, riseSet, meteorShower, cloudAltitudePct, sunRiseTomorrow, stars);
   Object.keys(sky_).forEach(function (k) { dict[k] = sky_[k]; });
@@ -1883,6 +1884,7 @@ function sendEclipseData(result, sky, cloudGrid, headlineCloud, headlineSources,
     dict['RAIN_CHANCE_PCT'] = (typeof rainChancePct === 'number') ? Math.round(rainChancePct) : 0;
     dict['HUMIDITY_PCT'] = (typeof humidityPct === 'number') ? Math.round(humidityPct) : 0;
     dict['WIND_SPEED_KMH'] = (typeof windSpeedKmh === 'number') ? Math.round(windSpeedKmh) : 0;
+    dict['WEATHER_LAST_UPDATE'] = Math.floor(Date.now() / 1000);
   }
   var sky_ = skyFieldsDict(sky, cloudGrid, moonPhase, riseSet, meteorShower, cloudAltitudePct, sunRiseTomorrow, stars);
   Object.keys(sky_).forEach(function (k) { dict[k] = sky_[k]; });

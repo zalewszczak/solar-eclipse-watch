@@ -2,6 +2,7 @@
 #include "background_layer.h"
 #include "font_lookup.h"
 #include <string.h>
+#include <stdlib.h> // atoi(), for parsing strftime's "%V" week-number string back to an int for grading
 
 // See features_layer.h for the module-level design note (metadata cache
 // vs. per-redraw layout recompute). This file also owns the shared
@@ -13,46 +14,16 @@
 
 #define CORNER_BOX_W 68
 
-static bool point_in_convex_polygon(GPoint *pts, int n, GPoint p) {
-  bool has_pos = false, has_neg = false;
-  for (int i = 0; i < n; i++) {
-    GPoint a = pts[i];
-    GPoint b = pts[(i + 1) % n];
-    int32_t cross = (int32_t)(b.x - a.x) * (p.y - a.y) - (int32_t)(b.y - a.y) * (p.x - a.x);
-    if (cross > 0) has_pos = true;
-    if (cross < 0) has_neg = true;
-    if (has_pos && has_neg) return false;
-  }
-  return true;
-}
+// How far a corner slot's box sits from the screen edge. Was 2px;
+// bumped to 4 per request so corners get a bit more breathing room
+// from the bezel.
+#define CORNER_INSET_PX 4
 
-// Fills a convex polygon with a genuine ~50% Bayer-dithered stipple
-// of `color`, pixel by pixel -- half the pixels (in the same ordered
-// pattern used for the sky/clouds elsewhere, not randomly) get the
-// hand's color, the other half are left completely untouched. Since
-// Pebble's basic fills have no alpha blending for arbitrary shapes,
-// this is how "50% transparent" becomes a real per-pixel compositing
-// effect rather than a hollow-outline approximation: whatever the
-// sky canvas drew underneath shows through evenly across the whole
-// hand, not just around its edges.
-static void fill_polygon_dithered(GContext *ctx, GPoint *pts, int n, GColor color) {
-  int16_t min_x = pts[0].x, max_x = pts[0].x, min_y = pts[0].y, max_y = pts[0].y;
-  for (int i = 1; i < n; i++) {
-    if (pts[i].x < min_x) min_x = pts[i].x;
-    if (pts[i].x > max_x) max_x = pts[i].x;
-    if (pts[i].y < min_y) min_y = pts[i].y;
-    if (pts[i].y > max_y) max_y = pts[i].y;
-  }
-  graphics_context_set_fill_color(ctx, color);
-  for (int16_t y = min_y; y <= max_y; y++) {
-    for (int16_t x = min_x; x <= max_x; x++) {
-      if (BAYER4[y & 3][x & 3] >= 8) continue; // ~50% threshold
-      GPoint p = GPoint(x, y);
-      if (!point_in_convex_polygon(pts, n, p)) continue;
-      graphics_fill_rect(ctx, GRect(x, y, 1, 1), 0, GCornerNone);
-    }
-  }
-}
+// point_in_convex_polygon()/fill_polygon_dithered() used to live here
+// for the old "semi" color mode's dithered highlight plate -- removed
+// now that Pill mode draws a plain solid-fill capsule instead (see
+// draw_pill below), which needs neither. Smaller binary, one less
+// per-pixel loop.
 
 // Shared by every outline implementation in this file (text, icons,
 // hands): draw once shifted in each cardinal direction with a
@@ -252,11 +223,10 @@ static void draw_icon_resource(GContext *ctx, GPoint top_left, uint32_t resource
 
 // Loads resource_id exactly once and draws it up to 5 times (4
 // outline-shifted copies in outline_color when do_outline, then once
-// more in color) -- replaces features_draw_item()'s icon_kind switch's
-// former "4-shifted-copy outline, then the real icon" shape, which used
-// to be hand-repeated across roughly a dozen cases, each with its own
-// draw_icon_resource() call per shifted copy -- 5 independent resource
-// loads/decodes per icon instead of the 1 this version needs.
+// more in color) -- one shared draw call for every icon that needs an
+// outline, instead of a dozen hand-repeated "4-shifted-copy outline,
+// then the real icon" blocks -- 5 independent resource loads/decodes
+// per icon instead of the 1 this version needs.
 static void draw_icon_resource_with_outline(GContext *ctx, GPoint pos, uint32_t resource_id,
                                              bool do_outline, GColor outline_color, GColor color) {
   GBitmap *bmp = gbitmap_create_with_resource(resource_id);
@@ -773,6 +743,112 @@ static GColor white_to_red_gradient(uint8_t kp_x10) {
   return GColorFromRGB(255, (uint8_t)g, (uint8_t)b);
 }
 
+// Pink (calm/resting) -> red -> violet (dangerously high), scaled by
+// actual BPM. The 3 thresholds below are a reasonable generic
+// resting/exertion/danger split, not personalized -- tune them once
+// you've seen real readings against this on the watch.
+#define HR_LOW_BPM 60
+#define HR_HIGH_BPM 120
+#define HR_DANGER_BPM 180
+static GColor heart_rate_gradient(int bpm) {
+  const int16_t pink[3]   = { 255, 105, 180 };
+  const int16_t red[3]    = { 220,  20,  20 };
+  const int16_t violet[3] = { 148,   0, 211 };
+  const int16_t *from, *to;
+  int32_t frac1000;
+  if (bpm <= HR_LOW_BPM) {
+    return GColorFromRGB((uint8_t)pink[0], (uint8_t)pink[1], (uint8_t)pink[2]);
+  } else if (bpm >= HR_DANGER_BPM) {
+    return GColorFromRGB((uint8_t)violet[0], (uint8_t)violet[1], (uint8_t)violet[2]);
+  } else if (bpm <= HR_HIGH_BPM) {
+    from = pink; to = red;
+    frac1000 = ((int32_t)(bpm - HR_LOW_BPM) * 1000) / (HR_HIGH_BPM - HR_LOW_BPM);
+  } else {
+    from = red; to = violet;
+    frac1000 = ((int32_t)(bpm - HR_HIGH_BPM) * 1000) / (HR_DANGER_BPM - HR_HIGH_BPM);
+  }
+  int16_t r = from[0] + (int16_t)(((to[0] - from[0]) * frac1000) / 1000);
+  int16_t g = from[1] + (int16_t)(((to[1] - from[1]) * frac1000) / 1000);
+  int16_t b = from[2] + (int16_t)(((to[2] - from[2]) * frac1000) / 1000);
+  return GColorFromRGB((uint8_t)r, (uint8_t)g, (uint8_t)b);
+}
+
+// White (sea level) -> turquoise (high), for the "Altitude" content --
+// default 0-4000m range, adjust ALTITUDE_GRADIENT_MAX_M once you've
+// seen real readings.
+#define ALTITUDE_GRADIENT_MAX_M 4000
+static GColor altitude_gradient(int16_t altitude_m) {
+  return white_to_turquoise_gradient(altitude_m, 0, ALTITUDE_GRADIENT_MAX_M);
+}
+
+// Dim gray (faint) -> white (strong), for the meteor-shower intensity
+// reading -- "more meteors = whiter", replacing the old red/green read.
+static GColor meteor_intensity_gradient(uint8_t pct) {
+  int32_t frac1000 = ((int32_t)pct * 1000) / 100;
+  int16_t v = 90 + (int16_t)((165 * frac1000) / 1000);
+  return GColorFromRGB((uint8_t)v, (uint8_t)v, (uint8_t)v);
+}
+
+// White during the day, black at night, blending linearly across the
+// hour either side of the actual sunrise/sunset moment -- shared by
+// the digital-time/full-time content and the bed-time/wake-time
+// content below. Falls back to a flat white if sun data hasn't
+// arrived yet (0 is never a real sunrise/sunset timestamp).
+#define DAYNIGHT_TRANSITION_SECS 3600
+static GColor daynight_gradient(time_t at, time_t sun_rise, time_t sun_set) {
+  if (sun_rise <= 0 || sun_set <= 0) return GColorWhite;
+  bool is_daytime = (at >= sun_rise && at < sun_set);
+  int32_t dist_to_rise = (int32_t)(at - sun_rise); // negative before rise, positive after
+  int32_t dist_to_set  = (int32_t)(at - sun_set);
+  int32_t abs_rise = dist_to_rise < 0 ? -dist_to_rise : dist_to_rise;
+  int32_t abs_set  = dist_to_set  < 0 ? -dist_to_set  : dist_to_set;
+  bool near_rise = abs_rise <= abs_set;
+  int32_t dist = near_rise ? dist_to_rise : dist_to_set;
+  int32_t abs_dist = near_rise ? abs_rise : abs_set;
+  if (abs_dist >= DAYNIGHT_TRANSITION_SECS) return is_daytime ? GColorWhite : GColorBlack;
+  // Within an hour of the nearer transition: blend across it. At
+  // sunrise `dist` runs -3600 (an hour before, still black) through 0
+  // (right at sunrise) to +3600 (an hour after, fully white); sunset
+  // is the same shape, inverted (white -> black).
+  int32_t frac1000 = ((dist + DAYNIGHT_TRANSITION_SECS) * 1000) / (2 * DAYNIGHT_TRANSITION_SECS);
+  if (frac1000 < 0) frac1000 = 0;
+  if (frac1000 > 1000) frac1000 = 1000;
+  int16_t v = near_rise ? (int16_t)((255 * frac1000) / 1000) : 255 - (int16_t)((255 * frac1000) / 1000);
+  return GColorFromRGB((uint8_t)v, (uint8_t)v, (uint8_t)v);
+}
+
+// Plain black->white ramp across a field's own numeric range, no
+// sunrise/sunset involved -- used for the standalone hour/minute/
+// second components ("single time values"), as opposed to the full
+// clock-time content above which uses daynight_gradient() instead.
+static GColor linear_white_black(int32_t value, int32_t min_v, int32_t max_v) {
+  if (max_v <= min_v) return GColorWhite;
+  int32_t clamped = value < min_v ? min_v : (value > max_v ? max_v : value);
+  int32_t frac1000 = ((clamped - min_v) * 1000) / (max_v - min_v);
+  int16_t v = (int16_t)((255 * frac1000) / 1000);
+  return GColorFromRGB((uint8_t)v, (uint8_t)v, (uint8_t)v);
+}
+
+// Multi-value dates (weekday+day, day/month, full dates, "long date",
+// ...) are graded by how far the year has progressed -- Jan 1 sits at
+// the gradient's cold end, Dec 31 at its hot end.
+static GColor date_year_progress_gradient(const struct tm *t) {
+  return seven_stop_gradient(t->tm_yday, 0, 365);
+}
+
+// White (just updated) -> full red at 2h+ stale, for the "last
+// weather update" content types.
+#define WEATHER_STALE_RED_SECS (2 * 3600)
+static GColor weather_staleness_gradient(time_t now, time_t last_update) {
+  if (last_update <= 0) return GColorRed; // never updated at all -- treat like fully stale
+  int32_t age = (int32_t)(now - last_update);
+  if (age <= 0) return GColorWhite;
+  if (age >= WEATHER_STALE_RED_SECS) return GColorRed;
+  int32_t frac1000 = (age * 1000) / WEATHER_STALE_RED_SECS;
+  int16_t gb = 255 - (int16_t)((255 * frac1000) / 1000);
+  return GColorFromRGB(255, (uint8_t)gb, (uint8_t)gb);
+}
+
 // The four weather-family color gradients "current conditions" (and
 // nothing else) uses, each scaled by that condition's own intensity
 // rather than a single flat color -- clearer sky/heavier rain/etc.
@@ -870,6 +946,27 @@ static SleepSpan get_sleep_span(void) {
   health_service_activities_iterate(HealthActivitySleep, day_ago, now, HealthIterationDirectionPast,
                                      sleep_span_iterator_cb, &span);
   return span;
+}
+
+// Shared by every HealthService-backed content (heart rate, steps,
+// the 3 sleep readouts, sleep times) -- replaces each one's own
+// "HealthServiceAccessibilityMask mask = ...; if (mask & ...Available)"
+// pair with a single boolean call.
+static bool health_metric_available(HealthMetric metric) {
+  time_t now = time(NULL);
+  return (health_service_metric_accessible(metric, now - 86400, now) & HealthServiceAccessibilityMaskAvailable) != 0;
+}
+
+// Shared by the heart-rate content (1) and the heart-rate segment of
+// "heart rate + steps" (97) -- both used to repeat the exact same
+// "check accessibility right now, then peek the value" pair. Point-in-
+// time window (not the 24h one health_metric_available() above uses),
+// since a heart-rate reading from anywhere in the last day would
+// still read as "available" long after it's gone stale.
+static int peek_current_bpm(void) {
+  HealthServiceAccessibilityMask mask = health_service_metric_accessible(HealthMetricHeartRateBPM, time(NULL), time(NULL));
+  if (!(mask & HealthServiceAccessibilityMaskAvailable)) return 0;
+  return (int)health_service_peek_current_value(HealthMetricHeartRateBPM);
 }
 
 static const char *temp_unit_suffix(uint8_t temp_unit) {
@@ -990,659 +1087,779 @@ static bool content_is_weather_derived(uint8_t content) {
   }
 }
 
-void features_draw_item(GContext *ctx, GRect bounds, const EclipseData *data,
-                              uint8_t content, uint8_t color_mode,
-                              GColor main_color, GColor accent_color, GColor bg_color,
-                              bool is_top, bool is_left, bool is_middle, int16_t top_offset, int16_t bottom_shift,
-                              int16_t middle_inset,
-                              bool center_horizontal, bool center_vertical, bool allow_outline) {
-  if (content == 0) return;
+// =========================================================================
+// TABLE-DRIVEN FEATURE SLOTS
+// =========================================================================
+//
+// Every one of the 12 feature slots (4 corners + 8 middle-edge lines) is
+// represented by one FeatureSlot below. A slot is split into two halves
+// that change at very different rates, and are recomputed independently:
+//
+//   - LAYOUT (is_top/is_left/is_middle/top_offset/bottom_shift/
+//     middle_inset/center_horizontal/center_vertical/content/color_mode)
+//     only ever changes when a setting or the shake-label state changes
+//     -- resolved once by features_recompute_layout(), exactly like the
+//     old FeatureSlot always did.
+//
+//   - VALUE (the actual text/icon/color to draw, plus the exact pixel
+//     offsets where each piece goes) changes far more often -- a health
+//     reading, the weather, the clock, a compass heading -- and is
+//     resolved by features_recompute_slot_value(), grouped into a
+//     handful of per-category functions (compute_health_value(),
+//     compute_weather_value(), compute_date_value(),
+//     compute_timezone_value(), compute_sky_value(),
+//     compute_combo_value()) instead of one giant per-content switch.
+//     Called from three places: a full settings/shake change (every
+//     slot), the periodic ~1-minute refresh (every active slot), and
+//     the once-a-second tick (ONLY the slot(s) whose content actually
+//     needs second-by-second updates, tracked per-slot via
+//     needs_second_refresh -- never all 12 just because one shows
+//     seconds).
+//
+// Either way, by the time features_layer_update_proc() actually runs,
+// every pixel position, color, and string a slot needs is already
+// sitting in its FeatureSlot -- the update proc itself does no
+// formatting, no gradient math, and no alignment/width measurement at
+// all, just a straight loop blitting whatever's already resolved.
 
-  // 40, not 24 -- the actual longest real content (e.g. "September",
-  // "Restful sleep") stays well under 24, but GCC's -Wformat-truncation
-  // sizes snprintf's *worst case* off each %d's full possible range (up
-  // to 11 characters, for a very negative 32-bit int), not the small
-  // calendar-sized values (day/month/year) actually passed in -- the
-  // 3-%d date format below is the tightest case, needing up to 36 by
-  // that conservative accounting even though real dates need under 12.
-  char buf[40];
-  int icon_kind = 0; // 0=none, 1=heart, 2=foot, 3=battery, 4=moon phase, 5=umbrella, 6=droplet,
-                       // 7=wind, 8=GPS pin, 9=eye, 10=clouds, 11=sunrise/sunset
-  bool icon_is_sunrise = false; // only meaningful when icon_kind == 11
-  uint8_t icon_weather_category = 0; // only meaningful when icon_kind == 14 -- see weather_icon_category()
-  GColor dynamic_color = main_color;
+// One icon or one run of text within a slot, at a resolved offset from
+// the slot's own box_x -- used both by the single icon+text path (as a
+// 2-element case: an optional icon segment, then the text segment) and
+// by the multi-icon combo content (heart rate + steps, battery + BT,
+// ...), so both paths share the exact same draw-time code.
+#define MAX_RENDER_SEGMENTS 4
+typedef struct {
+  bool is_icon;
+  uint8_t icon_kind;    // 0 = none; same icon_kind numbering the old single-icon path always used
+  int16_t icon_extra;    // weather category / battery charge% / compass heading-degrees / pressure trend / wind degrees / moon phase %, depending on icon_kind
+  bool icon_flag;         // is_charging / is_sunrise / moon_waxing / compass_asleep, depending on icon_kind
+  char text[20];           // when !is_icon
+  GColor color;
+  GColor color2;            // compass "other 3 arrows" color only; equals color everywhere else
+  int16_t x_offset;          // resolved once, relative to the slot's box_x
+  int16_t width;               // resolved once (icon: fixed box width; text: measured width)
+} RenderSegment;
 
+typedef struct {
+  bool active;             // false = this slot draws nothing this cycle
+  uint8_t content;
+  uint8_t color_mode;
+
+  // ---- layout: settings/shake-driven, resolved by features_recompute_layout() ----
+  bool is_top;
+  bool is_left;
+  bool is_middle;
+  int16_t top_offset;
+  int16_t bottom_shift;
+  int16_t middle_inset;
+  bool center_horizontal;
+  bool center_vertical;
+  bool allow_outline;
+  bool needs_second_refresh; // true if this content must be recomputed every second (time-with-seconds displays)
+
+  // ---- value: resolved by features_recompute_slot_value() ----
+  bool draw_pill;
+  GColor pill_bg;
+  int16_t segment_count;      // > 0 means "use segments[] below"; 0 means this slot draws nothing
+  RenderSegment segments[MAX_RENDER_SEGMENTS];
+} FeatureSlot;
+
+typedef struct {
+  EclipseData *data;
+  bool labels_visible;
+  FeatureSlot slots[FEATURES_MAX_SLOTS];
+} FeaturesState;
+
+enum {
+  SLOT_UPPER_L1 = 0, SLOT_UPPER_L2,
+  SLOT_BOTTOM_L1, SLOT_BOTTOM_L2,
+  SLOT_LEFT_L1, SLOT_LEFT_L2,
+  SLOT_RIGHT_L1, SLOT_RIGHT_L2,
+  SLOT_CORNER_TL, SLOT_CORNER_TR, SLOT_CORNER_BL, SLOT_CORNER_BR,
+};
+
+// ---- content classification -------------------------------------------
+
+// Only the "Time"/full-clock-with-seconds and the standalone second
+// components actually need re-resolving every single second -- every
+// other content type (weather, health, dates, astronomy, timezones)
+// only changes on its own slower schedule (the periodic refresh
+// already covers it) or on a settings change.
+static bool content_needs_second_refresh(uint8_t content) {
   switch (content) {
-    case 1: { // heart rate -- red if a recent reading is available, gray otherwise
-      icon_kind = 1;
-      int bpm = 0;
-      HealthServiceAccessibilityMask mask = health_service_metric_accessible(HealthMetricHeartRateBPM, time(NULL), time(NULL));
-      if (mask & HealthServiceAccessibilityMaskAvailable) {
-        bpm = (int)health_service_peek_current_value(HealthMetricHeartRateBPM);
-      }
-      if (bpm > 0) {
-        snprintf(buf, sizeof(buf), "%d", bpm);
-        dynamic_color = GColorFromRGB(220, 20, 20);
-      } else {
-        snprintf(buf, sizeof(buf), "--");
-        dynamic_color = GColorLightGray;
-      }
-      break;
+    case 63: // full time with seconds
+    case 69: case 70: case 71: case 72: // second components
+      return true;
+    default:
+      return false;
+  }
+}
+
+
+// Resolves the shared "one flat color" every content type not doing
+// its own per-segment gradient split uses: mono (0) -> main, accent
+// (1) -> accent, Pill (2) -> main (drawn over its own solid-bg-color
+// plate), color (3) -> whatever gradient/rule that content computed.
+// The one and only color_mode switch in this entire file -- every
+// cluster function below just calls this once per segment instead of
+// re-implementing the same 4-way branch.
+static GColor resolve_flat_color(uint8_t color_mode, GColor dynamic_color, GColor main_color, GColor accent_color) {
+  switch (color_mode) {
+    case 1: return accent_color;
+    case 3: return dynamic_color;
+    case 0: case 2: default: return main_color;
+  }
+}
+
+static RenderSegment make_icon_segment(uint8_t icon_kind, GColor color) {
+  RenderSegment s = { 0 };
+  s.is_icon = true;
+  s.icon_kind = icon_kind;
+  s.color = color;
+  s.color2 = color;
+  return s;
+}
+
+static RenderSegment make_text_segment(const char *text, GColor color) {
+  RenderSegment s = { 0 };
+  s.is_icon = false;
+  s.color = color;
+  s.color2 = color;
+  snprintf(s.text, sizeof(s.text), "%s", text);
+  return s;
+}
+
+// ---- health cluster: heart rate, steps, battery, Bluetooth, sleep -----
+
+static void compute_health_value(FeatureSlot *slot, uint8_t content, const EclipseData *data,
+                                  uint8_t color_mode, GColor main_color, GColor accent_color) {
+  char buf[24];
+  switch (content) {
+    case 1: { // heart rate -- pink(low)->red->violet(dangerously high) gradient by actual BPM
+      int bpm = peek_current_bpm();
+      GColor dyn = (bpm > 0) ? heart_rate_gradient(bpm) : GColorLightGray;
+      snprintf(buf, sizeof(buf), bpm > 0 ? "%d" : "N/A", bpm);
+      slot->segment_count = 2;
+      slot->segments[0] = make_icon_segment(1, resolve_flat_color(color_mode, dyn, main_color, accent_color));
+      slot->segments[1] = make_text_segment(buf, resolve_flat_color(color_mode, dyn, main_color, accent_color));
+      return;
     }
     case 2: { // steps today
-      icon_kind = 2;
       HealthValue steps = health_service_sum_today(HealthMetricStepCount);
-      snprintf(buf, sizeof(buf), "%d", (int)steps);
       uint16_t goal = data->daily_step_goal > 0 ? data->daily_step_goal : 10000;
       int32_t pct = (steps * 100) / goal;
       if (pct > 100) pct = 100;
-      dynamic_color = red_green_gradient((uint8_t)pct);
-      break;
+      GColor dyn = red_green_gradient((uint8_t)pct);
+      snprintf(buf, sizeof(buf), "%d", (int)steps);
+      slot->segment_count = 2;
+      slot->segments[0] = make_icon_segment(2, resolve_flat_color(color_mode, dyn, main_color, accent_color));
+      slot->segments[1] = make_text_segment(buf, resolve_flat_color(color_mode, dyn, main_color, accent_color));
+      return;
     }
     case 3: { // step goal %
-      icon_kind = 2;
       HealthValue steps = health_service_sum_today(HealthMetricStepCount);
       uint16_t goal = data->daily_step_goal > 0 ? data->daily_step_goal : 10000;
       int32_t pct = (steps * 100) / goal;
       if (pct > 999) pct = 999;
+      GColor dyn = red_green_gradient((uint8_t)(pct > 100 ? 100 : pct));
       snprintf(buf, sizeof(buf), "%d%%", (int)pct);
-      dynamic_color = red_green_gradient((uint8_t)(pct > 100 ? 100 : pct));
-      break;
+      slot->segment_count = 2;
+      slot->segments[0] = make_icon_segment(2, resolve_flat_color(color_mode, dyn, main_color, accent_color));
+      slot->segments[1] = make_text_segment(buf, resolve_flat_color(color_mode, dyn, main_color, accent_color));
+      return;
     }
-    case 4: { // high/low temperature -- same readout the fixed bottom-left corner used to show
-      int16_t hi = convert_temp(data->temp_high_c, data->temp_unit);
-      int16_t lo = convert_temp(data->temp_low_c, data->temp_unit);
-      snprintf(buf, sizeof(buf), "H%d L%d", hi, lo);
-      // Only used for the mono/accent/translucent color modes, which
-      // still share one color across the combined "H.. L.." string --
-      // dynamic mode splits high and low into their own separately
-      // gradient-colored segments instead (see the special case near
-      // the final text draw below), so this particular value goes
-      // unused in that combination.
-      dynamic_color = seven_stop_gradient(data->temp_high_c, -10, 40);
-      break;
-    }
-    case 5: { // current conditions -- same readout the fixed bottom-right corner used to show
-      int16_t temp = convert_temp(data->weather_temp_c, data->temp_unit);
-      snprintf(buf, sizeof(buf), "%d%s %s", temp, temp_unit_suffix(data->temp_unit),
-               short_condition_text(data->weather_condition, data->cloud_cover_pct));
-      dynamic_color = data->valid
-        ? weather_condition_color(data->weather_condition, data->cloud_cover_pct, data->rain_chance_pct)
-        : bg_color;
-      break;
-    }
-    case 6: { // UV index
-      uint8_t uv = data->uv_index_x10 / 10;
-      snprintf(buf, sizeof(buf), "UV%d", uv);
-      dynamic_color = seven_stop_gradient(uv, 1, 13);
-      break;
-    }
-    case 7: { // rain chance
-      icon_kind = 5;
-      snprintf(buf, sizeof(buf), "%d%%", data->rain_chance_pct);
-      dynamic_color = white_to_turquoise_gradient(data->rain_chance_pct, 0, 100);
-      break;
-    }
-    case 8: { // humidity
-      icon_kind = 6;
-      snprintf(buf, sizeof(buf), "%d%%", data->humidity_pct);
-      dynamic_color = white_to_turquoise_gradient(data->humidity_pct, 0, 100);
-      break;
-    }
-    case 9: { // wind
-      icon_kind = 7;
-      snprintf(buf, sizeof(buf), "%d", convert_wind(data->wind_speed_kmh, data->wind_speed_unit));
-      dynamic_color = white_to_turquoise_gradient(data->wind_speed_kmh, 0, 60);
-      break;
-    }
-    case 10: { // battery
-      icon_kind = 3;
+    case 10: { // battery %
       BatteryChargeState bs = battery_state_service_peek();
-      if (bs.is_charging) {
-        snprintf(buf, sizeof(buf), "%d%%+", bs.charge_percent);
-      } else {
-        snprintf(buf, sizeof(buf), "%d%%", bs.charge_percent);
-      }
-      dynamic_color = red_green_gradient((uint8_t)bs.charge_percent);
-      break;
+      GColor dyn = bs.is_charging ? GColorGreen : red_green_gradient((uint8_t)bs.charge_percent);
+      snprintf(buf, sizeof(buf), bs.is_charging ? "%d%%+" : "%d%%", bs.charge_percent);
+      GColor c = resolve_flat_color(color_mode, dyn, main_color, accent_color);
+      slot->segment_count = 1;
+      RenderSegment seg = make_icon_segment(3, c);
+      seg.icon_extra = bs.charge_percent;
+      seg.icon_flag = bs.is_charging;
+      slot->segments[0] = seg;
+      // battery is the one icon that also always shows its own text (percentage) --
+      // matches the icon+text shape every other health content uses.
+      slot->segment_count = 2;
+      slot->segments[1] = make_text_segment(buf, c);
+      return;
     }
-    case 11: { // Moon phase -- icon + short name
-      icon_kind = 4;
-      snprintf(buf, sizeof(buf), "%s", moon_phase_short_name(data->moon_phase_pct, data->moon_waxing));
-      dynamic_color = GColorWhite; // no numeric dimension to grade on; white is the Moon's natural color
-      break;
-    }
-    case 12: { // short date -- no icon, e.g. "Mon 15"
-      time_t now = time(NULL);
-      struct tm *t = localtime(&now);
-      char day_buf[4], mday_buf[4];
-      strftime(day_buf, sizeof(day_buf), "%a", t);
-      snprintf(mday_buf, sizeof(mday_buf), "%d", t->tm_mday);
-      snprintf(buf, sizeof(buf), "%s %s", day_buf, mday_buf);
-      dynamic_color = main_color; // no natural "value" to grade on
-      break;
-    }
-    case 13: { // location name
-      icon_kind = 8;
-      snprintf(buf, sizeof(buf), "%s", data->location_name[0] != '\0' ? data->location_name : "Unknown");
-      dynamic_color = main_color; // no natural "value" to grade on
-      break;
-    }
-    case 14: { // visibility ("chance you'll actually see it" score)
-      icon_kind = 9;
-      snprintf(buf, sizeof(buf), "%d%%", data->vis_score_pct);
-      dynamic_color = red_green_gradient(data->vis_score_pct);
-      break;
-    }
-    case 15: { // cloud cover
-      icon_kind = 10;
-      snprintf(buf, sizeof(buf), "%d%%", data->cloud_cover_pct);
-      dynamic_color = overcast_gray_gradient(data->cloud_cover_pct < OVERCAST_CLOUD_THRESHOLD ? OVERCAST_CLOUD_THRESHOLD : data->cloud_cover_pct);
-      break;
-    }
-    case 16: { // sunrise/sunset -- same event/icon as the digital/analog info panel's row
-      icon_kind = 11;
-      time_t now = time(NULL);
-      time_t sun_event_time = 0;
-      if (get_next_sun_event(now, data->sun_rise, data->sun_set, data->sun_rise_tomorrow, &sun_event_time, &icon_is_sunrise)) {
-        struct tm *event_t = localtime(&sun_event_time);
-        strftime(buf, sizeof(buf), clock_is_24h_style() ? "%H:%M" : "%I:%M", event_t);
-      } else {
-        snprintf(buf, sizeof(buf), "--:--");
-      }
-      dynamic_color = main_color; // no natural "value" to grade on
-      break;
-    }
-    case 17: { // pebble battery logo
-      icon_kind = 12;
+    case 17: { // pebble battery logo -- icon draws its own fill bar, no separate text
       BatteryChargeState bs = battery_state_service_peek();
-      dynamic_color = red_green_gradient((uint8_t)bs.charge_percent);
-      break;
+      GColor dyn = bs.is_charging ? GColorGreen : red_green_gradient((uint8_t)bs.charge_percent);
+      GColor c = resolve_flat_color(color_mode, dyn, main_color, accent_color);
+      slot->segment_count = 1;
+      RenderSegment seg = make_icon_segment(12, c);
+      seg.icon_extra = bs.charge_percent;
+      seg.icon_flag = bs.is_charging;
+      slot->segments[0] = seg;
+      return;
     }
-    case 18: { // digital time
-      time_t now = time(NULL);
-      struct tm *t = localtime(&now);
-      strftime(buf, sizeof(buf), clock_is_24h_style() ? "%H:%M" : "%I:%M %p", t);
-      dynamic_color = seven_stop_gradient((int32_t)(t->tm_hour*60+t->tm_min), 0, 1440);
-      break;
-    }
-    case 19: { // week number
-      time_t now = time(NULL);
-      struct tm *t = localtime(&now);
-      strftime(buf, sizeof(buf), "WK %V", t);
-      dynamic_color = seven_stop_gradient((int32_t)(t->tm_yday), 0, 360);
-      break;
-    }
-    case 20: { // Bluetooth connection status
-      icon_kind = 13;
+    case 20: { // Bluetooth connection status -- always its own dynamic color, ignores color_mode
       bool connected = connection_service_peek_pebble_app_connection();
-      snprintf(buf, sizeof(buf), "%s", connected ? "Connected" : "No phone");
-      // Bright, saturated colors deliberately outside the muted palettes
-      // used elsewhere (this is a binary connected/not state, not
-      // something to grade smoothly along a gradient).
-      dynamic_color = connected ? GColorFromRGB(64, 224, 208) : GColorFromRGB(255, 0, 0);
-      break;
+      GColor c = connected ? GColorFromRGB(64, 224, 208) : GColorFromRGB(255, 0, 0);
+      slot->segment_count = 2;
+      slot->segments[0] = make_icon_segment(13, c);
+      slot->segments[1] = make_text_segment(connected ? "Connected" : "No phone", c);
+      return;
     }
-    // ---- date format variants (21-30) -- none of these have a natural
-    // "value" to grade a color on, so they all just take main_color,
-    // same as the original short-date (case 12).
-    case 21: { // month + day, e.g. "SEP 11"
-      time_t now = time(NULL);
-      struct tm *t = localtime(&now);
-      char mon_buf[4];
-      strftime(mon_buf, sizeof(mon_buf), "%b", t);
-      to_upper_str(mon_buf);
-      snprintf(buf, sizeof(buf), "%s %d", mon_buf, t->tm_mday);
-      dynamic_color = main_color;
-      break;
+    case 78: { // Bluetooth, icon only -- same always-dynamic color as 20
+      bool connected = connection_service_peek_pebble_app_connection();
+      GColor c = connected ? GColorFromRGB(64, 224, 208) : GColorFromRGB(255, 0, 0);
+      slot->segment_count = 1;
+      slot->segments[0] = make_icon_segment(13, c);
+      return;
     }
-    case 22: { // day of month only, e.g. "11"
-      time_t now = time(NULL);
-      struct tm *t = localtime(&now);
-      snprintf(buf, sizeof(buf), "%d", t->tm_mday);
-      dynamic_color = main_color;
-      break;
-    }
-    case 23: { // weekday, short + all caps, e.g. "MON"
-      time_t now = time(NULL);
-      struct tm *t = localtime(&now);
-      strftime(buf, sizeof(buf), "%a", t);
-      to_upper_str(buf);
-      dynamic_color = main_color;
-      break;
-    }
-    case 24: { // weekday, long, e.g. "Monday"
-      time_t now = time(NULL);
-      struct tm *t = localtime(&now);
-      strftime(buf, sizeof(buf), "%A", t);
-      dynamic_color = main_color;
-      break;
-    }
-    case 25: { // month, short + all caps, e.g. "SEP"
-      time_t now = time(NULL);
-      struct tm *t = localtime(&now);
-      strftime(buf, sizeof(buf), "%b", t);
-      to_upper_str(buf);
-      dynamic_color = main_color;
-      break;
-    }
-    case 26: { // month, long, e.g. "September"
-      time_t now = time(NULL);
-      struct tm *t = localtime(&now);
-      strftime(buf, sizeof(buf), "%B", t);
-      dynamic_color = main_color;
-      break;
-    }
-    case 27: { // day/month, e.g. "11/9"
-      time_t now = time(NULL);
-      struct tm *t = localtime(&now);
-      snprintf(buf, sizeof(buf), "%d/%d", t->tm_mday, t->tm_mon + 1);
-      dynamic_color = main_color;
-      break;
-    }
-    case 28: { // month/day, e.g. "9/11"
-      time_t now = time(NULL);
-      struct tm *t = localtime(&now);
-      snprintf(buf, sizeof(buf), "%d/%d", t->tm_mon + 1, t->tm_mday);
-      dynamic_color = main_color;
-      break;
-    }
-    case 29: { // full, day/month/year, e.g. "24/9/2026"
-      time_t now = time(NULL);
-      struct tm *t = localtime(&now);
-      snprintf(buf, sizeof(buf), "%d/%d/%d", t->tm_mday, t->tm_mon + 1, t->tm_year + 1900);
-      dynamic_color = main_color;
-      break;
-    }
-    case 30: { // full imperial, month/day/2-digit year, e.g. "9/24/26"
-      time_t now = time(NULL);
-      struct tm *t = localtime(&now);
-      snprintf(buf, sizeof(buf), "%d/%d/%02d", t->tm_mon + 1, t->tm_mday, (t->tm_year + 1900) % 100);
-      dynamic_color = main_color;
-      break;
-    }
-    case 31: { // weather icon only, no text
-      icon_kind = 14;
-      icon_weather_category = weather_icon_category(data->weather_condition, data->cloud_cover_pct);
-      buf[0] = '\0';
-      dynamic_color = data->valid
-        ? weather_condition_color(data->weather_condition, data->cloud_cover_pct, data->rain_chance_pct)
-        : bg_color;
-      break;
-    }
-    case 32: { // temp + weather icon
-      icon_kind = 14;
-      icon_weather_category = weather_icon_category(data->weather_condition, data->cloud_cover_pct);
-      int16_t temp = convert_temp(data->weather_temp_c, data->temp_unit);
-      snprintf(buf, sizeof(buf), "%d%s", temp, temp_unit_suffix(data->temp_unit));
-      dynamic_color = data->valid
-        ? weather_condition_color(data->weather_condition, data->cloud_cover_pct, data->rain_chance_pct)
-        : bg_color;
-      break;
-    }
-    // Timezone -- "ABBR H:MM" (or "ABBR HH:MM" in 24h style). Each of
-    // the 19 cities is its OWN content id (44-62, right after the
-    // highest id already in use, in the same order as TIMEZONES[]
-    // below) rather than one "Timezone" id plus a shared setting
-    // picking which city -- that's what makes this genuinely
-    // independent per slot: two different slots can each pick a
-    // different city and show both at once, since the city is baked
-    // into which content id was chosen, not a single global choice
-    // every "Timezone" slot would otherwise have to share. (id 33,
-    // the old single "Timezone" placeholder, is simply retired rather
-    // than reused -- ids 34-43 are already taken by other features
-    // added since, so 44 is the first id actually free.)
-    case 44: case 45: case 46: case 47: case 48: case 49: case 50: case 51: case 52: case 53:
-    case 54: case 55: case 56: case 57: case 58: case 59: case 60: case 61: case 62: {
-      const TimezoneInfo *tz = &TIMEZONES[content - 44];
-      time_t now = time(NULL);
-      int16_t offset_min = timezone_current_offset_min(tz, now);
-      time_t local_time = now + (int32_t)offset_min * 60;
-      int32_t local_secs_of_day = ((local_time % 86400) + 86400) % 86400;
-      int local_hour24 = (int)(local_secs_of_day / 3600);
-      int local_min = (int)((local_secs_of_day % 3600) / 60);
-      if (clock_is_24h_style()) {
-        snprintf(buf, sizeof(buf), "%s %02d:%02d", tz->abbr, local_hour24, local_min);
-      } else {
-        int hour12 = local_hour24 % 12;
-        if (hour12 == 0) hour12 = 12;
-        snprintf(buf, sizeof(buf), "%s %d:%02d%s", tz->abbr, hour12, local_min, local_hour24 < 12 ? "AM" : "PM");
-      }
-      dynamic_color = timezone_daylight_color(local_hour24);
-      break;
-    }
-    case 34: { // pressure, with rising/falling/flat trend arrow
-      icon_kind = 15;
-      snprintf(buf, sizeof(buf), "%d hPa", data->pressure_hpa);
-      // Green when in the ordinary ~1000-1025 hPa band, ambering out
-      // toward either extreme -- reuses the same 7-stop gradient as
-      // temperature/UV, just remapped to a pressure-appropriate range.
-      dynamic_color = seven_stop_gradient(data->pressure_hpa, 970, 1050);
-      break;
-    }
-    case 35: { // wind direction, with a rotated compass arrow
-      icon_kind = 16;
-      static const char *COMPASS_DIRS[8] = { "N", "NE", "E", "SE", "S", "SW", "W", "NW" };
-      int compass_idx = ((data->wind_dir_deg + 22) / 45) % 8;
-      if (compass_idx < 0) compass_idx += 8;
-      snprintf(buf, sizeof(buf), "%s", COMPASS_DIRS[compass_idx]);
-      dynamic_color = main_color; // no natural "value" to grade a color on
-      break;
-    }
-    case 36: { // air quality -- unit picked in the Weather settings section
-      bool use_eu = (data->aqi_unit == 1);
-      uint16_t aqi_value = use_eu ? data->aqi_eu : data->aqi_us;
-      snprintf(buf, sizeof(buf), "AQI %d", aqi_value);
-      // US AQI: good <=50, moderate <=100, unhealthy >150 (0-500 scale).
-      // European AQI: good <=20, moderate <=40, poor >60 (0-100+ scale).
-      // Different thresholds per scale, same green->yellow->red shape.
-      uint16_t good_max = use_eu ? 20 : 50;
-      uint16_t bad_min = use_eu ? 60 : 150;
-      GColor good = GColorFromRGB(0, 200, 0), mid = GColorFromRGB(230, 200, 0), bad = GColorFromRGB(220, 0, 0);
-      if (aqi_value <= good_max) dynamic_color = good;
-      else if (aqi_value >= bad_min) dynamic_color = bad;
-      else dynamic_color = mid;
-      break;
-    }
-    case 37: { // dew point -- reuses the humidity feature's droplet icon
-      icon_kind = 6;
-      int16_t dew = convert_temp(data->dew_point_c, data->temp_unit);
-      snprintf(buf, sizeof(buf), "%d%s", dew, temp_unit_suffix(data->temp_unit));
-      dynamic_color = main_color;
-      break;
-    }
-    case 38: { // altitude
-      icon_kind = 17;
-      if (data->altitude_m <= -32000) { // sentinel: not available
-        snprintf(buf, sizeof(buf), "N/A");
-      } else if (data->altitude_unit == 1) { // feet
-        int32_t feet = ((int32_t)data->altitude_m * 328) / 100; // *3.28084, integer approximation
-        snprintf(buf, sizeof(buf), "%ldft", (long)feet);
-      } else {
-        snprintf(buf, sizeof(buf), "%dm", data->altitude_m);
-      }
-      dynamic_color = main_color;
-      break;
-    }
-    case 39: { // sleep duration (total)
-      icon_kind = 21;
-      HealthServiceAccessibilityMask mask = health_service_metric_accessible(HealthMetricSleepSeconds, time(NULL) - 86400, time(NULL));
-      if (mask & HealthServiceAccessibilityMaskAvailable) {
-        HealthValue secs = health_service_sum_today(HealthMetricSleepSeconds);
+    case 39: case 40: { // sleep duration (total, 39) / restful (deep) sleep duration (40)
+      HealthMetric metric = (content == 39) ? HealthMetricSleepSeconds : HealthMetricSleepRestfulSeconds;
+      int32_t range_secs = (content == 39) ? 9 * 3600 : 3 * 3600;
+      uint8_t icon_kind = (content == 39) ? 21 : 22;
+      GColor c;
+      if (health_metric_available(metric)) {
+        HealthValue secs = health_service_sum_today(metric);
         format_duration_hm(buf, sizeof(buf), (int32_t)secs);
-        dynamic_color = seven_stop_gradient_reversed((int32_t)secs, 0, 9 * 3600); // 0-9h
+        c = resolve_flat_color(color_mode, seven_stop_gradient_reversed((int32_t)secs, 0, range_secs), main_color, accent_color);
       } else {
         snprintf(buf, sizeof(buf), "N/A");
-        dynamic_color = GColorLightGray;
+        c = GColorLightGray;
       }
-      break;
-    }
-    case 40: { // restful (deep) sleep duration
-      icon_kind = 22;
-      HealthServiceAccessibilityMask mask = health_service_metric_accessible(HealthMetricSleepRestfulSeconds, time(NULL) - 86400, time(NULL));
-      if (mask & HealthServiceAccessibilityMaskAvailable) {
-        HealthValue secs = health_service_sum_today(HealthMetricSleepRestfulSeconds);
-        format_duration_hm(buf, sizeof(buf), (int32_t)secs);
-        dynamic_color = seven_stop_gradient_reversed((int32_t)secs, 0, 3 * 3600); // 0-3h
-      } else {
-        snprintf(buf, sizeof(buf), "N/A");
-        dynamic_color = GColorLightGray;
-      }
-      break;
+      slot->segment_count = 2;
+      slot->segments[0] = make_icon_segment(icon_kind, c);
+      slot->segments[1] = make_text_segment(buf, c);
+      return;
     }
     case 41: { // sleep quality -- restful / total, as a percentage
-      icon_kind = 20;
-      HealthServiceAccessibilityMask mask = health_service_metric_accessible(HealthMetricSleepSeconds, time(NULL) - 86400, time(NULL));
-      if (mask & HealthServiceAccessibilityMaskAvailable) {
+      GColor c;
+      if (health_metric_available(HealthMetricSleepSeconds)) {
         HealthValue total = health_service_sum_today(HealthMetricSleepSeconds);
         HealthValue restful = health_service_sum_today(HealthMetricSleepRestfulSeconds);
         int pct = (total > 0) ? (int)((restful * 100) / total) : 0;
         if (pct > 100) pct = 100;
         snprintf(buf, sizeof(buf), "%d%%", pct);
-        dynamic_color = red_green_gradient((uint8_t)pct);
+        c = resolve_flat_color(color_mode, red_green_gradient((uint8_t)pct), main_color, accent_color);
       } else {
         snprintf(buf, sizeof(buf), "N/A");
-        dynamic_color = GColorLightGray;
+        c = GColorLightGray;
       }
-      break;
+      slot->segment_count = 2;
+      slot->segments[0] = make_icon_segment(20, c);
+      slot->segments[1] = make_text_segment(buf, c);
+      return;
     }
-    case 42: { // bed time -- earliest sleep-activity start in the last 24h
-      icon_kind = 18;
+    case 42: case 43: { // bed time (42) / wake time (43) -- day/night graded
       SleepSpan span = get_sleep_span();
+      time_t event = (content == 42) ? span.earliest_start : span.latest_end;
+      uint8_t icon_kind = (content == 42) ? 18 : 19;
+      GColor c;
       if (span.found) {
-        struct tm *t = localtime(&span.earliest_start);
-        strftime(buf, sizeof(buf), clock_is_24h_style() ? "%H:%M" : "%I:%M %p", t);
-        dynamic_color = main_color;
+        struct tm *et = localtime(&event);
+        strftime(buf, sizeof(buf), clock_is_24h_style() ? "%H:%M" : "%I:%M %p", et);
+        c = resolve_flat_color(color_mode, daynight_gradient(event, data->sun_rise, data->sun_set), main_color, accent_color);
       } else {
         snprintf(buf, sizeof(buf), "N/A");
-        dynamic_color = GColorLightGray;
+        c = GColorLightGray;
       }
-      break;
+      slot->segment_count = 2;
+      slot->segments[0] = make_icon_segment(icon_kind, c);
+      slot->segments[1] = make_text_segment(buf, c);
+      return;
     }
-    case 43: { // wake time -- latest sleep-activity end in the last 24h
-      icon_kind = 19;
-      SleepSpan span = get_sleep_span();
-      if (span.found) {
-        struct tm *t = localtime(&span.latest_end);
-        strftime(buf, sizeof(buf), clock_is_24h_style() ? "%H:%M" : "%I:%M %p", t);
-        dynamic_color = main_color;
+    default:
+      slot->segment_count = 0;
+      return;
+  }
+}
+
+// ---- weather cluster: temperature, conditions, UV, rain/wind/humidity,
+// pressure/AQI/visibility/cloud cover, and the "last weather update"
+// readouts. All of these (per content_is_weather_derived() below) can
+// be overridden wholesale to a red "ERR ###" by
+// features_recompute_slot_value()'s shared tail once this function
+// returns, so nothing in here needs to check for a fetch error itself.
+
+static void compute_weather_value(FeatureSlot *slot, uint8_t content, const EclipseData *data,
+                                   uint8_t color_mode, GColor main_color, GColor accent_color, GColor bg_color) {
+  char buf[24];
+  GColor cond_color = data->valid
+    ? weather_condition_color(data->weather_condition, data->cloud_cover_pct, data->rain_chance_pct)
+    : bg_color;
+
+  switch (content) {
+    case 4: { // high/low temperature
+      int16_t hi = convert_temp(data->temp_high_c, data->temp_unit);
+      int16_t lo = convert_temp(data->temp_low_c, data->temp_unit);
+      if (color_mode == 3) {
+        // "color" mode splits high and low into their own independently
+        // gradient-colored segments instead of sharing one flat color.
+        char hi_buf[8], lo_buf[8];
+        snprintf(hi_buf, sizeof(hi_buf), "H%d", hi);
+        snprintf(lo_buf, sizeof(lo_buf), "L%d", lo);
+        slot->segment_count = 2;
+        slot->segments[0] = make_text_segment(hi_buf, seven_stop_gradient(data->temp_high_c, -10, 40));
+        slot->segments[1] = make_text_segment(lo_buf, seven_stop_gradient(data->temp_low_c, -10, 40));
       } else {
-        snprintf(buf, sizeof(buf), "N/A");
-        dynamic_color = GColorLightGray;
+        snprintf(buf, sizeof(buf), "H%d L%d", hi, lo);
+        slot->segment_count = 1;
+        slot->segments[0] = make_text_segment(buf, resolve_flat_color(color_mode, main_color, main_color, accent_color));
       }
-      break;
+      return;
     }
-    // ---- date/time component variants (63-72) -- like the date
-    // formats above, none of these have a natural "value" to grade a
-    // color on, so they all just take main_color.
-    case 63: { // full time, e.g. "14:32:07" / "2:32:07 PM"
-      time_t now = time(NULL);
-      struct tm *t = localtime(&now);
-      strftime(buf, sizeof(buf), clock_is_24h_style() ? "%H:%M:%S" : "%I:%M:%S %p", t);
-      dynamic_color = main_color;
-      break;
+    case 5: { // current conditions
+      int16_t temp = convert_temp(data->weather_temp_c, data->temp_unit);
+      snprintf(buf, sizeof(buf), "%d%s %s", temp, temp_unit_suffix(data->temp_unit),
+               short_condition_text(data->weather_condition, data->cloud_cover_pct));
+      slot->segment_count = 1;
+      slot->segments[0] = make_text_segment(buf, resolve_flat_color(color_mode, cond_color, main_color, accent_color));
+      return;
     }
-    case 64: { // hour, always 2 digits (24h), e.g. "07"
-      time_t now = time(NULL);
-      struct tm *t = localtime(&now);
-      snprintf(buf, sizeof(buf), "%02d", t->tm_hour);
-      dynamic_color = main_color;
-      break;
+    case 6: { // UV index
+      uint8_t uv = data->uv_index_x10 / 10;
+      snprintf(buf, sizeof(buf), "UV%d", uv);
+      slot->segment_count = 1;
+      slot->segments[0] = make_text_segment(buf, resolve_flat_color(color_mode, seven_stop_gradient(uv, 1, 13), main_color, accent_color));
+      return;
     }
-    case 65: { // hour, no leading zero (24h), e.g. "7"
-      time_t now = time(NULL);
-      struct tm *t = localtime(&now);
-      snprintf(buf, sizeof(buf), "%d", t->tm_hour);
-      dynamic_color = main_color;
-      break;
+    case 7: { // rain chance
+      snprintf(buf, sizeof(buf), "%d%%", data->rain_chance_pct);
+      GColor c = resolve_flat_color(color_mode, white_to_turquoise_gradient(data->rain_chance_pct, 0, 100), main_color, accent_color);
+      slot->segment_count = 2;
+      slot->segments[0] = make_icon_segment(5, c);
+      slot->segments[1] = make_text_segment(buf, c);
+      return;
     }
-    case 66: { // hour, 12h mode, no leading zero, e.g. "7"
-      time_t now = time(NULL);
-      struct tm *t = localtime(&now);
-      int hour12 = t->tm_hour % 12;
-      if (hour12 == 0) hour12 = 12;
-      snprintf(buf, sizeof(buf), "%d", hour12);
-      dynamic_color = main_color;
-      break;
+    case 8: { // humidity
+      snprintf(buf, sizeof(buf), "%d%%", data->humidity_pct);
+      GColor c = resolve_flat_color(color_mode, white_to_turquoise_gradient(data->humidity_pct, 0, 100), main_color, accent_color);
+      slot->segment_count = 2;
+      slot->segments[0] = make_icon_segment(6, c);
+      slot->segments[1] = make_text_segment(buf, c);
+      return;
     }
-    case 67: { // minute, no leading zero, e.g. "5"
-      time_t now = time(NULL);
-      struct tm *t = localtime(&now);
-      snprintf(buf, sizeof(buf), "%d", t->tm_min);
-      dynamic_color = main_color;
-      break;
+    case 9: { // wind speed
+      snprintf(buf, sizeof(buf), "%d", convert_wind(data->wind_speed_kmh, data->wind_speed_unit));
+      GColor c = resolve_flat_color(color_mode, white_to_turquoise_gradient(data->wind_speed_kmh, 0, 60), main_color, accent_color);
+      slot->segment_count = 2;
+      slot->segments[0] = make_icon_segment(7, c);
+      slot->segments[1] = make_text_segment(buf, c);
+      return;
     }
-    case 68: { // minute, leading zero, e.g. "05"
-      time_t now = time(NULL);
-      struct tm *t = localtime(&now);
-      snprintf(buf, sizeof(buf), "%02d", t->tm_min);
-      dynamic_color = main_color;
-      break;
+    case 14: { // visibility -- grayscale, like cloud cover (vis_score_pct is sent as 100-cloud%)
+      snprintf(buf, sizeof(buf), "%d%%", data->vis_score_pct);
+      uint8_t equiv_cloud_pct = 100 - data->vis_score_pct;
+      GColor dyn = overcast_gray_gradient(equiv_cloud_pct < OVERCAST_CLOUD_THRESHOLD ? OVERCAST_CLOUD_THRESHOLD : equiv_cloud_pct);
+      GColor c = resolve_flat_color(color_mode, dyn, main_color, accent_color);
+      slot->segment_count = 2;
+      slot->segments[0] = make_icon_segment(9, c);
+      slot->segments[1] = make_text_segment(buf, c);
+      return;
     }
-    case 69: { // second, no leading zero, e.g. "8"
-      time_t now = time(NULL);
-      struct tm *t = localtime(&now);
-      snprintf(buf, sizeof(buf), "%d", t->tm_sec);
-      dynamic_color = main_color;
-      break;
+    case 15: { // cloud cover
+      snprintf(buf, sizeof(buf), "%d%%", data->cloud_cover_pct);
+      GColor dyn = overcast_gray_gradient(data->cloud_cover_pct < OVERCAST_CLOUD_THRESHOLD ? OVERCAST_CLOUD_THRESHOLD : data->cloud_cover_pct);
+      GColor c = resolve_flat_color(color_mode, dyn, main_color, accent_color);
+      slot->segment_count = 2;
+      slot->segments[0] = make_icon_segment(10, c);
+      slot->segments[1] = make_text_segment(buf, c);
+      return;
     }
-    case 70: { // second, leading zero, e.g. "08"
-      time_t now = time(NULL);
-      struct tm *t = localtime(&now);
-      snprintf(buf, sizeof(buf), "%02d", t->tm_sec);
-      dynamic_color = main_color;
-      break;
+    case 31: { // weather icon only, no text
+      GColor c = resolve_flat_color(color_mode, cond_color, main_color, accent_color);
+      RenderSegment seg = make_icon_segment(14, c);
+      seg.icon_extra = weather_icon_category(data->weather_condition, data->cloud_cover_pct);
+      slot->segment_count = 1;
+      slot->segments[0] = seg;
+      return;
     }
-    case 71: { // seconds, tens digit only (0-5)
-      time_t now = time(NULL);
-      struct tm *t = localtime(&now);
-      snprintf(buf, sizeof(buf), "%d", t->tm_sec / 10);
-      dynamic_color = main_color;
-      break;
-    }
-    case 72: { // seconds, singles digit only (0-9)
-      time_t now = time(NULL);
-      struct tm *t = localtime(&now);
-      snprintf(buf, sizeof(buf), "%d", t->tm_sec % 10);
-      dynamic_color = main_color;
-      break;
-    }
-    // ---- weather temperature variants (73-77) -- all graded on the
-    // same -10..40C 7-stop gradient the existing temperature content
-    // types use ("color" mode), rather than the condition-driven
-    // palette the weather-icon content types (31/32) use.
-    case 73: { // current temp only, e.g. "22C"
+    case 32: { // temp + weather icon -- condition-based color, same as 5/31
       int16_t temp = convert_temp(data->weather_temp_c, data->temp_unit);
       snprintf(buf, sizeof(buf), "%d%s", temp, temp_unit_suffix(data->temp_unit));
-      dynamic_color = seven_stop_gradient(data->weather_temp_c, -10, 40);
-      break;
+      GColor c = resolve_flat_color(color_mode, cond_color, main_color, accent_color);
+      RenderSegment icon_seg = make_icon_segment(14, c);
+      icon_seg.icon_extra = weather_icon_category(data->weather_condition, data->cloud_cover_pct);
+      slot->segment_count = 2;
+      slot->segments[0] = icon_seg;
+      slot->segments[1] = make_text_segment(buf, c);
+      return;
     }
-    case 74: { // high temp only, e.g. "H 28C"
-      int16_t hi = convert_temp(data->temp_high_c, data->temp_unit);
-      snprintf(buf, sizeof(buf), "H %d%s", hi, temp_unit_suffix(data->temp_unit));
-      dynamic_color = seven_stop_gradient(data->temp_high_c, -10, 40);
-      break;
+    case 34: { // pressure, with rising/falling/flat trend arrow
+      snprintf(buf, sizeof(buf), "%d hPa", data->pressure_hpa);
+      GColor c = resolve_flat_color(color_mode, seven_stop_gradient(data->pressure_hpa, 970, 1050), main_color, accent_color);
+      RenderSegment seg = make_icon_segment(15, c);
+      seg.icon_extra = data->pressure_trend;
+      slot->segment_count = 2;
+      slot->segments[0] = seg;
+      slot->segments[1] = make_text_segment(buf, c);
+      return;
     }
-    case 75: { // low temp only, e.g. "L 11C"
-      int16_t lo = convert_temp(data->temp_low_c, data->temp_unit);
-      snprintf(buf, sizeof(buf), "L %d%s", lo, temp_unit_suffix(data->temp_unit));
-      dynamic_color = seven_stop_gradient(data->temp_low_c, -10, 40);
-      break;
+    case 35: { // wind direction, with a rotated compass arrow
+      static const char *COMPASS_DIRS[8] = { "N", "NE", "E", "SE", "S", "SW", "W", "NW" };
+      int idx = ((data->wind_dir_deg + 22) / 45) % 8;
+      if (idx < 0) idx += 8;
+      snprintf(buf, sizeof(buf), "%s", COMPASS_DIRS[idx]);
+      GColor c = resolve_flat_color(color_mode, main_color, main_color, accent_color);
+      RenderSegment seg = make_icon_segment(16, c);
+      seg.icon_extra = data->wind_dir_deg;
+      slot->segment_count = 2;
+      slot->segments[0] = seg;
+      slot->segments[1] = make_text_segment(buf, c);
+      return;
     }
-    case 76: { // weather icon + current/high/low all in one line
-      icon_kind = 14;
-      icon_weather_category = weather_icon_category(data->weather_condition, data->cloud_cover_pct);
+    case 36: { // air quality -- shared 7-stop gradient, remapped per scale
+      bool use_eu = (data->aqi_unit == 1);
+      uint16_t aqi_value = use_eu ? data->aqi_eu : data->aqi_us;
+      snprintf(buf, sizeof(buf), "AQI %d", aqi_value);
+      GColor c = resolve_flat_color(color_mode, seven_stop_gradient(aqi_value, 0, use_eu ? 100 : 300), main_color, accent_color);
+      slot->segment_count = 1;
+      slot->segments[0] = make_text_segment(buf, c);
+      return;
+    }
+    case 37: { // dew point -- reuses the humidity feature's droplet icon
+      int16_t dew = convert_temp(data->dew_point_c, data->temp_unit);
+      snprintf(buf, sizeof(buf), "%d%s", dew, temp_unit_suffix(data->temp_unit));
+      GColor c = resolve_flat_color(color_mode, main_color, main_color, accent_color);
+      slot->segment_count = 2;
+      slot->segments[0] = make_icon_segment(6, c);
+      slot->segments[1] = make_text_segment(buf, c);
+      return;
+    }
+    case 38: { // altitude -- white(sea level)->turquoise(high) gradient
+      GColor c;
+      if (data->altitude_m <= -32000) { // sentinel: not available
+        snprintf(buf, sizeof(buf), "N/A");
+        c = GColorLightGray;
+      } else {
+        if (data->altitude_unit == 1) { // feet
+          int32_t feet = ((int32_t)data->altitude_m * 328) / 100; // *3.28084, integer approximation
+          snprintf(buf, sizeof(buf), "%ldft", (long)feet);
+        } else {
+          snprintf(buf, sizeof(buf), "%dm", data->altitude_m);
+        }
+        c = resolve_flat_color(color_mode, altitude_gradient(data->altitude_m), main_color, accent_color);
+      }
+      slot->segment_count = 2;
+      slot->segments[0] = make_icon_segment(17, c);
+      slot->segments[1] = make_text_segment(buf, c);
+      return;
+    }
+    case 73: case 74: case 75: case 77: { // current/high/low/feels-like temp only -- all 7-stop, -10..40C
+      int16_t temp_c, shown;
+      const char *prefix = "";
+      if (content == 73) { temp_c = data->weather_temp_c; shown = convert_temp(temp_c, data->temp_unit); }
+      else if (content == 74) { temp_c = data->temp_high_c; shown = convert_temp(temp_c, data->temp_unit); prefix = "H "; }
+      else if (content == 75) { temp_c = data->temp_low_c; shown = convert_temp(temp_c, data->temp_unit); prefix = "L "; }
+      else { temp_c = apparent_temp_c(data->weather_temp_c, data->wind_speed_kmh, data->humidity_pct); shown = convert_temp(temp_c, data->temp_unit); prefix = "FL "; }
+      snprintf(buf, sizeof(buf), "%s%d%s", prefix, shown, temp_unit_suffix(data->temp_unit));
+      GColor c = resolve_flat_color(color_mode, seven_stop_gradient(temp_c, -10, 40), main_color, accent_color);
+      slot->segment_count = 1;
+      slot->segments[0] = make_text_segment(buf, c);
+      return;
+    }
+    case 76: { // weather icon + current/high/low all in one line -- "mixed" value, condition-based color
       int16_t cur = convert_temp(data->weather_temp_c, data->temp_unit);
       int16_t hi = convert_temp(data->temp_high_c, data->temp_unit);
       int16_t lo = convert_temp(data->temp_low_c, data->temp_unit);
       snprintf(buf, sizeof(buf), "%d H%d L%d%s", cur, hi, lo, temp_unit_suffix(data->temp_unit));
-      dynamic_color = seven_stop_gradient(data->weather_temp_c, -10, 40);
-      break;
+      GColor c = resolve_flat_color(color_mode, cond_color, main_color, accent_color);
+      RenderSegment icon_seg = make_icon_segment(14, c);
+      icon_seg.icon_extra = weather_icon_category(data->weather_condition, data->cloud_cover_pct);
+      slot->segment_count = 2;
+      slot->segments[0] = icon_seg;
+      slot->segments[1] = make_text_segment(buf, c);
+      return;
     }
-    case 77: { // feels-like temp, e.g. "FL 20C"
-      int16_t felt_c = apparent_temp_c(data->weather_temp_c, data->wind_speed_kmh, data->humidity_pct);
-      int16_t felt = convert_temp(felt_c, data->temp_unit);
-      snprintf(buf, sizeof(buf), "FL %d%s", felt, temp_unit_suffix(data->temp_unit));
-      dynamic_color = seven_stop_gradient(felt_c, -10, 40);
-      break;
-    }
-    // Icon-only Bluetooth status -- unlike content 20 (which always
-    // shows "Connected"/"No phone" text in whatever color mode was
-    // picked), this one only ever draws its dynamic connected/
-    // disconnected color: see the color_mode override right after
-    // this switch, below.
-    case 78: {
-      icon_kind = 13;
-      buf[0] = '\0';
-      bool connected = connection_service_peek_pebble_app_connection();
-      dynamic_color = connected ? GColorFromRGB(64, 224, 208) : GColorFromRGB(255, 0, 0);
-      break;
-    }
-    // ---- astronomy features (79-83) -- all built from data already
-    // being sent every refresh for the sky-view animation itself
-    // (planet altitude samples/rise/set, Saturn's ring angle, the
-    // active meteor shower) except 83, which needed a genuinely new
-    // phone-side computation (see astro.js's findNextIssPass()) since
-    // only a single current-moment ISS snapshot existed before.
-    case 79: { // how many of the 5 tracked planets are above the horizon right now
-      icon_kind = 23;
+    case 93: case 94: { // last weather update time, long (93, "Last updated 12:34") / short (94, "12:34")
+      GColor dyn;
       time_t now = time(NULL);
-      uint8_t count = background_count_visible_planets(data, now);
-      snprintf(buf, sizeof(buf), "%d planet%s", count, count == 1 ? "" : "s");
-      dynamic_color = main_color;
-      break;
-    }
-    case 80: { // active meteor shower name, if any -- graded by intensity like a percentage
-      if (data->meteor_intensity > 0 && data->meteor_shower_name[0] != '\0') {
-        snprintf(buf, sizeof(buf), "%s", data->meteor_shower_name);
-        dynamic_color = red_green_gradient(data->meteor_intensity);
+      if (data->weather_last_update > 0) {
+        struct tm *ut = localtime(&data->weather_last_update);
+        char time_buf[8];
+        strftime(time_buf, sizeof(time_buf), clock_is_24h_style() ? "%H:%M" : "%I:%M", ut);
+        if (content == 93) snprintf(buf, sizeof(buf), "Last updated %s", time_buf);
+        else snprintf(buf, sizeof(buf), "%s", time_buf);
       } else {
-        snprintf(buf, sizeof(buf), "None");
-        dynamic_color = GColorLightGray;
+        snprintf(buf, sizeof(buf), "N/A");
       }
+      dyn = weather_staleness_gradient(now, data->weather_last_update);
+      slot->segment_count = 1;
+      slot->segments[0] = make_text_segment(buf, resolve_flat_color(color_mode, dyn, main_color, accent_color));
+      return;
+    }
+    default:
+      slot->segment_count = 0;
+      return;
+  }
+}
+
+// ---- date/time cluster -------------------------------------------------
+
+static void compute_date_value(FeatureSlot *slot, uint8_t content, const EclipseData *data,
+                                uint8_t color_mode, GColor main_color, GColor accent_color, time_t now, struct tm *t) {
+  char buf[24];
+  GColor dyn = main_color;
+
+  switch (content) {
+    case 12: { // short date (multi-value), e.g. "Mon 15"
+      char day_buf[4];
+      strftime(day_buf, sizeof(day_buf), "%a", t);
+      snprintf(buf, sizeof(buf), "%s %d", day_buf, t->tm_mday);
+      dyn = date_year_progress_gradient(t);
       break;
     }
-    case 81: { // Saturn's current ring-opening angle (0% = edge-on, 100% = fully open)
-      icon_kind = 24;
-      snprintf(buf, sizeof(buf), "Rings %d%%", data->saturn_ring_open_pct);
-      dynamic_color = main_color;
+    case 18: { // digital time ("Time") -- day/night gradient off the actual sunrise/sunset
+      strftime(buf, sizeof(buf), clock_is_24h_style() ? "%H:%M" : "%I:%M %p", t);
+      dyn = daynight_gradient(now, data->sun_rise, data->sun_set);
       break;
+    }
+    case 19: { // week number (single-value) -- 7-stop gradient over its own 1-52 range
+      char wk_buf[4];
+      strftime(wk_buf, sizeof(wk_buf), "%V", t);
+      snprintf(buf, sizeof(buf), "WK %s", wk_buf);
+      dyn = seven_stop_gradient(atoi(wk_buf), 1, 52);
+      break;
+    }
+    case 21: { // month + day (multi-value), e.g. "SEP 11"
+      char mon_buf[4];
+      strftime(mon_buf, sizeof(mon_buf), "%b", t);
+      to_upper_str(mon_buf);
+      snprintf(buf, sizeof(buf), "%s %d", mon_buf, t->tm_mday);
+      dyn = date_year_progress_gradient(t);
+      break;
+    }
+    case 22: snprintf(buf, sizeof(buf), "%d", t->tm_mday); dyn = seven_stop_gradient(t->tm_mday, 1, 31); break;
+    case 23: strftime(buf, sizeof(buf), "%a", t); to_upper_str(buf); dyn = seven_stop_gradient(t->tm_wday, 0, 6); break;
+    case 24: strftime(buf, sizeof(buf), "%A", t); dyn = seven_stop_gradient(t->tm_wday, 0, 6); break;
+    case 25: strftime(buf, sizeof(buf), "%b", t); to_upper_str(buf); dyn = seven_stop_gradient(t->tm_mon, 0, 11); break;
+    case 26: strftime(buf, sizeof(buf), "%B", t); dyn = seven_stop_gradient(t->tm_mon, 0, 11); break;
+    case 27: snprintf(buf, sizeof(buf), "%d/%d", t->tm_mday, t->tm_mon + 1); dyn = date_year_progress_gradient(t); break;
+    case 28: snprintf(buf, sizeof(buf), "%d/%d", t->tm_mon + 1, t->tm_mday); dyn = date_year_progress_gradient(t); break;
+    case 29: snprintf(buf, sizeof(buf), "%d/%d/%d", t->tm_mday, t->tm_mon + 1, t->tm_year + 1900); dyn = date_year_progress_gradient(t); break;
+    case 30: snprintf(buf, sizeof(buf), "%d/%d/%02d", t->tm_mon + 1, t->tm_mday, (t->tm_year + 1900) % 100); dyn = date_year_progress_gradient(t); break;
+    case 63: { // full time with seconds -- day/night gradient, same as digital time
+      strftime(buf, sizeof(buf), clock_is_24h_style() ? "%H:%M:%S" : "%I:%M:%S %p", t);
+      dyn = daynight_gradient(now, data->sun_rise, data->sun_set);
+      break;
+    }
+    case 64: snprintf(buf, sizeof(buf), "%02d", t->tm_hour); dyn = linear_white_black(t->tm_hour, 0, 23); break;
+    case 65: snprintf(buf, sizeof(buf), "%d", t->tm_hour); dyn = linear_white_black(t->tm_hour, 0, 23); break;
+    case 66: {
+      int hour12 = t->tm_hour % 12; if (hour12 == 0) hour12 = 12;
+      snprintf(buf, sizeof(buf), "%d", hour12); dyn = linear_white_black(hour12, 1, 12);
+      break;
+    }
+    case 67: snprintf(buf, sizeof(buf), "%d", t->tm_min); dyn = linear_white_black(t->tm_min, 0, 59); break;
+    case 68: snprintf(buf, sizeof(buf), "%02d", t->tm_min); dyn = linear_white_black(t->tm_min, 0, 59); break;
+    case 69: snprintf(buf, sizeof(buf), "%d", t->tm_sec); dyn = linear_white_black(t->tm_sec, 0, 59); break;
+    case 70: snprintf(buf, sizeof(buf), "%02d", t->tm_sec); dyn = linear_white_black(t->tm_sec, 0, 59); break;
+    case 71: snprintf(buf, sizeof(buf), "%d", t->tm_sec / 10); dyn = linear_white_black(t->tm_sec / 10, 0, 5); break;
+    case 72: snprintf(buf, sizeof(buf), "%d", t->tm_sec % 10); dyn = linear_white_black(t->tm_sec % 10, 0, 9); break;
+    case 86: snprintf(buf, sizeof(buf), "%s", t->tm_hour < 12 ? "AM" : "PM"); dyn = (t->tm_hour < 12) ? GColorBlack : GColorWhite; break;
+    case 95: { // weekday + day/month (multi-value), e.g. "MON 24/9"
+      char day_buf[4];
+      strftime(day_buf, sizeof(day_buf), "%a", t); to_upper_str(day_buf);
+      snprintf(buf, sizeof(buf), "%s %d/%d", day_buf, t->tm_mday, t->tm_mon + 1);
+      dyn = date_year_progress_gradient(t);
+      break;
+    }
+    case 96: { // weekday + month/day (multi-value), e.g. "MON 9/24"
+      char day_buf[4];
+      strftime(day_buf, sizeof(day_buf), "%a", t); to_upper_str(day_buf);
+      snprintf(buf, sizeof(buf), "%s %d/%d", day_buf, t->tm_mon + 1, t->tm_mday);
+      dyn = date_year_progress_gradient(t);
+      break;
+    }
+    case 103: { // "long date" + week number (multi-value), e.g. "Mon 23 Sep WK34"
+      char day_buf[4], mon_buf[4], wk_buf[4];
+      strftime(day_buf, sizeof(day_buf), "%a", t);
+      strftime(mon_buf, sizeof(mon_buf), "%b", t);
+      strftime(wk_buf, sizeof(wk_buf), "%V", t);
+      snprintf(buf, sizeof(buf), "%s %d %s WK%s", day_buf, t->tm_mday, mon_buf, wk_buf);
+      dyn = date_year_progress_gradient(t);
+      break;
+    }
+    default:
+      slot->segment_count = 0;
+      return;
+  }
+  slot->segment_count = 1;
+  slot->segments[0] = make_text_segment(buf, resolve_flat_color(color_mode, dyn, main_color, accent_color));
+}
+
+// ---- timezone cluster ---------------------------------------------------
+
+static void compute_timezone_value(FeatureSlot *slot, uint8_t content, uint8_t color_mode,
+                                    GColor main_color, GColor accent_color, time_t now) {
+  const TimezoneInfo *tz = &TIMEZONES[content - 44];
+  int16_t offset_min = timezone_current_offset_min(tz, now);
+  time_t local_time = now + (int32_t)offset_min * 60;
+  int32_t local_secs_of_day = ((local_time % 86400) + 86400) % 86400;
+  int local_hour24 = (int)(local_secs_of_day / 3600);
+  int local_min = (int)((local_secs_of_day % 3600) / 60);
+  char buf[16];
+  if (clock_is_24h_style()) {
+    snprintf(buf, sizeof(buf), "%s %02d:%02d", tz->abbr, local_hour24, local_min);
+  } else {
+    int hour12 = local_hour24 % 12; if (hour12 == 0) hour12 = 12;
+    snprintf(buf, sizeof(buf), "%s %d:%02d%s", tz->abbr, hour12, local_min, local_hour24 < 12 ? "AM" : "PM");
+  }
+  slot->segment_count = 1;
+  slot->segments[0] = make_text_segment(buf, resolve_flat_color(color_mode, timezone_daylight_color(local_hour24), main_color, accent_color));
+}
+
+// ---- sky/astronomy cluster: moon phase, location, sunrise/sunset,
+// planets, meteor shower, Saturn rings, ISS, aurora, compass ---------
+
+static void compute_sky_value(FeatureSlot *slot, uint8_t content, const EclipseData *data,
+                               uint8_t color_mode, GColor main_color, GColor accent_color, time_t now) {
+  char buf[24];
+
+  switch (content) {
+    case 11: { // Moon phase -- icon + short name, no natural "value" to grade -- always white
+      snprintf(buf, sizeof(buf), "%s", moon_phase_short_name(data->moon_phase_pct, data->moon_waxing));
+      GColor c = resolve_flat_color(color_mode, GColorWhite, main_color, accent_color);
+      RenderSegment seg = make_icon_segment(4, c);
+      seg.icon_extra = data->moon_phase_pct;
+      seg.icon_flag = data->moon_waxing;
+      slot->segment_count = 2;
+      slot->segments[0] = seg;
+      slot->segments[1] = make_text_segment(buf, c);
+      return;
+    }
+    case 13: { // location name
+      snprintf(buf, sizeof(buf), "%s", data->location_name[0] != '\0' ? data->location_name : "Unknown");
+      GColor c = resolve_flat_color(color_mode, main_color, main_color, accent_color);
+      slot->segment_count = 2;
+      slot->segments[0] = make_icon_segment(8, c);
+      slot->segments[1] = make_text_segment(buf, c);
+      return;
+    }
+    case 16: { // sunrise/sunset -- same event/icon as the digital/analog info panel's row
+      bool is_sunrise = false;
+      time_t sun_event_time = 0;
+      if (get_next_sun_event(now, data->sun_rise, data->sun_set, data->sun_rise_tomorrow, &sun_event_time, &is_sunrise)) {
+        struct tm *event_t = localtime(&sun_event_time);
+        strftime(buf, sizeof(buf), clock_is_24h_style() ? "%H:%M" : "%I:%M", event_t);
+      } else {
+        snprintf(buf, sizeof(buf), "N/A");
+      }
+      GColor c = resolve_flat_color(color_mode, main_color, main_color, accent_color);
+      RenderSegment seg = make_icon_segment(11, c);
+      seg.icon_flag = is_sunrise;
+      slot->segment_count = 2;
+      slot->segments[0] = seg;
+      slot->segments[1] = make_text_segment(buf, c);
+      return;
+    }
+    case 79: { // how many of the 5 tracked planets are above the horizon right now
+      GColor c;
+      if (data->error_code != 0) {
+        snprintf(buf, sizeof(buf), "ERR %d", data->error_code);
+        c = GColorRed;
+      } else {
+        uint8_t count = background_count_visible_planets(data, now);
+        snprintf(buf, sizeof(buf), "%d planet%s", count, count == 1 ? "" : "s");
+        c = resolve_flat_color(color_mode, main_color, main_color, accent_color);
+      }
+      slot->segment_count = 2;
+      slot->segments[0] = make_icon_segment(23, c);
+      slot->segments[1] = make_text_segment(buf, c);
+      return;
+    }
+    case 80: { // active meteor shower name, if any -- grayscale by intensity (more meteors = whiter)
+      GColor c;
+      if (data->error_code != 0) {
+        snprintf(buf, sizeof(buf), "ERR %d", data->error_code);
+        c = GColorRed;
+      } else if (data->meteor_intensity > 0 && data->meteor_shower_name[0] != '\0') {
+        snprintf(buf, sizeof(buf), "%s", data->meteor_shower_name);
+        c = resolve_flat_color(color_mode, meteor_intensity_gradient(data->meteor_intensity), main_color, accent_color);
+      } else {
+        snprintf(buf, sizeof(buf), "N/A");
+        c = GColorLightGray;
+      }
+      slot->segment_count = 1;
+      slot->segments[0] = make_text_segment(buf, c);
+      return;
+    }
+    case 81: { // Saturn's current ring-opening angle
+      GColor c;
+      if (data->error_code != 0) {
+        snprintf(buf, sizeof(buf), "ERR %d", data->error_code);
+        c = GColorRed;
+      } else {
+        snprintf(buf, sizeof(buf), "Rings %d%%", data->saturn_ring_open_pct);
+        c = resolve_flat_color(color_mode, main_color, main_color, accent_color);
+      }
+      slot->segment_count = 2;
+      slot->segments[0] = make_icon_segment(24, c);
+      slot->segments[1] = make_text_segment(buf, c);
+      return;
     }
     case 82: { // which of the 5 tracked planets rises next today, and when
-      time_t now = time(NULL);
-      static const char *PLANET_ABBR[PLANET_COUNT] = { "MER", "VEN", "MAR", "JUP", "SAT" };
-      int best = -1;
-      time_t best_t = 0;
-      for (int p = 0; p < PLANET_COUNT; p++) {
-        time_t r = data->planet_rise[p];
-        if (r > now && (best == -1 || r < best_t)) {
-          best = p;
-          best_t = r;
+      GColor c;
+      if (data->error_code != 0) {
+        snprintf(buf, sizeof(buf), "ERR %d", data->error_code);
+        c = GColorRed;
+      } else {
+        static const char *PLANET_ABBR[PLANET_COUNT] = { "MER", "VEN", "MAR", "JUP", "SAT" };
+        int best = -1;
+        time_t best_t = 0;
+        for (int p = 0; p < PLANET_COUNT; p++) {
+          time_t r = data->planet_rise[p];
+          if (r > now && (best == -1 || r < best_t)) { best = p; best_t = r; }
+        }
+        if (best >= 0) {
+          struct tm *bt = localtime(&best_t);
+          char time_buf[8];
+          strftime(time_buf, sizeof(time_buf), clock_is_24h_style() ? "%H:%M" : "%I:%M", bt);
+          snprintf(buf, sizeof(buf), "%s %s", PLANET_ABBR[best], time_buf);
+          c = resolve_flat_color(color_mode, main_color, main_color, accent_color);
+        } else {
+          snprintf(buf, sizeof(buf), "N/A");
+          c = GColorLightGray;
         }
       }
-      if (best >= 0) {
-        struct tm *t = localtime(&best_t);
-        char time_buf[8];
-        strftime(time_buf, sizeof(time_buf), clock_is_24h_style() ? "%H:%M" : "%I:%M", t);
-        snprintf(buf, sizeof(buf), "%s %s", PLANET_ABBR[best], time_buf);
+      slot->segment_count = 1;
+      slot->segments[0] = make_text_segment(buf, c);
+      return;
+    }
+    case 83: { // start time of the next visible ISS pass
+      GColor c;
+      if (data->iss_error_code != 0) {
+        snprintf(buf, sizeof(buf), "ERR %d", data->iss_error_code);
+        c = GColorRed;
+      } else if (data->iss_next_pass > 0) {
+        struct tm *it = localtime(&data->iss_next_pass);
+        strftime(buf, sizeof(buf), clock_is_24h_style() ? "%H:%M" : "%I:%M %p", it);
+        c = resolve_flat_color(color_mode, main_color, main_color, accent_color);
       } else {
-        snprintf(buf, sizeof(buf), "None");
+        snprintf(buf, sizeof(buf), "N/A");
+        c = GColorLightGray;
       }
-      dynamic_color = main_color;
-      break;
+      slot->segment_count = 2;
+      slot->segments[0] = make_icon_segment(25, c);
+      slot->segments[1] = make_text_segment(buf, c);
+      return;
     }
-    case 83: { // start time of the next visible ISS pass, if astro.js's
-               // findNextIssPass() found one in its search window -- see
-               // eclipse_data.h's iss_next_pass comment for what "visible" means
-      icon_kind = 25;
-      if (data->iss_next_pass > 0) {
-        struct tm *t = localtime(&data->iss_next_pass);
-        strftime(buf, sizeof(buf), clock_is_24h_style() ? "%H:%M" : "%I:%M %p", t);
+    case 84: { // current planetary Kp index
+      GColor c;
+      if (data->aurora_error_code != 0) {
+        snprintf(buf, sizeof(buf), "ERR %d", data->aurora_error_code);
+        c = GColorRed;
       } else {
-        snprintf(buf, sizeof(buf), "--:--");
+        snprintf(buf, sizeof(buf), "Kp %d.%d", data->aurora_kp_x10 / 10, data->aurora_kp_x10 % 10);
+        c = resolve_flat_color(color_mode, white_to_red_gradient(data->aurora_kp_x10), main_color, accent_color);
       }
-      dynamic_color = main_color;
-      break;
+      slot->segment_count = 2;
+      slot->segments[0] = make_icon_segment(26, c);
+      slot->segments[1] = make_text_segment(buf, c);
+      return;
     }
-    case 84: { // current planetary Kp index -- see eclipse_data.h's aurora_kp_x10/
-               // aurora_enabled comments. Shown (with a real Kp reading) even when
-               // aurora_visibility_pct says the estimate doesn't reach this latitude --
-               // the index itself is informative on its own, only the sky glow's
-               // own visibility is gated on that estimate.
-      icon_kind = 26;
-      snprintf(buf, sizeof(buf), "Kp %d.%d", data->aurora_kp_x10 / 10, data->aurora_kp_x10 % 10);
-      dynamic_color = white_to_red_gradient(data->aurora_kp_x10);
-      break;
-    }
-    case 85: { // Compass -- active (real heading, redrawing) for 15s after a shake,
-               // then asleep (shows "Z z" and three dashes) until the next one -- see
-               // compass_feature_is_asleep()/compass_feature_heading_deg() in
-               // pebble-eclipse-watch.c. Its own multi-color north-arrow/other-arrows
-               // split is handled separately, right after this switch, rather than
-               // through dynamic_color like every other content here -- see that code's
-               // own comment for why.
-      icon_kind = 27;
-      if (compass_feature_is_asleep()) {
+    case 85: { // Compass -- active (real heading) for 15s after a shake, then asleep until the next one.
+               // Needs 2 colors at once (north arrow vs the other 3) rather than one flat color --
+               // "mono"/"accent"/Pill still mean one shared color for the whole icon; only "color"
+               // mode splits into accent (north) + main (other 3).
+      bool asleep = compass_feature_is_asleep();
+      if (asleep) {
         snprintf(buf, sizeof(buf), "---");
       } else {
         static const char *COMPASS_DIRS[16] = {
@@ -1654,413 +1871,485 @@ void features_draw_item(GContext *ctx, GRect bounds, const EclipseData *data,
         if (idx < 0) idx += 16;
         snprintf(buf, sizeof(buf), "%s", COMPASS_DIRS[idx]);
       }
-      dynamic_color = main_color; // unused in practice -- see the north/other split below
+      GColor flat = resolve_flat_color(color_mode, main_color, main_color, accent_color);
+      RenderSegment icon_seg = make_icon_segment(27, flat);
+      icon_seg.icon_extra = (int16_t)(compass_feature_heading_deg() % 360);
+      icon_seg.icon_flag = asleep;
+      if (color_mode == 3) {
+        icon_seg.color = accent_color;  // north arrow
+        icon_seg.color2 = main_color;   // other 3 arrows
+      }
+      slot->segment_count = 2;
+      slot->segments[0] = icon_seg;
+      slot->segments[1] = make_text_segment(buf, flat);
+      return;
+    }
+    default:
+      slot->segment_count = 0;
+      return;
+  }
+}
+
+// ---- combo cluster: multi-icon/multi-value content (97-102) -----------
+//
+// Per request, these share ONE flat color (always main_color, not
+// accent -- there's no single sensible "accent" reading across a
+// multi-icon combo) for mono/accent/Pill modes, and only split into
+// independently-gradient-colored segments under "color" mode (3).
+
+static void compute_combo_value(FeatureSlot *slot, uint8_t content, const EclipseData *data,
+                                 uint8_t color_mode, GColor main_color, time_t now) {
+  bool dynamic = (color_mode == 3);
+  GColor flat = main_color;
+  char buf1[16], buf2[16];
+
+  switch (content) {
+    case 97: { // heart rate + steps
+      int bpm = peek_current_bpm();
+      GColor hr_c = dynamic ? (bpm > 0 ? heart_rate_gradient(bpm) : GColorLightGray) : flat;
+      snprintf(buf1, sizeof(buf1), bpm > 0 ? "%d" : "N/A", bpm);
+
+      HealthValue steps = health_service_sum_today(HealthMetricStepCount);
+      uint16_t goal = data->daily_step_goal > 0 ? data->daily_step_goal : 10000;
+      int32_t pct = (steps * 100) / goal;
+      if (pct > 100) pct = 100;
+      GColor step_c = dynamic ? red_green_gradient((uint8_t)pct) : flat;
+      snprintf(buf2, sizeof(buf2), "%d", (int)steps);
+
+      slot->segment_count = 4;
+      slot->segments[0] = make_icon_segment(1, hr_c);
+      slot->segments[1] = make_text_segment(buf1, hr_c);
+      slot->segments[2] = make_icon_segment(2, step_c);
+      slot->segments[3] = make_text_segment(buf2, step_c);
+      return;
+    }
+    case 98: { // bed time + wake time, day/night graded independently
+      SleepSpan span = get_sleep_span();
+      GColor bed_c = flat, wake_c = flat;
+      if (span.found) {
+        struct tm *bt = localtime(&span.earliest_start);
+        strftime(buf1, sizeof(buf1), clock_is_24h_style() ? "%H:%M" : "%I:%M", bt);
+        struct tm *wt = localtime(&span.latest_end);
+        char wake_time[8];
+        strftime(wake_time, sizeof(wake_time), clock_is_24h_style() ? "%H:%M" : "%I:%M", wt);
+        snprintf(buf2, sizeof(buf2), "/%s", wake_time);
+        if (dynamic) {
+          bed_c = daynight_gradient(span.earliest_start, data->sun_rise, data->sun_set);
+          wake_c = daynight_gradient(span.latest_end, data->sun_rise, data->sun_set);
+        }
+      } else {
+        snprintf(buf1, sizeof(buf1), "N/A");
+        buf2[0] = '\0';
+        if (dynamic) bed_c = wake_c = GColorLightGray;
+      }
+      slot->segment_count = 3;
+      slot->segments[0] = make_icon_segment(21, flat);
+      slot->segments[1] = make_text_segment(buf1, bed_c);
+      slot->segments[2] = make_text_segment(buf2, wake_c);
+      return;
+    }
+    case 99: case 100: { // battery + BT (icons only, 99), battery % + BT (100)
+      BatteryChargeState bs = battery_state_service_peek();
+      GColor batt_c = dynamic ? (bs.is_charging ? GColorGreen : red_green_gradient((uint8_t)bs.charge_percent)) : flat;
+      bool connected = connection_service_peek_pebble_app_connection();
+      GColor bt_c = dynamic ? (connected ? GColorFromRGB(64, 224, 208) : GColorFromRGB(255, 0, 0)) : flat;
+
+      RenderSegment batt_seg = make_icon_segment(3, batt_c);
+      batt_seg.icon_extra = bs.charge_percent;
+      batt_seg.icon_flag = bs.is_charging;
+
+      if (content == 99) {
+        slot->segment_count = 2;
+        slot->segments[0] = batt_seg;
+        slot->segments[1] = make_icon_segment(13, bt_c);
+      } else {
+        snprintf(buf1, sizeof(buf1), "%d%%", bs.charge_percent);
+        slot->segment_count = 3;
+        slot->segments[0] = batt_seg;
+        slot->segments[1] = make_text_segment(buf1, batt_c);
+        slot->segments[2] = make_icon_segment(13, bt_c);
+      }
+      return;
+    }
+    case 101: { // sleep times: sleep icon, total duration, (restful duration), quality%
+      if (health_metric_available(HealthMetricSleepSeconds)) {
+        HealthValue total = health_service_sum_today(HealthMetricSleepSeconds);
+        HealthValue restful = health_service_sum_today(HealthMetricSleepRestfulSeconds);
+        char total_buf[12], restful_buf[12], quality_buf[6];
+        format_duration_hm(total_buf, sizeof(total_buf), (int32_t)total);
+        format_duration_hm(restful_buf, sizeof(restful_buf), (int32_t)restful);
+        int pct = (total > 0) ? (int)((restful * 100) / total) : 0;
+        if (pct > 100) pct = 100;
+        snprintf(quality_buf, sizeof(quality_buf), "%d%%", pct);
+        char restful_paren[14];
+        snprintf(restful_paren, sizeof(restful_paren), "(%s)", restful_buf);
+
+        GColor total_c = dynamic ? seven_stop_gradient_reversed((int32_t)total, 0, 9 * 3600) : flat;
+        GColor restful_c = dynamic ? seven_stop_gradient_reversed((int32_t)restful, 0, 3 * 3600) : flat;
+        GColor quality_c = dynamic ? red_green_gradient((uint8_t)pct) : flat;
+
+        slot->segment_count = 4;
+        slot->segments[0] = make_icon_segment(21, flat);
+        slot->segments[1] = make_text_segment(total_buf, total_c);
+        slot->segments[2] = make_text_segment(restful_paren, restful_c);
+        slot->segments[3] = make_text_segment(quality_buf, quality_c);
+      } else {
+        slot->segment_count = 2;
+        slot->segments[0] = make_icon_segment(21, flat);
+        slot->segments[1] = make_text_segment("N/A", dynamic ? GColorLightGray : flat);
+      }
+      return;
+    }
+    case 102: { // "long date" + sunset/sunrise, e.g. "Mon 23 Sep <icon> 19:45"
+      struct tm *t = localtime(&now);
+      char day_buf[4], mon_buf[4];
+      strftime(day_buf, sizeof(day_buf), "%a", t);
+      strftime(mon_buf, sizeof(mon_buf), "%b", t);
+      snprintf(buf1, sizeof(buf1), "%s %d %s", day_buf, t->tm_mday, mon_buf);
+      GColor date_c = dynamic ? date_year_progress_gradient(t) : flat;
+
+      bool is_sunrise = false;
+      time_t sun_event_time = 0;
+      char time_buf[8];
+      if (get_next_sun_event(now, data->sun_rise, data->sun_set, data->sun_rise_tomorrow, &sun_event_time, &is_sunrise)) {
+        struct tm *et = localtime(&sun_event_time);
+        strftime(time_buf, sizeof(time_buf), clock_is_24h_style() ? "%H:%M" : "%I:%M", et);
+      } else {
+        snprintf(time_buf, sizeof(time_buf), "N/A");
+      }
+
+      RenderSegment sun_icon = make_icon_segment(11, flat);
+      sun_icon.icon_flag = is_sunrise;
+
+      slot->segment_count = 3;
+      slot->segments[0] = make_text_segment(buf1, date_c);
+      slot->segments[1] = sun_icon;
+      slot->segments[2] = make_text_segment(time_buf, flat);
+      return;
+    }
+    default:
+      slot->segment_count = 0;
+      return;
+  }
+}
+
+// ---- unified position resolution ---------------------------------------
+//
+// The one and only place any slot's content gets positioned: measures
+// each already-filled-in segment (icon widths are the same fixed
+// per-icon-kind lookup every icon always used, text is measured
+// against the corner font) and resolves every segment's x_offset/width
+// relative to the slot's own box_x, according to the slot's left/
+// center/right alignment. Runs once per recompute, never at draw time --
+// features_draw_slot() just reads x_offset/width straight off each
+// segment.
+static void resolve_segment_offsets(FeatureSlot *slot, GFont font, int16_t font_h) {
+  int16_t advance[MAX_RENDER_SEGMENTS]; // width INCLUDING this segment's own trailing gap
+  int16_t total_w = 0;
+  for (int i = 0; i < slot->segment_count; i++) {
+    RenderSegment *seg = &slot->segments[i];
+    if (seg->is_icon) {
+      seg->width = ICON_WIDTH;
+      advance[i] = icon_plus_gap_width(seg->icon_kind);
+    } else {
+      GSize sz = graphics_text_layout_get_content_size(seg->text, font, GRect(0, 0, 200, font_h + 10),
+                                                        GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft);
+      seg->width = sz.w + 2;
+      advance[i] = seg->width + 3;
+    }
+    total_w += advance[i];
+  }
+  if (total_w > CORNER_BOX_W) total_w = CORNER_BOX_W;
+
+  int16_t start_x = slot->center_horizontal ? (CORNER_BOX_W - total_w) / 2
+                    : (!slot->is_left ? CORNER_BOX_W - total_w : 0);
+  int16_t x = start_x;
+  for (int i = 0; i < slot->segment_count; i++) {
+    slot->segments[i].x_offset = x;
+    x += advance[i];
+  }
+}
+
+// ---- value recompute dispatcher ----------------------------------------
+//
+// Routes a slot's already-settings-resolved content/color_mode to the
+// right cluster function above, applies the one shared override every
+// weather-derived content needs (a service error blanks everything to
+// a flat red "ERR ###", overriding whatever the cluster function just
+// computed), then resolves positions. This is the only place that
+// looks at `content` as a giant range of numbers -- every cluster
+// function above only ever sees the handful of ids it actually owns.
+static void features_recompute_slot_value(FeatureSlot *slot, const EclipseData *data,
+                                           GColor main_color, GColor accent_color, GColor bg_color,
+                                           GFont font, int16_t font_h, time_t now, struct tm *t) {
+  slot->draw_pill = (slot->color_mode == 2);
+  slot->pill_bg = bg_color;
+
+  if (slot->content == 0) {
+    slot->segment_count = 0;
+    return;
+  }
+
+  uint8_t content = slot->content, color_mode = slot->color_mode;
+  switch (content) {
+    case 97: case 98: case 99: case 100: case 101: case 102:
+      compute_combo_value(slot, content, data, color_mode, main_color, now);
       break;
+    case 44: case 45: case 46: case 47: case 48: case 49: case 50: case 51: case 52: case 53:
+    case 54: case 55: case 56: case 57: case 58: case 59: case 60: case 61: case 62:
+      compute_timezone_value(slot, content, color_mode, main_color, accent_color, now);
+      break;
+    case 1: case 2: case 3: case 10: case 17: case 20: case 39: case 40: case 41: case 42: case 43: case 78:
+      compute_health_value(slot, content, data, color_mode, main_color, accent_color);
+      break;
+    case 11: case 13: case 16: case 79: case 80: case 81: case 82: case 83: case 84: case 85:
+      compute_sky_value(slot, content, data, color_mode, main_color, accent_color, now);
+      break;
+    case 4: case 5: case 6: case 7: case 8: case 9: case 14: case 15: case 31: case 32: case 34:
+    case 35: case 36: case 37: case 38: case 73: case 74: case 75: case 76: case 77: case 93: case 94:
+      compute_weather_value(slot, content, data, color_mode, main_color, accent_color, bg_color);
+      break;
+    default: // every date/time format variant (12, 18-19, 21-30, 63-72, 86, 95-96, 103)
+      compute_date_value(slot, content, data, color_mode, main_color, accent_color, now, t);
+      break;
+  }
+
+  // A weather fetch error blanks the whole slot to a flat red "ERR ###" --
+  // uniformly, regardless of which weather cluster case built it, and
+  // regardless of color_mode (an error needs to stay legible, not blend
+  // in as a normal reading would).
+  if (content_is_weather_derived(content) && weather_should_show_error(data)) {
+    char err_buf[10];
+    snprintf(err_buf, sizeof(err_buf), "ERR %d", data->weather_error_code);
+    slot->segment_count = 1;
+    slot->segments[0] = make_text_segment(err_buf, GColorRed);
+    slot->draw_pill = false;
+  }
+
+  if (slot->segment_count > 0) resolve_segment_offsets(slot, font, font_h);
+}
+
+// ---- drawing: icon dispatch --------------------------------------------
+//
+// Every simple palette icon (heart/foot/umbrella/droplet/wind/GPS/eye/
+// cloud/bluetooth/the 5 bed icons/the 3 astronomy icons/aurora) shares
+// one draw call via this table -- exactly the resource + per-icon
+// horizontal nudge every one of them always used, just looked up
+// instead of hand-copied per case. `icon_x` below is always the pixel
+// position resolve_segment_offsets() already worked out (box_x +
+// segment x_offset) -- nothing here recomputes a position, only where
+// *within* that already-resolved x an individual bitmap's own ink
+// should sit, which is a fixed constant per icon, not a calculation.
+static const struct { uint8_t kind; uint32_t resource_id; int16_t x_nudge; } SIMPLE_ICONS[] = {
+  { 1,  RESOURCE_ID_ICON_HEART,           12 },
+  { 2,  RESOURCE_ID_ICON_FOOT,             6 },
+  { 5,  RESOURCE_ID_ICON_UMBRELLA,        10 },
+  { 6,  RESOURCE_ID_ICON_DROPLET,         10 },
+  { 7,  RESOURCE_ID_ICON_WIND,            10 },
+  { 8,  RESOURCE_ID_ICON_GPS_PIN,          6 },
+  { 9,  RESOURCE_ID_ICON_EYE,              6 },
+  { 10, RESOURCE_ID_ICON_CLOUD,            6 },
+  { 13, RESOURCE_ID_ICON_BLUETOOTH,        6 },
+  { 18, RESOURCE_ID_ICON_BED_ARROW_IN,     6 },
+  { 19, RESOURCE_ID_ICON_BED_ARROW_OUT,    6 },
+  { 20, RESOURCE_ID_ICON_BED_CHECK,        6 },
+  { 21, RESOURCE_ID_ICON_BED_CLOCK,        6 },
+  { 22, RESOURCE_ID_ICON_BED_CHECK_CLOCK,  6 },
+  { 23, RESOURCE_ID_ICON_PLANETS,          6 },
+  { 24, RESOURCE_ID_ICON_SATURN_RING,      6 },
+  { 25, RESOURCE_ID_ICON_ISS,              6 },
+  { 26, RESOURCE_ID_ICON_AURORA,           6 },
+};
+
+static void draw_render_icon(GContext *ctx, const RenderSegment *seg, int16_t icon_x, int16_t box_y, bool do_outline, uint8_t weather_icon_style, GColor bg_color) {
+  GColor color = seg->color;
+  GColor outline_color = contrasting_outline_color(color);
+
+  for (size_t i = 0; i < sizeof(SIMPLE_ICONS) / sizeof(SIMPLE_ICONS[0]); i++) {
+    if (SIMPLE_ICONS[i].kind != seg->icon_kind) continue;
+    GPoint pos = GPoint(icon_x - ICON_WIDTH + SIMPLE_ICONS[i].x_nudge, box_y + (CORNER_ROW_H - ICON_ROWS) / 2);
+    draw_icon_resource_with_outline(ctx, pos, SIMPLE_ICONS[i].resource_id, do_outline, outline_color, color);
+    return;
+  }
+
+  switch (seg->icon_kind) {
+    case 3: { // battery
+      GPoint pos = GPoint(icon_x, box_y + (CORNER_ROW_H - 14) / 2);
+      GColor c = seg->icon_flag ? GColorGreen : color; // charging -> always green, matching the old special case
+      GColor oc = seg->icon_flag ? GColorBlack : outline_color;
+      if (do_outline) {
+        for (int i = 0; i < 4; i++) {
+          draw_corner_battery_icon(ctx, GPoint(pos.x + OUTLINE_OFFSETS[i].x, pos.y + OUTLINE_OFFSETS[i].y), oc, 0);
+        }
+      }
+      draw_corner_battery_icon(ctx, pos, c, seg->icon_extra);
+      return;
+    }
+    case 4: { // moon phase
+      int16_t moon_r = 9;
+      GPoint center = GPoint(icon_x + moon_r, box_y + CORNER_ROW_H / 2);
+      GRect clip = GRect(icon_x, box_y, moon_r * 2 + 2, CORNER_ROW_H);
+      if (do_outline) {
+        graphics_context_set_fill_color(ctx, outline_color);
+        for (int i = 0; i < 4; i++) {
+          graphics_fill_circle(ctx, GPoint(center.x + OUTLINE_OFFSETS[i].x, center.y + OUTLINE_OFFSETS[i].y), moon_r);
+        }
+      }
+      draw_moon_phase(ctx, clip, center, moon_r, (uint8_t)seg->icon_extra, seg->icon_flag, color);
+      return;
+    }
+    case 11: { // sunrise/sunset glyph
+      GPoint pos = GPoint(icon_x, box_y + (CORNER_ROW_H - 9) / 2);
+      if (do_outline) {
+        for (int i = 0; i < 4; i++) {
+          draw_sun_time_icon(ctx, GPoint(pos.x + OUTLINE_OFFSETS[i].x, pos.y + OUTLINE_OFFSETS[i].y), seg->icon_flag, outline_color, bg_color);
+        }
+      }
+      draw_sun_time_icon(ctx, pos, seg->icon_flag, color, bg_color);
+      return;
+    }
+    case 12: { // Pebble battery logo
+      GPoint pos = GPoint(icon_x - 15, box_y + (CORNER_ROW_H - 10) / 2);
+      GColor c = seg->icon_flag ? GColorGreen : color;
+      GColor oc = seg->icon_flag ? GColorBlack : outline_color;
+      GPoint p1 = GPoint(pos.x + 3, pos.y + 9);
+      GPoint p2 = GPoint(pos.x + 3 + (35 * seg->icon_extra / 100), pos.y + 9);
+      if (do_outline) {
+        for (int i = 0; i < 4; i++) {
+          draw_tiny_icon(ctx, GPoint(pos.x + OUTLINE_OFFSETS[i].x, pos.y + OUTLINE_OFFSETS[i].y), PEBBLE_ICON, 10, 40, oc);
+        }
+        graphics_context_set_stroke_color(ctx, oc);
+        graphics_draw_line(ctx, GPoint(p1.x, p1.y + 1), GPoint(p2.x, p2.y + 1));
+        graphics_draw_line(ctx, GPoint(p1.x - 1, p1.y), GPoint(p2.x + 1, p2.y));
+        graphics_draw_line(ctx, GPoint(p1.x, p1.y - 1), GPoint(p2.x, p2.y - 1));
+      }
+      draw_tiny_icon(ctx, pos, PEBBLE_ICON, 10, 40, c);
+      graphics_context_set_stroke_color(ctx, c);
+      graphics_draw_line(ctx, p1, p2);
+      return;
+    }
+    case 14: { // weather condition icon -- style picked in settings (simple/hollow/full color)
+      GPoint pos = GPoint(icon_x, box_y + (CORNER_ROW_H - ICON_ROWS) / 2 - 2);
+      uint8_t category = (uint8_t)seg->icon_extra;
+      // No outline pass for style 2 (full color): draw_weather_icon_filled()
+      // ignores whatever color it's given, so shifting it 4x would just
+      // redraw the same multi-color icon 4x instead of a contrasting
+      // silhouette behind it.
+      if (do_outline && weather_icon_style != 2) {
+        for (int i = 0; i < 4; i++) {
+          draw_weather_icon(ctx, GPoint(pos.x + OUTLINE_OFFSETS[i].x, pos.y + OUTLINE_OFFSETS[i].y), category, weather_icon_style, outline_color);
+        }
+      }
+      draw_weather_icon(ctx, pos, category, weather_icon_style, color);
+      return;
+    }
+    case 15: { // pressure trend chevron
+      GPoint pos = GPoint(icon_x, box_y + (CORNER_ROW_H - 12) / 2);
+      if (do_outline) {
+        for (int i = 0; i < 4; i++) {
+          draw_pressure_trend_icon(ctx, GPoint(pos.x + OUTLINE_OFFSETS[i].x, pos.y + OUTLINE_OFFSETS[i].y), (uint8_t)seg->icon_extra, outline_color);
+        }
+      }
+      draw_pressure_trend_icon(ctx, pos, (uint8_t)seg->icon_extra, color);
+      return;
+    }
+    case 16: { // wind direction arrow
+      GPoint pos = GPoint(icon_x, box_y + (CORNER_ROW_H - 12) / 2);
+      if (do_outline) {
+        for (int i = 0; i < 4; i++) {
+          draw_wind_direction_icon(ctx, GPoint(pos.x + OUTLINE_OFFSETS[i].x, pos.y + OUTLINE_OFFSETS[i].y), seg->icon_extra, outline_color);
+        }
+      }
+      draw_wind_direction_icon(ctx, pos, seg->icon_extra, color);
+      return;
+    }
+    case 17: { // altitude mountain glyph
+      GPoint pos = GPoint(icon_x, box_y + (CORNER_ROW_H - 12) / 2);
+      if (do_outline) {
+        for (int i = 0; i < 4; i++) {
+          draw_mountain_icon(ctx, GPoint(pos.x + OUTLINE_OFFSETS[i].x, pos.y + OUTLINE_OFFSETS[i].y), outline_color);
+        }
+      }
+      draw_mountain_icon(ctx, pos, color);
+      return;
+    }
+    case 27: { // compass -- asleep (Zz glyph) or a live heading rose with a distinct north arrow
+      GPoint pos = GPoint(icon_x, box_y + (CORNER_ROW_H - 12) / 2);
+      if (do_outline) {
+        for (int i = 0; i < 4; i++) {
+          GPoint shifted = GPoint(pos.x + OUTLINE_OFFSETS[i].x, pos.y + OUTLINE_OFFSETS[i].y);
+          if (seg->icon_flag) draw_compass_sleep_icon(ctx, shifted, outline_color);
+          else draw_compass_icon(ctx, shifted, seg->icon_extra, outline_color, outline_color);
+        }
+      }
+      if (seg->icon_flag) draw_compass_sleep_icon(ctx, pos, color);
+      else draw_compass_icon(ctx, pos, seg->icon_extra, seg->color, seg->color2);
+      return;
     }
     default:
       return;
   }
+}
 
-  GColor color;
-  bool translucent = false;
-  switch (color_mode) {
-    case 1: color = accent_color; break;
-    case 2: color = accent_color; translucent = true; break;
-    case 3: color = dynamic_color; break;
-    case 0:
-    default: color = main_color; break;
-  }
+// ---- drawing: the trivial per-slot blit --------------------------------
+//
+// Everything this needs -- position, color, text, which icon -- was
+// already resolved by features_recompute_slot_value() above. This
+// function does no formatting, no gradient math, and no alignment or
+// width measurement: box_x/box_y is the one bit of arithmetic left
+// (added back at draw time, not cached, purely so a system
+// notification's screen obstruction can shrink `bounds` without
+// needing its own recompute pass -- see the module-level comment up
+// top), and every segment inside the slot just gets blitted at its
+// already-resolved x_offset.
+static void features_draw_slot(GContext *ctx, GRect bounds, const FeatureSlot *slot,
+                                GFont font, int16_t font_h, int16_t font_offset,
+                                bool outline_enabled, uint8_t weather_icon_style, GColor bg_color) {
+  if (!slot->active || slot->segment_count == 0) return;
 
-  // See content_is_weather_derived()'s own comment above -- overrides
-  // whatever the switch above built, uniformly, for any of the 16
-  // weather-sourced content ids at once. A deliberately plain, fixed
-  // red rather than anything mode/gradient-driven: this is reporting a
-  // fetch problem, not a weather reading, so it shouldn't try to blend
-  // in as one -- and skips translucent/dithering for the same reason
-  // (an error needs to stay legible, not fade like normal content can).
-  if (content_is_weather_derived(content) && weather_should_show_error(data)) {
-    snprintf(buf, sizeof(buf), "ERR %d", data->weather_error_code);
-    color = GColorRed;
-    translucent = false;
-    icon_kind = 0;
-  }
-  // Compass (85) needs 2 colors at once (see draw_compass_icon()'s own
-  // comment) rather than the single flat `color` every other content
-  // uses -- "mono" (color_mode 0) and "acc"/"semi" (1/2) still just
-  // mean one flat color for the whole icon, same as `color` above
-  // already resolved; only "color" mode (3) is actually special here,
-  // splitting into an accent north arrow + main-color other 3 rather
-  // than picking one value-driven gradient the way every other
-  // content's dynamic_color does. Translucent dithering (color_mode 2)
-  // isn't applied to the compass -- its icon is line-drawn, not
-  // filled, and Bayer-dithering individual 1px strokes wouldn't read
-  // as translucency the way it does on a filled shape.
-  GColor compass_north_color = color, compass_other_color = color;
-  if (content == 85 && color_mode == 3) {
-    compass_north_color = accent_color;
-    compass_other_color = main_color;
-  }
-  // Bluetooth status (78) only ever means anything as its dynamic
-  // connected/disconnected color -- MONO/ACC/SEMI would just make it
-  // a plain, meaningless-colored icon, so it ignores color_mode
-  // entirely and always draws dynamic_color.
-  if (content == 78) {
-    color = dynamic_color;
-    translucent = false;
-  }
-
-  int16_t box_x = center_horizontal
+  int16_t box_x = slot->center_horizontal
     ? bounds.origin.x + (bounds.size.w - CORNER_BOX_W) / 2
-    : (is_left ? bounds.origin.x + 2 : bounds.origin.x + bounds.size.w - 2 - CORNER_BOX_W);
-  int16_t box_y = center_vertical
-    ? bounds.origin.y + (bounds.size.h - CORNER_ROW_H) / 2 + top_offset // top_offset doubles as a
-                                                                          // vertical nudge from center here
-                                                                          // (middle-left/right's 2-line pairs)
-    : (is_top ? bounds.origin.y + top_offset
-              : bounds.origin.y + bounds.size.h - CORNER_ROW_H - 2 - bottom_shift);
-  
-  if (is_middle) {
-    if (is_left) {
-      box_x += middle_inset;
+    : (slot->is_left ? bounds.origin.x + CORNER_INSET_PX : bounds.origin.x + bounds.size.w - CORNER_INSET_PX - CORNER_BOX_W);
+  int16_t box_y = slot->center_vertical
+    ? bounds.origin.y + (bounds.size.h - CORNER_ROW_H) / 2 + slot->top_offset
+    : (slot->is_top ? bounds.origin.y + slot->top_offset
+                     : bounds.origin.y + bounds.size.h - CORNER_ROW_H - CORNER_INSET_PX - slot->bottom_shift);
+  if (slot->is_middle) {
+    if (slot->is_left) box_x += slot->middle_inset; else box_x -= slot->middle_inset;
+  }
+
+  if (slot->draw_pill) {
+    graphics_context_set_fill_color(ctx, slot->pill_bg);
+    graphics_fill_rect(ctx, GRect(box_x, box_y, CORNER_BOX_W, CORNER_ROW_H), CORNER_ROW_H / 2, GCornersAll);
+  }
+
+  bool do_outline = slot->allow_outline && outline_enabled;
+  for (int i = 0; i < slot->segment_count; i++) {
+    const RenderSegment *seg = &slot->segments[i];
+    int16_t seg_x = box_x + seg->x_offset;
+    if (seg->is_icon) {
+      draw_render_icon(ctx, seg, seg_x, box_y, do_outline, weather_icon_style, bg_color);
     } else {
-      box_x -= middle_inset;
+      draw_text_outlined(ctx, seg->text, font,
+                          GRect(seg_x, box_y + (CORNER_ROW_H - font_h) / 2 + font_offset, seg->width + 2, font_h + 2),
+                          GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft, seg->color, do_outline);
     }
-  }
-
-  if (translucent) {
-    // A dithered highlight plate behind the icon+text -- gives
-    // "translucent accent" a real visual difference from "solid
-    // accent" without needing per-glyph dithering (system fonts
-    // can't be inspected pixel-by-pixel the way the procedural tiny
-    // digit/icon bitmaps above can).
-    GPoint plate_pts[4] = {
-      GPoint(box_x, box_y), GPoint(box_x + CORNER_BOX_W, box_y),
-      GPoint(box_x + CORNER_BOX_W, box_y + CORNER_ROW_H), GPoint(box_x, box_y + CORNER_ROW_H)
-    };
-    fill_polygon_dithered(ctx, plate_pts, 4, color);
-  }
-
-  GFont font = font_lookup_resolve(&s_corner_font_slot, data->corner_font);
-  int16_t font_h = font_lookup_height(data->corner_font);
-  int16_t font_offset = font_lookup_y_offset(data->corner_font) / 2; // We want to be in the middle of the feature line
-  GSize text_size = graphics_text_layout_get_content_size(buf, font, GRect(0, 0, 200, font_h + 10),
-                                                            GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft);
-  int16_t icon_gap_w = icon_plus_gap_width(icon_kind);
-  int16_t group_w = icon_gap_w + text_size.w;
-  if (group_w > CORNER_BOX_W) group_w = CORNER_BOX_W;
-
-  int16_t group_x;
-  if (center_horizontal) {
-    group_x = box_x + (CORNER_BOX_W - group_w) / 2;
-  } else if (!is_left) {
-    group_x = box_x + CORNER_BOX_W - group_w;
-  } else {
-    group_x = box_x;
-  }
-  int16_t icon_x = group_x;
-  int16_t text_x = group_x + icon_gap_w;
-
-  bool do_icon_outline = allow_outline && data->outline_enabled && color_mode != 2;
-  GColor icon_outline_color = contrasting_outline_color(color);
-  switch (icon_kind) {
-    case 1: {
-      GPoint pos = GPoint(icon_x - ICON_WIDTH + 12, box_y + (CORNER_ROW_H - ICON_ROWS) / 2);
-      draw_icon_resource_with_outline(ctx, pos, RESOURCE_ID_ICON_HEART, do_icon_outline, icon_outline_color, color);
-      break;
-    }
-    case 2: {
-      // Was hand-tuned for the old 8x13 FOOT_ICON bit pattern; now that
-      // every icon (including this one) is a standardized 16x12 image
-      // resource, it uses the same centering as the heart icon above.
-      GPoint pos = GPoint(icon_x - ICON_WIDTH+6, box_y + (CORNER_ROW_H - ICON_ROWS) / 2);
-      draw_icon_resource_with_outline(ctx, pos, RESOURCE_ID_ICON_FOOT, do_icon_outline, icon_outline_color, color);
-      break;
-    }
-    case 3: {
-      GPoint pos = GPoint(icon_x, box_y + (CORNER_ROW_H - 14) / 2);
-      BatteryChargeState bs = battery_state_service_peek();
-      
-      if (bs.is_charging) {
-        color = GColorGreen;
-        icon_outline_color = GColorBlack;
-      }
-      
-      if (do_icon_outline) {
-        for (int i = 0; i < 4; i++) {
-          draw_corner_battery_icon(ctx, GPoint(pos.x + OUTLINE_OFFSETS[i].x, pos.y + OUTLINE_OFFSETS[i].y), icon_outline_color, 0);
-        }
-      }
-      
-      draw_corner_battery_icon(ctx, pos, color, bs.charge_percent);
-      break;
-    }
-    case 4: {
-      int16_t moon_r = 9;
-      GPoint moon_center = GPoint(icon_x + moon_r, box_y + CORNER_ROW_H / 2);
-      GRect moon_clip = GRect(icon_x, box_y, moon_r * 2 + 2, CORNER_ROW_H);
-      if (do_icon_outline) {
-        // A simplified bounding-circle outline rather than 4 extra
-        // full phase-shaded passes -- draw_moon_phase's lit/dark
-        // split is a per-pixel loop, so replicating it 4x would cost
-        // meaningfully more for a detail (the outline's silhouette
-        // exactly following the phase terminator) that isn't visible
-        // at this size anyway.
-        graphics_context_set_fill_color(ctx, icon_outline_color);
-        for (int i = 0; i < 4; i++) {
-          GPoint shifted = GPoint(moon_center.x + OUTLINE_OFFSETS[i].x, moon_center.y + OUTLINE_OFFSETS[i].y);
-          graphics_fill_circle(ctx, shifted, moon_r);
-        }
-      }
-      draw_moon_phase(ctx, moon_clip, moon_center, moon_r, data->moon_phase_pct, data->moon_waxing, color);
-      break;
-    }
-    case 5: {
-      GPoint pos = GPoint(icon_x - ICON_WIDTH+10, box_y + (CORNER_ROW_H - ICON_ROWS) / 2);
-      draw_icon_resource_with_outline(ctx, pos, RESOURCE_ID_ICON_UMBRELLA, do_icon_outline, icon_outline_color, color);
-      break;
-    }
-    case 6: {
-      GPoint pos = GPoint(icon_x - ICON_WIDTH+10, box_y + (CORNER_ROW_H - ICON_ROWS) / 2);
-      draw_icon_resource_with_outline(ctx, pos, RESOURCE_ID_ICON_DROPLET, do_icon_outline, icon_outline_color, color);
-      break;
-    }
-    case 7: {
-      GPoint pos = GPoint(icon_x - ICON_WIDTH+10, box_y + (CORNER_ROW_H - ICON_ROWS) / 2);
-      draw_icon_resource_with_outline(ctx, pos, RESOURCE_ID_ICON_WIND, do_icon_outline, icon_outline_color, color);
-      break;
-    }
-    case 8: {
-      GPoint pos = GPoint(icon_x - ICON_WIDTH+6, box_y + (CORNER_ROW_H - ICON_ROWS) / 2);
-      draw_icon_resource_with_outline(ctx, pos, RESOURCE_ID_ICON_GPS_PIN, do_icon_outline, icon_outline_color, color);
-      break;
-    }
-    case 9: {
-      GPoint pos = GPoint(icon_x - ICON_WIDTH+6, box_y + (CORNER_ROW_H - ICON_ROWS) / 2);
-      draw_icon_resource_with_outline(ctx, pos, RESOURCE_ID_ICON_EYE, do_icon_outline, icon_outline_color, color);
-      break;
-    }
-    case 10: {
-      GPoint pos = GPoint(icon_x - ICON_WIDTH+6, box_y + (CORNER_ROW_H - ICON_ROWS) / 2);
-      draw_icon_resource_with_outline(ctx, pos, RESOURCE_ID_ICON_CLOUD, do_icon_outline, icon_outline_color, color);
-      break;
-    }
-    case 13: {
-      GPoint pos = GPoint(icon_x - ICON_WIDTH+6, box_y + (CORNER_ROW_H - ICON_ROWS) / 2);
-      draw_icon_resource_with_outline(ctx, pos, RESOURCE_ID_ICON_BLUETOOTH, do_icon_outline, icon_outline_color, color);
-      break;
-    }
-    case 18: case 19: case 20: case 21: case 22: {
-      uint32_t bed_resource = RESOURCE_ID_ICON_BED_ARROW_IN;
-      if (icon_kind == 19) bed_resource = RESOURCE_ID_ICON_BED_ARROW_OUT;
-      else if (icon_kind == 20) bed_resource = RESOURCE_ID_ICON_BED_CHECK;
-      else if (icon_kind == 21) bed_resource = RESOURCE_ID_ICON_BED_CLOCK;
-      else if (icon_kind == 22) bed_resource = RESOURCE_ID_ICON_BED_CHECK_CLOCK;
-      GPoint pos = GPoint(icon_x - ICON_WIDTH+6, box_y + (CORNER_ROW_H - ICON_ROWS) / 2);
-      draw_icon_resource_with_outline(ctx, pos, bed_resource, do_icon_outline, icon_outline_color, color);
-      break;
-    }
-    case 23: case 24: case 25: {
-      uint32_t astro_resource = RESOURCE_ID_ICON_PLANETS;
-      if (icon_kind == 24) astro_resource = RESOURCE_ID_ICON_SATURN_RING;
-      else if (icon_kind == 25) astro_resource = RESOURCE_ID_ICON_ISS;
-      GPoint pos = GPoint(icon_x - ICON_WIDTH+6, box_y + (CORNER_ROW_H - ICON_ROWS) / 2);
-      draw_icon_resource_with_outline(ctx, pos, astro_resource, do_icon_outline, icon_outline_color, color);
-      break;
-    }
-    case 26: {
-      GPoint pos = GPoint(icon_x - ICON_WIDTH+6, box_y + (CORNER_ROW_H - ICON_ROWS) / 2);
-      draw_icon_resource_with_outline(ctx, pos, RESOURCE_ID_ICON_AURORA, do_icon_outline, icon_outline_color, color);
-      break;
-    }
-    case 27: { // Compass -- see draw_compass_icon()/draw_compass_sleep_icon()'s
-               // own comments, and content-85's own case in the switch above for
-               // where compass_north_color/compass_other_color come from.
-      GPoint pos = GPoint(icon_x, box_y + (CORNER_ROW_H - 12) / 2);
-      bool asleep = compass_feature_is_asleep();
-      if (do_icon_outline) {
-        for (int i = 0; i < 4; i++) {
-          GPoint shifted = GPoint(pos.x + OUTLINE_OFFSETS[i].x, pos.y + OUTLINE_OFFSETS[i].y);
-          if (asleep) draw_compass_sleep_icon(ctx, shifted, icon_outline_color);
-          else draw_compass_icon(ctx, shifted, compass_feature_heading_deg(), icon_outline_color, icon_outline_color);
-        }
-      }
-      if (asleep) draw_compass_sleep_icon(ctx, pos, color);
-      else draw_compass_icon(ctx, pos, compass_feature_heading_deg(), compass_north_color, compass_other_color);
-      break;
-    }
-    case 11: {
-      GPoint pos = GPoint(icon_x, box_y + (CORNER_ROW_H - 9) / 2);
-      if (do_icon_outline) {
-        for (int i = 0; i < 4; i++) {
-          draw_sun_time_icon(ctx, GPoint(pos.x + OUTLINE_OFFSETS[i].x, pos.y + OUTLINE_OFFSETS[i].y),
-                              icon_is_sunrise, icon_outline_color, bg_color);
-        }
-      }
-      draw_sun_time_icon(ctx, pos, icon_is_sunrise, color, bg_color);
-      break;
-    }
-    case 14: {
-      GPoint pos = GPoint(icon_x, box_y + (CORNER_ROW_H - ICON_ROWS) / 2 - 2);
-      // No outline pass for style 2 (full color): draw_weather_icon_filled()
-      // ignores whatever color it's given (see its own comment), so
-      // shifting it 4x in "icon_outline_color" would just redraw the
-      // exact same multi-color icon 4x instead of a contrasting
-      // silhouette behind it -- a smudgy ghosting effect, not an outline.
-      if (do_icon_outline && data->weather_icon_style != 2) {
-        for (int i = 0; i < 4; i++) {
-          draw_weather_icon(ctx, GPoint(pos.x + OUTLINE_OFFSETS[i].x, pos.y + OUTLINE_OFFSETS[i].y),
-                             icon_weather_category, data->weather_icon_style, icon_outline_color);
-        }
-      }
-      draw_weather_icon(ctx, pos, icon_weather_category, data->weather_icon_style, color);
-      break;
-    }
-    case 15: {
-      GPoint pos = GPoint(icon_x, box_y + (CORNER_ROW_H - 12) / 2);
-      if (do_icon_outline) {
-        for (int i = 0; i < 4; i++) {
-          draw_pressure_trend_icon(ctx, GPoint(pos.x + OUTLINE_OFFSETS[i].x, pos.y + OUTLINE_OFFSETS[i].y),
-                                    data->pressure_trend, icon_outline_color);
-        }
-      }
-      draw_pressure_trend_icon(ctx, pos, data->pressure_trend, color);
-      break;
-    }
-    case 16: {
-      GPoint pos = GPoint(icon_x, box_y + (CORNER_ROW_H - 12) / 2);
-      if (do_icon_outline) {
-        for (int i = 0; i < 4; i++) {
-          draw_wind_direction_icon(ctx, GPoint(pos.x + OUTLINE_OFFSETS[i].x, pos.y + OUTLINE_OFFSETS[i].y),
-                                    data->wind_dir_deg, icon_outline_color);
-        }
-      }
-      draw_wind_direction_icon(ctx, pos, data->wind_dir_deg, color);
-      break;
-    }
-    case 17: {
-      GPoint pos = GPoint(icon_x, box_y + (CORNER_ROW_H - 12) / 2);
-      if (do_icon_outline) {
-        for (int i = 0; i < 4; i++) {
-          draw_mountain_icon(ctx, GPoint(pos.x + OUTLINE_OFFSETS[i].x, pos.y + OUTLINE_OFFSETS[i].y), icon_outline_color);
-        }
-      }
-      draw_mountain_icon(ctx, pos, color);
-      break;
-    }
-    case 12: {
-      GPoint pos = GPoint(icon_x - 15, box_y + (CORNER_ROW_H - 10) / 2);
-      BatteryChargeState bs = battery_state_service_peek();
-      graphics_context_set_stroke_width(ctx, 1);
-      GPoint p1 = GPoint(pos.x + 3, pos.y + 9);
-      GPoint p2 = GPoint(pos.x + 3 + (35 * bs.charge_percent / 100), pos.y + 9);
-      
-      if (bs.is_charging) {
-        color = GColorGreen;
-        icon_outline_color = GColorBlack;
-      }
-      
-      if (do_icon_outline) {
-        for (int i = 0; i < 4; i++) {
-          draw_tiny_icon(ctx, GPoint(pos.x + OUTLINE_OFFSETS[i].x, pos.y + OUTLINE_OFFSETS[i].y),
-                          PEBBLE_ICON, 10, 40, icon_outline_color);
-        }
-        graphics_context_set_stroke_color(ctx, icon_outline_color);
-        graphics_draw_line(ctx, GPoint(p1.x , p1.y + 1), GPoint(p2.x , p2.y + 1));
-        graphics_draw_line(ctx, GPoint(p1.x - 1, p1.y), GPoint(p2.x + 1, p2.y));
-        graphics_draw_line(ctx, GPoint(p1.x , p1.y - 1), GPoint(p2.x , p2.y - 1));
-      }
-      
-      draw_tiny_icon(ctx, pos, PEBBLE_ICON, 10, 40, color);
-      
-      graphics_context_set_stroke_color(ctx, color);
-      graphics_draw_line(ctx, p1, p2);
-      break;
-    }
-    default:
-      break;
-  }
-
-  if (content == 4 && color_mode == 3) {
-    // Min/max temperature each get their own gradient color rather
-    // than sharing one -- split the remaining box width in half and
-    // draw "H.." / "L.." as two independently-colored segments
-    // instead of the generic single-color path below.
-    int16_t hi = convert_temp(data->temp_high_c, data->temp_unit);
-    int16_t lo = convert_temp(data->temp_low_c, data->temp_unit);
-    char hi_buf[8], lo_buf[8];
-    snprintf(hi_buf, sizeof(hi_buf), "H%d", hi);
-    snprintf(lo_buf, sizeof(lo_buf), "L%d", lo);
-    GColor hi_color = seven_stop_gradient(data->temp_high_c, -10, 40);
-    GColor lo_color = seven_stop_gradient(data->temp_low_c, -10, 40);
-    int16_t half_w = (CORNER_BOX_W - (text_x - box_x)) / 2;
-    draw_text_outlined(ctx, hi_buf, font,
-                        GRect(text_x, box_y + (CORNER_ROW_H - font_h) / 2 + font_offset, half_w, font_h + 2),
-                        GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft,
-                        hi_color, allow_outline && data->outline_enabled);
-    draw_text_outlined(ctx, lo_buf, font,
-                        GRect(text_x + half_w, box_y + (CORNER_ROW_H - font_h) / 2 + font_offset, half_w, font_h + 2),
-                        GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft,
-                        lo_color, allow_outline && data->outline_enabled);
-    return;
-  }
-
-  if (content != 17) {
-    draw_text_outlined(ctx, buf, font,
-                       GRect(text_x, box_y + (CORNER_ROW_H - font_h) / 2 + font_offset, text_size.w + 2, font_h + 2),
-                       GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft,
-                       color, allow_outline && data->outline_enabled);
   }
 }
 
-
-// ---- metadata cache -------------------------------------------------------
-
-// Fixed slot order -- matches the original corners_layer_update_proc's own
-// draw order (edge-middles first, then the 4 corners), not that it matters
-// for correctness (each slot draws to its own screen position regardless
-// of array order), just for readability when stepping through this file.
-enum {
-  SLOT_UPPER_L1 = 0, SLOT_UPPER_L2,
-  SLOT_BOTTOM_L1, SLOT_BOTTOM_L2,
-  SLOT_LEFT_L1, SLOT_LEFT_L2,
-  SLOT_RIGHT_L1, SLOT_RIGHT_L2,
-  SLOT_CORNER_TL, SLOT_CORNER_TR, SLOT_CORNER_BL, SLOT_CORNER_BR,
-};
-
-// One fully-resolved feature slot: everything features_draw_item() needs
-// to draw it, with zero layout decisions left to make at draw time.
-typedef struct {
-  bool active;             // false = this slot draws nothing this cycle
-  uint8_t content;
-  uint8_t color_mode;
-  bool is_top;
-  bool is_left;
-  bool is_middle;
-  int16_t top_offset;
-  int16_t bottom_shift;
-  int16_t middle_inset;    // how far in from the screen edge a middle-left/right slot sits --
-                             // defaults to 30 (the fixed inset every non-custom marker style
-                             // always used); custom markers (style 8) compute this dynamically
-                             // instead, from where the ring's own inner boundary actually lands
-                             // at 3/9 o'clock -- see features_recompute_slots()'s own comment.
-  bool center_horizontal;
-  bool center_vertical;
-  bool allow_outline;
-} FeatureSlot;
-
-typedef struct {
-  EclipseData *data;
-  bool labels_visible;
-  FeatureSlot slots[FEATURES_MAX_SLOTS];
-} FeaturesState;
-
-// Re-derives every slot's active/position fields from the current
-// settings (state->data) and shake-label state (state->labels_visible).
-// This is the layout logic corners_layer_update_proc used to redo on
-// every single redraw; it now runs only from features_layer_set_data()/
-// features_layer_set_labels_visible(), i.e. on an actual settings change
-// or shake event, not every tick/heartbeat-refresh.
-static void features_recompute_slots(FeaturesState *state) {
+// ---- layout resolution (settings/shake-driven) -------------------------
+//
+// Which of the 12 slots are even active, and where each one's box
+// sits, depends only on settings (bottom_style, big_analog_marker_style,
+// bottom_info_bar_mode, the corner/edge content+color-mode fields) plus
+// the shake-triggered label state -- never on the current time or any
+// live reading. Resolved here, then features_recompute_slot_value() is
+// called once per newly-active slot to fill in its actual content --
+// see features_layer_set_data()/set_labels_visible() below for when
+// this whole function runs (settings/shake changes) versus
+// features_layer_refresh_values()/refresh_second_slots() (which only
+// re-run the VALUE half, for slots whose layout hasn't changed at all).
+static void features_recompute_layout(FeaturesState *state) {
   for (int i = 0; i < FEATURES_MAX_SLOTS; i++) state->slots[i].active = false;
 
   EclipseData *d = state->data;
@@ -2070,15 +2359,6 @@ static void features_recompute_slots(FeaturesState *state) {
   uint8_t marker_style = d->big_analog_marker_style;
   bool is_bitmap_style = is_analog && marker_style >= 3 && marker_style != 8 && marker_style != 9;
 
-  // Which of the 4 edge-middle slots (upper/bottom/left/right-middle) does
-  // the current mode/style actually support? Digital mode uses
-  // none of them. Analog mode's procedural styles (<3), custom (8), and
-  // none (9, no marker ring drawn at all) have no artwork to work around,
-  // so all 4 are available alongside the corners. Analog mode's bitmap
-  // styles (3-7) are limited to whichever slots that specific mask
-  // graphic's design has room for, and (Tally excepted -- see
-  // is_bitmap_style's own use below) suppress the 4 corners since the
-  // mask fills most of the rest of the screen either way.
   bool show_upper = false, show_bottom = false, show_left = false, show_right = false;
   if (is_analog) {
     if (marker_style < 3 || marker_style == 8 || marker_style == 9) {
@@ -2091,32 +2371,32 @@ static void features_recompute_slots(FeaturesState *state) {
         case 5: case 7: // Tally, Brown -- all inside
           show_upper = show_bottom = show_left = show_right = true;
           break;
-        default: // out-of-range marker_style -- shouldn't happen, but leave every slot off rather than guess
+        default:
           break;
       }
     }
   }
 
-  // Custom markers (style 8) can have their inner ring boundary sit
-  // anywhere at all -- unlike the procedural presets (which never
-  // reach far enough in to threaten the middle-edge slots' normal
-  // fixed position), a custom ring's own inner_border_pct might be set
-  // large enough to actually overlap where upper/bottom/left/right-
-  // middle content would otherwise sit. Rather than the fixed 44/40/30
-  // margins every other style uses, compute where the ring's own inner
-  // edge actually lands at each of the 4 cardinal marks (12/3/6/9
-  // o'clock -- same point_on_ring() the ring itself is drawn with, see
-  // its own comment in background_layer.c for why it's exposed here),
-  // and use whichever of "the normal fixed margin" or "just past the
-  // ring's own inner edge" is larger -- so a small/central ring still
-  // leaves everything at its normal position, and only a ring that
-  // genuinely reaches into that space pushes the affected slot(s)
-  // further in to clear it.
-  int16_t dyn_upper_offset = 44, dyn_bottom_shift = 40, dyn_middle_inset = 30;
-  if (marker_style == 8) {
-    GRect screen = GRect(0, 0, 200, 228); // full, unshrunk screen -- same dimensions full_bounds
-                                            // itself always is (this app targets emery only), which
-                                            // is what the marker ring is actually drawn against
+  // Inner-empty-area margins: procedural presets (0/1/2) and "none" (9)
+  // are calculated from that style's own marker-ring geometry via
+  // background_marker_inner_reach() (same point_on_ring() technique
+  // custom (8) uses below, just fed a fixed preset instead of a live
+  // user config); bitmap styles (3-7) have no ring geometry at all, so
+  // they use a fixed per-style table instead, each side independent.
+  typedef struct { int16_t top, bottom, left, right; } EdgeMargins;
+  static const EdgeMargins BITMAP_STYLE_MARGINS[5] = {
+    { 44, 40, 30, 30 }, // 3: Modern
+    { 44, 40, 30, 30 }, // 4: Swiss
+    { 44, 40, 30, 30 }, // 5: Tally
+    { 44, 40, 30, 30 }, // 6: Bell
+    { 44, 40, 30, 30 }, // 7: Brown
+  };
+  int16_t dyn_upper_offset = 44, dyn_bottom_shift = 40, dyn_left_inset = 30, dyn_right_inset = 30;
+  if (is_bitmap_style && marker_style >= 3 && marker_style <= 7) {
+    const EdgeMargins *m = &BITMAP_STYLE_MARGINS[marker_style - 3];
+    dyn_upper_offset = m->top; dyn_bottom_shift = m->bottom; dyn_left_inset = m->left; dyn_right_inset = m->right;
+  } else if (marker_style == 8) {
+    GRect screen = GRect(0, 0, 200, 228);
     GPoint center = GPoint(screen.size.w / 2, screen.size.h / 2);
     uint8_t pct = d->custom_hour_marker.inner_border_pct;
     uint8_t ecc = d->custom_hour_marker.inner_eccentricity;
@@ -2124,22 +2404,29 @@ static void features_recompute_slots(FeaturesState *state) {
     GPoint right_pt = point_on_ring(center, screen, TRIG_MAX_ANGLE / 4, pct, ecc);
     GPoint bottom_pt = point_on_ring(center, screen, TRIG_MAX_ANGLE / 2, pct, ecc);
     GPoint left_pt = point_on_ring(center, screen, (TRIG_MAX_ANGLE * 3) / 4, pct, ecc);
-    int16_t margin = 4; // a few px of breathing room past the ring's own inner edge, not flush against it
+    int16_t margin = 4;
     if (top_pt.y + margin > dyn_upper_offset) dyn_upper_offset = top_pt.y + margin;
     if (screen.size.h - bottom_pt.y + margin > dyn_bottom_shift) dyn_bottom_shift = screen.size.h - bottom_pt.y + margin;
-    int16_t left_inset = left_pt.x + margin;
-    int16_t right_inset = screen.size.w - right_pt.x + margin;
-    int16_t dyn_side_inset = (left_inset > right_inset) ? left_inset : right_inset; // one shared inset for both sides, same as the fixed-30 default already was
-    if (dyn_side_inset > dyn_middle_inset) dyn_middle_inset = dyn_side_inset;
+    int16_t left_reach = left_pt.x + margin, right_reach = screen.size.w - right_pt.x + margin;
+    if (left_reach > dyn_left_inset) dyn_left_inset = left_reach;
+    if (right_reach > dyn_right_inset) dyn_right_inset = right_reach;
+  } else if (marker_style <= 2 || marker_style == 9) {
+    uint8_t pct, ecc;
+    background_marker_inner_reach(marker_style, &pct, &ecc);
+    GRect screen = GRect(0, 0, 200, 228);
+    GPoint center = GPoint(screen.size.w / 2, screen.size.h / 2);
+    GPoint top_pt = point_on_ring(center, screen, 0, pct, ecc);
+    GPoint right_pt = point_on_ring(center, screen, TRIG_MAX_ANGLE / 4, pct, ecc);
+    GPoint bottom_pt = point_on_ring(center, screen, TRIG_MAX_ANGLE / 2, pct, ecc);
+    GPoint left_pt = point_on_ring(center, screen, (TRIG_MAX_ANGLE * 3) / 4, pct, ecc);
+    int16_t margin = 4;
+    if (top_pt.y + margin > dyn_upper_offset) dyn_upper_offset = top_pt.y + margin;
+    if (screen.size.h - bottom_pt.y + margin > dyn_bottom_shift) dyn_bottom_shift = screen.size.h - bottom_pt.y + margin;
+    int16_t left_reach = left_pt.x + margin, right_reach = screen.size.w - right_pt.x + margin;
+    if (left_reach > dyn_left_inset) dyn_left_inset = left_reach;
+    if (right_reach > dyn_right_inset) dyn_right_inset = right_reach;
   }
 
-  // Upper-middle sits further down (34px, was 4px) than the old
-  // single-slot version -- too close to the top edge on the modern mask's
-  // actual artwork. Bottom-middle mirrors that same ~30px margin up from
-  // the bottom edge. Each is now a 2-line pair: when line 2 has no
-  // content, line 1 shifts toward the vertical center of where the pair
-  // would have sat, rather than staying pinned at the "top line of two"
-  // position with an empty gap below/above it.
   if (show_upper) {
     bool has_line2 = d->upper_middle_line2_content != 0;
     int16_t line1_offset = has_line2 ? dyn_upper_offset : dyn_upper_offset + CORNER_ROW_H / 2;
@@ -2148,6 +2435,7 @@ static void features_recompute_slots(FeaturesState *state) {
       .is_top = true, .is_left = true, .is_middle = false,
       .top_offset = line1_offset, .bottom_shift = 0, .middle_inset = 0,
       .center_horizontal = true, .center_vertical = false, .allow_outline = true,
+      .needs_second_refresh = content_needs_second_refresh(d->upper_middle_line1_content),
     };
     if (has_line2) {
       state->slots[SLOT_UPPER_L2] = (FeatureSlot){
@@ -2155,6 +2443,7 @@ static void features_recompute_slots(FeaturesState *state) {
         .is_top = true, .is_left = true, .is_middle = false,
         .top_offset = dyn_upper_offset + CORNER_ROW_H, .bottom_shift = 0, .middle_inset = 0,
         .center_horizontal = true, .center_vertical = false, .allow_outline = true,
+        .needs_second_refresh = content_needs_second_refresh(d->upper_middle_line2_content),
       };
     }
   }
@@ -2166,6 +2455,7 @@ static void features_recompute_slots(FeaturesState *state) {
       .is_top = false, .is_left = true, .is_middle = false,
       .top_offset = 0, .bottom_shift = line1_shift, .middle_inset = 0,
       .center_horizontal = true, .center_vertical = false, .allow_outline = true,
+      .needs_second_refresh = content_needs_second_refresh(d->bottom_middle_line1_content),
     };
     if (has_line2) {
       state->slots[SLOT_BOTTOM_L2] = (FeatureSlot){
@@ -2173,6 +2463,7 @@ static void features_recompute_slots(FeaturesState *state) {
         .is_top = false, .is_left = true, .is_middle = false,
         .top_offset = 0, .bottom_shift = dyn_bottom_shift, .middle_inset = 0,
         .center_horizontal = true, .center_vertical = false, .allow_outline = true,
+        .needs_second_refresh = content_needs_second_refresh(d->bottom_middle_line2_content),
       };
     }
   }
@@ -2182,15 +2473,17 @@ static void features_recompute_slots(FeaturesState *state) {
     state->slots[SLOT_LEFT_L1] = (FeatureSlot){
       .active = true, .content = d->middle_left_line1_content, .color_mode = d->middle_left_line1_color_mode,
       .is_top = false, .is_left = true, .is_middle = true,
-      .top_offset = line1_offset, .bottom_shift = 0, .middle_inset = dyn_middle_inset,
+      .top_offset = line1_offset, .bottom_shift = 0, .middle_inset = dyn_left_inset,
       .center_horizontal = false, .center_vertical = true, .allow_outline = true,
+      .needs_second_refresh = content_needs_second_refresh(d->middle_left_line1_content),
     };
     if (has_line2) {
       state->slots[SLOT_LEFT_L2] = (FeatureSlot){
         .active = true, .content = d->middle_left_line2_content, .color_mode = d->middle_left_line2_color_mode,
         .is_top = false, .is_left = true, .is_middle = true,
-        .top_offset = CORNER_ROW_H / 2, .bottom_shift = 0, .middle_inset = dyn_middle_inset,
+        .top_offset = CORNER_ROW_H / 2, .bottom_shift = 0, .middle_inset = dyn_left_inset,
         .center_horizontal = false, .center_vertical = true, .allow_outline = true,
+        .needs_second_refresh = content_needs_second_refresh(d->middle_left_line2_content),
       };
     }
   }
@@ -2200,33 +2493,25 @@ static void features_recompute_slots(FeaturesState *state) {
     state->slots[SLOT_RIGHT_L1] = (FeatureSlot){
       .active = true, .content = d->middle_right_line1_content, .color_mode = d->middle_right_line1_color_mode,
       .is_top = false, .is_left = false, .is_middle = true,
-      .top_offset = line1_offset, .bottom_shift = 0, .middle_inset = dyn_middle_inset,
+      .top_offset = line1_offset, .bottom_shift = 0, .middle_inset = dyn_right_inset,
       .center_horizontal = false, .center_vertical = true, .allow_outline = true,
+      .needs_second_refresh = content_needs_second_refresh(d->middle_right_line1_content),
     };
     if (has_line2) {
       state->slots[SLOT_RIGHT_L2] = (FeatureSlot){
         .active = true, .content = d->middle_right_line2_content, .color_mode = d->middle_right_line2_color_mode,
         .is_top = false, .is_left = false, .is_middle = true,
-        .top_offset = CORNER_ROW_H / 2, .bottom_shift = 0, .middle_inset = dyn_middle_inset,
+        .top_offset = CORNER_ROW_H / 2, .bottom_shift = 0, .middle_inset = dyn_right_inset,
         .center_horizontal = false, .center_vertical = true, .allow_outline = true,
+        .needs_second_refresh = content_needs_second_refresh(d->middle_right_line2_content),
       };
     }
   }
 
-  // Tally's own mask art leaves all 4 corners clear (unlike the other 4
-  // bitmap styles, whose art fills that space) -- per the request, so
-  // it alone gets to keep the corners active alongside its edge-middle
-  // slots above rather than having them suppressed like every other
-  // bitmap style.
-  if (is_bitmap_style && marker_style != 5) return; // corners fully replaced by the slots above
-
-  // Bottom corners shift up out of the way of the "Clouds/visibility/
-  // location" bar (background_layer.c's canvas_update_proc) whenever that
-  // bar is actually going to be drawn -- which depends on
-  // bottom_info_bar_mode, not just whether a shake is currently active:
-  // Off (0) never draws it (never shift), Permanent (2) always draws it
-  // (always shift), and On shake (1) draws it only while labels_visible
-  // is true (shift only then).
+  // Corners always just draw whatever d->corner_content[] says, for
+  // every marker style including bitmap ones -- defaulting that to
+  // "off" for bitmap styles (and offering an "enable corner features"
+  // override) is the settings page's job, not this file's.
   bool bar_will_draw = (d->bottom_info_bar_mode == 2) ||
                         (d->bottom_info_bar_mode == 1 && state->labels_visible);
   int16_t bottom_shift = bar_will_draw ? 18 : 0;
@@ -2234,27 +2519,72 @@ static void features_recompute_slots(FeaturesState *state) {
   state->slots[SLOT_CORNER_TL] = (FeatureSlot){
     .active = true, .content = d->corner_content[0], .color_mode = d->corner_color_mode[0],
     .is_top = true, .is_left = true, .is_middle = false,
-    .top_offset = 2, .bottom_shift = 0,
+    .top_offset = CORNER_INSET_PX, .bottom_shift = 0,
     .center_horizontal = false, .center_vertical = false, .allow_outline = true,
+    .needs_second_refresh = content_needs_second_refresh(d->corner_content[0]),
   };
   state->slots[SLOT_CORNER_TR] = (FeatureSlot){
     .active = true, .content = d->corner_content[1], .color_mode = d->corner_color_mode[1],
     .is_top = true, .is_left = false, .is_middle = false,
-    .top_offset = 2, .bottom_shift = 0,
+    .top_offset = CORNER_INSET_PX, .bottom_shift = 0,
     .center_horizontal = false, .center_vertical = false, .allow_outline = true,
+    .needs_second_refresh = content_needs_second_refresh(d->corner_content[1]),
   };
   state->slots[SLOT_CORNER_BL] = (FeatureSlot){
     .active = true, .content = d->corner_content[2], .color_mode = d->corner_color_mode[2],
     .is_top = false, .is_left = true, .is_middle = false,
     .top_offset = 0, .bottom_shift = bottom_shift,
     .center_horizontal = false, .center_vertical = false, .allow_outline = true,
+    .needs_second_refresh = content_needs_second_refresh(d->corner_content[2]),
   };
   state->slots[SLOT_CORNER_BR] = (FeatureSlot){
     .active = true, .content = d->corner_content[3], .color_mode = d->corner_color_mode[3],
     .is_top = false, .is_left = false, .is_middle = false,
     .top_offset = 0, .bottom_shift = bottom_shift,
     .center_horizontal = false, .center_vertical = false, .allow_outline = true,
+    .needs_second_refresh = content_needs_second_refresh(d->corner_content[3]),
   };
+}
+
+// ---- value refresh (recomputes VALUE only, layout stays as-is) --------
+
+// Recomputes every active slot's value -- called after a full layout
+// change (so newly-active slots get real content right away) and from
+// the periodic ~1-minute refresh (so slower-changing readings --
+// weather, health, battery, dates -- actually update).
+static void features_recompute_all_values(FeaturesState *state) {
+  if (!state->data) return;
+  time_t now = time(NULL);
+  struct tm *t = localtime(&now);
+  GColor bg, main_color, accent_color;
+  get_active_color_scheme(state->data, now, &bg, &main_color, &accent_color);
+  ensure_corner_custom_font(state->data->corner_font);
+  GFont font = font_lookup_resolve(&s_corner_font_slot, state->data->corner_font);
+  int16_t font_h = font_lookup_height(state->data->corner_font);
+
+  for (int i = 0; i < FEATURES_MAX_SLOTS; i++) {
+    if (!state->slots[i].active) continue;
+    features_recompute_slot_value(&state->slots[i], state->data, main_color, accent_color, bg, font, font_h, now, t);
+  }
+}
+
+// Recomputes ONLY the slot(s) whose content needs second-by-second
+// updating (a seconds-showing time display, or nothing at all most of
+// the time) -- if only one feature slot shows seconds, only that one
+// slot gets touched, not all 12.
+static void features_recompute_second_slots(FeaturesState *state) {
+  if (!state->data) return;
+  time_t now = time(NULL);
+  struct tm *t = localtime(&now);
+  GColor bg, main_color, accent_color;
+  get_active_color_scheme(state->data, now, &bg, &main_color, &accent_color);
+  GFont font = font_lookup_resolve(&s_corner_font_slot, state->data->corner_font);
+  int16_t font_h = font_lookup_height(state->data->corner_font);
+
+  for (int i = 0; i < FEATURES_MAX_SLOTS; i++) {
+    if (!state->slots[i].active || !state->slots[i].needs_second_refresh) continue;
+    features_recompute_slot_value(&state->slots[i], state->data, main_color, accent_color, bg, font, font_h, now, t);
+  }
 }
 
 // ---- layer lifecycle --------------------------------------------------
@@ -2262,30 +2592,30 @@ static void features_recompute_slots(FeaturesState *state) {
 // The always-on-top feature overlay. Deliberately a separate layer with
 // its own independent refresh timer (see main.c's corners_timer_callback)
 // rather than being drawn as part of the sky canvas or tied to its redraw
-// cycle -- per the original brief, updating this (e.g. for a fresh heart
-// rate reading) should never force the much more expensive sky canvas to
-// redraw too. Like the hands layer, never fills its own background, so
-// whatever's underneath (sky canvas, and in big-analog mode possibly the
-// hands too -- see "draw features beneath hands") shows through
+// cycle. Never fills its own background, so whatever's underneath (sky
+// canvas, and in big-analog mode possibly the hands too) shows through
 // everywhere except where content is actually drawn.
+//
+// Does no computation of its own at all -- every slot's position,
+// color, icon, and text was already resolved by whichever of
+// features_layer_set_data()/set_labels_visible()/refresh_values()/
+// refresh_second_slots() last ran. This is purely a blit loop.
 static void features_layer_update_proc(Layer *layer, GContext *ctx) {
   FeaturesState *state = (FeaturesState *)layer_get_data(layer);
   if (!state->data) return;
 
   GRect bounds = layer_get_unobstructed_bounds(layer);
-  time_t now = time(NULL);
+  GFont font = font_lookup_resolve(&s_corner_font_slot, state->data->corner_font);
+  int16_t font_h = font_lookup_height(state->data->corner_font);
+  int16_t font_offset = font_lookup_y_offset(state->data->corner_font) / 2;
+  // Only needed here for the sunrise/sunset glyph's halo -- everything
+  // else's color was already fully resolved back at recompute time.
   GColor bg, main_color, accent_color;
-  get_active_color_scheme(state->data, now, &bg, &main_color, &accent_color);
-  ensure_corner_custom_font(state->data->corner_font);
+  get_active_color_scheme(state->data, time(NULL), &bg, &main_color, &accent_color);
 
   for (int i = 0; i < FEATURES_MAX_SLOTS; i++) {
-    FeatureSlot *s = &state->slots[i];
-    if (!s->active) continue;
-    features_draw_item(ctx, bounds, state->data, s->content, s->color_mode,
-                        main_color, accent_color, bg,
-                        s->is_top, s->is_left, s->is_middle, s->top_offset, s->bottom_shift,
-                        s->middle_inset,
-                        s->center_horizontal, s->center_vertical, s->allow_outline);
+    features_draw_slot(ctx, bounds, &state->slots[i], font, font_h, font_offset,
+                        state->data->outline_enabled, state->data->weather_icon_style, bg);
   }
 }
 
@@ -2306,13 +2636,43 @@ void features_layer_destroy(Layer *layer) {
 void features_layer_set_data(Layer *layer, EclipseData *data) {
   FeaturesState *state = (FeaturesState *)layer_get_data(layer);
   state->data = data;
-  features_recompute_slots(state);
+  features_recompute_layout(state);
+  features_recompute_all_values(state);
   layer_mark_dirty(layer);
 }
 
 void features_layer_set_labels_visible(Layer *layer, bool visible) {
   FeaturesState *state = (FeaturesState *)layer_get_data(layer);
   state->labels_visible = visible;
-  features_recompute_slots(state);
+  features_recompute_layout(state);
+  features_recompute_all_values(state);
+  layer_mark_dirty(layer);
+}
+
+void features_layer_refresh_values(Layer *layer) {
+  FeaturesState *state = (FeaturesState *)layer_get_data(layer);
+  features_recompute_all_values(state);
+  layer_mark_dirty(layer);
+}
+
+void features_layer_refresh_second_slots(Layer *layer) {
+  FeaturesState *state = (FeaturesState *)layer_get_data(layer);
+  features_recompute_second_slots(state);
+  layer_mark_dirty(layer);
+}
+
+void features_layer_refresh_content(Layer *layer, uint8_t content) {
+  FeaturesState *state = (FeaturesState *)layer_get_data(layer);
+  if (!state->data) return;
+  time_t now = time(NULL);
+  struct tm *t = localtime(&now);
+  GColor bg, main_color, accent_color;
+  get_active_color_scheme(state->data, now, &bg, &main_color, &accent_color);
+  GFont font = font_lookup_resolve(&s_corner_font_slot, state->data->corner_font);
+  int16_t font_h = font_lookup_height(state->data->corner_font);
+  for (int i = 0; i < FEATURES_MAX_SLOTS; i++) {
+    if (!state->slots[i].active || state->slots[i].content != content) continue;
+    features_recompute_slot_value(&state->slots[i], state->data, main_color, accent_color, bg, font, font_h, now, t);
+  }
   layer_mark_dirty(layer);
 }

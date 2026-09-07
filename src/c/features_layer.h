@@ -9,70 +9,90 @@
 // of pebble-eclipse-watch.c's corners_layer_update_proc into its own module,
 // mirroring background_layer.c/hand_layer.c.
 //
-// Which content goes in which of the up to 12 slots, and exactly where on
-// screen each one lands, depends only on settings (bottom_style,
-// big_analog_marker_style, bottom_info_bar_mode, and the corner/edge
-// content+color-mode fields themselves) plus the shake-triggered label
-// state -- NOT on the current time or any live sensor reading. So rather
-// than re-deriving all of that layout on every redraw (as the old single
-// corners_layer_update_proc did), this module caches it as a small
-// FeatureSlot[] array -- recomputed only from features_layer_set_data()/
-// features_layer_set_labels_visible() (i.e. on watchface start and
-// whenever a relevant setting or the shake state actually changes) -- and
-// just walked and drawn from on every real redraw. The live per-item
-// values (heart rate, weather, ...) still get formatted at draw time in
-// features_draw_item() itself, same as before -- those inherently change
-// independent of settings and can't be precomputed.
+// Table-driven: every one of the 12 slots is a FeatureSlot holding
+// everything features_layer_update_proc() needs to draw it -- position,
+// color, icon, text -- fully resolved ahead of time. A slot has two
+// halves that change at very different rates:
+//
+//   - LAYOUT (which of the 12 slots are active, and where each one's box
+//     sits) depends only on settings (bottom_style, big_analog_marker_style,
+//     bottom_info_bar_mode, the corner/edge content+color-mode fields) plus
+//     the shake-triggered label state -- resolved by
+//     features_recompute_layout() (features_layer.c, private), only ever
+//     called from features_layer_set_data()/set_labels_visible() below.
+//
+//   - VALUE (the actual text/icon/color for a slot's current content --
+//     a health reading, the weather, the clock, a compass heading) changes
+//     far more often, and is resolved separately by
+//     features_recompute_slot_value() (features_layer.c, private), grouped
+//     into a handful of per-category functions rather than one giant
+//     per-content switch. features_layer_refresh_values() re-runs this for
+//     every active slot (the periodic ~1-minute tick); refresh_second_slots()
+//     re-runs it ONLY for the slot(s) whose content actually needs
+//     second-by-second updates (never all 12 just because one shows
+//     seconds).
+//
+// features_layer_update_proc() itself (features_layer.c) does none of the
+// above -- by the time it runs, every slot already has its final pixel
+// positions/colors/strings sitting in the table, so drawing is a plain
+// blit loop with no formatting, gradient math, or alignment/width
+// measurement of its own.
 // ---------------------------------------------------------------------------
 
 #define FEATURES_MAX_SLOTS 12
 
-// The height of one feature row -- shared with the small-analog bottom
-// panel's own inline feature rows (see bottom_canvas_update_proc()),
-// which reuse features_draw_item() directly rather than going through
-// this module's own layer/slot machinery (small-analog mode has no
-// separate always-on-top overlay layer to begin with).
+// How long, in ms, the periodic refresh (features_layer_refresh_values(),
+// called from corners_timer_callback() in pebble-eclipse-watch.c)
+// re-resolves every active slot's value, independent of any settings
+// change. Named here as a single shared knob rather than a magic number
+// duplicated in the main .c file.
+#define FEATURES_REFRESH_MS 60000
+
 #define CORNER_ROW_H 24
 
 Layer *features_layer_create(GRect frame);
 void features_layer_destroy(Layer *layer);
 
-// Recomputes every slot's visibility/position from the current settings
-// in `data` and marks the layer dirty. Call once right after creating the
+// Recomputes every slot's layout AND value from the current settings in
+// `data`, then marks the layer dirty. Call once right after creating the
 // layer, and again whenever an inbox message may have changed a setting
-// that affects feature layout (style, marker style, bottom-info-bar mode,
-// or any of the corner/edge content fields) -- NOT on every tick.
+// that affects feature layout or content (style, marker style,
+// bottom-info-bar mode, any of the corner/edge content fields, colors,
+// units, ...).
 void features_layer_set_data(Layer *layer, EclipseData *data);
 
 // The shake-to-reveal ground bar shifts the two bottom corners up out of
 // its way while it's showing -- affects slot position like a settings
-// change would, so (like features_layer_set_data()) this recomputes the
-// cached slots rather than just marking the layer dirty.
+// change would, so (like features_layer_set_data()) this recomputes
+// layout and value for every slot rather than just marking the layer
+// dirty.
 void features_layer_set_labels_visible(Layer *layer, bool visible);
 
-// ---- shared with the small-analog bottom panel (main .c file) ----------
-// bottom_canvas_update_proc() draws its own 4 feature rows directly --
-// small-analog mode has no separate overlay layer, its rows live inline
-// in the digital/analog bottom panel instead -- so it needs the same
-// per-item drawing primitive and font plumbing this module owns for the
-// corners/edges overlay.
+// Re-resolves every active slot's VALUE (not layout -- that's unchanged)
+// from the current data/time/live sensor state, then marks the layer
+// dirty. Call from the periodic refresh timer -- see FEATURES_REFRESH_MS
+// above.
+void features_layer_refresh_values(Layer *layer);
 
-// Draws one feature slot's content/icon/text at an already fully-resolved
-// position -- no layout decisions happen in here, just formatting live
-// values (health, weather, ...) and drawing them. `data` supplies the
-// settings/live-data fields the content type needs (temp units, step
-// goal, and so on).
-void features_draw_item(GContext *ctx, GRect bounds, const EclipseData *data,
-                         uint8_t content, uint8_t color_mode,
-                         GColor main_color, GColor accent_color, GColor bg_color,
-                         bool is_top, bool is_left, bool is_middle, int16_t top_offset, int16_t bottom_shift,
-                         int16_t middle_inset,
-                         bool center_horizontal, bool center_vertical, bool allow_outline);
+// Re-resolves ONLY the slot(s) whose content needs second-by-second
+// updating (a seconds-showing time display), then marks the layer dirty.
+// Call from the once-a-second tick handler -- cheap even when nothing in
+// the whole table actually needs it, since it's a no-op scan when no
+// slot is currently showing seconds.
+void features_layer_refresh_second_slots(Layer *layer);
+
+// Re-resolves ONLY the slot(s) currently showing this specific content
+// id, then marks the layer dirty -- for triggers tied to one particular
+// content type rather than the clock (e.g. the compass feature's own
+// live-heading animation frame, which needs to update far more often
+// than the general refresh, but only for whichever slot(s) are actually
+// showing the compass).
+void features_layer_refresh_content(Layer *layer, uint8_t content);
 
 // Loads/unloads the shared corner/edge custom font on demand -- cheap to
-// call every redraw (no-ops if the choice hasn't changed since the last
-// call). Used by this module's own update proc, the big-analog hands
-// layer's date-behind-hands readout, and the small-analog panel's rows.
+// call repeatedly (no-ops if the choice hasn't changed since the last
+// call). Used by this module's own value-recompute functions and the
+// big-analog hands layer's date-behind-hands readout.
 void ensure_corner_custom_font(uint8_t choice);
 
 // Unloads the shared corner/edge custom font, if one is currently
