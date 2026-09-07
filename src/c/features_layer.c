@@ -1210,27 +1210,48 @@ static GColor resolve_flat_color(uint8_t color_mode, GColor dynamic_color, GColo
   }
 }
 
-static RenderSegment make_icon_segment(uint8_t icon_kind, GColor color) {
-  RenderSegment s = { 0 };
-  s.is_icon = true;
-  s.icon_kind = icon_kind;
-  s.color = color;
-  s.color2 = color;
-  return s;
+// Write directly into slot->segments[i] instead of building a 32-byte
+// RenderSegment on the stack and block-copying it in -- see the size
+// analysis's item B. Callers that need icon_extra/icon_flag set them
+// on slot->segments[i] themselves right after calling this, same as
+// they used to set them on the local RenderSegment before assigning it.
+static void set_icon_seg(FeatureSlot *slot, int i, uint8_t icon_kind, GColor color) {
+  RenderSegment *g = &slot->segments[i];
+  g->is_icon = true;
+  g->icon_kind = icon_kind;
+  g->icon_extra = 0;
+  g->icon_flag = false;
+  g->color = color;
+  g->color2 = color;
 }
 
-static RenderSegment make_text_segment(const char *text, GColor color) {
-  RenderSegment s = { 0 };
-  s.is_icon = false;
-  s.color = color;
-  s.color2 = color;
-  snprintf(s.text, sizeof(s.text), "%s", text);
-  return s;
+static void set_text_seg(FeatureSlot *slot, int i, const char *text, GColor color) {
+  RenderSegment *g = &slot->segments[i];
+  g->is_icon = false;
+  g->icon_kind = 0;
+  g->icon_extra = 0;
+  g->icon_flag = false;
+  g->color = color;
+  g->color2 = color;
+  snprintf(g->text, sizeof(g->text), "%s", text);
+}
+
+// One helper covers the common "icon_kind 0 => text only, else icon+text"
+// 1- or 2-segment shape most content-cluster cases use.
+static void slot_set(FeatureSlot *slot, uint8_t icon_kind, const char *text, GColor color) {
+  if (icon_kind == 0) {
+    slot->segment_count = 1;
+    set_text_seg(slot, 0, text, color);
+  } else {
+    slot->segment_count = 2;
+    set_icon_seg(slot, 0, icon_kind, color);
+    set_text_seg(slot, 1, text, color);
+  }
 }
 
 // ---- health cluster: heart rate, steps, battery, Bluetooth, sleep -----
 
-static void compute_health_value(FeatureSlot *slot, uint8_t content, const EclipseData *data,
+static void __attribute__((noinline)) compute_health_value(FeatureSlot *slot, uint8_t content, const EclipseData *data,
                                   uint8_t color_mode, GColor main_color, GColor accent_color) {
   char buf[24];
   switch (content) {
@@ -1239,8 +1260,8 @@ static void compute_health_value(FeatureSlot *slot, uint8_t content, const Eclip
       GColor dyn = (bpm > 0) ? heart_rate_gradient(bpm) : GColorLightGray;
       snprintf(buf, sizeof(buf), bpm > 0 ? "%d" : "N/A", bpm);
       slot->segment_count = 2;
-      slot->segments[0] = make_icon_segment(1, resolve_flat_color(color_mode, dyn, main_color, accent_color));
-      slot->segments[1] = make_text_segment(buf, resolve_flat_color(color_mode, dyn, main_color, accent_color));
+      set_icon_seg(slot, 0, 1, resolve_flat_color(color_mode, dyn, main_color, accent_color));
+      set_text_seg(slot, 1, buf, resolve_flat_color(color_mode, dyn, main_color, accent_color));
       return;
     }
     case 2: { // steps today
@@ -1251,8 +1272,8 @@ static void compute_health_value(FeatureSlot *slot, uint8_t content, const Eclip
       GColor dyn = red_green_gradient((uint8_t)pct);
       snprintf(buf, sizeof(buf), "%d", (int)steps);
       slot->segment_count = 2;
-      slot->segments[0] = make_icon_segment(2, resolve_flat_color(color_mode, dyn, main_color, accent_color));
-      slot->segments[1] = make_text_segment(buf, resolve_flat_color(color_mode, dyn, main_color, accent_color));
+      set_icon_seg(slot, 0, 2, resolve_flat_color(color_mode, dyn, main_color, accent_color));
+      set_text_seg(slot, 1, buf, resolve_flat_color(color_mode, dyn, main_color, accent_color));
       return;
     }
     case 3: { // step goal %
@@ -1263,8 +1284,8 @@ static void compute_health_value(FeatureSlot *slot, uint8_t content, const Eclip
       GColor dyn = red_green_gradient((uint8_t)(pct > 100 ? 100 : pct));
       snprintf(buf, sizeof(buf), "%d%%", (int)pct);
       slot->segment_count = 2;
-      slot->segments[0] = make_icon_segment(2, resolve_flat_color(color_mode, dyn, main_color, accent_color));
-      slot->segments[1] = make_text_segment(buf, resolve_flat_color(color_mode, dyn, main_color, accent_color));
+      set_icon_seg(slot, 0, 2, resolve_flat_color(color_mode, dyn, main_color, accent_color));
+      set_text_seg(slot, 1, buf, resolve_flat_color(color_mode, dyn, main_color, accent_color));
       return;
     }
     case 10: { // battery %
@@ -1273,14 +1294,13 @@ static void compute_health_value(FeatureSlot *slot, uint8_t content, const Eclip
       snprintf(buf, sizeof(buf), bs.is_charging ? "%d%%+" : "%d%%", bs.charge_percent);
       GColor c = resolve_flat_color(color_mode, dyn, main_color, accent_color);
       slot->segment_count = 1;
-      RenderSegment seg = make_icon_segment(3, c);
-      seg.icon_extra = bs.charge_percent;
-      seg.icon_flag = bs.is_charging;
-      slot->segments[0] = seg;
+      set_icon_seg(slot, 0, 3, c);
+      slot->segments[0].icon_extra = bs.charge_percent;
+      slot->segments[0].icon_flag = bs.is_charging;
       // battery is the one icon that also always shows its own text (percentage) --
       // matches the icon+text shape every other health content uses.
       slot->segment_count = 2;
-      slot->segments[1] = make_text_segment(buf, c);
+      set_text_seg(slot, 1, buf, c);
       return;
     }
     case 17: { // pebble battery logo -- icon draws its own fill bar, no separate text
@@ -1288,25 +1308,22 @@ static void compute_health_value(FeatureSlot *slot, uint8_t content, const Eclip
       GColor dyn = bs.is_charging ? GColorGreen : red_green_gradient((uint8_t)bs.charge_percent);
       GColor c = resolve_flat_color(color_mode, dyn, main_color, accent_color);
       slot->segment_count = 1;
-      RenderSegment seg = make_icon_segment(12, c);
-      seg.icon_extra = bs.charge_percent;
-      seg.icon_flag = bs.is_charging;
-      slot->segments[0] = seg;
+      set_icon_seg(slot, 0, 12, c);
+      slot->segments[0].icon_extra = bs.charge_percent;
+      slot->segments[0].icon_flag = bs.is_charging;
       return;
     }
     case 20: { // Bluetooth connection status -- always its own dynamic color, ignores color_mode
       bool connected = connection_service_peek_pebble_app_connection();
       GColor c = connected ? GColorFromRGB(64, 224, 208) : GColorFromRGB(255, 0, 0);
-      slot->segment_count = 2;
-      slot->segments[0] = make_icon_segment(13, c);
-      slot->segments[1] = make_text_segment(connected ? "Connected" : "No phone", c);
+      slot_set(slot, 13, connected ? "Connected" : "No phone", c);
       return;
     }
     case 78: { // Bluetooth, icon only -- same always-dynamic color as 20
       bool connected = connection_service_peek_pebble_app_connection();
       GColor c = connected ? GColorFromRGB(64, 224, 208) : GColorFromRGB(255, 0, 0);
       slot->segment_count = 1;
-      slot->segments[0] = make_icon_segment(13, c);
+      set_icon_seg(slot, 0, 13, c);
       return;
     }
     case 39: case 40: { // sleep duration (total, 39) / restful (deep) sleep duration (40)
@@ -1322,9 +1339,7 @@ static void compute_health_value(FeatureSlot *slot, uint8_t content, const Eclip
         snprintf(buf, sizeof(buf), "N/A");
         c = GColorLightGray;
       }
-      slot->segment_count = 2;
-      slot->segments[0] = make_icon_segment(icon_kind, c);
-      slot->segments[1] = make_text_segment(buf, c);
+      slot_set(slot, icon_kind, buf, c);
       return;
     }
     case 41: { // sleep quality -- restful / total, as a percentage
@@ -1340,9 +1355,7 @@ static void compute_health_value(FeatureSlot *slot, uint8_t content, const Eclip
         snprintf(buf, sizeof(buf), "N/A");
         c = GColorLightGray;
       }
-      slot->segment_count = 2;
-      slot->segments[0] = make_icon_segment(20, c);
-      slot->segments[1] = make_text_segment(buf, c);
+      slot_set(slot, 20, buf, c);
       return;
     }
     case 42: case 43: { // bed time (42) / wake time (43) -- day/night graded
@@ -1358,9 +1371,7 @@ static void compute_health_value(FeatureSlot *slot, uint8_t content, const Eclip
         snprintf(buf, sizeof(buf), "N/A");
         c = GColorLightGray;
       }
-      slot->segment_count = 2;
-      slot->segments[0] = make_icon_segment(icon_kind, c);
-      slot->segments[1] = make_text_segment(buf, c);
+      slot_set(slot, icon_kind, buf, c);
       return;
     }
     default:
@@ -1376,7 +1387,7 @@ static void compute_health_value(FeatureSlot *slot, uint8_t content, const Eclip
 // features_recompute_slot_value()'s shared tail once this function
 // returns, so nothing in here needs to check for a fetch error itself.
 
-static void compute_weather_value(FeatureSlot *slot, uint8_t content, const EclipseData *data,
+static void __attribute__((noinline)) compute_weather_value(FeatureSlot *slot, uint8_t content, const EclipseData *data,
                                    uint8_t color_mode, GColor main_color, GColor accent_color, GColor bg_color) {
   char buf[24];
   GColor cond_color = data->valid
@@ -1394,12 +1405,12 @@ static void compute_weather_value(FeatureSlot *slot, uint8_t content, const Ecli
         snprintf(hi_buf, sizeof(hi_buf), "H%d", hi);
         snprintf(lo_buf, sizeof(lo_buf), "L%d", lo);
         slot->segment_count = 2;
-        slot->segments[0] = make_text_segment(hi_buf, seven_stop_gradient(data->temp_high_c, -10, 40));
-        slot->segments[1] = make_text_segment(lo_buf, seven_stop_gradient(data->temp_low_c, -10, 40));
+        set_text_seg(slot, 0, hi_buf, seven_stop_gradient(data->temp_high_c, -10, 40));
+        set_text_seg(slot, 1, lo_buf, seven_stop_gradient(data->temp_low_c, -10, 40));
       } else {
         snprintf(buf, sizeof(buf), "H%d L%d", hi, lo);
         slot->segment_count = 1;
-        slot->segments[0] = make_text_segment(buf, resolve_flat_color(color_mode, main_color, main_color, accent_color));
+        set_text_seg(slot, 0, buf, resolve_flat_color(color_mode, main_color, main_color, accent_color));
       }
       return;
     }
@@ -1408,38 +1419,32 @@ static void compute_weather_value(FeatureSlot *slot, uint8_t content, const Ecli
       snprintf(buf, sizeof(buf), "%d%s %s", temp, temp_unit_suffix(data->temp_unit),
                short_condition_text(data->weather_condition, data->cloud_cover_pct));
       slot->segment_count = 1;
-      slot->segments[0] = make_text_segment(buf, resolve_flat_color(color_mode, cond_color, main_color, accent_color));
+      set_text_seg(slot, 0, buf, resolve_flat_color(color_mode, cond_color, main_color, accent_color));
       return;
     }
     case 6: { // UV index
       uint8_t uv = data->uv_index_x10 / 10;
       snprintf(buf, sizeof(buf), "UV%d", uv);
       slot->segment_count = 1;
-      slot->segments[0] = make_text_segment(buf, resolve_flat_color(color_mode, seven_stop_gradient(uv, 1, 13), main_color, accent_color));
+      set_text_seg(slot, 0, buf, resolve_flat_color(color_mode, seven_stop_gradient(uv, 1, 13), main_color, accent_color));
       return;
     }
     case 7: { // rain chance
       snprintf(buf, sizeof(buf), "%d%%", data->rain_chance_pct);
       GColor c = resolve_flat_color(color_mode, white_to_turquoise_gradient(data->rain_chance_pct, 0, 100), main_color, accent_color);
-      slot->segment_count = 2;
-      slot->segments[0] = make_icon_segment(5, c);
-      slot->segments[1] = make_text_segment(buf, c);
+      slot_set(slot, 5, buf, c);
       return;
     }
     case 8: { // humidity
       snprintf(buf, sizeof(buf), "%d%%", data->humidity_pct);
       GColor c = resolve_flat_color(color_mode, white_to_turquoise_gradient(data->humidity_pct, 0, 100), main_color, accent_color);
-      slot->segment_count = 2;
-      slot->segments[0] = make_icon_segment(6, c);
-      slot->segments[1] = make_text_segment(buf, c);
+      slot_set(slot, 6, buf, c);
       return;
     }
     case 9: { // wind speed
       snprintf(buf, sizeof(buf), "%d", convert_wind(data->wind_speed_kmh, data->wind_speed_unit));
       GColor c = resolve_flat_color(color_mode, white_to_turquoise_gradient(data->wind_speed_kmh, 0, 60), main_color, accent_color);
-      slot->segment_count = 2;
-      slot->segments[0] = make_icon_segment(7, c);
-      slot->segments[1] = make_text_segment(buf, c);
+      slot_set(slot, 7, buf, c);
       return;
     }
     case 14: { // visibility -- grayscale, like cloud cover (vis_score_pct is sent as 100-cloud%)
@@ -1447,47 +1452,40 @@ static void compute_weather_value(FeatureSlot *slot, uint8_t content, const Ecli
       uint8_t equiv_cloud_pct = 100 - data->vis_score_pct;
       GColor dyn = overcast_gray_gradient(equiv_cloud_pct < OVERCAST_CLOUD_THRESHOLD ? OVERCAST_CLOUD_THRESHOLD : equiv_cloud_pct);
       GColor c = resolve_flat_color(color_mode, dyn, main_color, accent_color);
-      slot->segment_count = 2;
-      slot->segments[0] = make_icon_segment(9, c);
-      slot->segments[1] = make_text_segment(buf, c);
+      slot_set(slot, 9, buf, c);
       return;
     }
     case 15: { // cloud cover
       snprintf(buf, sizeof(buf), "%d%%", data->cloud_cover_pct);
       GColor dyn = overcast_gray_gradient(data->cloud_cover_pct < OVERCAST_CLOUD_THRESHOLD ? OVERCAST_CLOUD_THRESHOLD : data->cloud_cover_pct);
       GColor c = resolve_flat_color(color_mode, dyn, main_color, accent_color);
-      slot->segment_count = 2;
-      slot->segments[0] = make_icon_segment(10, c);
-      slot->segments[1] = make_text_segment(buf, c);
+      slot_set(slot, 10, buf, c);
       return;
     }
     case 31: { // weather icon only, no text
       GColor c = resolve_flat_color(color_mode, cond_color, main_color, accent_color);
-      RenderSegment seg = make_icon_segment(14, c);
-      seg.icon_extra = weather_icon_category(data->weather_condition, data->cloud_cover_pct);
       slot->segment_count = 1;
-      slot->segments[0] = seg;
+      set_icon_seg(slot, 0, 14, c);
+      slot->segments[0].icon_extra = weather_icon_category(data->weather_condition, data->cloud_cover_pct);
       return;
     }
     case 32: { // temp + weather icon -- condition-based color, same as 5/31
       int16_t temp = convert_temp(data->weather_temp_c, data->temp_unit);
       snprintf(buf, sizeof(buf), "%d%s", temp, temp_unit_suffix(data->temp_unit));
       GColor c = resolve_flat_color(color_mode, cond_color, main_color, accent_color);
-      RenderSegment icon_seg = make_icon_segment(14, c);
-      icon_seg.icon_extra = weather_icon_category(data->weather_condition, data->cloud_cover_pct);
       slot->segment_count = 2;
-      slot->segments[0] = icon_seg;
-      slot->segments[1] = make_text_segment(buf, c);
+      set_icon_seg(slot, 0, 14, c);
+      slot->segments[0].icon_extra = weather_icon_category(data->weather_condition, data->cloud_cover_pct);
+      set_text_seg(slot, 1, buf, c);
       return;
     }
     case 34: { // pressure, with rising/falling/flat trend arrow
       snprintf(buf, sizeof(buf), "%d hPa", data->pressure_hpa);
       GColor c = resolve_flat_color(color_mode, seven_stop_gradient(data->pressure_hpa, 970, 1050), main_color, accent_color);
-      RenderSegment seg = make_icon_segment(15, c);
-      seg.icon_extra = data->pressure_trend;
       slot->segment_count = 2;
-      slot->segments[0] = seg;
-      slot->segments[1] = make_text_segment(buf, c);
+      set_icon_seg(slot, 0, 15, c);
+      slot->segments[0].icon_extra = data->pressure_trend;
+      set_text_seg(slot, 1, buf, c);
       return;
     }
     case 35: { // wind direction, with a rotated compass arrow
@@ -1496,11 +1494,10 @@ static void compute_weather_value(FeatureSlot *slot, uint8_t content, const Ecli
       if (idx < 0) idx += 8;
       snprintf(buf, sizeof(buf), "%s", COMPASS_DIRS[idx]);
       GColor c = resolve_flat_color(color_mode, main_color, main_color, accent_color);
-      RenderSegment seg = make_icon_segment(16, c);
-      seg.icon_extra = data->wind_dir_deg;
       slot->segment_count = 2;
-      slot->segments[0] = seg;
-      slot->segments[1] = make_text_segment(buf, c);
+      set_icon_seg(slot, 0, 16, c);
+      slot->segments[0].icon_extra = data->wind_dir_deg;
+      set_text_seg(slot, 1, buf, c);
       return;
     }
     case 36: { // air quality -- shared 7-stop gradient, remapped per scale
@@ -1509,16 +1506,14 @@ static void compute_weather_value(FeatureSlot *slot, uint8_t content, const Ecli
       snprintf(buf, sizeof(buf), "AQI %d", aqi_value);
       GColor c = resolve_flat_color(color_mode, seven_stop_gradient(aqi_value, 0, use_eu ? 100 : 300), main_color, accent_color);
       slot->segment_count = 1;
-      slot->segments[0] = make_text_segment(buf, c);
+      set_text_seg(slot, 0, buf, c);
       return;
     }
     case 37: { // dew point -- reuses the humidity feature's droplet icon
       int16_t dew = convert_temp(data->dew_point_c, data->temp_unit);
       snprintf(buf, sizeof(buf), "%d%s", dew, temp_unit_suffix(data->temp_unit));
       GColor c = resolve_flat_color(color_mode, main_color, main_color, accent_color);
-      slot->segment_count = 2;
-      slot->segments[0] = make_icon_segment(6, c);
-      slot->segments[1] = make_text_segment(buf, c);
+      slot_set(slot, 6, buf, c);
       return;
     }
     case 38: { // altitude -- white(sea level)->turquoise(high) gradient
@@ -1535,9 +1530,7 @@ static void compute_weather_value(FeatureSlot *slot, uint8_t content, const Ecli
         }
         c = resolve_flat_color(color_mode, altitude_gradient(data->altitude_m), main_color, accent_color);
       }
-      slot->segment_count = 2;
-      slot->segments[0] = make_icon_segment(17, c);
-      slot->segments[1] = make_text_segment(buf, c);
+      slot_set(slot, 17, buf, c);
       return;
     }
     case 73: case 74: case 75: case 77: { // current/high/low/feels-like temp only -- all 7-stop, -10..40C
@@ -1550,7 +1543,7 @@ static void compute_weather_value(FeatureSlot *slot, uint8_t content, const Ecli
       snprintf(buf, sizeof(buf), "%s%d%s", prefix, shown, temp_unit_suffix(data->temp_unit));
       GColor c = resolve_flat_color(color_mode, seven_stop_gradient(temp_c, -10, 40), main_color, accent_color);
       slot->segment_count = 1;
-      slot->segments[0] = make_text_segment(buf, c);
+      set_text_seg(slot, 0, buf, c);
       return;
     }
     case 76: { // weather icon + current/high/low all in one line -- "mixed" value, condition-based color
@@ -1559,11 +1552,10 @@ static void compute_weather_value(FeatureSlot *slot, uint8_t content, const Ecli
       int16_t lo = convert_temp(data->temp_low_c, data->temp_unit);
       snprintf(buf, sizeof(buf), "%d H%d L%d%s", cur, hi, lo, temp_unit_suffix(data->temp_unit));
       GColor c = resolve_flat_color(color_mode, cond_color, main_color, accent_color);
-      RenderSegment icon_seg = make_icon_segment(14, c);
-      icon_seg.icon_extra = weather_icon_category(data->weather_condition, data->cloud_cover_pct);
       slot->segment_count = 2;
-      slot->segments[0] = icon_seg;
-      slot->segments[1] = make_text_segment(buf, c);
+      set_icon_seg(slot, 0, 14, c);
+      slot->segments[0].icon_extra = weather_icon_category(data->weather_condition, data->cloud_cover_pct);
+      set_text_seg(slot, 1, buf, c);
       return;
     }
     case 87: case 88: case 89: case 90: case 91: case 92: { // weather in 1-6 hours, e.g. "+3h <icon> 28C"
@@ -1574,7 +1566,7 @@ static void compute_weather_value(FeatureSlot *slot, uint8_t content, const Ecli
         snprintf(buf, sizeof(buf), "+%dh N/A", hrs_ahead);
         c = GColorLightGray;
         slot->segment_count = 1;
-        slot->segments[0] = make_text_segment(buf, c);
+        set_text_seg(slot, 0, buf, c);
         return;
       }
       int16_t shown = convert_temp(data->forecast_temp_c[idx], data->temp_unit);
@@ -1583,11 +1575,10 @@ static void compute_weather_value(FeatureSlot *slot, uint8_t content, const Ecli
       // not the condition-based color -- per the "Temperature readouts
       // (including temp+weather icon)" rule.
       c = resolve_flat_color(color_mode, seven_stop_gradient(data->forecast_temp_c[idx], -10, 40), main_color, accent_color);
-      RenderSegment icon_seg = make_icon_segment(14, c);
-      icon_seg.icon_extra = weather_icon_category(data->forecast_condition[idx], 50); // no forecast cloud% sent separately -- 50 is a neutral middle guess, only affects which of a few near-identical icon glyphs gets picked
       slot->segment_count = 2;
-      slot->segments[0] = icon_seg;
-      slot->segments[1] = make_text_segment(buf, c);
+      set_icon_seg(slot, 0, 14, c);
+      slot->segments[0].icon_extra = weather_icon_category(data->forecast_condition[idx], 50); // no forecast cloud% sent separately -- 50 is a neutral middle guess, only affects which of a few near-identical icon glyphs gets picked
+      set_text_seg(slot, 1, buf, c);
       return;
     }
     case 93: case 94: { // last weather update time, long (93, "Last updated 12:34") / short (94, "12:34")
@@ -1604,7 +1595,7 @@ static void compute_weather_value(FeatureSlot *slot, uint8_t content, const Ecli
       }
       dyn = weather_staleness_gradient(now, data->weather_last_update);
       slot->segment_count = 1;
-      slot->segments[0] = make_text_segment(buf, resolve_flat_color(color_mode, dyn, main_color, accent_color));
+      set_text_seg(slot, 0, buf, resolve_flat_color(color_mode, dyn, main_color, accent_color));
       return;
     }
     default:
@@ -1615,7 +1606,7 @@ static void compute_weather_value(FeatureSlot *slot, uint8_t content, const Ecli
 
 // ---- date/time cluster -------------------------------------------------
 
-static void compute_date_value(FeatureSlot *slot, uint8_t content, const EclipseData *data,
+static void __attribute__((noinline)) compute_date_value(FeatureSlot *slot, uint8_t content, const EclipseData *data,
                                 uint8_t color_mode, GColor main_color, GColor accent_color, time_t now, struct tm *t) {
   char buf[24];
   GColor dyn = main_color;
@@ -1704,12 +1695,12 @@ static void compute_date_value(FeatureSlot *slot, uint8_t content, const Eclipse
       return;
   }
   slot->segment_count = 1;
-  slot->segments[0] = make_text_segment(buf, resolve_flat_color(color_mode, dyn, main_color, accent_color));
+  set_text_seg(slot, 0, buf, resolve_flat_color(color_mode, dyn, main_color, accent_color));
 }
 
 // ---- timezone cluster ---------------------------------------------------
 
-static void compute_timezone_value(FeatureSlot *slot, uint8_t content, uint8_t color_mode,
+static void __attribute__((noinline)) compute_timezone_value(FeatureSlot *slot, uint8_t content, uint8_t color_mode,
                                     GColor main_color, GColor accent_color, time_t now) {
   const TimezoneInfo *tz = &TIMEZONES[content - 44];
   int16_t offset_min = timezone_current_offset_min(tz, now);
@@ -1725,13 +1716,13 @@ static void compute_timezone_value(FeatureSlot *slot, uint8_t content, uint8_t c
     snprintf(buf, sizeof(buf), "%s %d:%02d%s", tz->abbr, hour12, local_min, local_hour24 < 12 ? "AM" : "PM");
   }
   slot->segment_count = 1;
-  slot->segments[0] = make_text_segment(buf, resolve_flat_color(color_mode, timezone_daylight_color(local_hour24), main_color, accent_color));
+  set_text_seg(slot, 0, buf, resolve_flat_color(color_mode, timezone_daylight_color(local_hour24), main_color, accent_color));
 }
 
 // ---- sky/astronomy cluster: moon phase, location, sunrise/sunset,
 // planets, meteor shower, Saturn rings, ISS, aurora, compass ---------
 
-static void compute_sky_value(FeatureSlot *slot, uint8_t content, const EclipseData *data,
+static void __attribute__((noinline)) compute_sky_value(FeatureSlot *slot, uint8_t content, const EclipseData *data,
                                uint8_t color_mode, GColor main_color, GColor accent_color, time_t now) {
   char buf[24];
 
@@ -1739,20 +1730,17 @@ static void compute_sky_value(FeatureSlot *slot, uint8_t content, const EclipseD
     case 11: { // Moon phase -- icon + short name, no natural "value" to grade -- always white
       snprintf(buf, sizeof(buf), "%s", moon_phase_short_name(data->moon_phase_pct, data->moon_waxing));
       GColor c = resolve_flat_color(color_mode, GColorWhite, main_color, accent_color);
-      RenderSegment seg = make_icon_segment(4, c);
-      seg.icon_extra = data->moon_phase_pct;
-      seg.icon_flag = data->moon_waxing;
       slot->segment_count = 2;
-      slot->segments[0] = seg;
-      slot->segments[1] = make_text_segment(buf, c);
+      set_icon_seg(slot, 0, 4, c);
+      slot->segments[0].icon_extra = data->moon_phase_pct;
+      slot->segments[0].icon_flag = data->moon_waxing;
+      set_text_seg(slot, 1, buf, c);
       return;
     }
     case 13: { // location name
       snprintf(buf, sizeof(buf), "%s", data->location_name[0] != '\0' ? data->location_name : "Unknown");
       GColor c = resolve_flat_color(color_mode, main_color, main_color, accent_color);
-      slot->segment_count = 2;
-      slot->segments[0] = make_icon_segment(8, c);
-      slot->segments[1] = make_text_segment(buf, c);
+      slot_set(slot, 8, buf, c);
       return;
     }
     case 16: { // sunrise/sunset -- same event/icon as the digital/analog info panel's row
@@ -1765,11 +1753,10 @@ static void compute_sky_value(FeatureSlot *slot, uint8_t content, const EclipseD
         snprintf(buf, sizeof(buf), "N/A");
       }
       GColor c = resolve_flat_color(color_mode, main_color, main_color, accent_color);
-      RenderSegment seg = make_icon_segment(11, c);
-      seg.icon_flag = is_sunrise;
       slot->segment_count = 2;
-      slot->segments[0] = seg;
-      slot->segments[1] = make_text_segment(buf, c);
+      set_icon_seg(slot, 0, 11, c);
+      slot->segments[0].icon_flag = is_sunrise;
+      set_text_seg(slot, 1, buf, c);
       return;
     }
     case 79: { // how many of the 5 tracked planets are above the horizon right now
@@ -1782,9 +1769,7 @@ static void compute_sky_value(FeatureSlot *slot, uint8_t content, const EclipseD
         snprintf(buf, sizeof(buf), "%d planet%s", count, count == 1 ? "" : "s");
         c = resolve_flat_color(color_mode, main_color, main_color, accent_color);
       }
-      slot->segment_count = 2;
-      slot->segments[0] = make_icon_segment(23, c);
-      slot->segments[1] = make_text_segment(buf, c);
+      slot_set(slot, 23, buf, c);
       return;
     }
     case 80: { // active meteor shower name, if any -- grayscale by intensity (more meteors = whiter)
@@ -1800,7 +1785,7 @@ static void compute_sky_value(FeatureSlot *slot, uint8_t content, const EclipseD
         c = GColorLightGray;
       }
       slot->segment_count = 1;
-      slot->segments[0] = make_text_segment(buf, c);
+      set_text_seg(slot, 0, buf, c);
       return;
     }
     case 81: { // Saturn's current ring-opening angle
@@ -1812,9 +1797,7 @@ static void compute_sky_value(FeatureSlot *slot, uint8_t content, const EclipseD
         snprintf(buf, sizeof(buf), "Rings %d%%", data->saturn_ring_open_pct);
         c = resolve_flat_color(color_mode, main_color, main_color, accent_color);
       }
-      slot->segment_count = 2;
-      slot->segments[0] = make_icon_segment(24, c);
-      slot->segments[1] = make_text_segment(buf, c);
+      slot_set(slot, 24, buf, c);
       return;
     }
     case 82: { // which of the 5 tracked planets rises next today, and when
@@ -1842,7 +1825,7 @@ static void compute_sky_value(FeatureSlot *slot, uint8_t content, const EclipseD
         }
       }
       slot->segment_count = 1;
-      slot->segments[0] = make_text_segment(buf, c);
+      set_text_seg(slot, 0, buf, c);
       return;
     }
     case 83: { // start time of the next visible ISS pass
@@ -1858,9 +1841,7 @@ static void compute_sky_value(FeatureSlot *slot, uint8_t content, const EclipseD
         snprintf(buf, sizeof(buf), "N/A");
         c = GColorLightGray;
       }
-      slot->segment_count = 2;
-      slot->segments[0] = make_icon_segment(25, c);
-      slot->segments[1] = make_text_segment(buf, c);
+      slot_set(slot, 25, buf, c);
       return;
     }
     case 84: { // current planetary Kp index
@@ -1872,9 +1853,7 @@ static void compute_sky_value(FeatureSlot *slot, uint8_t content, const EclipseD
         snprintf(buf, sizeof(buf), "Kp %d.%d", data->aurora_kp_x10 / 10, data->aurora_kp_x10 % 10);
         c = resolve_flat_color(color_mode, white_to_red_gradient(data->aurora_kp_x10), main_color, accent_color);
       }
-      slot->segment_count = 2;
-      slot->segments[0] = make_icon_segment(26, c);
-      slot->segments[1] = make_text_segment(buf, c);
+      slot_set(slot, 26, buf, c);
       return;
     }
     case 85: { // Compass -- active (real heading) for 15s after a shake, then asleep until the next one.
@@ -1895,16 +1874,15 @@ static void compute_sky_value(FeatureSlot *slot, uint8_t content, const EclipseD
         snprintf(buf, sizeof(buf), "%s", COMPASS_DIRS[idx]);
       }
       GColor flat = resolve_flat_color(color_mode, main_color, main_color, accent_color);
-      RenderSegment icon_seg = make_icon_segment(27, flat);
-      icon_seg.icon_extra = (int16_t)(compass_feature_heading_deg() % 360);
-      icon_seg.icon_flag = asleep;
-      if (color_mode == 3) {
-        icon_seg.color = accent_color;  // north arrow
-        icon_seg.color2 = main_color;   // other 3 arrows
-      }
       slot->segment_count = 2;
-      slot->segments[0] = icon_seg;
-      slot->segments[1] = make_text_segment(buf, flat);
+      set_icon_seg(slot, 0, 27, flat);
+      slot->segments[0].icon_extra = (int16_t)(compass_feature_heading_deg() % 360);
+      slot->segments[0].icon_flag = asleep;
+      if (color_mode == 3) {
+        slot->segments[0].color = accent_color;  // north arrow
+        slot->segments[0].color2 = main_color;   // other 3 arrows
+      }
+      set_text_seg(slot, 1, buf, flat);
       return;
     }
     default:
@@ -1920,7 +1898,7 @@ static void compute_sky_value(FeatureSlot *slot, uint8_t content, const EclipseD
 // multi-icon combo) for mono/accent/Pill modes, and only split into
 // independently-gradient-colored segments under "color" mode (3).
 
-static void compute_combo_value(FeatureSlot *slot, uint8_t content, const EclipseData *data,
+static void __attribute__((noinline)) compute_combo_value(FeatureSlot *slot, uint8_t content, const EclipseData *data,
                                  uint8_t color_mode, GColor main_color, time_t now) {
   bool dynamic = (color_mode == 3);
   GColor flat = main_color;
@@ -1940,10 +1918,10 @@ static void compute_combo_value(FeatureSlot *slot, uint8_t content, const Eclips
       snprintf(buf2, sizeof(buf2), "%d", (int)steps);
 
       slot->segment_count = 4;
-      slot->segments[0] = make_icon_segment(1, hr_c);
-      slot->segments[1] = make_text_segment(buf1, hr_c);
-      slot->segments[2] = make_icon_segment(2, step_c);
-      slot->segments[3] = make_text_segment(buf2, step_c);
+      set_icon_seg(slot, 0, 1, hr_c);
+      set_text_seg(slot, 1, buf1, hr_c);
+      set_icon_seg(slot, 2, 2, step_c);
+      set_text_seg(slot, 3, buf2, step_c);
       return;
     }
     case 98: { // bed time + wake time, day/night graded independently
@@ -1966,9 +1944,9 @@ static void compute_combo_value(FeatureSlot *slot, uint8_t content, const Eclips
         if (dynamic) bed_c = wake_c = GColorLightGray;
       }
       slot->segment_count = 3;
-      slot->segments[0] = make_icon_segment(21, flat);
-      slot->segments[1] = make_text_segment(buf1, bed_c);
-      slot->segments[2] = make_text_segment(buf2, wake_c);
+      set_icon_seg(slot, 0, 21, flat);
+      set_text_seg(slot, 1, buf1, bed_c);
+      set_text_seg(slot, 2, buf2, wake_c);
       return;
     }
     case 99: case 100: { // battery + BT (icons only, 99), battery % + BT (100)
@@ -1977,20 +1955,18 @@ static void compute_combo_value(FeatureSlot *slot, uint8_t content, const Eclips
       bool connected = connection_service_peek_pebble_app_connection();
       GColor bt_c = dynamic ? (connected ? GColorFromRGB(64, 224, 208) : GColorFromRGB(255, 0, 0)) : flat;
 
-      RenderSegment batt_seg = make_icon_segment(3, batt_c);
-      batt_seg.icon_extra = bs.charge_percent;
-      batt_seg.icon_flag = bs.is_charging;
+      set_icon_seg(slot, 0, 3, batt_c);
+      slot->segments[0].icon_extra = bs.charge_percent;
+      slot->segments[0].icon_flag = bs.is_charging;
 
       if (content == 99) {
         slot->segment_count = 2;
-        slot->segments[0] = batt_seg;
-        slot->segments[1] = make_icon_segment(13, bt_c);
+        set_icon_seg(slot, 1, 13, bt_c);
       } else {
         snprintf(buf1, sizeof(buf1), "%d%%", bs.charge_percent);
         slot->segment_count = 3;
-        slot->segments[0] = batt_seg;
-        slot->segments[1] = make_text_segment(buf1, batt_c);
-        slot->segments[2] = make_icon_segment(13, bt_c);
+        set_text_seg(slot, 1, buf1, batt_c);
+        set_icon_seg(slot, 2, 13, bt_c);
       }
       return;
     }
@@ -2012,14 +1988,14 @@ static void compute_combo_value(FeatureSlot *slot, uint8_t content, const Eclips
         GColor quality_c = dynamic ? red_green_gradient((uint8_t)pct) : flat;
 
         slot->segment_count = 4;
-        slot->segments[0] = make_icon_segment(21, flat);
-        slot->segments[1] = make_text_segment(total_buf, total_c);
-        slot->segments[2] = make_text_segment(restful_paren, restful_c);
-        slot->segments[3] = make_text_segment(quality_buf, quality_c);
+        set_icon_seg(slot, 0, 21, flat);
+        set_text_seg(slot, 1, total_buf, total_c);
+        set_text_seg(slot, 2, restful_paren, restful_c);
+        set_text_seg(slot, 3, quality_buf, quality_c);
       } else {
         slot->segment_count = 2;
-        slot->segments[0] = make_icon_segment(21, flat);
-        slot->segments[1] = make_text_segment("N/A", dynamic ? GColorLightGray : flat);
+        set_icon_seg(slot, 0, 21, flat);
+        set_text_seg(slot, 1, "N/A", dynamic ? GColorLightGray : flat);
       }
       return;
     }
@@ -2041,13 +2017,11 @@ static void compute_combo_value(FeatureSlot *slot, uint8_t content, const Eclips
         snprintf(time_buf, sizeof(time_buf), "N/A");
       }
 
-      RenderSegment sun_icon = make_icon_segment(11, flat);
-      sun_icon.icon_flag = is_sunrise;
-
       slot->segment_count = 3;
-      slot->segments[0] = make_text_segment(buf1, date_c);
-      slot->segments[1] = sun_icon;
-      slot->segments[2] = make_text_segment(time_buf, flat);
+      set_text_seg(slot, 0, buf1, date_c);
+      set_icon_seg(slot, 1, 11, flat);
+      slot->segments[1].icon_flag = is_sunrise;
+      set_text_seg(slot, 2, time_buf, flat);
       return;
     }
     default:
@@ -2151,7 +2125,7 @@ static void features_recompute_slot_value(FeatureSlot *slot, const EclipseData *
     char err_buf[10];
     snprintf(err_buf, sizeof(err_buf), "ERR %d", data->weather_error_code);
     slot->segment_count = 1;
-    slot->segments[0] = make_text_segment(err_buf, GColorRed);
+    set_text_seg(slot, 0, err_buf, GColorRed);
     slot->draw_pill = false;
   }
 
