@@ -921,7 +921,7 @@ static void cloud_shading_colors(uint8_t cloud_pct, bool stormy, int16_t sun_alt
 // it while a thin bright channel reaches the ground.
 static void draw_clouds_realistic(GContext *ctx, GRect bounds, uint8_t cloud_pct, uint8_t cloud_altitude_pct,
                          uint8_t visibility_pct, bool stormy, GPoint sun_center, bool sun_up, bool flash_active,
-                         int16_t sun_alt_decideg, bool anim_active, int32_t anim_progress_1000) {
+                         int16_t sun_alt_decideg) {
   if (cloud_pct == 0 && !stormy) return;
 
   RGB8 warm_rgb, cool_rgb;
@@ -951,22 +951,8 @@ static void draw_clouds_realistic(GContext *ctx, GRect bounds, uint8_t cloud_pct
   int16_t up_h = (35 * scale_pct) / 100 + 5;
   int16_t down_h = (30 * scale_pct) / 100 + 5;
 
-  int32_t slide_eased = anim_active ? (1000 - bg_anim_ease_out_1000(anim_progress_1000)) : 0; // 1000 at start, 0 once settled
-
   for (int c = 0; c < cluster_count; c++) {
     int16_t cx = bounds.origin.x + (bounds.size.w * CLUSTER_X_PCT[c]) / 100;
-    // "Animate background on start": slides in from whichever side of
-    // the screen this cluster is already closer to -- left-half
-    // clusters approach from further left, right-half ones from
-    // further right, so the whole cloud deck reads as converging in
-    // from both sides rather than every puff arriving from one
-    // direction. Distance is a fixed fraction of the screen width,
-    // scaled down to nothing as slide_eased itself decays to 0.
-    if (slide_eased > 0) {
-      int16_t side_dist = bounds.size.w / 2;
-      int32_t signed_dist = (CLUSTER_X_PCT[c] < 50) ? -(int32_t)side_dist : (int32_t)side_dist;
-      cx += (int16_t)((signed_dist * slide_eased) / 1000);
-    }
     int16_t cy = band_y + CLUSTER_Y_OFFSET[c];
 
     // Light direction from this cluster toward the Sun, normalized to
@@ -1058,152 +1044,6 @@ static void draw_clouds_realistic(GContext *ctx, GRect bounds, uint8_t cloud_pct
         graphics_draw_line(ctx, bolt[i], bolt[i + 1]);
       }
     }
-  }
-}
-
-// "Simple" cloud style -- a multi-puff cumulus mass built from
-// discrete circles (a flat-ish shaded underside, a bulkier mid-body,
-// and a bumpy sunlit top) rather than a continuous field. Much
-// cheaper per redraw than the "Realistic" style (plain O(area) circle
-// fills instead of per-pixel metaball evaluation across many seeds),
-// at the cost of visibly-circular puffs instead of one organic mass.
-typedef struct {
-  int16_t dx, dy;
-  uint8_t r;
-  bool lit;
-} CloudPuffSpec;
-
-static const CloudPuffSpec CLOUD_TEMPLATE[11] = {
-  // Flat shaded underside -- reads as the cloud's shadowed base
-  { -26,  9, 10, false },
-  { -13, 12, 13, false },
-  {   0, 13, 14, false },
-  {  13, 12, 13, false },
-  {  26,  9, 10, false },
-  // Bulkier mid-body, still on the shadow side so the silhouette
-  // reads bottom-heavy the way real cumulus does
-  { -18, -1, 14, false },
-  {   0, -3, 17, false },
-  {  18, -1, 14, false },
-  // Bumpy sunlit crown -- smaller puffs, bright
-  {  -9, -14,  9, true },
-  {   4, -16, 10, true },
-  {  16, -10,  8, true },
-};
-#define CLOUD_TEMPLATE_COUNT 11
-
-// Bright-crown / shadow-base colors for the puffs above.
-static void simple_cloud_colors(uint8_t cloud_pct, bool stormy, int16_t sun_alt_decideg, GColor *lit, GColor *shadow) {
-  RGB8 lit_rgb, shadow_rgb;
-  if (stormy) {
-    lit_rgb = (RGB8){ 140, 140, 148 };
-    shadow_rgb = (RGB8){ 45, 45, 52 };
-  } else if (cloud_pct > 70) {
-    lit_rgb = (RGB8){ 255, 255, 255 };
-    shadow_rgb = (RGB8){ 120, 120, 126 };
-  } else if (cloud_pct > 35) {
-    lit_rgb = (RGB8){ 255, 255, 255 };
-    shadow_rgb = (RGB8){ 172, 172, 178 };
-  } else {
-    lit_rgb = (RGB8){ 255, 255, 255 };
-    shadow_rgb = (RGB8){ 216, 216, 220 };
-  }
-
-  // Same night-darkening as the Realistic style's cloud_shading_colors()
-  // -- these puffs were a flat white/light-gray at any hour otherwise,
-  // glaringly bright against a near-black night sky.
-  uint8_t night = cloud_night_factor(sun_alt_decideg);
-  if (night > 0) {
-    RGB8 night_dark = { 28, 29, 36 };
-    lit_rgb.r = lerp8(lit_rgb.r, night_dark.r, night, 100);
-    lit_rgb.g = lerp8(lit_rgb.g, night_dark.g, night, 100);
-    lit_rgb.b = lerp8(lit_rgb.b, night_dark.b, night, 100);
-    shadow_rgb.r = lerp8(shadow_rgb.r, night_dark.r, night, 100);
-    shadow_rgb.g = lerp8(shadow_rgb.g, night_dark.g, night, 100);
-    shadow_rgb.b = lerp8(shadow_rgb.b, night_dark.b, night, 100);
-  }
-
-  *lit = GColorFromRGB(lit_rgb.r, lit_rgb.g, lit_rgb.b);
-  *shadow = GColorFromRGB(shadow_rgb.r, shadow_rgb.g, shadow_rgb.b);
-}
-
-// Stipples a dithered disc of `color` at `density_pct` (0-100)
-// coverage -- deliberately pixel-level (not a flat fill) so the
-// sky/sun shows through in proportion to how overcast it actually is.
-static void dither_fill_circle(GContext *ctx, GRect bounds, GPoint center, int16_t radius,
-                                 GColor color, uint8_t density_pct) {
-  uint8_t threshold = (uint8_t)((density_pct * 16) / 100);
-  graphics_context_set_fill_color(ctx, color);
-  int16_t x0 = center.x - radius, x1 = center.x + radius;
-  int16_t y0 = center.y - radius, y1 = center.y + radius;
-  if (x0 < bounds.origin.x) x0 = bounds.origin.x;
-  if (y0 < bounds.origin.y) y0 = bounds.origin.y;
-  if (x1 >= bounds.origin.x + bounds.size.w) x1 = bounds.origin.x + bounds.size.w - 1;
-  if (y1 >= bounds.origin.y + bounds.size.h) y1 = bounds.origin.y + bounds.size.h - 1;
-
-  for (int16_t y = y0; y <= y1; y++) {
-    int16_t dy = y - center.y;
-    for (int16_t x = x0; x <= x1; x++) {
-      int16_t dx = x - center.x;
-      if (dx * dx + dy * dy > (int32_t)radius * radius) continue;
-      if (BAYER4[y & 3][x & 3] < threshold) {
-        graphics_fill_rect(ctx, GRect(x, y, 1, 1), 0, GCornerNone);
-      }
-    }
-  }
-}
-
-static void draw_clouds_simple(GContext *ctx, GRect bounds, uint8_t cloud_pct, uint8_t cloud_altitude_pct,
-                                uint8_t visibility_pct, bool stormy, int16_t sun_alt_decideg,
-                                bool anim_active, int32_t anim_progress_1000) {
-  if (cloud_pct == 0 && !stormy) return;
-
-  GColor lit_color, shadow_color;
-  simple_cloud_colors(cloud_pct, stormy, sun_alt_decideg, &lit_color, &shadow_color);
-
-  int16_t band_y = compute_cloud_band_y(bounds, cloud_altitude_pct);
-  int cluster_count = cloud_cluster_count(cloud_pct, stormy);
-
-  uint8_t density = cloud_pct < 30 ? 30 : cloud_pct;
-  if (visibility_pct < 70) density += (70 - visibility_pct) / 3;
-  if (density > 96) density = 96;
-  if (stormy && density < 92) density = 92;
-
-  int16_t scale_pct = 70 + (cloud_pct * 60) / 100;
-  if (stormy && scale_pct < 130) scale_pct = 130;
-
-  int32_t slide_eased = anim_active ? (1000 - bg_anim_ease_out_1000(anim_progress_1000)) : 0; // same slide-in as draw_clouds_realistic's own, see its comment
-
-  for (int c = 0; c < cluster_count; c++) {
-    int16_t cx = bounds.origin.x + (bounds.size.w * CLUSTER_X_PCT[c]) / 100;
-    if (slide_eased > 0) {
-      int16_t side_dist = bounds.size.w / 2;
-      int32_t signed_dist = (CLUSTER_X_PCT[c] < 50) ? -(int32_t)side_dist : (int32_t)side_dist;
-      cx += (int16_t)((signed_dist * slide_eased) / 1000);
-    }
-    int16_t cy = band_y + CLUSTER_Y_OFFSET[c];
-    for (int p = 0; p < CLOUD_TEMPLATE_COUNT; p++) {
-      int16_t px = (CLOUD_TEMPLATE[p].dx * scale_pct) / 100;
-      int16_t py = (CLOUD_TEMPLATE[p].dy * scale_pct) / 100;
-      int16_t pr = (CLOUD_TEMPLATE[p].r * scale_pct) / 100;
-      if (pr < 3) pr = 3;
-      GPoint puff_center = GPoint(cx + px, cy + py);
-      GColor color = CLOUD_TEMPLATE[p].lit ? lit_color : shadow_color;
-      dither_fill_circle(ctx, bounds, puff_center, pr, color, density);
-    }
-  }
-}
-
-// Picks between the two cloud styles above based on the user's
-// "Cloud style" setting (0=Simple/battery-friendly, 1=Realistic).
-static void draw_clouds(GContext *ctx, GRect bounds, uint8_t cloud_pct, uint8_t cloud_altitude_pct,
-                         uint8_t visibility_pct, bool stormy, GPoint sun_center, bool sun_up,
-                         uint8_t render_style, bool flash_active, int16_t sun_alt_decideg,
-                         bool anim_active, int32_t anim_progress_1000) {
-  if (render_style == 0) {
-    draw_clouds_simple(ctx, bounds, cloud_pct, cloud_altitude_pct, visibility_pct, stormy, sun_alt_decideg, anim_active, anim_progress_1000);
-  } else {
-    draw_clouds_realistic(ctx, bounds, cloud_pct, cloud_altitude_pct, visibility_pct, stormy, sun_center, sun_up, flash_active, sun_alt_decideg, anim_active, anim_progress_1000);
   }
 }
 
@@ -1316,45 +1156,9 @@ static void draw_meteors(GContext *ctx, GRect bounds, uint8_t intensity) {
 // Kp-index-driven upper-sky glow. Only ever considered when it's dark
 // (aurora_visible below, computed in canvas_update_proc) and
 // aurora_enabled is on; the caller further gates on
-// aurora_visibility_pct (see eclipse_data.h) before calling either of
-// these -- both assume they're only being asked to draw because that
-// check already passed. Shares the Simple/Realistic toggle cloud
-// rendering already uses (cloud_render_style) rather than a separate
-// setting of its own.
-
-// Simple style: one soft dithered glow band near the top of the sky,
-// density fading linearly toward its lower edge -- deliberately cheap
-// (a single flat per-row density falloff, no per-streak structure),
-// same "Simple = battery-friendly" trade-off draw_clouds_simple makes
-// against draw_clouds_realistic.
-static void draw_aurora_simple(GContext *ctx, GRect bounds, uint8_t visibility_pct, uint8_t kp_x10) {
-  int16_t top_y = bounds.origin.y + SKY_TOP_MARGIN;
-  int16_t band_h = 46 + (kp_x10 * 2) / 9; // taller glow at higher Kp
-  int16_t horizon_y = bounds.origin.y + bounds.size.h - GROUND_H;
-  int16_t bottom_y = top_y + band_h;
-  if (bottom_y > horizon_y) bottom_y = horizon_y;
-  if (bottom_y <= top_y) return;
-
-  // Green at typical (lower) Kp, shifting toward violet once a storm
-  // is strong enough to push the visible structure higher/redder --
-  // the same idea (just simpler -- one flat color, not a height
-  // blend) as the Realistic style's per-row color blend below.
-  RGB8 glow = (kp_x10 > 60) ? (RGB8){ 130, 60, 200 } : (RGB8){ 30, 200, 120 };
-  uint8_t density_cap = (uint8_t)(((int32_t)visibility_pct * 45) / 100); // always a glow, never a wall
-
-  for (int16_t y = top_y; y < bottom_y; y++) {
-    int16_t rel = y - top_y;
-    uint8_t density = (uint8_t)(density_cap - ((int32_t)density_cap * rel) / (bottom_y - top_y));
-    uint8_t threshold = (uint8_t)((density * 16) / 100);
-    for (int16_t x = bounds.origin.x; x < bounds.origin.x + bounds.size.w; x++) {
-      uint8_t bayer = BAYER4[y & 3][x & 3];
-      if (bayer >= threshold) continue;
-      graphics_context_set_fill_color(ctx, dither_pixel(glow, bayer));
-      graphics_fill_rect(ctx, GRect(x, y, 1, 1), 0, GCornerNone);
-    }
-  }
-}
-
+// aurora_visibility_pct (see eclipse_data.h) before calling this --
+// it assumes it's only being asked to draw because that check already
+// passed.
 #define AURORA_STREAK_COUNT 7
 static const int16_t AURORA_STREAK_X_PCT[AURORA_STREAK_COUNT] = { 8, 22, 38, 50, 64, 80, 94 };
 // Uneven heights (percent of the band's own max) so the streaks read
@@ -1364,24 +1168,19 @@ static const int16_t AURORA_STREAK_HEIGHT_PCT[AURORA_STREAK_COUNT] = { 70, 100, 
 // don't wave in lockstep.
 static const int32_t AURORA_STREAK_PHASE[AURORA_STREAK_COUNT] = { 0, 9362, 18725, 28087, 37449, 46811, 56174 };
 
-// Realistic style: several vertical "curtain" streaks, each with a
-// genuine sine-wave horizontal ripple (via sin_lookup, same fixed-
-// point trig every hand/marker in this app already uses) and a
-// top-to-bottom color blend -- green at the base fading toward violet/
-// magenta higher up (redder/more magenta overall as Kp climbs), the
-// classic look of a real display's lower green arc topped by faint
-// red/purple structure. Notably more expensive per redraw than the
-// Simple style above (a per-pixel color blend and dither across 7
-// overlapping streaks, not one flat band) -- the same "Realistic
-// costs more, looks more painterly" trade-off draw_clouds_realistic
-// already makes over draw_clouds_simple.
-static void draw_aurora_realistic(GContext *ctx, GRect bounds, uint8_t visibility_pct, uint8_t kp_x10) {
+// Several vertical "curtain" streaks, each with a genuine sine-wave
+// horizontal ripple (via sin_lookup, same fixed-point trig every hand/
+// marker in this app already uses) and a top-to-bottom color blend --
+// green at the base fading toward violet/magenta higher up (redder/
+// more magenta overall as Kp climbs), the classic look of a real
+// display's lower green arc topped by faint red/purple structure.
+static void draw_aurora(GContext *ctx, GRect bounds, uint8_t visibility_pct, uint8_t kp_x10) {
   int16_t top_y = bounds.origin.y + SKY_TOP_MARGIN;
   int16_t horizon_y = bounds.origin.y + bounds.size.h - GROUND_H;
   int16_t max_band_h = 60 + (kp_x10 * 3) / 9;
   int16_t streak_w = (bounds.size.w / AURORA_STREAK_COUNT) + 4; // slight overlap merges streaks into one curtain
 
-  uint8_t base_density = 35 + (uint8_t)(((int32_t)visibility_pct * 35) / 100); // 35-70%, richer than Simple's flat 45% cap
+  uint8_t base_density = 35 + (uint8_t)(((int32_t)visibility_pct * 35) / 100);
   RGB8 base_color = { 20, 210, 110 };   // low arc: green
   RGB8 top_color = (kp_x10 > 60) ? (RGB8){ 170, 40, 200 } : (RGB8){ 90, 40, 180 }; // upper structure: violet, more magenta once storming
 
@@ -1420,14 +1219,6 @@ static void draw_aurora_realistic(GContext *ctx, GRect bounds, uint8_t visibilit
         graphics_fill_rect(ctx, GRect(x, y, 1, 1), 0, GCornerNone);
       }
     }
-  }
-}
-
-static void draw_aurora(GContext *ctx, GRect bounds, uint8_t render_style, uint8_t visibility_pct, uint8_t kp_x10) {
-  if (render_style == 0) {
-    draw_aurora_simple(ctx, bounds, visibility_pct, kp_x10);
-  } else {
-    draw_aurora_realistic(ctx, bounds, visibility_pct, kp_x10);
   }
 }
 
@@ -2501,42 +2292,8 @@ static void draw_bg_anim_planets_overlay(GContext *ctx, CanvasState *state, cons
   }
 }
 
-// "Weather" background-on-start animation (bg_anim_mode 1) -- same
-// "skip painting into what gets captured, draw as a cheap overlay
-// after" shape draw_bg_anim_planets_overlay() above uses for bg_anim_
-// mode 2's bodies, and shake_anim_mode 4's own Planet-seek overlay
-// uses for its own state. Unlike mode 2, this mode's backdrop (the sky
-// gradient itself) never changes during the animation -- only the
-// clouds' own slide-in position does -- so canvas_update_proc's own
-// need_full_draw gating only needs to force a genuine full redraw once,
-// on entering/leaving the mode (see eclipse_canvas_set_bg_anim()'s own
-// comment), and every frame in between just blits the cached backdrop
-// and redraws the clouds fresh on top via this function. cloud_pct/alt/
-// stormy are cheap interpolations (not the expensive part of a redraw --
-// see draw_clouds_realistic()'s own comment on what actually costs
-// CPU there), so recomputing them here each frame is fine; sun_center/
-// sun_up come from the cache populated by the one real full draw above
-// instead, same as the Planet-seek/Planets overlays already do.
-static void draw_bg_anim_clouds_overlay(GContext *ctx, CanvasState *state, const EclipseData *d,
-                                         GRect bounds, time_t now, bool flash_active) {
-  if (d->sky_mode != 0) return; // weather_enabled -- Clear sky/Space view show no clouds at all
-  if (state->planet_seek_active) return; // weather is suppressed for Planet seek's whole window
-
-  int16_t alt = interp_sun_alt_decideg(d, now);
-  uint8_t cloud_pct = interp_cloud_pct(d, now);
-  bool stormy = d->weather_condition == 4;
-
-  int32_t progress_1000 = ((int32_t)state->bg_anim_elapsed_ms * 1000) / BG_ANIM_MS;
-  if (progress_1000 > 1000) progress_1000 = 1000;
-
-  draw_clouds(ctx, bounds, cloud_pct, d->cloud_altitude_pct, d->vis_score_pct, stormy,
-              state->cached_sun_center, state->cached_sun_up, d->cloud_render_style,
-              flash_active, alt, true, progress_1000);
-  draw_weather_effect(ctx, bounds, d->weather_condition, cloud_pct, d->cloud_altitude_pct);
-}
-
-// "Markers" background-on-start animation (bg_anim_mode 3) -- same
-// shape as draw_bg_anim_clouds_overlay() just above, for the same
+// "Markers" background-on-start animation (bg_anim_mode 2) -- same
+// shape as draw_bg_anim_planets_overlay() above, for the same
 // reason: only the hour ring's own reveal-in position changes frame to
 // frame (see draw_marker_ring()'s own animation handling), the rest of
 // the sky backdrop stays fixed for the whole animation, so it only
@@ -2637,7 +2394,7 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
   // and every body's screen position all at once from this one
   // substitution point.
   time_t sky_now = now;
-  if (state->bg_anim_active && d->bg_anim_mode == 2) {
+  if (state->bg_anim_active && d->bg_anim_mode == 1) {
     int32_t progress = ((int32_t)state->bg_anim_elapsed_ms * 1000) / BG_ANIM_MS;
     if (progress > 1000) progress = 1000;
     int32_t eased = bg_anim_ease_out_1000(progress);
@@ -2682,17 +2439,15 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
   // real time moved the bodies elsewhere -- a second, stale copy
   // wherever they'd been mid-sweep, alongside the real one. See
   // draw_bg_anim_planets_overlay() below for the actual fix.
-  bool skip_body_paint = state->planet_seek_active || (state->bg_anim_active && d->bg_anim_mode == 2);
+  bool skip_body_paint = state->planet_seek_active || (state->bg_anim_active && d->bg_anim_mode == 1);
 
   // Same "skip it here, draw it fresh as an overlay after the cache
-  // capture" trick as skip_body_paint above, now for the two other
-  // background-on-start modes -- see draw_bg_anim_clouds_overlay()/
-  // draw_bg_anim_markers_overlay()'s own comments for why their
-  // backdrop can be captured once (unlike mode 2's, which keeps
-  // changing throughout the sweep) and only the overlaid element
-  // needs to be fresh every frame.
-  bool skip_cloud_paint = state->bg_anim_active && d->bg_anim_mode == 1;
-  bool skip_marker_paint = state->bg_anim_active && d->bg_anim_mode == 3;
+  // capture" trick as skip_body_paint above, now for the "Markers"
+  // background-on-start mode -- see draw_bg_anim_markers_overlay()'s
+  // own comment for why its backdrop can be captured once (unlike
+  // mode 1's, which keeps changing throughout the sweep) and only the
+  // overlaid element needs to be fresh every frame.
+  bool skip_marker_paint = state->bg_anim_active && d->bg_anim_mode == 2;
 
   int current_phase = compute_eclipse_phase(d, now);
   bool current_iss_visible = compute_iss_visible(d, now, sky_dark_for_bodies);
@@ -2742,9 +2497,9 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
   // exception to the once-a-minute throttle -- outside an active
   // storm this is always false and costs nothing extra; see
   // draw_clouds_realistic() for what a flash actually looks like.
-  bool storm_realistic = d->sky_mode == 0 && d->weather_condition == 4 && d->cloud_render_style == 1;
-  bool flash_currently_active = storm_realistic && now < state->storm_flash_end;
-  if (storm_realistic && !flash_currently_active) {
+  bool storm_now = d->sky_mode == 0 && d->weather_condition == 4;
+  bool flash_currently_active = storm_now && now < state->storm_flash_end;
+  if (storm_now && !flash_currently_active) {
     // Deterministic pseudo-random hash of the current second, not a
     // real RNG (nothing here needs cryptographic quality, and this
     // avoids persisting extra seed state) -- gives each second during
@@ -2776,13 +2531,10 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
       get_active_color_scheme(d, now, &bg, &main_color, &accent_color);
       draw_planet_seek_overlay(ctx, state, d, bounds, now, planet_seek_eased_t_1000(state, d), main_color);
     }
-    if (state->bg_anim_active && d->bg_anim_mode == 2) {
+    if (state->bg_anim_active && d->bg_anim_mode == 1) {
       draw_bg_anim_planets_overlay(ctx, state, d, bounds);
     }
-    if (state->bg_anim_active && d->bg_anim_mode == 1) {
-      draw_bg_anim_clouds_overlay(ctx, state, d, bounds, now, flash_currently_active);
-    }
-    if (state->bg_anim_active && d->bg_anim_mode == 3) {
+    if (state->bg_anim_active && d->bg_anim_mode == 2) {
       draw_bg_anim_markers_overlay(ctx, state, d, full_bounds, now);
     }
     return;
@@ -3165,7 +2917,7 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
   bool aurora_visible = d->sky_mode != 2 && d->aurora_enabled && sky_is_dark && d->aurora_visibility_pct > 15;
   GPoint aurora_label_point = GPoint(bounds.origin.x + bounds.size.w / 2, bounds.origin.y + SKY_TOP_MARGIN + 20);
   if (aurora_visible) {
-    draw_aurora(ctx, bounds, d->cloud_render_style, d->aurora_visibility_pct, d->aurora_kp_x10);
+    draw_aurora(ctx, bounds, d->aurora_visibility_pct, d->aurora_kp_x10);
   }
 
   // Cloud clusters, drawn last so they visibly sit in front of (and
@@ -3176,15 +2928,9 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
   // is suppressed for the whole animation, not just this one frame,
   // so it doesn't get baked into the bodies-free cache Planet seek
   // reuses every frame -- see cached_sun_center's own comment above).
-  // skip_cloud_paint: this exact frame's clouds get drawn afterward
-  // instead, by draw_bg_anim_clouds_overlay() -- see skip_cloud_paint's
-  // own comment above -- so the cache this redraw captures stays a
-  // clean, cloud-free backdrop for every subsequent cheap frame to
-  // blit and overlay onto, the same way skip_body_paint already keeps
-  // Planet seek/mode 2's cache body-free.
-  if (weather_enabled && !state->planet_seek_active && !skip_cloud_paint) {
-    draw_clouds(ctx, bounds, cloud_pct, d->cloud_altitude_pct, d->vis_score_pct, stormy, sun_center, sun_up, d->cloud_render_style,
-                flash_currently_active, alt, false, 0);
+  if (weather_enabled && !state->planet_seek_active) {
+    draw_clouds_realistic(ctx, bounds, cloud_pct, d->cloud_altitude_pct, d->vis_score_pct, stormy, sun_center, sun_up,
+                flash_currently_active, alt);
     draw_weather_effect(ctx, bounds, d->weather_condition, cloud_pct, d->cloud_altitude_pct);
   }
 
@@ -3258,10 +3004,11 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
   // above -- matching hands_layer_update_proc's own positioning, which
   // always uses the full unobstructed screen regardless of the bottom
   // info bar, so markers and hands stay aligned with each other.
-  // skip_marker_paint: same reasoning as skip_cloud_paint above -- this
-  // frame's markers get drawn afterward instead, by draw_bg_anim_
-  // markers_overlay(), so the cache stays marker-free for every
-  // subsequent cheap frame to blit and overlay onto.
+  // skip_marker_paint: this frame's markers get drawn afterward
+  // instead, by draw_bg_anim_markers_overlay(), so the cache stays
+  // marker-free for every subsequent cheap frame to blit and overlay
+  // onto -- same "skip it here, draw it fresh as an overlay after"
+  // trick skip_body_paint uses above for bg_anim_mode 1's bodies.
   if (d->bottom_style == 1 && !skip_marker_paint) {
     GPoint full_center = GPoint(full_bounds.size.w / 2, full_bounds.size.h / 2);
     GColor bg, main_color, accent_color;
@@ -3306,13 +3053,10 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
     get_active_color_scheme(d, now, &bg, &main_color, &accent_color);
     draw_planet_seek_overlay(ctx, state, d, bounds, now, planet_seek_eased_t_1000(state, d), main_color);
   }
-  if (state->bg_anim_active && d->bg_anim_mode == 1) {
-    draw_bg_anim_clouds_overlay(ctx, state, d, bounds, now, flash_currently_active);
-  }
-  if (state->bg_anim_active && d->bg_anim_mode == 3) {
+  if (state->bg_anim_active && d->bg_anim_mode == 2) {
     draw_bg_anim_markers_overlay(ctx, state, d, full_bounds, now);
   }
-  if (state->bg_anim_active && d->bg_anim_mode == 2) {
+  if (state->bg_anim_active && d->bg_anim_mode == 1) {
     draw_bg_anim_planets_overlay(ctx, state, d, bounds);
   }
 }
@@ -3373,23 +3117,23 @@ void eclipse_canvas_set_bg_anim(Layer *layer, bool active, uint16_t elapsed_ms) 
   bool was_active = state->bg_anim_active;
   state->bg_anim_active = active;
   state->bg_anim_elapsed_ms = elapsed_ms;
-  // Modes 1 ("Weather") and 3 ("Markers") only ever animate their own
-  // overlaid element (see draw_bg_anim_clouds_overlay()/draw_bg_anim_
-  // markers_overlay()'s own comments) on top of an otherwise-unchanging
-  // backdrop -- same "full draw once on entering/leaving the mode, cheap
-  // overlay every frame in between" shape eclipse_canvas_set_planet_
-  // seek() below already uses -- so for those two, only the active/
-  // inactive TRANSITION needs a genuine full redraw, not every single
-  // frame. Mode 2 ("Planets") is different: its sky_now substitution
-  // (see canvas_update_proc's own comment) means the gradient/Sun color
-  // itself keeps changing throughout the sweep, not just body position,
-  // so it still needs a real full redraw every frame -- forced
-  // unconditionally here whenever it's the active mode, same as every
-  // mode used to do. state->data may not be set yet the very first time
-  // this is ever called (app launch, before the first eclipse_canvas_
-  // set_data()); forcing in that case too is the safe default.
-  uint8_t mode = state->data ? state->data->bg_anim_mode : 2;
-  if (mode == 2 || active != was_active) state->force_next_draw = true;
+  // Mode 2 ("Markers") only ever animates its own overlaid element
+  // (see draw_bg_anim_markers_overlay()'s own comment) on top of an
+  // otherwise-unchanging backdrop -- same "full draw once on entering/
+  // leaving the mode, cheap overlay every frame in between" shape
+  // eclipse_canvas_set_planet_seek() below already uses -- so only the
+  // active/inactive TRANSITION needs a genuine full redraw, not every
+  // single frame. Mode 1 ("Planets") is different: its sky_now
+  // substitution (see canvas_update_proc's own comment) means the
+  // gradient/Sun color itself keeps changing throughout the sweep, not
+  // just body position, so it still needs a real full redraw every
+  // frame -- forced unconditionally here whenever it's the active
+  // mode, same as every mode used to do. state->data may not be set
+  // yet the very first time this is ever called (app launch, before
+  // the first eclipse_canvas_set_data()); forcing in that case too is
+  // the safe default.
+  uint8_t mode = state->data ? state->data->bg_anim_mode : 1;
+  if (mode == 1 || active != was_active) state->force_next_draw = true;
   layer_mark_dirty(layer);
 }
 

@@ -52,11 +52,8 @@ static EclipseData s_data;
 // Declare a file-scope variable
 static GFont clock_font;
 static FontSlot s_clock_font_slot = FONT_SLOT_EMPTY;
-static GFont small_font;
-static FontSlot s_clock_small_font_slot = FONT_SLOT_EMPTY;
 
 // static declarations:
-static bool use_small_seconds_for_digital_clock(void);
 static void tick_handler(struct tm *tick_time, TimeUnits units_changed);
 
 // ---- color schemes ------------------------------------------------------
@@ -289,19 +286,17 @@ static void compute_startup_hand_anim(int32_t target_angle, uint16_t elapsed_ms,
 }
 
 // ---- shake animation ------------------------------------------------------
-// User setting ("Style" section, off by default, radio-style single
-// choice via shake_anim_mode: 0=off, 1=gradient outline shift only,
-// 2=smooth second hand only, 3=both): while the shake-to-reveal
-// labels are up, outlines sweep through a rainbow gradient and/or the
-// second hand (if shown) switches from its normal once-a-second jump
-// to continuous sub-second motion. Driven by its own fast timer, same
-// shape as the two startup animations above -- and, like them, keyed
-// off a frame counter (s_shake_anim_elapsed_ms) rather than
-// wall-clock time(NULL) seconds, which is what made the color cycle
-// visibly jump only once a second regardless of how often the timer
-// itself fired: time(NULL) only has whole-second resolution, so many
-// consecutive redraws within the same second were all computing the
-// identical "elapsed seconds" value and thus the identical color.
+// User setting ("On shake animation" section, off by default, radio-style
+// single choice via shake_anim_mode: 0=off, 1=smooth second hand, 2=Planet
+// seek -- see its own eclipse_data.h comment): while the shake-to-reveal
+// labels are up, the second hand (if shown) switches from its normal
+// once-a-second jump to continuous sub-second motion (mode 1), or the sky
+// view repositions to face wherever the compass currently points (mode 2,
+// see maybe_start_compass_feature()). Driven by its own fast timer, same
+// shape as the two startup animations above -- and, like them, keyed off a
+// frame counter (s_shake_anim_elapsed_ms) rather than wall-clock time(NULL)
+// seconds, so many consecutive redraws within the same second don't all
+// compute an identical value.
 #define SHAKE_ANIM_FRAME_MS 33 // 30fps, per request
 
 static AppTimer *s_shake_anim_timer = NULL;
@@ -331,53 +326,6 @@ static int32_t ease_out_lut_1000(int32_t t) {
   int32_t hi = EASE_OUT_LUT[idx + 1];
   return lo + ((hi - lo) * frac) / 50;
 }
-/*
-// ---- rainbow outline gradient -----------------------------------------
-// The actual LUT/blend/lookup (RAINBOW_OUTLINE_LUT/blend_rainbow_packed_fp/
-// rainbow_color_at_fp) now live once, in subpixel.h -- already transitively
-// included here via eclipse_data.h -> hand_layer.h -> subpixel.h -- rather
-// than as a second, separately-maintained copy in this file. They used to
-// be genuinely duplicated (byte-for-byte identical table, blend math, and
-// lookup), which meant two places to keep in sync for zero benefit, since
-// this file already pulls in subpixel.h regardless.
-//
-// Q8 fixed-point (see rainbow_color_at_fp()'s own comment in subpixel.h) --
-// advanced by SHAKE_GRADIENT_STEP_FP (not a whole LUT entry) each
-// shake_anim_timer_callback() tick while gradient mode is on.
-static int32_t s_shake_gradient_shift_fp = 0;
-*/
-// Returns the color to actually draw an outline pixel/item in right
-// now. screen_x is that pixel/item's own x coordinate, used to sample
-// the scrolling rainbow strip above when gradient mode
-// (shake_anim_mode 1 or 3) is on; normal_color (unchanged) otherwise,
-// including whenever the animation isn't currently running at all.
-// Genuine per-pixel use (hand outlines, drawn through this project's
-// own subpixel rasterizer) gets a real per-pixel gradient; text/icon
-// outlines -- drawn through Pebble's own text/bitmap compositing,
-// which only accepts one fill color per call, with no way to vary it
-// pixel-by-pixel -- fall back to sampling the strip once at that
-// item's own screen position instead, which still gives different
-// items different colors based on where they are, just not an
-// internal gradient within a single item's own outline.
-GColor shake_outline_color(GColor normal_color, int16_t screen_x) {
-  return normal_color;
-}
-/*
-// hand_layer.c's own version of the above -- hand outlines are drawn
-// through this project's own subpixel rasterizer (see subpixel.h's
-// stroke_*_gradient_fp() functions), which CAN sample a color per
-// pixel, so it needs the raw shift value to do that itself rather
-// than a single pre-resolved color the way features_layer.c's flatter
-// text/icon outlines do above. Returns false (nothing written to
-// *out_shift) whenever the gradient shouldn't apply right now, so the
-// caller knows to fall back to its own normal fixed-color outline.
-bool shake_gradient_active(int32_t *out_shift) {
-  if (!s_shake_anim_active) return false;
-  if (!(s_data.shake_anim_mode == 1 || s_data.shake_anim_mode == 3)) return false;
-  *out_shift = s_shake_gradient_shift_fp;
-  return true;
-}
-*/
 // Planet seek's own watch-side compass reading -- subscribed only for
 // as long as the animation itself runs (compass/magnetometer use has
 // a real, ongoing power cost, unlike a plain timer), storing just the
@@ -606,27 +554,15 @@ static void shake_anim_timer_callback(void *data) {
   if (!still_active) {
     s_shake_anim_active = false;
     s_shake_anim_timer = NULL;
-    if (s_data.shake_anim_mode == 4) compass_service_unsubscribe(); // stop the magnetometer the moment planet seek's own window ends, not just on app exit
+    if (s_data.shake_anim_mode == 2) compass_service_unsubscribe(); // stop the magnetometer the moment planet seek's own window ends, not just on app exit
   } else {
-    // A small fraction of one LUT entry per frame (not a whole entry
-    // -- see rainbow_color_at_fp()'s own comment in subpixel.h), so the
-    // strip scrolls smoothly and slowly rather than visibly hopping
-    // through all 24 colors in well under a second the way advancing a
-    // whole entry every 33ms used to. SHAKE_GRADIENT_STEP_FP=32 (1/8 of
-    // an entry) means a full 24-entry cycle takes ~192 frames, ~6.3s at
-    // 30fps -- about 8x slower than before, per the request.
-    /*
-    #define SHAKE_GRADIENT_STEP_FP 32
-    s_shake_gradient_shift_fp = (s_shake_gradient_shift_fp + SHAKE_GRADIENT_STEP_FP) % (RAINBOW_LUT_SIZE * 256);
-    #undef SHAKE_GRADIENT_STEP_FP
-     */
     s_shake_anim_timer = app_timer_register(SHAKE_ANIM_FRAME_MS, shake_anim_timer_callback, NULL);
   }
-  if (s_data.shake_anim_mode == 4) update_planet_seek_accuracy_label(still_active);
+  if (s_data.shake_anim_mode == 2) update_planet_seek_accuracy_label(still_active);
   if (s_hands_layer) layer_mark_dirty(s_hands_layer);
   if (s_features_layer) layer_mark_dirty(s_features_layer);
   if (s_countdown_layer) layer_mark_dirty(s_countdown_layer);
-  if (s_canvas_layer && s_data.shake_anim_mode == 4) {
+  if (s_canvas_layer && s_data.shake_anim_mode == 2) {
     eclipse_canvas_set_planet_seek(s_canvas_layer, still_active, s_shake_anim_elapsed_ms, planet_seek_heading_deg());
   }
 }
@@ -637,15 +573,14 @@ static void shake_anim_timer_callback(void *data) {
 // the gradient/hand-smoothing window rather than just extending it.
 static void maybe_start_shake_animation(void) {
   if (s_data.shake_anim_mode == 0) return;
-  if (s_data.shake_anim_mode == 4 && s_data.has_eclipse) return; // Planet seek never runs on an eclipse day, per request
+  if (s_data.shake_anim_mode == 2 && s_data.has_eclipse) return; // Planet seek never runs on an eclipse day, per request
   s_shake_anim_active = true;
   s_shake_anim_elapsed_ms = 0;
-//  s_shake_gradient_shift_fp = 0;
   uint8_t seconds = s_data.shake_label_seconds > 0 ? s_data.shake_label_seconds : 3;
   s_shake_anim_duration_ms = (uint32_t)seconds * 1000;
   if (s_shake_anim_timer) app_timer_cancel(s_shake_anim_timer);
   s_shake_anim_timer = app_timer_register(SHAKE_ANIM_FRAME_MS, shake_anim_timer_callback, NULL);
-  if (s_data.shake_anim_mode == 4) {
+  if (s_data.shake_anim_mode == 2) {
     // Fresh compass smoothing state each time Planet seek (re)starts
     // -- see s_planet_seek_heading_has_reading's own comment for why
     // (otherwise the first reading of a new session would slowly
@@ -725,7 +660,7 @@ static void hands_layer_update_proc(Layer *layer, GContext *ctx) {
     // ease_out_cubic_1000 (identical curve to background_layer.c's own
     // bg_anim_ease_out_1000 -- see that function's own comment) so the
     // two sweeps advance in step with each other.
-    if (s_bg_anim_active && s_data.bg_anim_mode == 2) {
+    if (s_bg_anim_active && s_data.bg_anim_mode == 1) {
       int32_t progress = ((int32_t)s_bg_anim_elapsed_ms * 1000) / BG_ANIM_MS;
       if (progress > 1000) progress = 1000;
       int32_t eased = ease_out_cubic_1000(progress);
@@ -819,16 +754,18 @@ static void bottom_canvas_update_proc(Layer *layer, GContext *ctx) {
   graphics_context_set_fill_color(ctx, bg);
   graphics_fill_rect(ctx, bounds, 0, GCornerNone);
 
+  // show_seconds is only ever true here for a font PKJS has already
+  // determined can fit a full "HH:MM:SS" readout at its normal size --
+  // wide fonts have seconds forced off and the checkbox hidden
+  // entirely on the settings page, so there's no on-watch "does this
+  // font fit seconds" decision left to make, and no small-side-digit
+  // fallback rendering needed for the fonts that don't.
   char time_buf[10];
-  if (s_data.show_seconds && !use_small_seconds_for_digital_clock()) {
+  if (s_data.show_seconds) {
     strftime(time_buf, sizeof(time_buf), clock_is_24h_style() ? "%H:%M:%S" : "%I:%M:%S", t);
   } else {
     strftime(time_buf, sizeof(time_buf), clock_is_24h_style() ? "%H:%M" : "%I:%M", t);
   }
-  char sec_buf[4];
-  snprintf(sec_buf, sizeof(sec_buf), "%d\n%d",
-           t->tm_sec / 10,
-           t->tm_sec % 10);
 
   // Shifts away from whichever single side-feature column is active
   // (bottom_style 2 or 3), or stays centered/full-width otherwise
@@ -844,19 +781,9 @@ static void bottom_canvas_update_proc(Layer *layer, GContext *ctx) {
 
   // ---- big time ----
   graphics_context_set_text_color(ctx, text_color);
-  if (s_data.show_seconds && use_small_seconds_for_digital_clock()) {
-    graphics_draw_text(ctx, time_buf, clock_font,
-                        GRect(clock_rect.origin.x, clock_rect.origin.y + font_lookup_y_offset(s_data.clock_font), clock_rect.size.w - 20, 60),
-                        GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
-    graphics_context_set_text_color(ctx, accent_color);
-    graphics_draw_text(ctx, sec_buf, small_font,
-                       GRect(clock_rect.origin.x + clock_rect.size.w - 22, clock_rect.origin.y + 15 + font_lookup_y_offset(s_data.clock_font_small) * 2, 20, 50),
-                        GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft, NULL);
-  } else {
-    graphics_draw_text(ctx, time_buf, clock_font,
-                        GRect(clock_rect.origin.x, clock_rect.origin.y + font_lookup_y_offset(s_data.clock_font), clock_rect.size.w, 60),
-                        GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
-  }
+  graphics_draw_text(ctx, time_buf, clock_font,
+                      GRect(clock_rect.origin.x, clock_rect.origin.y + font_lookup_y_offset(s_data.clock_font), clock_rect.size.w, 60),
+                      GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
   // The date/week-or-sunrise row that used to sit directly below the
   // clock is now the features_layer overlay's own "digital bottom"
   // feature slot (content-selectable in settings, defaulting to
@@ -1087,7 +1014,7 @@ static void bg_anim_timer_callback(void *data) {
 
 static void maybe_start_startup_background_animation(void) {
   if (s_bg_anim_played || s_data.bg_anim_mode == 0) return;
-  // Marker animation (bg_anim_mode 3) has no actual visual effect for
+  // Marker animation (bg_anim_mode 2) has no actual visual effect for
   // bitmap marker styles (Modern/Swiss/Tally/Bell/Brown -- the PNG-
   // backed marker backgrounds, big_analog_marker_style 3-7):
   // draw_marker_bitmap() in background_layer.c already draws them
@@ -1107,7 +1034,7 @@ static void maybe_start_startup_background_animation(void) {
   // normal, un-animated redraw, exactly as if bg_anim_mode were off --
   // which is all it was ever visually doing anyway.
   bool bitmap_marker_active = s_data.big_analog_marker_style >= 3 && s_data.big_analog_marker_style <= 7;
-  if (s_data.bg_anim_mode == 3 && bitmap_marker_active) {
+  if (s_data.bg_anim_mode == 2 && bitmap_marker_active) {
     s_bg_anim_played = true;
     return;
   }
@@ -1118,19 +1045,13 @@ static void maybe_start_startup_background_animation(void) {
   s_bg_anim_timer = app_timer_register(BG_ANIM_FRAME_MS, bg_anim_timer_callback, NULL);
 }
 
-static bool use_small_seconds_for_digital_clock() {
-  return font_lookup_is_wide(s_data.clock_font);
-}
-
-// get_small_font_height_offset()/get_clock_font_height_offset() used
-// to live here as hand-tuned per-clock_font-value switches -- both
-// folded into font_lookup.c's shared FONT_TABLE (its y_offset column)
-// now, called directly as font_lookup_y_offset(s_data.clock_font) /
-// font_lookup_y_offset(s_data.clock_font_small) at each call site.
+// get_clock_font_height_offset() used to live here as a hand-tuned
+// per-clock_font-value switch -- folded into font_lookup.c's shared
+// FONT_TABLE (its y_offset column) now, called directly as
+// font_lookup_y_offset(s_data.clock_font) at each call site.
 
 static void apply_clock_font(void) {
   clock_font = font_lookup_resolve(&s_clock_font_slot, s_data.clock_font);
-  small_font = font_lookup_resolve(&s_clock_small_font_slot, s_data.clock_font_small);
   if (s_bottom_layer) layer_mark_dirty(s_bottom_layer);
 }
 
@@ -1421,10 +1342,6 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
     s_data.clock_font = t->value->uint8;
     clock_font_changed = true;
   }
-  if ((t = dict_find(iter, MESSAGE_KEY_CLOCK_FONT_SMALL))) {
-    s_data.clock_font_small = t->value->uint8;
-    clock_font_changed = true;
-  }
   if (clock_font_changed) apply_clock_font();
   if ((t = dict_find(iter, MESSAGE_KEY_SHOW_SECONDS))) {
     s_data.show_seconds = t->value->uint8 != 0;
@@ -1436,10 +1353,6 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   }
   if ((t = dict_find(iter, MESSAGE_KEY_SUN_MOON_SIZE_PCT))) {
     s_data.sun_moon_size_pct = t->value->uint8;
-    if (s_canvas_layer) eclipse_canvas_set_data(s_canvas_layer, &s_data); // force immediately, not just mark dirty -- the canvas throttles plain redraws internally
-  }
-  if ((t = dict_find(iter, MESSAGE_KEY_CLOUD_RENDER_STYLE))) {
-    s_data.cloud_render_style = t->value->uint8;
     if (s_canvas_layer) eclipse_canvas_set_data(s_canvas_layer, &s_data); // force immediately, not just mark dirty -- the canvas throttles plain redraws internally
   }
   if ((t = dict_find(iter, MESSAGE_KEY_SKY_MODE))) {
@@ -1456,11 +1369,11 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   }
   if ((t = dict_find(iter, MESSAGE_KEY_BG_ANIM_MODE))) {
     uint8_t v = t->value->uint8;
-    s_data.bg_anim_mode = (v <= 3) ? v : 0; // clamped -- used as a raw array-free switch/compare, but still worth guarding against a stray out-of-range byte
+    s_data.bg_anim_mode = (v <= 2) ? v : 0; // clamped -- used as a raw array-free switch/compare, but still worth guarding against a stray out-of-range byte
   }
   if ((t = dict_find(iter, MESSAGE_KEY_SHAKE_ANIM_MODE))) {
     uint8_t v = t->value->uint8;
-    s_data.shake_anim_mode = (v <= 4) ? v : 0;
+    s_data.shake_anim_mode = (v <= 2) ? v : 0;
   }
   if ((t = dict_find(iter, MESSAGE_KEY_SHADOW_TRANSLUCENT))) {
     s_data.shadow_translucent = t->value->uint8 != 0;
@@ -1758,14 +1671,6 @@ static void tick_handler(struct tm *tick_time, TimeUnits units_changed) {
   if (s_tick_unit_is_seconds && s_features_layer) features_layer_refresh_second_slots(s_features_layer);
 }
 
-static void select_click_handler(ClickRecognizerRef recognizer, void *context) {
-  request_update();
-}
-
-static void click_config_provider(void *context) {
-  window_single_click_subscribe(BUTTON_ID_SELECT, select_click_handler);
-}
-
 // ---- shake-to-reveal labels ------------------------------------------------
 
 static AppTimer *s_label_timer = NULL;
@@ -2031,14 +1936,12 @@ static void window_unload(Window *window) {
   if (s_features_layer) features_layer_destroy(s_features_layer);
   features_layer_unload_fonts();
   font_lookup_release(&s_clock_font_slot);
-  font_lookup_release(&s_clock_small_font_slot);
 }
 
 static void init(void) {
   load_data();
 
   s_window = window_create();
-  window_set_click_config_provider(s_window, click_config_provider);
   window_set_window_handlers(s_window, (WindowHandlers){
     .load = window_load,
     .unload = window_unload,

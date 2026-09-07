@@ -64,9 +64,9 @@ uint8_t font_lookup_height(uint8_t font_id);
 
 // Per-font vertical fine-tune in px, added to font_lookup_height()'s
 // result when placing text. Pulled from the old, separate per-system
-// hand-tuned tables this replaced (get_clock_font_height_offset()/
-// get_small_font_height_offset() in pebble-eclipse-watch.c, MARKER_
-// FONT_Y_OFFSET in background_layer.c) -- most fonts had the same
+// hand-tuned tables this replaced (get_clock_font_height_offset() in
+// pebble-eclipse-watch.c, MARKER_FONT_Y_OFFSET in background_layer.c)
+// -- most fonts had the same
 // offset in every context they appeared, but a couple (Digital Dream
 // Small, Minecrafter Small) were tuned slightly differently depending
 // on which OTHER font they were paired alongside as a clock face's
@@ -79,11 +79,6 @@ int8_t font_lookup_y_offset(uint8_t font_id);
 // resets it to empty -- call when a caller is done needing its font
 // entirely (e.g. window_unload), not on every redraw.
 void font_lookup_release(FontSlot *slot);
-
-// True if this font runs too wide for a full HH:MM:SS digital
-// readout at its normal size (some of the wider display fonts need
-// the seconds digits shrunk into their own small-font box instead).
-bool font_lookup_is_wide(uint8_t font_id);
 
 // Total number of valid font ids (0..FONT_LOOKUP_COUNT-1).
 extern const uint8_t FONT_LOOKUP_COUNT;

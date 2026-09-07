@@ -102,7 +102,7 @@ void ensure_corner_custom_font(uint8_t choice);
 
 // Unloads the shared corner/edge custom font, if one is currently
 // loaded -- call once from window_unload() on app exit, mirroring how
-// pebble-eclipse-watch.c already frees its own clock_font/small_font.
+// pebble-eclipse-watch.c already frees its own clock_font.
 void features_layer_unload_fonts(void);
 
 // Shared outline-drawing primitives -- also used by the countdown/status

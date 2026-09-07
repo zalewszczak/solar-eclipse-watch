@@ -145,38 +145,6 @@ var MODE_BTN_ICONS = {
     '<circle cx="168" cy="196" r="3" fill="#fff" stroke="none"/>' +
     '</svg>',
 
-  // "Realistic" -- the same puffy 3-bump cloud shape as skyWeather
-  // above, shifted up a little to leave room for 5 closely-spaced
-  // thin rain lines (a "larger number" of them, per this button\'s own
-  // request) below it.
-  cloudRealistic:
-    '<svg viewBox="0 0 200 228" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">' +
-    '<rect x="4" y="4" width="192" height="220" rx="20" stroke-width="8"/>' +
-    '<circle cx="70" cy="90" r="26" fill="currentColor" stroke="none"/>' +
-    '<circle cx="100" cy="76" r="32" fill="currentColor" stroke="none"/>' +
-    '<circle cx="132" cy="90" r="24" fill="currentColor" stroke="none"/>' +
-    '<rect x="50" y="86" width="100" height="34" rx="17" fill="currentColor" stroke="none"/>' +
-    '<line x1="56" y1="128" x2="78" y2="150"/>' +
-    '<line x1="78" y1="128" x2="100" y2="150"/>' +
-    '<line x1="100" y1="128" x2="122" y2="150"/>' +
-    '<line x1="122" y1="128" x2="144" y2="150"/>' +
-    '<line x1="144" y1="128" x2="166" y2="150"/>' +
-    '</svg>',
-  // "Simple" -- a single plain blob (one bump circle over a less-
-  // rounded base, rather than 3 overlapping bumps) with only 3 rain
-  // lines, but each noticeably thicker -- "less amount of thick rain
-  // lines", per this button\'s own request, as the deliberate visual
-  // opposite of cloudRealistic\'s own many-thin-lines look.
-  cloudSimple:
-    '<svg viewBox="0 0 200 228" fill="none" stroke="currentColor" stroke-width="13" stroke-linecap="round" stroke-linejoin="round">' +
-    '<rect x="4" y="4" width="192" height="220" rx="20" stroke-width="8"/>' +
-    '<circle cx="100" cy="85" r="30" fill="currentColor" stroke="none"/>' +
-    '<rect x="55" y="90" width="90" height="34" rx="10" fill="currentColor" stroke="none"/>' +
-    '<line x1="65" y1="132" x2="90" y2="157"/>' +
-    '<line x1="100" y1="132" x2="125" y2="157"/>' +
-    '<line x1="135" y1="132" x2="160" y2="157"/>' +
-    '</svg>',
-
   // Plain sun/moon circles (no half-mask -- this one\'s purely about
   // relative size, not phase) at 4 fixed radii scaled from this app\'s
   // own real on-watch base sizes (SUN_R_NORMAL=20, MOON_R_NORMAL=16 in
@@ -339,26 +307,15 @@ var FONT_PREVIEW_IMAGES = require('./font-preview-images');
 // specifically (the "big", ~48px-scale fonts a full clock display
 // actually reads well in) -- the smaller companion variants (Digital
 // Dream Small, Minecrafter Small, etc.) exist for marker text/corner
-// content/the clock's own small-readout companion, not as a serious
-// main-clock choice, so they're left out of that one dropdown. Every
-// id is still selectable in the other three pickers regardless.
-// `pairedSmallId` (mainClock entries only) is which small font this
-// big one defaults to pairing with for the clock's own small-readout
-// companion (seconds digits, sunrise/sunset, the date line) --
-// auto-selected on change (onFontChange()), still independently
-// overridable after. Only set to another font in the SAME family when
-// one genuinely exists in this table (Digital Dream -> Digital Dream
-// Small, Leco XL -> Leco Small, etc.); every mainClock font with no
-// real small counterpart defaults to id 4 (System XXL) instead of a
-// guessed unrelated font -- edit these by hand as real matches get
-// designed.
+// content, not as a serious main-clock choice, so they're left out of
+// that one dropdown. Every id is still selectable in the other two
+// pickers regardless.
 // `small: true` marks a font compact enough to read well at the
-// small sizes the corner/edge Font picker and the clock's own Small
-// companion font picker use it at (height <= 30px) -- both of those
-// two pickers hide `small: false` fonts by default (their own "Show
+// small sizes the corner/edge Font picker uses it at (height <= 30px)
+// -- that picker hides `small: false` fonts by default (its own "Show
 // incompatible fonts" checkbox reveals them), since most of the
-// ~48px-scale mainClock fonts read poorly or clip at those small
-// sizes. Doesn't affect the marker text font picker (all fonts always
+// ~48px-scale mainClock fonts read poorly or clip at that small
+// size. Doesn't affect the marker text font picker (all fonts always
 // shown there) or the main Clock font picker (mainClock already
 // filters that one to just the big fonts).
 // `secondsDisabled: true` marks a font that Show Seconds should be
@@ -406,82 +363,58 @@ var FONT_LOOKUP = [
     google: null, sizePx: 32, approx: true }, // see id 0
   { id: 4,  label: 'System XXL',          height: 36, preview: "font-family: Arial, sans-serif; font-weight: 700;", small: true,
     google: null, sizePx: 36, approx: true }, // see id 0
-  { id: 5,  label: 'Leco Small',          height: 17, preview: "font-family: Arial, sans-serif; font-weight: 300;", small: false, mainClock: true, pairedSmallId: 10,
-    google: null, sizePx: 17, approx: true }, // Pebble's built-in rounded numerals font -- no Google Fonts equivalent; no substitute attempted beyond a plain sans, since Leco's own rounded-digit character is hard to approximate with a generic family.
-  { id: 6,  label: 'Leco Medium',         height: 20, preview: "font-family: Arial, sans-serif; font-weight: 700;", small: false, mainClock: true, pairedSmallId: 10,
-    google: null, sizePx: 20, approx: true }, // see id 5
-  { id: 7,  label: 'Leco Large',          height: 23, preview: "font-family: Arial, sans-serif; font-weight: 700;", small: false, mainClock: true, pairedSmallId: 10,
-    google: null, sizePx: 23, approx: true }, // see id 5
-  { id: 8,  label: 'Leco XL',             height: 26, preview: "font-family: Arial, sans-serif; font-weight: 700;", small: false, mainClock: true, pairedSmallId: 10,
-    google: null, sizePx: 26, approx: true }, // see id 5
+  { id: 5,  label: 'Leco Small',          height: 17, preview: "font-family: Arial, sans-serif; font-weight: 300;", small: false, mainClock: true, google: null, sizePx: 17, approx: true }, // Pebble's built-in rounded numerals font -- no Google Fonts equivalent; no substitute attempted beyond a plain sans, since Leco's own rounded-digit character is hard to approximate with a generic family.
+  { id: 6,  label: 'Leco Medium',         height: 20, preview: "font-family: Arial, sans-serif; font-weight: 700;", small: false, mainClock: true, google: null, sizePx: 20, approx: true }, // see id 5
+  { id: 7,  label: 'Leco Large',          height: 23, preview: "font-family: Arial, sans-serif; font-weight: 700;", small: false, mainClock: true, google: null, sizePx: 23, approx: true }, // see id 5
+  { id: 8,  label: 'Leco XL',             height: 26, preview: "font-family: Arial, sans-serif; font-weight: 700;", small: false, mainClock: true, google: null, sizePx: 26, approx: true }, // see id 5
   { id: 9,  label: 'Droid Serif',         height: 17, preview: "font-family: 'Droid Serif', Georgia, serif; font-weight: 700;", small: true,
     google: 'Droid Serif', weight: 700, sizePx: 17 }, // still genuinely on Google Fonts (legacy listing, but live)
   { id: 10, label: 'Roboto Condensed',    height: 15, preview: "font-family: 'Roboto Condensed', Arial, sans-serif;", small: true,
     google: 'Roboto Condensed', weight: 400, sizePx: 15 },
-  { id: 11, label: 'Roboto Bold',         height: 30, preview: "font-family: 'Roboto', Arial, sans-serif; font-weight: 700;", small: false, mainClock: true, pairedSmallId: 10,
-    google: 'Roboto', weight: 700, sizePx: 30 },
-  { id: 12, label: 'Bitham Bold 30',      height: 19, preview: "font-family: 'Futura', 'Century Gothic', sans-serif; font-weight: 700;", small: false, mainClock: true, pairedSmallId: 3,
-    google: null, sizePx: 19, approx: true }, // Pebble's built-in Bitham -- no Google Fonts equivalent; Futura/Century Gothic (neither actually Google Fonts either) are the closest geometric-sans stand-ins available without downloading anything.
-  { id: 13, label: 'Bitham Medium 34',    height: 21, preview: "font-family: 'Futura', 'Century Gothic', sans-serif; font-weight: 500;", small: false, mainClock: true, pairedSmallId: 3,
-    google: null, sizePx: 21, approx: true }, // see id 12
-  { id: 14, label: 'Bitham Light',        height: 26, preview: "font-family: 'Futura', 'Century Gothic', sans-serif; font-weight: 300; letter-spacing: 1px;", small: false, mainClock: true, pairedSmallId: 3,
-    google: null, sizePx: 26, approx: true }, // see id 12
-  { id: 15, label: 'Bitham Bold',         height: 26, preview: "font-family: 'Futura', 'Century Gothic', sans-serif; font-weight: 700; letter-spacing: 1px;", small: true, mainClock: true, pairedSmallId: 3,
-    google: null, sizePx: 26, approx: true }, // see id 12
+  { id: 11, label: 'Roboto Bold',         height: 30, preview: "font-family: 'Roboto', Arial, sans-serif; font-weight: 700;", small: false, mainClock: true, google: 'Roboto', weight: 700, sizePx: 30 },
+  { id: 12, label: 'Bitham Bold 30',      height: 19, preview: "font-family: 'Futura', 'Century Gothic', sans-serif; font-weight: 700;", small: false, mainClock: true, google: null, sizePx: 19, approx: true }, // Pebble's built-in Bitham -- no Google Fonts equivalent; Futura/Century Gothic (neither actually Google Fonts either) are the closest geometric-sans stand-ins available without downloading anything.
+  { id: 13, label: 'Bitham Medium 34',    height: 21, preview: "font-family: 'Futura', 'Century Gothic', sans-serif; font-weight: 500;", small: false, mainClock: true, google: null, sizePx: 21, approx: true }, // see id 12
+  { id: 14, label: 'Bitham Light',        height: 26, preview: "font-family: 'Futura', 'Century Gothic', sans-serif; font-weight: 300; letter-spacing: 1px;", small: false, mainClock: true, google: null, sizePx: 26, approx: true }, // see id 12
+  { id: 15, label: 'Bitham Bold',         height: 26, preview: "font-family: 'Futura', 'Century Gothic', sans-serif; font-weight: 700; letter-spacing: 1px;", small: true, mainClock: true, google: null, sizePx: 26, approx: true }, // see id 12
   { id: 16, label: 'Digital Dream Small', height: 12, preview: "font-family: 'VT323', 'Courier New', monospace; letter-spacing: 1px;", small: true,
     google: 'VT323', weight: 400, sizePx: 12, approx: true }, // Digital Dream (Pizzadude, dafont-only) isn't on Google Fonts -- VT323's CRT/LCD terminal look is the closest digital-clock-style match Google Fonts has.
-  { id: 17, label: 'Digital Dream',       height: 40, preview: "font-family: 'VT323', 'Courier New', monospace; letter-spacing: 2px;", small: false, mainClock: true, pairedSmallId: 16,
-    google: 'VT323', weight: 400, sizePx: 48, approx: true }, // see id 16
+  { id: 17, label: 'Digital Dream',       height: 40, preview: "font-family: 'VT323', 'Courier New', monospace; letter-spacing: 2px;", small: false, mainClock: true, google: 'VT323', weight: 400, sizePx: 48, approx: true }, // see id 16
   { id: 18, label: 'Minecrafter Small',   height: 12, preview: "font-family: 'Press Start 2P', 'Courier New', monospace;", small: true,
     google: 'Press Start 2P', weight: 400, sizePx: 12, approx: true }, // Minecrafter (dafont-only) isn't on Google Fonts -- Press Start 2P's blocky 8-bit game look is the closest match.
-  { id: 19, label: 'Minecrafter',         height: 40, preview: "font-family: 'Press Start 2P', 'Courier New', monospace;", small: false, mainClock: true, pairedSmallId: 18, wide: true, secondsDisabled: true,
+  { id: 19, label: 'Minecrafter',         height: 40, preview: "font-family: 'Press Start 2P', 'Courier New', monospace;", small: false, mainClock: true, wide: true, secondsDisabled: true,
     google: 'Press Start 2P', weight: 400, sizePx: 48, approx: true }, // see id 18
   { id: 20, label: 'SF Pixelate Small',   height: 14, preview: "font-family: 'DotGothic16', 'Courier New', monospace;", small: true,
     google: 'DotGothic16', weight: 400, sizePx: 14, approx: true }, // SF Pixelate (dafont-only) isn't on Google Fonts -- DotGothic16's clean pixel-grid look is the closest match without reusing Minecrafter's/Digital Dream's own substitutes above.
-  { id: 21, label: 'SF Pixelate',         height: 40, preview: "font-family: 'DotGothic16', 'Courier New', monospace;", small: false, mainClock: true, pairedSmallId: 20, wide: true, secondsDisabled: true,
+  { id: 21, label: 'SF Pixelate',         height: 40, preview: "font-family: 'DotGothic16', 'Courier New', monospace;", small: false, mainClock: true, wide: true, secondsDisabled: true,
     google: 'DotGothic16', weight: 400, sizePx: 48, approx: true }, // see id 20
   { id: 22, label: 'Alagard Small',       height: 19, preview: "font-family: 'Pixelify Sans', 'Century Gothic', sans-serif; font-weight: 600;", small: true,
     google: 'Pixelify Sans', weight: 600, sizePx: 19, approx: true }, // Alagard (dafont-only, Hewett Tsoi's 16px fantasy bitmap face) isn't on Google Fonts -- Pixelify Sans's blocky pixel-game look is the closest available match.
-  { id: 23, label: 'Alagard',             height: 40, preview: "font-family: 'Pixelify Sans', 'Century Gothic', sans-serif; font-weight: 600;", small: false, mainClock: true, pairedSmallId: 22,
-    google: 'Pixelify Sans', weight: 600, sizePx: 48, approx: true }, // see id 22
+  { id: 23, label: 'Alagard',             height: 40, preview: "font-family: 'Pixelify Sans', 'Century Gothic', sans-serif; font-weight: 600;", small: false, mainClock: true, google: 'Pixelify Sans', weight: 600, sizePx: 48, approx: true }, // see id 22
   { id: 24, label: 'Bebas Small',         height: 20, preview: "font-family: 'Bebas Neue', 'Century Gothic', sans-serif; letter-spacing: 1px;", small: true,
     google: 'Bebas Neue', weight: 400, sizePx: 20 },
-  { id: 25, label: 'Bebas',               height: 40, preview: "font-family: 'Bebas Neue', 'Century Gothic', sans-serif; letter-spacing: 1px;", small: false, mainClock: true, pairedSmallId: 24,
-    google: 'Bebas Neue', weight: 400, sizePx: 48 },
-  { id: 26, label: 'Amita',               height: 40, preview: "font-family: 'Amita', Impact, sans-serif; font-weight: 700;", small: false, mainClock: true, pairedSmallId: 3,
-    google: 'Amita', weight: 700, sizePx: 48 },
-  { id: 27, label: 'AveriaSerifLibre',    height: 40, preview: "font-family: 'Averia Serif Libre', 'Courier New', serif; font-weight: 700; font-style: italic;", small: false, mainClock: true, pairedSmallId: 3, wide: true, secondsDisabled: true,
+  { id: 25, label: 'Bebas',               height: 40, preview: "font-family: 'Bebas Neue', 'Century Gothic', sans-serif; letter-spacing: 1px;", small: false, mainClock: true, google: 'Bebas Neue', weight: 400, sizePx: 48 },
+  { id: 26, label: 'Amita',               height: 40, preview: "font-family: 'Amita', Impact, sans-serif; font-weight: 700;", small: false, mainClock: true, google: 'Amita', weight: 700, sizePx: 48 },
+  { id: 27, label: 'AveriaSerifLibre',    height: 40, preview: "font-family: 'Averia Serif Libre', 'Courier New', serif; font-weight: 700; font-style: italic;", small: false, mainClock: true, wide: true, secondsDisabled: true,
     google: 'Averia Serif Libre', weight: 700, italic: true, sizePx: 48 },
-  { id: 28, label: 'Bagel',               height: 40, preview: "font-family: 'Bagel Fat One', 'Courier New', monospace;", small: false, mainClock: true, pairedSmallId: 3, wide: true, secondsDisabled: true,
+  { id: 28, label: 'Bagel',               height: 40, preview: "font-family: 'Bagel Fat One', 'Courier New', monospace;", small: false, mainClock: true, wide: true, secondsDisabled: true,
     google: 'Bagel Fat One', weight: 400, sizePx: 48 },
-  { id: 29, label: 'Bricolage Grotesque', height: 40, preview: "font-family: 'Bricolage Grotesque', Impact, 'Arial Narrow', sans-serif; font-weight: 700;", small: false, mainClock: true, pairedSmallId: 3, wide: true, secondsDisabled: true,
+  { id: 29, label: 'Bricolage Grotesque', height: 40, preview: "font-family: 'Bricolage Grotesque', Impact, 'Arial Narrow', sans-serif; font-weight: 700;", small: false, mainClock: true, wide: true, secondsDisabled: true,
     google: 'Bricolage Grotesque', weight: 700, sizePx: 48 },
-  { id: 30, label: 'Chango',              height: 40, preview: "font-family: 'Chango', 'Courier New', monospace;", small: false, mainClock: true, pairedSmallId: 3,
-    google: 'Chango', weight: 400, sizePx: 48 },
-  { id: 31, label: 'EmblemaOne',          height: 40, preview: "font-family: 'Emblema One', 'Arial Narrow', sans-serif; letter-spacing: 1px;", small: false, mainClock: true, pairedSmallId: 3,
-    google: 'Emblema One', weight: 400, sizePx: 48 },
-  { id: 32, label: 'Fraunces',            height: 40, preview: "font-family: 'Fraunces', Georgia, serif; font-weight: 700;", small: false, mainClock: true, pairedSmallId: 3,
-    google: 'Fraunces', weight: 700, sizePx: 48 },
-  { id: 33, label: 'Geostar Fill',        height: 40, preview: "font-family: 'Geostar Fill', Impact, sans-serif;", small: false, mainClock: true, pairedSmallId: 3,
-    google: 'Geostar Fill', weight: 400, sizePx: 48 },
-  { id: 34, label: 'Michroma',            height: 40, preview: "font-family: 'Michroma', 'Arial Black', sans-serif; letter-spacing: 1px;", small: false, mainClock: true, pairedSmallId: 3, wide: true, secondsDisabled: true,
+  { id: 30, label: 'Chango',              height: 40, preview: "font-family: 'Chango', 'Courier New', monospace;", small: false, mainClock: true, google: 'Chango', weight: 400, sizePx: 48 },
+  { id: 31, label: 'EmblemaOne',          height: 40, preview: "font-family: 'Emblema One', 'Arial Narrow', sans-serif; letter-spacing: 1px;", small: false, mainClock: true, google: 'Emblema One', weight: 400, sizePx: 48 },
+  { id: 32, label: 'Fraunces',            height: 40, preview: "font-family: 'Fraunces', Georgia, serif; font-weight: 700;", small: false, mainClock: true, google: 'Fraunces', weight: 700, sizePx: 48 },
+  { id: 33, label: 'Geostar Fill',        height: 40, preview: "font-family: 'Geostar Fill', Impact, sans-serif;", small: false, mainClock: true, google: 'Geostar Fill', weight: 400, sizePx: 48 },
+  { id: 34, label: 'Michroma',            height: 40, preview: "font-family: 'Michroma', 'Arial Black', sans-serif; letter-spacing: 1px;", small: false, mainClock: true, wide: true, secondsDisabled: true,
     google: 'Michroma', weight: 400, sizePx: 48 },
-  { id: 35, label: 'National Park',       height: 40, preview: "font-family: 'National Park', Verdana, sans-serif; font-weight: 700;", small: false, mainClock: true, pairedSmallId: 3,
-    google: 'National Park', weight: 700, sizePx: 48 },
-  { id: 36, label: 'Komika',              height: 40, preview: "font-family: 'Bangers', 'Comic Sans MS', cursive;", small: false, mainClock: true, pairedSmallId: 3, wide: true, secondsDisabled: true,
+  { id: 35, label: 'National Park',       height: 40, preview: "font-family: 'National Park', Verdana, sans-serif; font-weight: 700;", small: false, mainClock: true, google: 'National Park', weight: 700, sizePx: 48 },
+  { id: 36, label: 'Komika',              height: 40, preview: "font-family: 'Bangers', 'Comic Sans MS', cursive;", small: false, mainClock: true, wide: true, secondsDisabled: true,
     google: 'Bangers', weight: 400, sizePx: 48, approx: true }, // Komika Hand (Apostrophic Labs, dafont-only) isn't on Google Fonts -- Bangers is the closest bold comic-lettering face Google Fonts actually has.
-  { id: 37, label: 'Quantico',            height: 40, preview: "font-family: 'Quantico', Impact, 'Arial Narrow', sans-serif; font-weight: 700; font-style: italic;", small: false, mainClock: true, pairedSmallId: 3,
-    google: 'Quantico', weight: 700, italic: true, sizePx: 48 },
-  { id: 38, label: 'Silkscreen',          height: 40, preview: "font-family: 'Silkscreen', Impact, 'Arial Narrow', sans-serif;", small: false, mainClock: true, pairedSmallId: 3,
-    google: 'Silkscreen', weight: 400, sizePx: 48 },
-  { id: 39, label: 'StackSansHeadline',   height: 40, preview: "font-family: 'Anton', 'Arial Narrow', sans-serif;", small: false, mainClock: true, pairedSmallId: 3,
-    google: 'Anton', weight: 400, sizePx: 48, approx: true }, // Stack Sans Headline isn't on Google Fonts (independent foundry release) -- Anton's ultra-bold condensed headline shape is the closest match.
-  { id: 40, label: 'Unbounded',           height: 40, preview: "font-family: 'Unbounded', Impact, 'Arial Narrow', sans-serif; font-weight: 500;", small: false, mainClock: true, pairedSmallId: 4,
-    google: 'Unbounded', weight: 500, sizePx: 48 },
-  { id: 41, label: 'Wallpoet',            height: 40, preview: "font-family: 'Wallpoet', Impact, 'Arial Narrow', sans-serif;", small: false, mainClock: true, pairedSmallId: 4,
-    google: 'Wallpoet', weight: 400, sizePx: 48 },
-  { id: 42, label: 'ZalandoSans',         height: 40, preview: "font-family: 'Zalando Sans Expanded', Impact, 'Arial Narrow', sans-serif; font-weight: 500;", small: false, mainClock: true, pairedSmallId: 4,
-    google: 'Zalando Sans Expanded', weight: 500, sizePx: 48 }
+  { id: 37, label: 'Quantico',            height: 40, preview: "font-family: 'Quantico', Impact, 'Arial Narrow', sans-serif; font-weight: 700; font-style: italic;", small: false, mainClock: true, google: 'Quantico', weight: 700, italic: true, sizePx: 48 },
+  { id: 38, label: 'Silkscreen',          height: 40, preview: "font-family: 'Silkscreen', Impact, 'Arial Narrow', sans-serif;", small: false, mainClock: true, google: 'Silkscreen', weight: 400, sizePx: 48 },
+  { id: 39, label: 'StackSansHeadline',   height: 40, preview: "font-family: 'Anton', 'Arial Narrow', sans-serif;", small: false, mainClock: true, google: 'Anton', weight: 400, sizePx: 48, approx: true }, // Stack Sans Headline isn't on Google Fonts (independent foundry release) -- Anton's ultra-bold condensed headline shape is the closest match.
+  { id: 40, label: 'Unbounded',           height: 40, preview: "font-family: 'Unbounded', Impact, 'Arial Narrow', sans-serif; font-weight: 500;", small: false, mainClock: true, google: 'Unbounded', weight: 500, sizePx: 48 },
+  { id: 41, label: 'Wallpoet',            height: 40, preview: "font-family: 'Wallpoet', Impact, 'Arial Narrow', sans-serif;", small: false, mainClock: true, google: 'Wallpoet', weight: 400, sizePx: 48 },
+  { id: 42, label: 'ZalandoSans',         height: 40, preview: "font-family: 'Zalando Sans Expanded', Impact, 'Arial Narrow', sans-serif; font-weight: 500;", small: false, mainClock: true, google: 'Zalando Sans Expanded', weight: 500, sizePx: 48 }
 ]; // remember to bump FONT_MAX_CONTENT_ID in index.js!!!
 
 // Builds one combined Google Fonts stylesheet URL covering every
@@ -522,9 +455,15 @@ function fontOptionsHtml(selectedId, onlyMainClock) {
   return FONT_LOOKUP.filter(function (f) {
     return !onlyMainClock || f.mainClock;
   }).map(function (f) {
+    // A wide font can't show seconds at all now (no more small-side-
+    // digit fallback -- see this file's own note on removing that),
+    // so it's folded into the same data-seconds flag secondsDisabled
+    // already drives, rather than being a second, separate check every
+    // consumer of data-seconds would otherwise need to remember too.
+    var secondsOk = !f.secondsDisabled && !f.wide;
     return '<option value="' + f.id + '" data-preview="' + esc(f.preview) + '" data-seconds="' +
-      (f.secondsDisabled ? '0' : '1') + '" data-height="' + f.height + '" data-small="' + (f.small ? '1' : '0') +
-      '" data-paired-small="' + (f.pairedSmallId !== undefined ? f.pairedSmallId : 0) + '" data-wide="' + (f.wide ? '1' : '0') + '"' +
+      (secondsOk ? '1' : '0') + '" data-height="' + f.height + '" data-small="' + (f.small ? '1' : '0') +
+      '" data-wide="' + (f.wide ? '1' : '0') + '"' +
       (selectedId === f.id ? ' selected' : '') + '>' + esc(f.label) + '</option>';
   }).join('');
 }
@@ -1250,11 +1189,14 @@ function buildConfigHtml(current) {
   ].some(function (key) { return current[key] === '31' || current[key] === '32'; });
   var isAnalog = bottomStyleVal === 'analog';
   var clockFontId = parseInt(current.clockFont || '8', 10);
-  var clockFontSmallId = parseInt(current.clockFontSmall || '0', 10);
-  var secondsUnsupported = (bottomStyleVal === 'digital') && fontLookupEntry(clockFontId).secondsDisabled;
+  var clockFontIsWide = !!fontLookupEntry(clockFontId).wide;
+  // A wide font can't show seconds at all (no small-side-digit
+  // fallback exists anymore), so it disables the checkbox the exact
+  // same way secondsDisabled already does -- see fontOptionsHtml()'s
+  // own comment on why data-seconds folds both together too.
+  var secondsUnsupported = (bottomStyleVal === 'digital') && (fontLookupEntry(clockFontId).secondsDisabled || clockFontIsWide);
   var secondsChecked = (current.showSeconds && !secondsUnsupported) ? 'checked' : '';
   var secondsDisabled = secondsUnsupported ? 'disabled' : '';
-  var clockFontIsWide = !!fontLookupEntry(clockFontId).wide;
   var digitalSidesVal = current.digitalSides || 'none';
   var digitalLeftOn = digitalSidesVal === 'left' || digitalSidesVal === 'both';
   var digitalRightOn = digitalSidesVal === 'right' || digitalSidesVal === 'both';
@@ -1303,7 +1245,6 @@ function buildConfigHtml(current) {
     }
   }
   var fontOptions = fontOptionsHtml(clockFontId, true);
-  var clockFontSmallOptions = fontOptionsHtml(clockFontSmallId, false);
 
   function hexFromPackedByte(byte) {
     var b = parseInt(byte, 10);
@@ -1825,13 +1766,6 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '        <span class="font-picker-preview" id="clockFontTriggerPreview"></span>' +
 '        <span class="font-picker-name" id="clockFontTriggerName"></span>' +
 '      </button>' +
-'      <label for="clockFontSmall" style="margin-top:10px;">Small companion font</label>' +
-'      <select id="clockFontSmall" onchange="onClockFontSmallChange()" style="display:none;">' + clockFontSmallOptions + '</select>' +
-'      <button type="button" class="font-picker-btn font-picker-trigger" id="clockFontSmallTrigger" onclick="openFontPicker(\'clockFontSmall\')">' +
-'        <span class="font-picker-preview" id="clockFontSmallTriggerPreview"></span>' +
-'        <span class="font-picker-name" id="clockFontSmallTriggerName"></span>' +
-'      </button>' +
-'      <div class="help">Used for the seconds digits, sunrise/sunset time, and date line next to the clock -- picking a Clock font above suggests a matching one here automatically, but you can override it. Bigger display fonts are hidden by default in its own picker -- see "Show incompatible fonts" there.</div>' +
 '    </div>' +
 
 '    <div id="bigAnalogSettings" class="subsection" style="' + (isAnalog ? '' : 'display:none;') + '">' +
@@ -1889,15 +1823,6 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    </div>' +
 '    <input type="hidden" id="skyMode" value="' + esc(current.skyMode || '0') + '">' +
 '    <div class="help">Weather sky shows clouds/rain/snow and the day-night gradient. Clear sky keeps the gradient but never draws weather. Space view drops the gradient entirely for a fixed dark sky, always shows the Sun/Moon/planets when above the horizon regardless of time of day, and adds a field of bright named stars (tap/shake to reveal names).</div>' +
-
-'    <div id="cloudRenderStyleRow" style="' + (current.skyMode && current.skyMode !== '0' ? 'display:none;' : '') + '">' +
-'    <label style="margin-top:12px;">Weather drawing style</label>' +
-      modeButtonGroupHtml('cloudRenderStyleGroup', 'cloudRenderStyle', [
-        { value: '1', label: 'REALISTIC', icon: MODE_BTN_ICONS.cloudRealistic },
-        { value: '0', label: 'SIMPLE', icon: MODE_BTN_ICONS.cloudSimple }
-      ], current.cloudRenderStyle || '1') +
-'    <div class="help">Realistic clouds are a soft painterly shape shaded by the Sun\'s actual position -- costs more battery per redraw, and adds occasional lightning during a storm. Simple uses plain circle puffs instead.</div>' +
-'    </div>' +
 
 '    <div class="subsection" id="digitalSidesSection" style="' + ((bottomStyleVal === 'digital' && !clockFontIsWide) ? '' : 'display:none;') + '">' +
 '      <label>Side features</label>' +
@@ -2115,21 +2040,18 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      <label>Animate background on start</label>' +
       verticalButtonGroupHtml('bgAnimModeGroup', 'bgAnimMode', [
         { value: '0', label: 'Off' },
-        { value: '1', label: 'Weather (clouds slide in from the sides)' },
-        { value: '2', label: 'Planets (Sun/Moon/planets + sky sweep in from a couple hours ago)' },
-        { value: '3', label: 'Indices (analog hour indices animate in; seconds draw normally)' }
+        { value: '1', label: 'Planets (Sun/Moon/planets + sky sweep in from a couple hours ago)' },
+        { value: '2', label: 'Indices (analog hour indices animate in; seconds draw normally)' }
       ], current.bgAnimMode || '0') +
 '    </div>' +
 '    <div class="help">Off by default: exactly one of the above sweeps into place on launch, under 1.5s.</div>' +
 
 '    <div class="subsection">' +
-'      <label>Animate outlines on shake</label>' +
+'      <label>On shake animation</label>' +
       verticalButtonGroupHtml('shakeAnimModeGroup', 'shakeAnimMode', [
         { value: '0', label: 'Off' },
-        { value: '1', label: 'Gradient (outlines sweep through a rainbow)' },
-        { value: '2', label: 'Smooth second hand' },
-        { value: '3', label: 'Both' },
-        { value: '4', label: 'Planet seek' }
+        { value: '1', label: 'Smooth second hand' },
+        { value: '2', label: 'Planet seek' }
       ], current.shakeAnimMode || '0') +
 '    </div>' +
 '    <div class="help">Off by default: runs for as long as the shake labels stay up -- see "Shake-to-reveal labels stay on screen for" in the Astronomy section. "Planet seek" points the sky view at whichever 90&deg; slice of the horizon your compass currently faces, repositioning the Sun/Moon/planets to match as you turn -- weather is hidden for the duration, and it never runs on a day with an eclipse.</div>' +
@@ -2553,18 +2475,15 @@ handEditorModalHtml('sec', 'Edit second hand') +
 // One entry per font-picker "role" -- which underlying <select> and
 // trigger button it drives, whether it\'s restricted to FONT_LOOKUP\'s
 // own `mainClock` subset (only the Clock font picker is), whether it
-// gets the "Show incompatible fonts" checkbox (only the 2 pickers that
+// gets the "Show incompatible fonts" checkbox (only the pickers that
 // default to hiding ~48px-scale display fonts do -- see FONT_LOOKUP\'s
 // own `small` comment), and what sample text its buttons preview --
 // value depends on the picker\'s own role per the request: a clock
-// reads a time, a corner/edge feature reads a temperature, the small
-// companion reads a short date, and the numerals picker reads a
-// number (Roman if that checkbox is on).
+// reads a time, a corner/edge feature reads a temperature, and the
+// numerals picker reads a number (Roman if that checkbox is on).
 'var FONT_PICKER_ROLES = {' +
 '  clock: { selectId: "clockFont", triggerId: "clockFontTrigger", title: "Clock font", onlyMainClock: true, showIncompatibleToggle: false,' +
 '    previewText: function () { return "12:34"; } },' +
-'  clockFontSmall: { selectId: "clockFontSmall", triggerId: "clockFontSmallTrigger", title: "Small companion font", onlyMainClock: false, showIncompatibleToggle: true,' +
-'    previewText: function () { return "Tue 12"; } },' +
 '  cornerFont: { selectId: "cornerFont", triggerId: "cornerFontTrigger", title: "Font", onlyMainClock: false, showIncompatibleToggle: true,' +
 '    previewText: function () { return "-10\\u00b0C"; } },' +
 '  markerTextFont: { selectId: "markerTextFont", triggerId: "markerTextFontTrigger", title: "Font", onlyMainClock: false, showIncompatibleToggle: false,' +
@@ -4013,8 +3932,6 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  updatePreview();' +
 '}' +
 'function onSkyModeChange() {' +
-'  var val = document.getElementById("skyMode").value;' +
-'  document.getElementById("cloudRenderStyleRow").style.display = (val === "0") ? "" : "none";' +
 '  updatePreview();' +
 '}' +
 'function updateHandValLabels(kind) {' +
@@ -4249,9 +4166,6 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  renderSlotPicker();' +
 '  updatePreview();' +
 '}' +
-'function onClockFontSmallChange() {' +
-'  updatePreview();' +
-'}' +
 'function selectBottomStyle(val) {' +
 '  document.getElementById("bottomStyleValue").value = val;' +
 '  var buttons = document.getElementById("bottomStyleGroup").getElementsByClassName("mode-btn");' +
@@ -4308,10 +4222,6 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  updatePreview();' +
 '}' +
 'function onFontChange() {' +
-'  var fontSel = document.getElementById("clockFont");' +
-'  var opt = fontSel.options[fontSel.selectedIndex];' +
-'  var pairedSmallId = opt.getAttribute("data-paired-small");' +
-'  if (pairedSmallId !== null) document.getElementById("clockFontSmall").value = pairedSmallId;' +
 '  refreshAllFontTriggerLabels();' +
 '  onBottomStyleChange();' +
 '}' +
@@ -4555,6 +4465,23 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  var clockFontOpt = clockFontSel.options[clockFontSel.selectedIndex];' +
 '  var secondsOverriddenOff = bottomStyleVal === "digital" && clockFontOpt.getAttribute("data-seconds") === "0";' +
 '  var showSecondsVal = !secondsOverriddenOff && document.getElementById("showSeconds").checked;' +
+// Same "re-derive at save time rather than trust the DOM already
+// reflects it" belt-and-suspenders principle as showSecondsVal above,
+// now for which of the 8 edge-line content fields actually apply --
+// onMarkerStyleChange()/onBottomStyleChange() already clear these live
+// as the user changes styles, but this is the actual data that goes to
+// the watch, so it\'s re-checked here against the CURRENT marker/bottom
+// style regardless of whether an earlier UI event already handled it.
+// features_layer.c no longer has its own copy of "which marker/
+// bottom_style supports which edge slots" at all -- it just draws
+// whatever content it\'s given, trusting a content of 0 to mean "off"
+// -- so this is the one and only place that decision gets made.
+'  var avail = computeSlotAvailability();' +
+'  var isAnalogNow = bottomStyleVal === "analog";' +
+'  function edgeVal(id, analogFlag, digitalFlag) {' +
+'    var usable = isAnalogNow ? analogFlag : digitalFlag;' +
+'    return usable ? document.getElementById(id).value : "0";' +
+'  }' +
 '  var settings = {' +
 '    CONFIG_AUTO_LOC: document.getElementById("autoLoc").checked,' +
 '    CONFIG_LAT: document.getElementById("lat").value,' +
@@ -4562,12 +4489,10 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    CONFIG_OWM_KEY: document.getElementById("owmKey").value,' +
 '    CONFIG_UPDATE_MINS: mins,' +
 '    CONFIG_CLOCK_FONT: document.getElementById("clockFont").value,' +
-'    CONFIG_CLOCK_FONT_SMALL: document.getElementById("clockFontSmall").value,' +
 '    CONFIG_TEMP_UNIT: document.getElementById("tempUnit").value,' +
 '    CONFIG_WIND_SPEED_UNIT: document.getElementById("windSpeedUnit").value,' +
 '    CONFIG_AQI_UNIT: document.getElementById("aqiUnit").value,' +
 '    CONFIG_ALTITUDE_UNIT: document.getElementById("altitudeUnit").value,' +
-'    CONFIG_CLOUD_RENDER_STYLE: document.getElementById("cloudRenderStyle").value,' +
 '    CONFIG_SKY_MODE: document.getElementById("skyMode").value,' +
 '    CONFIG_WEATHER_ICON_STYLE: document.getElementById("weatherIconStyle").value,' +
 '    CONFIG_SHOW_SECONDS: showSecondsVal,' +
@@ -4585,21 +4510,21 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    CONFIG_BITMAP_MARKER_TRANSPARENT: document.getElementById("bitmapMarkerTransparent").checked,' +
 '    CONFIG_BITMAP_CORNER_OVERRIDE: document.getElementById("bitmapCornerOverride").checked,' +
 '    CONFIG_DRAW_FEATURES_BENEATH_HANDS: document.getElementById("drawFeaturesBeneathHands").checked,' +
-'    CONFIG_UPPER_MIDDLE_LINE1_CONTENT: document.getElementById("upperMiddleLine1Content").value,' +
+'    CONFIG_UPPER_MIDDLE_LINE1_CONTENT: edgeVal("upperMiddleLine1Content", avail.upper, avail.digitalLeft),' +
 '    CONFIG_UPPER_MIDDLE_LINE1_COLOR: document.getElementById("upperMiddleLine1Color").value,' +
-'    CONFIG_UPPER_MIDDLE_LINE2_CONTENT: document.getElementById("upperMiddleLine2Content").value,' +
+'    CONFIG_UPPER_MIDDLE_LINE2_CONTENT: edgeVal("upperMiddleLine2Content", avail.upper, avail.digitalRight),' +
 '    CONFIG_UPPER_MIDDLE_LINE2_COLOR: document.getElementById("upperMiddleLine2Color").value,' +
-'    CONFIG_BOTTOM_MIDDLE_LINE1_CONTENT: document.getElementById("bottomMiddleLine1Content").value,' +
+'    CONFIG_BOTTOM_MIDDLE_LINE1_CONTENT: edgeVal("bottomMiddleLine1Content", avail.bottom, true),' +
 '    CONFIG_BOTTOM_MIDDLE_LINE1_COLOR: document.getElementById("bottomMiddleLine1Color").value,' +
-'    CONFIG_BOTTOM_MIDDLE_LINE2_CONTENT: document.getElementById("bottomMiddleLine2Content").value,' +
+'    CONFIG_BOTTOM_MIDDLE_LINE2_CONTENT: edgeVal("bottomMiddleLine2Content", avail.bottom, false),' +
 '    CONFIG_BOTTOM_MIDDLE_LINE2_COLOR: document.getElementById("bottomMiddleLine2Color").value,' +
-'    CONFIG_MIDDLE_LEFT_LINE1_CONTENT: document.getElementById("middleLeftLine1Content").value,' +
+'    CONFIG_MIDDLE_LEFT_LINE1_CONTENT: edgeVal("middleLeftLine1Content", avail.left, avail.digitalLeft),' +
 '    CONFIG_MIDDLE_LEFT_LINE1_COLOR: document.getElementById("middleLeftLine1Color").value,' +
-'    CONFIG_MIDDLE_LEFT_LINE2_CONTENT: document.getElementById("middleLeftLine2Content").value,' +
+'    CONFIG_MIDDLE_LEFT_LINE2_CONTENT: edgeVal("middleLeftLine2Content", avail.left, avail.digitalLeft),' +
 '    CONFIG_MIDDLE_LEFT_LINE2_COLOR: document.getElementById("middleLeftLine2Color").value,' +
-'    CONFIG_MIDDLE_RIGHT_LINE1_CONTENT: document.getElementById("middleRightLine1Content").value,' +
+'    CONFIG_MIDDLE_RIGHT_LINE1_CONTENT: edgeVal("middleRightLine1Content", avail.right, avail.digitalRight),' +
 '    CONFIG_MIDDLE_RIGHT_LINE1_COLOR: document.getElementById("middleRightLine1Color").value,' +
-'    CONFIG_MIDDLE_RIGHT_LINE2_CONTENT: document.getElementById("middleRightLine2Content").value,' +
+'    CONFIG_MIDDLE_RIGHT_LINE2_CONTENT: edgeVal("middleRightLine2Content", avail.right, avail.digitalRight),' +
 '    CONFIG_MIDDLE_RIGHT_LINE2_COLOR: document.getElementById("middleRightLine2Color").value,' +
 '    CONFIG_DIGITAL_SIDES: document.getElementById("digitalSides").value,' +
 '    CONFIG_SHOW_ISS: document.getElementById("showIss").checked,' +
@@ -4610,10 +4535,10 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    CONFIG_SHAKE_ANIM_MODE: document.getElementById("shakeAnimMode").value,' +
 '    CONFIG_OUTLINE_ENABLED: document.getElementById("outlineEnabled").checked,' +
 '    CONFIG_CORNER_FONT: document.getElementById("cornerFont").value,' +
-'    CONFIG_CORNER_TL: document.getElementById("cornerTL").value,' +
-'    CONFIG_CORNER_TR: document.getElementById("cornerTR").value,' +
-'    CONFIG_CORNER_BL: document.getElementById("cornerBL").value,' +
-'    CONFIG_CORNER_BR: document.getElementById("cornerBR").value,' +
+'    CONFIG_CORNER_TL: avail.cornersGrayed ? "0" : document.getElementById("cornerTL").value,' +
+'    CONFIG_CORNER_TR: avail.cornersGrayed ? "0" : document.getElementById("cornerTR").value,' +
+'    CONFIG_CORNER_BL: avail.cornersGrayed ? "0" : document.getElementById("cornerBL").value,' +
+'    CONFIG_CORNER_BR: avail.cornersGrayed ? "0" : document.getElementById("cornerBR").value,' +
 '    CONFIG_CORNER_TL_COLOR: document.getElementById("cornerTLColor").value,' +
 '    CONFIG_CORNER_TR_COLOR: document.getElementById("cornerTRColor").value,' +
 '    CONFIG_CORNER_BL_COLOR: document.getElementById("cornerBLColor").value,' +

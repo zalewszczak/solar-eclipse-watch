@@ -6,8 +6,6 @@ typedef struct {
   const char *system_key;    // valid iff !is_custom -- one of Pebble's own FONT_KEY_* macros
   uint8_t height;             // rough export height in px, for text-box sizing
   int8_t y_offset;            // vertical fine-tune, see font_lookup_y_offset()'s own header comment
-  bool wide;                  // true if this font runs too wide for a full HH:MM:SS digital
-                                // readout at its normal size -- see font_lookup_is_wide()
 } FontLookupEntry;
 
 // One row per distinct font this app uses anywhere -- deliberately
@@ -42,24 +40,24 @@ static const FontLookupEntry FONT_TABLE[] = {
   [16] = { .is_custom = true, .resource_id = RESOURCE_ID_DIGITALDREAM_FONT_12,  .height = 12, .y_offset = -2 }, // Digital Dream Small
   [17] = { .is_custom = true, .resource_id = RESOURCE_ID_DIGITALDREAM_FONT_48,  .height = 40, .y_offset = -2 }, // Digital Dream Big
   [18] = { .is_custom = true, .resource_id = RESOURCE_ID_MINECRAFTER_FONT_12,   .height = 12, .y_offset = -2 }, // Minecrafter Small
-  [19] = { .is_custom = true, .resource_id = RESOURCE_ID_MINECRAFTER_FONT_48,   .height = 40, .y_offset = 4, .wide = true }, // Minecrafter Big
+  [19] = { .is_custom = true, .resource_id = RESOURCE_ID_MINECRAFTER_FONT_48,   .height = 40, .y_offset = 4 }, // Minecrafter Big
   [20] = { .is_custom = true, .resource_id = RESOURCE_ID_SFPIXELATE_FONT_14,    .height = 14 }, // SF Pixelate Small
-  [21] = { .is_custom = true, .resource_id = RESOURCE_ID_SFPIXELATE_FONT_48,    .height = 40, .wide = true }, // SF Pixelate Big
+  [21] = { .is_custom = true, .resource_id = RESOURCE_ID_SFPIXELATE_FONT_48,    .height = 40 }, // SF Pixelate Big
   [22] = { .is_custom = true, .resource_id = RESOURCE_ID_ALAGARD_FONT_19,       .height = 19, .y_offset = -4 }, // Alagard Small
   [23] = { .is_custom = true, .resource_id = RESOURCE_ID_ALAGARD_FONT_48,       .height = 40, .y_offset = -4 }, // Alagard Big
   [24] = { .is_custom = true, .resource_id = RESOURCE_ID_BEBAS_FONT_20,         .height = 20, .y_offset = -6 }, // Bebas Small
   [25] = { .is_custom = true, .resource_id = RESOURCE_ID_BEBAS_FONT_48,         .height = 40 }, // Bebas Big
   [26] = { .is_custom = true, .resource_id = RESOURCE_ID_AMITA_FONT_48,         .height = 40 }, // Amita
-  [27] = { .is_custom = true, .resource_id = RESOURCE_ID_AVERIA_FONT_48,        .height = 40, .wide = true }, // AveriaSerifLibre
-  [28] = { .is_custom = true, .resource_id = RESOURCE_ID_BAGEL_FONT_48,         .height = 40, .wide = true }, // Bagel
-  [29] = { .is_custom = true, .resource_id = RESOURCE_ID_BRICOLAGE_FONT_48,     .height = 40, .wide = true }, // Bricolage Grotesque
+  [27] = { .is_custom = true, .resource_id = RESOURCE_ID_AVERIA_FONT_48,        .height = 40 }, // AveriaSerifLibre
+  [28] = { .is_custom = true, .resource_id = RESOURCE_ID_BAGEL_FONT_48,         .height = 40 }, // Bagel
+  [29] = { .is_custom = true, .resource_id = RESOURCE_ID_BRICOLAGE_FONT_48,     .height = 40 }, // Bricolage Grotesque
   [30] = { .is_custom = true, .resource_id = RESOURCE_ID_CHANGO_FONT_48,        .height = 40, .y_offset = -4 }, // Chango
   [31] = { .is_custom = true, .resource_id = RESOURCE_ID_EMBLEMA_FONT_48,       .height = 40, .y_offset = -6 }, // EmblemaOne
   [32] = { .is_custom = true, .resource_id = RESOURCE_ID_FRAUNCES_FONT_48,      .height = 40, .y_offset = -2 }, // Fraunces
   [33] = { .is_custom = true, .resource_id = RESOURCE_ID_GEOSTAR_FONT_48,       .height = 40, .y_offset = -2 }, // Geostar Fill
-  [34] = { .is_custom = true, .resource_id = RESOURCE_ID_MICHROMA_FONT_48,      .height = 40, .y_offset = -2, .wide = true }, // Michroma
+  [34] = { .is_custom = true, .resource_id = RESOURCE_ID_MICHROMA_FONT_48,      .height = 40, .y_offset = -2 }, // Michroma
   [35] = { .is_custom = true, .resource_id = RESOURCE_ID_NATIONALPARK_FONT_48,  .height = 40, .y_offset = -2 }, // National Park
-  [36] = { .is_custom = true, .resource_id = RESOURCE_ID_KOMIKAHB_FONT_48,      .height = 40, .wide = true }, // Komika
+  [36] = { .is_custom = true, .resource_id = RESOURCE_ID_KOMIKAHB_FONT_48,      .height = 40 }, // Komika
   [37] = { .is_custom = true, .resource_id = RESOURCE_ID_QUANTICO_FONT_48,      .height = 40 }, // Quantico
   [38] = { .is_custom = true, .resource_id = RESOURCE_ID_SILKSCREEN_FONT_48,    .height = 40 }, // Silkscreen
   [39] = { .is_custom = true, .resource_id = RESOURCE_ID_STACKSANSHEADLINE_FONT_48, .height = 40 }, // StackSansHeadline
@@ -107,10 +105,6 @@ uint8_t font_lookup_height(uint8_t font_id) {
 
 int8_t font_lookup_y_offset(uint8_t font_id) {
   return entry_for(font_id)->y_offset;
-}
-
-bool font_lookup_is_wide(uint8_t font_id) {
-  return entry_for(font_id)->wide;
 }
 
 void font_lookup_release(FontSlot *slot) {

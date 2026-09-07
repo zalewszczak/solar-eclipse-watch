@@ -53,7 +53,7 @@ typedef struct {
   uint8_t target;       // 0=off, 1=numerals on the hour ring, 2=numerals on the second ring
                           // (every 5s, drawn at the same 12 angular slots hour numerals use)
   uint8_t font_choice;   // unified font id (see font_lookup.h) -- same table and ids as
-                          // clock_font/clock_font_small/corner_font, so e.g. picking "Bebas"
+                          // clock_font/corner_font, so e.g. picking "Bebas"
                           // anywhere in the settings page always means the same id here too
   int8_t offset_px;      // -50..50 -- radial nudge of the text away from (positive) or
                           // towards (negative) the line/dot/square marker it's paired with,
@@ -176,11 +176,6 @@ typedef struct {
   bool has_eclipse;         // is there any eclipse today at this location?
   uint8_t clock_font;         // unified font id (see font_lookup.h) for the main clock digits, applies
                                 // regardless of data validity
-  uint8_t clock_font_small;   // unified font id for the smaller companion readout next to the clock
-                                // (seconds digits in digital mode, sunrise/sunset time, the date line) --
-                                // a separate id rather than something derived from clock_font, since
-                                // PKJS is what decides which small font looks good paired with which
-                                // big one (see CLOCK_FONTS_BIG in config-page.js)
   uint8_t temp_unit;          // user setting: 0=Celsius, 1=Fahrenheit, 2=Kelvin
   uint8_t wind_speed_unit;    // user setting: 0=km/h, 1=mph, 2=m/s, 3=knots
   bool show_seconds;          // user setting: show seconds (grayed out in settings for wide fonts)
@@ -315,31 +310,26 @@ typedef struct {
                                           // s_startup_clock_anim_* in pebble-eclipse-watch.c and
                                           // hand_layer.c's HandConfig-level sweep-in support. Under 1.5s.
   uint8_t bg_anim_mode; // user setting ("Style" section, default 0=off): radio-style, exactly one
-                         // of 0=off, 1=weather (clouds slide in from the sides), 2=planets (Sun/
-                         // Moon/planets + the sky gradient sweep in from their position a couple
-                         // hours ago), 3=markers (big-analog HOUR markers only -- second markers
-                         // are excluded and always drawn normally -- animate in from off-screen,
-                         // see draw_all_markers()'s own comment on why they're not genuinely
-                         // cached rather than just skipped-from-animation). Only one kind of
-                         // element animates at a time -- see canvas_update_proc's own gating at
-                         // each of its 3 uses (the sky_now substitution, the draw_clouds() call,
-                         // and the draw_all_markers() call).
-  uint8_t shake_anim_mode; // user setting ("Style" section, default 0=off): radio-style, exactly
-                             // one of 0=off, 1=gradient (outlines sweep through a rainbow -- a real
-                             // gradient across the screen, not a single shared flashing color; see
-                             // shake_outline_color()/shake_gradient_active() in
-                             // pebble-eclipse-watch.c and subpixel.h's stroke_*_gradient_fp()
-                             // functions), 2=smooth second hand (continuous sub-second motion
-                             // instead of per-second jumps, for as long as shake_label_seconds),
-                             // 3=both at once, 4="Planet seek" (points the sky view at whatever
-                             // 90deg slice of the horizon the watch's compass is currently facing,
-                             // for as long as shake_label_seconds -- weather is suppressed for the
-                             // duration; the Sun/Moon/planets keep the same altitude they'd show in
-                             // the normal, non-rotated view, just repositioned left-to-right across
-                             // the screen by compass-relative azimuth, with off-screen bodies shown
-                             // as an edge-pinned label + arrow instead. Unavailable whenever today
-                             // has an eclipse -- see s_data.has_eclipse's own gating at the trigger
-                             // site).
+                         // of 0=off, 1=planets (Sun/Moon/planets + the sky gradient sweep in from
+                         // their position a couple hours ago), 2=markers (big-analog HOUR markers
+                         // only -- second markers are excluded and always drawn normally --
+                         // animate in from off-screen, see draw_all_markers()'s own comment on why
+                         // they're not genuinely cached rather than just skipped-from-animation).
+                         // Only one kind of element animates at a time -- see canvas_update_proc's
+                         // own gating at each of its 2 uses (the sky_now substitution and the
+                         // draw_all_markers() call).
+  uint8_t shake_anim_mode; // user setting ("On shake animation" section, default 0=off): radio-
+                             // style, exactly one of 0=off, 1=smooth second hand (continuous
+                             // sub-second motion instead of per-second jumps, for as long as
+                             // shake_label_seconds), 2="Planet seek" (points the sky view at
+                             // whatever 90deg slice of the horizon the watch's compass is currently
+                             // facing, for as long as shake_label_seconds -- weather is suppressed
+                             // for the duration; the Sun/Moon/planets keep the same altitude
+                             // they'd show in the normal, non-rotated view, just repositioned
+                             // left-to-right across the screen by compass-relative azimuth, with
+                             // off-screen bodies shown as an edge-pinned label + arrow instead.
+                             // Unavailable whenever today has an eclipse -- see s_data.has_eclipse's
+                             // own gating at the trigger site).
   bool outline_enabled; // user setting: 1px contrasting-color outline behind corner/edge text,
                           // the big-analog date, the eclipse phase text, and (procedurally, non-
                           // translucent mode only) corner/edge icons. Hands have their own
@@ -555,9 +545,6 @@ typedef struct {
   uint8_t cloud_altitude_pct;                  // 0=low cloud, 100=high cloud (from Open-Meteo's
                                                  // low/mid/high cloud-cover split), biases cloud
                                                  // cluster height within the lower half of the sky
-  uint8_t cloud_render_style;                  // user setting: 0=Simple (battery-friendly circle
-                                                 // puffs), 1=Realistic (metaball field, sun-relative
-                                                 // warm/cool lighting) -- see draw_clouds()
   uint8_t sky_mode;                            // user setting ("Style" section): 0=Weather sky
                                                  // (default -- gradient + clouds/weather effects,
                                                  // everything above), 1=Clear sky (same day/night
@@ -687,26 +674,6 @@ GColor gcolor_from_packed(uint8_t packed);
 // request that led to it).
 bool weather_should_show_error(const EclipseData *d);
 
-// Also defined in pebble-eclipse-watch.c, declared here for the same reason:
-// the "on shake" animation's outline gradient effect is driven by state
-// that file owns (when the shake happened, shake_anim_mode,
-// shake_label_seconds), but applies to outlines drawn from hand_layer.c
-// (which samples it per-pixel for a true screen-space gradient there --
-// see subpixel.h's own stroke_*_gradient_fp() functions) and
-// features_layer.c (which, unlike hand_layer.c, only has one fill color
-// to give a whole text/icon draw call, so it samples this once at that
-// item's own screen position instead). screen_x is whichever pixel/item
-// position is relevant to the caller. Returns normal_color unchanged
-// whenever the animation isn't actually running (off in settings, no
-// shake in progress, or in a mode that doesn't include the gradient) --
-// always safe to call unconditionally wherever an outline color is
-// being resolved.
-GColor shake_outline_color(GColor normal_color, int16_t screen_x);
-/*
-// hand_layer.c's own version -- see its definition in
-// pebble-eclipse-watch.c for why it's different from the one above.
-bool shake_gradient_active(int32_t *out_shift);
-*/
 // Also defined in pebble-eclipse-watch.c -- the watch's current compass
 // heading (0-359, true-north-relative, clockwise -- 0=N, 90=E, 180=S,
 // 270=W, matching every other bearing in this app), as of the most

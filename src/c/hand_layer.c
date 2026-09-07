@@ -1,5 +1,5 @@
 #include "hand_layer.h"
-#include "eclipse_data.h" // for shake_gradient_active() -- see draw_hand_outline_from_geometry()'s own comment on why
+#include "eclipse_data.h"
 
 // round_div/BAYER4/FGPoint helpers and the fill_polygon_fp()/
 // fill_polygon_dithered_fp()/fill_circle_fp()/stroke_line_fp()/
@@ -603,26 +603,6 @@ static void draw_hand_shape_from_geometry(GContext *ctx, const HandGeometry *geo
 // from_geometry() above, for the same reason -- see its own comment.
 static void draw_hand_outline_from_geometry(GContext *ctx, const HandGeometry *geo,
                                              GColor color, bool dithered) {
-  // "On shake" gradient mode: a true per-pixel screen-space sweep
-  // instead of one fixed color for the whole outline -- see
-  // subpixel.h's stroke_*_gradient_fp() functions and their own
-  // comment for how. Only for the non-dithered case: a translucent
-  // hand's dithered outline already has its own density logic, and
-  // combining "which pixels get skipped for translucency" with "what
-  // color the ones that survive should be" is more than this is worth
-  // -- a translucent hand's outline just doesn't gradient-shift.
-/*
-  int32_t shake_shift = 0; // Q8 fixed-point -- see shake_gradient_active()'s own comment
-  if (!dithered && shake_gradient_active(&shake_shift)) {
-    for (int i = 0; i < geo->n_polys; i++) {
-      stroke_polygon_gradient_fp(ctx, geo->polys[i].pts, geo->polys[i].n, shake_shift);
-    }
-    for (int i = 0; i < geo->n_circles; i++) {
-      stroke_circle_gradient_fp(ctx, geo->circles[i].center, geo->circles[i].radius_fp, shake_shift);
-    }
-    return;
-  }
-*/
   for (int i = 0; i < geo->n_polys; i++) {
     stroke_polygon_fp(ctx, geo->polys[i].pts, geo->polys[i].n, color, dithered);
   }

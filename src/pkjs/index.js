@@ -95,10 +95,10 @@ var KEY_TYPE_MAP = (function () {
   ]);
 
   assign(MSG_TYPE.SETTINGS, [
-    'CLOCK_FONT', 'CLOCK_FONT_SMALL', 'TEMP_UNIT', 'WIND_SPEED_UNIT', 'SHOW_SECONDS',
+    'CLOCK_FONT', 'TEMP_UNIT', 'WIND_SPEED_UNIT', 'SHOW_SECONDS',
     'CUSTOM_BG', 'CUSTOM_TEXT', 'CUSTOM_ACCENT',
     'NIGHT_SCHEME_ENABLED', 'NIGHT_CUSTOM_BG', 'NIGHT_CUSTOM_TEXT', 'NIGHT_CUSTOM_ACCENT',
-    'BOTTOM_STYLE', 'SUN_MOON_SIZE_PCT', 'CLOUD_RENDER_STYLE',
+    'BOTTOM_STYLE', 'SUN_MOON_SIZE_PCT',
     'SKY_MODE', 'WEATHER_ICON_STYLE', 'AQI_UNIT', 'ALTITUDE_UNIT',
     'SHAKE_LABEL_SECONDS', 'LABEL_STYLE',
     'VIBRATE_ON_PHASE_CHANGE', 'STARTUP_CLOCK_ANIMATION_ENABLED',
@@ -399,20 +399,15 @@ function skyFieldsDict(sky, cloudGrid, moonPhase, riseSet, meteorShower, cloudAl
 }
 
 // Unified font ids (see font_lookup.h) -- CONFIG_CLOCK_FONT/
-// CONFIG_CLOCK_FONT_SMALL/CONFIG_CORNER_FONT/CONFIG_MARKER_TEXT_FONT
-// are all just the numeric id as a string now, straight from
-// config-page.js's <select> value, so there's no string-to-code
-// mapping layer needed here anymore -- clamped to FONT_LOOKUP's own
-// 0-37 range (see FONT_LOOKUP in config-page.js) rather than trusting
-// whatever the webview sent.
+// CONFIG_CORNER_FONT/CONFIG_MARKER_TEXT_FONT are all just the numeric
+// id as a string now, straight from config-page.js's <select> value,
+// so there's no string-to-code mapping layer needed here anymore --
+// clamped to FONT_LOOKUP's own 0-37 range (see FONT_LOOKUP in
+// config-page.js) rather than trusting whatever the webview sent.
 function clampFontId(v) { return clampInt(v, 0, FONT_MAX_CONTENT_ID, 8); } // 8 = Leco XL, the main clock's own default
 
 function clockFontCode() {
   return clampFontId(getSetting('CONFIG_CLOCK_FONT', '8'));
-}
-
-function clockFontSmallCode() {
-  return clampInt(getSetting('CONFIG_CLOCK_FONT_SMALL', '0'), 0, FONT_MAX_CONTENT_ID, 0);
 }
 
 function tempUnitCode() {
@@ -472,11 +467,6 @@ function sunMoonSizeCode() {
   return pct;
 }
 
-function cloudRenderStyleCode() {
-  var id = parseInt(getSetting('CONFIG_CLOUD_RENDER_STYLE', '1'), 10);
-  if (isNaN(id) || id < 0 || id > 1) id = 1;
-  return id;
-}
 // 0=Weather sky (default), 1=Clear sky, 2=Space view -- see
 // background_layer.c's canvas_update_proc for what each mode changes.
 function skyModeCode() {
@@ -770,15 +760,15 @@ function auroraEnabledCode() { return getSetting('CONFIG_AURORA_ENABLED', 'false
 function vibrateOnPhaseChangeCode() { return getSetting('CONFIG_VIBRATE_ON_PHASE_CHANGE', 'false') === 'true' ? 1 : 0; }
 // Default true -- matches the C struct comment; the other two default false.
 function startupClockAnimationEnabledCode() { return getSetting('CONFIG_STARTUP_CLOCK_ANIMATION_ENABLED', 'true') === 'true' ? 1 : 0; }
-// Radio-style, exactly one of 0=off, 1=weather, 2=planets, 3=markers -- see bg_anim_mode's own comment in eclipse_data.h.
+// Radio-style, exactly one of 0=off, 1=planets, 2=markers -- see bg_anim_mode's own comment in eclipse_data.h.
 function bgAnimModeCode() {
   var v = parseInt(getSetting('CONFIG_BG_ANIM_MODE', '0'), 10);
-  return [0, 1, 2, 3].indexOf(v) === -1 ? 0 : v;
+  return [0, 1, 2].indexOf(v) === -1 ? 0 : v;
 }
-// Radio-style, exactly one of 0=off, 1=gradient, 2=smooth second hand, 3=both, 4=Planet seek -- see shake_anim_mode's own comment in eclipse_data.h.
+// Radio-style, exactly one of 0=off, 1=smooth second hand, 2=Planet seek -- see shake_anim_mode's own comment in eclipse_data.h.
 function shakeAnimModeCode() {
   var v = parseInt(getSetting('CONFIG_SHAKE_ANIM_MODE', '0'), 10);
-  return [0, 1, 2, 3, 4].indexOf(v) === -1 ? 0 : v;
+  return [0, 1, 2].indexOf(v) === -1 ? 0 : v;
 }
 function outlineEnabledCode() { return getSetting('CONFIG_OUTLINE_ENABLED', 'true') === 'true' ? 1 : 0; }
 function cornerFontCode() {
@@ -823,7 +813,6 @@ function populateSettingsFields(dict) {
   // phone-local preferences, not eclipse data, so there's no reason
   // to gate them behind DATA_VALID or wait for a full refresh cycle.
   dict['CLOCK_FONT'] = clockFontCode();
-  dict['CLOCK_FONT_SMALL'] = clockFontSmallCode();
   dict['TEMP_UNIT'] = tempUnitCode();
   dict['WIND_SPEED_UNIT'] = windSpeedUnitCode();
   dict['SHOW_SECONDS'] = showSecondsCode();
@@ -836,7 +825,6 @@ function populateSettingsFields(dict) {
   dict['NIGHT_CUSTOM_ACCENT'] = nightCustomAccentByte();
   dict['BOTTOM_STYLE'] = bottomStyleCode();
   dict['SUN_MOON_SIZE_PCT'] = sunMoonSizeCode();
-  dict['CLOUD_RENDER_STYLE'] = cloudRenderStyleCode();
   dict['SKY_MODE'] = skyModeCode();
   dict['WEATHER_ICON_STYLE'] = weatherIconStyleCode();
   dict['AQI_UNIT'] = aqiUnitCode();
@@ -1567,7 +1555,6 @@ function sendFlatDict(dict) {
 '  "ISS_COMPUTED_AT": 0,'+
 '  "ISS_NEXT_PASS": 0,'+
 '  "CLOCK_FONT": 8,'+
-'  "CLOCK_FONT_SMALL": 0,'+
 '  "TEMP_UNIT": 0,'+
 '  "WIND_SPEED_UNIT": 0,'+
 '  "SHOW_SECONDS": 1,'+
@@ -1580,7 +1567,6 @@ function sendFlatDict(dict) {
 '  "NIGHT_CUSTOM_ACCENT": 240,'+
 '  "BOTTOM_STYLE": 1,'+
 '  "SUN_MOON_SIZE_PCT": 50,'+
-'  "CLOUD_RENDER_STYLE": 0,'+
 '  "SKY_MODE": 0,'+
 '  "WEATHER_ICON_STYLE": 1,'+
 '  "AQI_UNIT": 0,'+
@@ -2380,7 +2366,6 @@ Pebble.addEventListener('showConfiguration', function () {
     owmKey: getSetting('CONFIG_OWM_KEY', ''),
     updateMins: getSetting('CONFIG_UPDATE_MINS', '20'),
     clockFont: getSetting('CONFIG_CLOCK_FONT', '8'),
-    clockFontSmall: getSetting('CONFIG_CLOCK_FONT_SMALL', '0'),
     tempUnit: getSetting('CONFIG_TEMP_UNIT', 'C'),
     windSpeedUnit: getSetting('CONFIG_WIND_SPEED_UNIT', 'kmh'),
     showSeconds: getSetting('CONFIG_SHOW_SECONDS', 'false') === 'true',
@@ -2394,7 +2379,6 @@ Pebble.addEventListener('showConfiguration', function () {
     bottomStyle: getSetting('CONFIG_BOTTOM_STYLE', 'digital'),
     digitalSides: getSetting('CONFIG_DIGITAL_SIDES', 'none'),
     sunMoonSize: getSetting('CONFIG_SUN_MOON_SIZE', '75'),
-    cloudRenderStyle: getSetting('CONFIG_CLOUD_RENDER_STYLE', '1'),
     skyMode: getSetting('CONFIG_SKY_MODE', '0'),
     weatherIconStyle: getSetting('CONFIG_WEATHER_ICON_STYLE', '1'),
     aqiUnit: getSetting('CONFIG_AQI_UNIT', '0'),
@@ -2611,7 +2595,6 @@ Pebble.addEventListener('webviewclosed', function (e) {
   setSetting('CONFIG_OWM_KEY', settings.CONFIG_OWM_KEY || '');
   setSetting('CONFIG_UPDATE_MINS', settings.CONFIG_UPDATE_MINS || '20');
   setSetting('CONFIG_CLOCK_FONT', settings.CONFIG_CLOCK_FONT);
-  setSetting('CONFIG_CLOCK_FONT_SMALL', settings.CONFIG_CLOCK_FONT_SMALL || '0');
   setSetting('CONFIG_TEMP_UNIT', (settings.CONFIG_TEMP_UNIT === 'F' || settings.CONFIG_TEMP_UNIT === 'K') ? settings.CONFIG_TEMP_UNIT : 'C');
   setSetting('CONFIG_WIND_SPEED_UNIT', settings.CONFIG_WIND_SPEED_UNIT || 'kmh');
   setSetting('CONFIG_SHOW_SECONDS', settings.CONFIG_SHOW_SECONDS ? 'true' : 'false');
@@ -2625,7 +2608,6 @@ Pebble.addEventListener('webviewclosed', function (e) {
   setSetting('CONFIG_BOTTOM_STYLE', (settings.CONFIG_BOTTOM_STYLE === 'analog' || settings.CONFIG_BOTTOM_STYLE === 'biganalog') ? 'analog' : 'digital');
   setSetting('CONFIG_DIGITAL_SIDES', settings.CONFIG_DIGITAL_SIDES || 'none');
   setSetting('CONFIG_SUN_MOON_SIZE', settings.CONFIG_SUN_MOON_SIZE || '100');
-  setSetting('CONFIG_CLOUD_RENDER_STYLE', settings.CONFIG_CLOUD_RENDER_STYLE || '1');
   setSetting('CONFIG_SKY_MODE', settings.CONFIG_SKY_MODE || '0');
   setSetting('CONFIG_WEATHER_ICON_STYLE', settings.CONFIG_WEATHER_ICON_STYLE || '1');
   setSetting('CONFIG_AQI_UNIT', settings.CONFIG_AQI_UNIT || '0');
