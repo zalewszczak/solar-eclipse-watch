@@ -1,5 +1,6 @@
 #include <pebble.h>
 #include <stddef.h> // offsetof() -- used by inbox_received_handler's SIMPLE_FIELD_MAP
+#include <string.h> // memcpy() -- used by apply_consolidated_fields()'s HANDS/MARKER_RINGS/EDGE_LINES blobs
 #include "eclipse_data.h"
 #include "background_layer.h"
 #include "features_layer.h"
@@ -1091,24 +1092,27 @@ static void update_tick_subscription(void) {
 }
 
 // ---- Table-driven plain-copy message fields ---------------------------
-// Roughly 3 in 4 of this app's ~193 AppMessage keys resolve to nothing
-// more than "copy this value into this EclipseData field, with this
-// one conversion" -- no clamping, no derived state, no layer redraw to
-// trigger. Those are handled once, generically, via this table +
-// apply_simple_fields() below, instead of each getting its own hand-
-// written `if ((t = dict_find(iter, KEY))) s_data.field = ...;` block.
-// The remaining ~46 keys (validation/clamping, derived fields like
-// has_eclipse, byte-blob arrays, and anything that needs to mark a
-// layer dirty or call apply_layout()/apply_clock_font()) keep their
-// own explicit code below, unchanged -- forcing those into this same
+// After C's message-key consolidation (86 of the old individual keys ->
+// 5 grouped ones -- HANDS/MARKER_RINGS/EDGE_LINES/MARKER_TEXT/COLORS,
+// handled by apply_consolidated_fields() below instead), this app has
+// ~113 AppMessage keys; roughly half resolve to nothing more than "copy
+// this value into this EclipseData field, with this one conversion" --
+// no clamping, no derived state, no layer redraw to trigger. Those are
+// handled once, generically, via this table + apply_simple_fields()
+// below, instead of each getting its own hand-written
+// `if ((t = dict_find(iter, KEY))) s_data.field = ...;` block.
+// Everything else (validation/clamping, derived fields like has_eclipse,
+// byte-blob arrays, the 5 consolidated groups, and anything that needs
+// to mark a layer dirty or call apply_layout()/apply_clock_font()) keeps
+// its own explicit code below, unchanged -- forcing those into this same
 // table would need a per-field side-effect callback, which is most of
 // this table's own complexity right back again for comparatively
 // little further size win. Order doesn't matter: every field here is
-// independent of every other one (and of the ~46 explicit fields) --
+// independent of every other one (and of the explicit fields below) --
 // nothing here reads any s_data field, so there's no way processing
 // them via one generic loop instead of scattered inline can observe a
 // different result than the original hand-written order did. Run
-// first, before any of the ~46 explicit blocks below, purely so that
+// first, before any of the explicit blocks below, purely so that
 // something like corner-content's own features_layer_set_data() call
 // (further down) always sees this message's freshly-applied values
 // rather than last message's -- moving a field out of this table
@@ -1135,7 +1139,7 @@ typedef struct {
 // own comment for why MK_* (an array index) is a compile-time constant where
 // MESSAGE_KEY_* (the real, link-time-assigned key) isn't. This table lives in
 // .rodata instead of being populated into .bss by a runtime init function.
-#define SIMPLE_FIELD_MAP_COUNT 148
+#define SIMPLE_FIELD_MAP_COUNT 62
 static const SimpleFieldMapping SIMPLE_FIELD_MAP[SIMPLE_FIELD_MAP_COUNT] = {
   { MK_ERROR_CODE, F_U8, offsetof(EclipseData, error_code) },
   { MK_TEMP_UNIT, F_U8, offsetof(EclipseData, temp_unit) },
@@ -1145,96 +1149,10 @@ static const SimpleFieldMapping SIMPLE_FIELD_MAP[SIMPLE_FIELD_MAP_COUNT] = {
   { MK_STARTUP_CLOCK_ANIMATION_ENABLED, F_BOOL, offsetof(EclipseData, startup_clock_animation_enabled) },
   { MK_OUTLINE_ENABLED, F_BOOL, offsetof(EclipseData, outline_enabled) },
   { MK_CORNER_FONT, F_U8, offsetof(EclipseData, corner_font) },
-  { MK_HAND_HOUR_STYLE, F_U8, offsetof(EclipseData, hand_hour.style) },
-  { MK_HAND_HOUR_WIDTH, F_U8, offsetof(EclipseData, hand_hour.width) },
-  { MK_HAND_HOUR_LENGTH, F_U8, offsetof(EclipseData, hand_hour.length) },
-  { MK_HAND_HOUR_BACK_OFFSET, F_I8_FROM_I16, offsetof(EclipseData, hand_hour.back_offset) },
-  { MK_HAND_HOUR_MIDDLE_OFFSET, F_I8_FROM_I16, offsetof(EclipseData, hand_hour.middle_offset) },
-  { MK_HAND_HOUR_SECONDARY_WIDTH, F_U8, offsetof(EclipseData, hand_hour.secondary_width) },
-  { MK_HAND_HOUR_COLOR, F_U8, offsetof(EclipseData, hand_hour.color) },
-  { MK_HAND_HOUR_OUTLINE_ENABLED, F_BOOL, offsetof(EclipseData, hand_hour.outline_enabled) },
-  { MK_HAND_HOUR_OUTLINE_COLOR, F_U8, offsetof(EclipseData, hand_hour.outline_color) },
-  { MK_HAND_HOUR_TRANSLUCENT, F_BOOL, offsetof(EclipseData, hand_hour.translucent) },
-  { MK_HAND_HOUR_SHADOW_ENABLED, F_BOOL, offsetof(EclipseData, hand_hour.shadow_enabled) },
-  { MK_HAND_HOUR_SHADOW_DISTANCE, F_U8, offsetof(EclipseData, hand_hour.shadow_distance_px) },
-  { MK_HAND_HOUR_HOLLOW, F_BOOL, offsetof(EclipseData, hand_hour.hollow) },
-  { MK_HAND_HOUR_HOLLOW_THICKNESS, F_U8, offsetof(EclipseData, hand_hour.hollow_thickness) },
-  { MK_HAND_MIN_STYLE, F_U8, offsetof(EclipseData, hand_minute.style) },
-  { MK_HAND_MIN_WIDTH, F_U8, offsetof(EclipseData, hand_minute.width) },
-  { MK_HAND_MIN_LENGTH, F_U8, offsetof(EclipseData, hand_minute.length) },
-  { MK_HAND_MIN_BACK_OFFSET, F_I8_FROM_I16, offsetof(EclipseData, hand_minute.back_offset) },
-  { MK_HAND_MIN_MIDDLE_OFFSET, F_I8_FROM_I16, offsetof(EclipseData, hand_minute.middle_offset) },
-  { MK_HAND_MIN_SECONDARY_WIDTH, F_U8, offsetof(EclipseData, hand_minute.secondary_width) },
-  { MK_HAND_MIN_COLOR, F_U8, offsetof(EclipseData, hand_minute.color) },
-  { MK_HAND_MIN_OUTLINE_ENABLED, F_BOOL, offsetof(EclipseData, hand_minute.outline_enabled) },
-  { MK_HAND_MIN_OUTLINE_COLOR, F_U8, offsetof(EclipseData, hand_minute.outline_color) },
-  { MK_HAND_MIN_TRANSLUCENT, F_BOOL, offsetof(EclipseData, hand_minute.translucent) },
-  { MK_HAND_MIN_SHADOW_ENABLED, F_BOOL, offsetof(EclipseData, hand_minute.shadow_enabled) },
-  { MK_HAND_MIN_SHADOW_DISTANCE, F_U8, offsetof(EclipseData, hand_minute.shadow_distance_px) },
-  { MK_HAND_MIN_HOLLOW, F_BOOL, offsetof(EclipseData, hand_minute.hollow) },
-  { MK_HAND_MIN_HOLLOW_THICKNESS, F_U8, offsetof(EclipseData, hand_minute.hollow_thickness) },
-  { MK_HAND_SEC_STYLE, F_U8, offsetof(EclipseData, hand_second.style) },
-  { MK_HAND_SEC_WIDTH, F_U8, offsetof(EclipseData, hand_second.width) },
-  { MK_HAND_SEC_LENGTH, F_U8, offsetof(EclipseData, hand_second.length) },
-  { MK_HAND_SEC_BACK_OFFSET, F_I8_FROM_I16, offsetof(EclipseData, hand_second.back_offset) },
-  { MK_HAND_SEC_MIDDLE_OFFSET, F_I8_FROM_I16, offsetof(EclipseData, hand_second.middle_offset) },
-  { MK_HAND_SEC_SECONDARY_WIDTH, F_U8, offsetof(EclipseData, hand_second.secondary_width) },
-  { MK_HAND_SEC_COLOR, F_U8, offsetof(EclipseData, hand_second.color) },
-  { MK_HAND_SEC_OUTLINE_ENABLED, F_BOOL, offsetof(EclipseData, hand_second.outline_enabled) },
-  { MK_HAND_SEC_OUTLINE_COLOR, F_U8, offsetof(EclipseData, hand_second.outline_color) },
-  { MK_HAND_SEC_TRANSLUCENT, F_BOOL, offsetof(EclipseData, hand_second.translucent) },
-  { MK_HAND_SEC_SHADOW_ENABLED, F_BOOL, offsetof(EclipseData, hand_second.shadow_enabled) },
-  { MK_HAND_SEC_SHADOW_DISTANCE, F_U8, offsetof(EclipseData, hand_second.shadow_distance_px) },
-  { MK_HAND_SEC_HOLLOW, F_BOOL, offsetof(EclipseData, hand_second.hollow) },
-  { MK_HAND_SEC_HOLLOW_THICKNESS, F_U8, offsetof(EclipseData, hand_second.hollow_thickness) },
   { MK_CENTER_CIRCLE_RADIUS, F_U8, offsetof(EclipseData, center_circle_radius) },
   { MK_CENTER_CIRCLE_COLOR, F_U8, offsetof(EclipseData, center_circle_color) },
-  { MK_CUSTOM_HOUR_STYLE, F_U8, offsetof(EclipseData, custom_hour_marker.style) },
-  { MK_CUSTOM_HOUR_THICKNESS, F_U8, offsetof(EclipseData, custom_hour_marker.thickness) },
-  { MK_CUSTOM_HOUR_INNER_ECC, F_U8, offsetof(EclipseData, custom_hour_marker.inner_eccentricity) },
-  { MK_CUSTOM_HOUR_OUTER_ECC, F_U8, offsetof(EclipseData, custom_hour_marker.outer_eccentricity) },
-  { MK_CUSTOM_HOUR_INNER_BORDER, F_U8, offsetof(EclipseData, custom_hour_marker.inner_border_pct) },
-  { MK_CUSTOM_HOUR_OUTER_BORDER, F_U8, offsetof(EclipseData, custom_hour_marker.outer_border_pct) },
-  { MK_CUSTOM_HOUR_TRANSLUCENT, F_BOOL, offsetof(EclipseData, custom_hour_marker.translucent) },
-  { MK_CUSTOM_HOUR_COLOR, F_U8, offsetof(EclipseData, custom_hour_marker.color) },
-  { MK_CUSTOM_SEC_STYLE, F_U8, offsetof(EclipseData, custom_second_marker.style) },
-  { MK_CUSTOM_SEC_THICKNESS, F_U8, offsetof(EclipseData, custom_second_marker.thickness) },
-  { MK_CUSTOM_SEC_INNER_ECC, F_U8, offsetof(EclipseData, custom_second_marker.inner_eccentricity) },
-  { MK_CUSTOM_SEC_OUTER_ECC, F_U8, offsetof(EclipseData, custom_second_marker.outer_eccentricity) },
-  { MK_CUSTOM_SEC_INNER_BORDER, F_U8, offsetof(EclipseData, custom_second_marker.inner_border_pct) },
-  { MK_CUSTOM_SEC_OUTER_BORDER, F_U8, offsetof(EclipseData, custom_second_marker.outer_border_pct) },
-  { MK_CUSTOM_SEC_TRANSLUCENT, F_BOOL, offsetof(EclipseData, custom_second_marker.translucent) },
-  { MK_CUSTOM_SEC_COLOR, F_U8, offsetof(EclipseData, custom_second_marker.color) },
   { MK_BITMAP_MARKER_TRANSPARENT, F_BOOL, offsetof(EclipseData, bitmap_marker_transparent) },
-  { MK_MARKER_TEXT_TARGET, F_U8, offsetof(EclipseData, marker_text.target) },
-  { MK_MARKER_TEXT_FONT, F_U8, offsetof(EclipseData, marker_text.font_choice) },
-  { MK_MARKER_TEXT_OFFSET, F_I8_FROM_I16, offsetof(EclipseData, marker_text.offset_px) },
-  { MK_MARKER_TEXT_HOUR_MASK, F_U16, offsetof(EclipseData, marker_text.hour_mask) },
-  { MK_MARKER_TEXT_SEC_MASK, F_U16, offsetof(EclipseData, marker_text.second_mask) },
-  { MK_MARKER_TEXT_ROMAN, F_BOOL, offsetof(EclipseData, marker_text.roman_numerals) },
-  { MK_UPPER_MIDDLE_LINE1_CONTENT, F_U8, offsetof(EclipseData, upper_middle_line1_content) },
-  { MK_UPPER_MIDDLE_LINE1_COLOR_MODE, F_U8, offsetof(EclipseData, upper_middle_line1_color_mode) },
-  { MK_UPPER_MIDDLE_LINE2_CONTENT, F_U8, offsetof(EclipseData, upper_middle_line2_content) },
-  { MK_UPPER_MIDDLE_LINE2_COLOR_MODE, F_U8, offsetof(EclipseData, upper_middle_line2_color_mode) },
-  { MK_BOTTOM_MIDDLE_LINE1_CONTENT, F_U8, offsetof(EclipseData, bottom_middle_line1_content) },
-  { MK_BOTTOM_MIDDLE_LINE1_COLOR_MODE, F_U8, offsetof(EclipseData, bottom_middle_line1_color_mode) },
-  { MK_BOTTOM_MIDDLE_LINE2_CONTENT, F_U8, offsetof(EclipseData, bottom_middle_line2_content) },
-  { MK_BOTTOM_MIDDLE_LINE2_COLOR_MODE, F_U8, offsetof(EclipseData, bottom_middle_line2_color_mode) },
-  { MK_MIDDLE_LEFT_LINE1_CONTENT, F_U8, offsetof(EclipseData, middle_left_line1_content) },
-  { MK_MIDDLE_LEFT_LINE1_COLOR_MODE, F_U8, offsetof(EclipseData, middle_left_line1_color_mode) },
-  { MK_MIDDLE_LEFT_LINE2_CONTENT, F_U8, offsetof(EclipseData, middle_left_line2_content) },
-  { MK_MIDDLE_LEFT_LINE2_COLOR_MODE, F_U8, offsetof(EclipseData, middle_left_line2_color_mode) },
-  { MK_MIDDLE_RIGHT_LINE1_CONTENT, F_U8, offsetof(EclipseData, middle_right_line1_content) },
-  { MK_MIDDLE_RIGHT_LINE1_COLOR_MODE, F_U8, offsetof(EclipseData, middle_right_line1_color_mode) },
-  { MK_MIDDLE_RIGHT_LINE2_CONTENT, F_U8, offsetof(EclipseData, middle_right_line2_content) },
-  { MK_MIDDLE_RIGHT_LINE2_COLOR_MODE, F_U8, offsetof(EclipseData, middle_right_line2_color_mode) },
   { MK_DAILY_STEP_GOAL, F_U16, offsetof(EclipseData, daily_step_goal) },
-  { MK_CUSTOM_BG, F_U8, offsetof(EclipseData, custom_bg) },
-  { MK_CUSTOM_TEXT, F_U8, offsetof(EclipseData, custom_text) },
-  { MK_CUSTOM_ACCENT, F_U8, offsetof(EclipseData, custom_accent) },
-  { MK_NIGHT_CUSTOM_BG, F_U8, offsetof(EclipseData, night_custom_bg) },
-  { MK_NIGHT_CUSTOM_TEXT, F_U8, offsetof(EclipseData, night_custom_text) },
-  { MK_NIGHT_CUSTOM_ACCENT, F_U8, offsetof(EclipseData, night_custom_accent) },
   { MK_C1_TIME, F_TIME, offsetof(EclipseData, c1) },
   { MK_C2_TIME, F_TIME, offsetof(EclipseData, c2) },
   { MK_MAX_TIME, F_TIME, offsetof(EclipseData, max_t) },
@@ -1305,10 +1223,91 @@ static void apply_simple_fields(DictionaryIterator *iter) {
   }
 }
 
+// ---- C: consolidated settings fields -----------------------------------
+// 5 grouped AppMessage keys replacing 86 individual ones:
+//   HAND_HOUR_*/HAND_MIN_*/HAND_SEC_*                -> HANDS         (42 B: 3x HandConfig)
+//   CUSTOM_HOUR_*/CUSTOM_SEC_*                        -> MARKER_RINGS  (16 B: 2x MarkerRingConfig)
+//   the 16 edge-line content/color-mode keys          -> EDGE_LINES    (16 B: 16x uint8_t)
+//   MARKER_TEXT_*                                     -> MARKER_TEXT   (8 B: packed, see below)
+//   CUSTOM_BG/TEXT/ACCENT + NIGHT_CUSTOM_BG/TEXT/ACCENT -> COLORS      (6 B: packed, see below)
+//
+// Four of the five are handled here; MARKER_TEXT and COLORS get an
+// explicit byte-by-byte unpack instead of a memcpy:
+//  - HandConfig/MarkerRingConfig and the 16 edge-line fields are flat,
+//    contiguous, no-padding blocks in EclipseData -- see the
+//    _Static_assert()s below, which exist so a struct-layout change
+//    that would silently break the wire format fails the build instead
+//    of silently scrambling everyone's saved hands/markers.
+//  - MarkerTextConfig has two uint16_t masks with padding around them
+//    (hour_mask/second_mask aren't at the packed-wire offsets a memcpy
+//    would assume), so MARKER_TEXT is sent as 8 packed bytes and
+//    unpacked by hand instead.
+//  - COLORS is 6 explicit bytes rather than a memcpy of a 7-byte
+//    contiguous run, specifically to avoid folding in
+//    night_scheme_enabled (the bool that happens to sit between
+//    custom_accent and night_custom_bg in the struct) -- that key stays
+//    separate on the wire since it has its own layer_mark_dirty()
+//    side effect below that this function doesn't want to duplicate or
+//    silently drop.
+_Static_assert(sizeof(HandConfig) == 14, "HANDS wire format assumes a 14-byte HandConfig");
+_Static_assert(sizeof(MarkerRingConfig) == 8, "MARKER_RINGS wire format assumes an 8-byte MarkerRingConfig");
+
+static void apply_consolidated_fields(DictionaryIterator *iter) {
+  Tuple *t;
+
+  // HANDS: 3x HandConfig, in hour/minute/second order, each in the
+  // exact field order HandConfig itself declares them (see hand_layer.h)
+  // -- src/pkjs/index.js's handsBytes() must build the array in that
+  // same order for this memcpy to land correctly.
+  if ((t = dict_find(iter, MESSAGE_KEY_HANDS)) && t->length >= 3 * sizeof(HandConfig)) {
+    memcpy(&s_data.hand_hour, t->value->data, 3 * sizeof(HandConfig));
+  }
+
+  // MARKER_RINGS: 2x MarkerRingConfig, hour ring then second ring, each
+  // in MarkerRingConfig's own declared field order (see eclipse_data.h).
+  if ((t = dict_find(iter, MESSAGE_KEY_MARKER_RINGS)) && t->length >= 2 * sizeof(MarkerRingConfig)) {
+    memcpy(&s_data.custom_hour_marker, t->value->data, 2 * sizeof(MarkerRingConfig));
+  }
+
+  // EDGE_LINES: the 16 upper/bottom/middle_left/middle_right
+  // line1/line2 content+color_mode uint8_t fields, in the exact order
+  // eclipse_data.h declares them.
+  if ((t = dict_find(iter, MESSAGE_KEY_EDGE_LINES)) && t->length >= 16) {
+    memcpy(&s_data.upper_middle_line1_content, t->value->data, 16);
+  }
+
+  // MARKER_TEXT: target, font_choice, offset_px (signed byte), hour_mask
+  // (u16 little-endian), second_mask (u16 little-endian), roman_numerals.
+  if ((t = dict_find(iter, MESSAGE_KEY_MARKER_TEXT)) && t->length >= 8) {
+    uint8_t *b = t->value->data;
+    s_data.marker_text.target = b[0];
+    s_data.marker_text.font_choice = b[1];
+    s_data.marker_text.offset_px = (int8_t)b[2];
+    s_data.marker_text.hour_mask = (uint16_t)(b[3] | (b[4] << 8));
+    s_data.marker_text.second_mask = (uint16_t)(b[5] | (b[6] << 8));
+    s_data.marker_text.roman_numerals = b[7] != 0;
+  }
+
+  // COLORS: custom_bg, custom_text, custom_accent, night_custom_bg,
+  // night_custom_text, night_custom_accent -- night_scheme_enabled is
+  // NOT included here, see this section's own comment above.
+  if ((t = dict_find(iter, MESSAGE_KEY_COLORS)) && t->length >= 6) {
+    uint8_t *b = t->value->data;
+    s_data.custom_bg = b[0];
+    s_data.custom_text = b[1];
+    s_data.custom_accent = b[2];
+    s_data.night_custom_bg = b[3];
+    s_data.night_custom_text = b[4];
+    s_data.night_custom_accent = b[5];
+  }
+}
+
+
 static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   Tuple *t;
 
   apply_simple_fields(iter); // see its own comment -- every plain-copy field, in one pass, before anything below can read one
+  apply_consolidated_fields(iter); // see its own comment -- the 5 grouped settings keys (HANDS/MARKER_RINGS/EDGE_LINES/MARKER_TEXT/COLORS)
 
   // Purely diagnostic -- every field below is still applied via its
   // own dict_find(), which already tolerates a partial dictionary, so

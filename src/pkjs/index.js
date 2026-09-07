@@ -10,6 +10,49 @@ var TYPE_CODE = { none: 0, partial: 1, total: 2, annular: 3 };
 var MAX_FEATURES = 103; // highest corner/edge content id -- see CORNER_CONTENT_OPTIONS in config-page.js
 var FONT_MAX_CONTENT_ID = 42;
 
+// ---- migration: settings-key wire-format schema version ------------------
+//
+// C consolidated 86 individual settings AppMessage keys (HAND_HOUR_*,
+// CUSTOM_HOUR_*/CUSTOM_SEC_*, MARKER_TEXT_*, the edge-line content/color
+// keys, and the CUSTOM_*/NIGHT_CUSTOM_* color keys) into 5 packed-byte-
+// array keys -- HANDS, MARKER_RINGS, EDGE_LINES, MARKER_TEXT, COLORS.
+// See handsBytes()/markerRingsBytes()/edgeLinesBytes()/markerTextBytes()/
+// colorsBytes() below, and apply_consolidated_fields() in
+// pebble-eclipse-watch.c for the watch side.
+//
+// This doesn't touch any of the CONFIG_* localStorage keys the settings
+// page reads/writes (those are unchanged, so nobody's saved hand/marker/
+// color choices are affected) -- but LAST_FULL_COMPUTED_DICT (see
+// sendFlatDict()'s own comment) caches an entire previously-sent flat
+// dict verbatim, keyed by the OLD individual AppMessage key names, for
+// resendLastFullData()/buildFullKeysetDict() to reuse. An update landing
+// on a phone that still has one of those old-format dicts cached would
+// otherwise have populateSettingsFields() add the 5 new keys on top
+// without ever clearing the ~86 stale old ones already sitting on that
+// same object -- enqueueFlatDict() tolerates unknown keys (logs a
+// warning and stuffs them in the SETTINGS chunk anyway) rather than
+// crashing, but there's no reason to ship that instead of just starting
+// clean. Bumping this version wipes the one cache that could carry the
+// old key names forward; everything else (the real CONFIG_* settings,
+// and a fresh computed dict using the 5 new keys) rebuilds itself
+// normally on the very next refresh either way.
+var SETTINGS_KEY_SCHEMA_VERSION = 2; // 1 = pre-consolidation (86 individual keys), 2 = HANDS/MARKER_RINGS/EDGE_LINES/MARKER_TEXT/COLORS
+(function migrateSettingsKeySchema() {
+  try {
+    var stored = parseInt(localStorage.getItem('SETTINGS_KEY_SCHEMA_VERSION'), 10);
+    if (stored === SETTINGS_KEY_SCHEMA_VERSION) return; // already current -- nothing to do
+    localStorage.removeItem('LAST_FULL_COMPUTED_DICT'); // may be in the old key format; see comment above
+    localStorage.setItem('SETTINGS_KEY_SCHEMA_VERSION', String(SETTINGS_KEY_SCHEMA_VERSION));
+    console.log('eclipse-watch: settings-key schema migrated to v' + SETTINGS_KEY_SCHEMA_VERSION + ' (cleared stale LAST_FULL_COMPUTED_DICT, if any)');
+  } catch (e) {
+    // Storage unavailable/corrupt -- not critical: worst case a stale
+    // cached dict's old-format keys ride along in one SETTINGS chunk
+    // (enqueueFlatDict() logs and bundles them, doesn't crash), and the
+    // very next real refresh recomputes and re-caches in the new format
+    // regardless.
+  }
+})();
+
 // ---- AppMessage chunking -------------------------------------------------
 //
 // The watch used to get one giant dictionary per refresh (every
@@ -82,22 +125,15 @@ var KEY_TYPE_MAP = (function () {
 
   assign(MSG_TYPE.FEATURES, [
     'CORNER_FONT', 'CORNER_CONTENT', 'CORNER_COLOR_MODE',
-    'UPPER_MIDDLE_LINE1_CONTENT', 'UPPER_MIDDLE_LINE1_COLOR_MODE',
-    'UPPER_MIDDLE_LINE2_CONTENT', 'UPPER_MIDDLE_LINE2_COLOR_MODE',
-    'BOTTOM_MIDDLE_LINE1_CONTENT', 'BOTTOM_MIDDLE_LINE1_COLOR_MODE',
-    'BOTTOM_MIDDLE_LINE2_CONTENT', 'BOTTOM_MIDDLE_LINE2_COLOR_MODE',
-    'MIDDLE_LEFT_LINE1_CONTENT', 'MIDDLE_LEFT_LINE1_COLOR_MODE',
-    'MIDDLE_LEFT_LINE2_CONTENT', 'MIDDLE_LEFT_LINE2_COLOR_MODE',
-    'MIDDLE_RIGHT_LINE1_CONTENT', 'MIDDLE_RIGHT_LINE1_COLOR_MODE',
-    'MIDDLE_RIGHT_LINE2_CONTENT', 'MIDDLE_RIGHT_LINE2_COLOR_MODE',
+    'EDGE_LINES',
     'SHOW_SUN_TIME', 'SHOW_ISS', 'AURORA_ENABLED',
     'DAILY_STEP_GOAL'
   ]);
 
   assign(MSG_TYPE.SETTINGS, [
     'CLOCK_FONT', 'TEMP_UNIT', 'WIND_SPEED_UNIT', 'SHOW_SECONDS',
-    'CUSTOM_BG', 'CUSTOM_TEXT', 'CUSTOM_ACCENT',
-    'NIGHT_SCHEME_ENABLED', 'NIGHT_CUSTOM_BG', 'NIGHT_CUSTOM_TEXT', 'NIGHT_CUSTOM_ACCENT',
+    'COLORS',
+    'NIGHT_SCHEME_ENABLED',
     'BOTTOM_STYLE', 'SUN_MOON_SIZE_PCT',
     'SKY_MODE', 'WEATHER_ICON_STYLE', 'AQI_UNIT', 'ALTITUDE_UNIT',
     'SHAKE_LABEL_SECONDS', 'LABEL_STYLE',
@@ -105,27 +141,7 @@ var KEY_TYPE_MAP = (function () {
     'BG_ANIM_MODE', 'SHAKE_ANIM_MODE', 'OUTLINE_ENABLED',
     'SHADOW_TRANSLUCENT', 'SHADOW_ANGLE',
     'BIG_ANALOG_MARKER_STYLE', 'BITMAP_MARKER_TRANSPARENT', 'DRAW_FEATURES_BENEATH_HANDS',
-    'CUSTOM_HOUR_STYLE', 'CUSTOM_HOUR_THICKNESS', 'CUSTOM_HOUR_INNER_ECC', 'CUSTOM_HOUR_OUTER_ECC',
-    'CUSTOM_HOUR_INNER_BORDER', 'CUSTOM_HOUR_OUTER_BORDER', 'CUSTOM_HOUR_TRANSLUCENT', 'CUSTOM_HOUR_COLOR',
-    'CUSTOM_SEC_STYLE', 'CUSTOM_SEC_THICKNESS', 'CUSTOM_SEC_INNER_ECC', 'CUSTOM_SEC_OUTER_ECC',
-    'CUSTOM_SEC_INNER_BORDER', 'CUSTOM_SEC_OUTER_BORDER', 'CUSTOM_SEC_TRANSLUCENT', 'CUSTOM_SEC_COLOR',
-    'MARKER_TEXT_TARGET', 'MARKER_TEXT_FONT', 'MARKER_TEXT_OFFSET',
-    'MARKER_TEXT_HOUR_MASK', 'MARKER_TEXT_SEC_MASK', 'MARKER_TEXT_ROMAN',
-    'HAND_HOUR_STYLE', 'HAND_HOUR_WIDTH', 'HAND_HOUR_LENGTH', 'HAND_HOUR_BACK_OFFSET',
-    'HAND_HOUR_MIDDLE_OFFSET', 'HAND_HOUR_SECONDARY_WIDTH', 'HAND_HOUR_COLOR',
-    'HAND_HOUR_OUTLINE_ENABLED', 'HAND_HOUR_OUTLINE_COLOR', 'HAND_HOUR_TRANSLUCENT',
-    'HAND_HOUR_SHADOW_ENABLED', 'HAND_HOUR_SHADOW_DISTANCE',
-    'HAND_HOUR_HOLLOW', 'HAND_HOUR_HOLLOW_THICKNESS',
-    'HAND_MIN_STYLE', 'HAND_MIN_WIDTH', 'HAND_MIN_LENGTH', 'HAND_MIN_BACK_OFFSET',
-    'HAND_MIN_MIDDLE_OFFSET', 'HAND_MIN_SECONDARY_WIDTH', 'HAND_MIN_COLOR',
-    'HAND_MIN_OUTLINE_ENABLED', 'HAND_MIN_OUTLINE_COLOR', 'HAND_MIN_TRANSLUCENT',
-    'HAND_MIN_SHADOW_ENABLED', 'HAND_MIN_SHADOW_DISTANCE',
-    'HAND_MIN_HOLLOW', 'HAND_MIN_HOLLOW_THICKNESS',
-    'HAND_SEC_STYLE', 'HAND_SEC_WIDTH', 'HAND_SEC_LENGTH', 'HAND_SEC_BACK_OFFSET',
-    'HAND_SEC_MIDDLE_OFFSET', 'HAND_SEC_SECONDARY_WIDTH', 'HAND_SEC_COLOR',
-    'HAND_SEC_OUTLINE_ENABLED', 'HAND_SEC_OUTLINE_COLOR', 'HAND_SEC_TRANSLUCENT',
-    'HAND_SEC_SHADOW_ENABLED', 'HAND_SEC_SHADOW_DISTANCE',
-    'HAND_SEC_HOLLOW', 'HAND_SEC_HOLLOW_THICKNESS',
+    'MARKER_RINGS', 'MARKER_TEXT', 'HANDS',
     'CENTER_CIRCLE_RADIUS', 'CENTER_CIRCLE_COLOR'
   ]);
 
@@ -797,6 +813,128 @@ function dailyStepGoalValue() {
   return v;
 }
 
+// ---- C: consolidated settings fields -------------------------------------
+// 5 packed byte arrays replacing 86 individual keys -- see
+// apply_consolidated_fields() in pebble-eclipse-watch.c for the C side
+// (memcpy targets, struct layouts, and why MARKER_TEXT/COLORS are an
+// explicit unpack rather than a memcpy there). Byte order below MUST
+// match that function's expectations exactly -- these build each
+// group in the wire order the C-side struct itself declares fields in,
+// which is NOT the same order the old individual per-field keys used
+// (HandConfig in particular reorders hollow/hollow_thickness relative
+// to the old key list).
+
+// Two's-complement byte for a signed value in [-128, 127] -- Pebble's
+// byte-array wire format is raw unsigned bytes 0-255; the C side
+// memcpy's these directly into (or casts them to) int8_t fields, which
+// assumes standard two's complement (true on every platform this ships to).
+function toU8(v) { return ((v % 256) + 256) % 256; }
+
+// One hand's 14-byte HandConfig blob, in HandConfig's own field order
+// (see hand_layer.h): style, width, length, back_offset, middle_offset,
+// secondary_width, color, outline_enabled, outline_color, translucent,
+// hollow, hollow_thickness, shadow_enabled, shadow_distance_px.
+function handBytes(style, width, length, backOffset, middleOffset, secondaryWidth,
+                    color, outlineEnabled, outlineColor, translucent,
+                    hollow, hollowThickness, shadowEnabled, shadowDistance) {
+  return [
+    style, width, length, toU8(backOffset), toU8(middleOffset), secondaryWidth,
+    color, outlineEnabled, outlineColor, translucent,
+    hollow, hollowThickness, shadowEnabled, shadowDistance
+  ];
+}
+
+// HANDS: 42 bytes, hour/minute/second HandConfig back to back.
+function handsBytes() {
+  return [].concat(
+    handBytes(
+      handHourStyleCode(), handHourWidthCode(), handHourLengthCode(), handHourBackOffsetCode(),
+      handHourMiddleOffsetCode(), handHourSecondaryWidthCode(), handHourColorCode(),
+      handHourOutlineEnabledCode(), handHourOutlineColorCode(), handHourTranslucentCode(),
+      handHourHollowCode(), handHourHollowThicknessCode(), handHourShadowEnabledCode(), handHourShadowDistanceCode()
+    ),
+    handBytes(
+      handMinStyleCode(), handMinWidthCode(), handMinLengthCode(), handMinBackOffsetCode(),
+      handMinMiddleOffsetCode(), handMinSecondaryWidthCode(), handMinColorCode(),
+      handMinOutlineEnabledCode(), handMinOutlineColorCode(), handMinTranslucentCode(),
+      handMinHollowCode(), handMinHollowThicknessCode(), handMinShadowEnabledCode(), handMinShadowDistanceCode()
+    ),
+    handBytes(
+      handSecStyleCode(), handSecWidthCode(), handSecLengthCode(), handSecBackOffsetCode(),
+      handSecMiddleOffsetCode(), handSecSecondaryWidthCode(), handSecColorCode(),
+      handSecOutlineEnabledCode(), handSecOutlineColorCode(), handSecTranslucentCode(),
+      handSecHollowCode(), handSecHollowThicknessCode(), handSecShadowEnabledCode(), handSecShadowDistanceCode()
+    )
+  );
+}
+
+// One ring's 8-byte MarkerRingConfig blob, in MarkerRingConfig's own
+// field order (see eclipse_data.h): style, thickness, inner_eccentricity,
+// outer_eccentricity, inner_border_pct, outer_border_pct, translucent, color.
+function markerRingBytes(style, thickness, innerEcc, outerEcc, innerBorder, outerBorder, translucent, color) {
+  return [style, thickness, innerEcc, outerEcc, innerBorder, outerBorder, translucent, color];
+}
+
+// MARKER_RINGS: 16 bytes, hour ring then second ring.
+function markerRingsBytes() {
+  return [].concat(
+    markerRingBytes(
+      customHourStyleCode(), customHourThicknessCode(), customHourInnerEccCode(), customHourOuterEccCode(),
+      customHourInnerBorderCode(), customHourOuterBorderCode(), customHourTranslucentCode(), customHourColorCode()
+    ),
+    markerRingBytes(
+      customSecStyleCode(), customSecThicknessCode(), customSecInnerEccCode(), customSecOuterEccCode(),
+      customSecInnerBorderCode(), customSecOuterBorderCode(), customSecTranslucentCode(), customSecColorCode()
+    )
+  );
+}
+
+// EDGE_LINES: 16 bytes, in the exact order eclipse_data.h declares the
+// 16 upper/bottom/middle_left/middle_right line1/line2 content+color_mode
+// fields (a truly contiguous run in the struct, hence a plain memcpy target).
+function edgeLinesBytes() {
+  return [
+    upperMiddleLine1ContentCode(), upperMiddleLine1ColorModeCode(),
+    upperMiddleLine2ContentCode(), upperMiddleLine2ColorModeCode(),
+    bottomMiddleLine1ContentCode(), bottomMiddleLine1ColorModeCode(),
+    bottomMiddleLine2ContentCode(), bottomMiddleLine2ColorModeCode(),
+    middleLeftLine1ContentCode(), middleLeftLine1ColorModeCode(),
+    middleLeftLine2ContentCode(), middleLeftLine2ColorModeCode(),
+    middleRightLine1ContentCode(), middleRightLine1ColorModeCode(),
+    middleRightLine2ContentCode(), middleRightLine2ColorModeCode()
+  ];
+}
+
+// MARKER_TEXT: 8 bytes -- target, font_choice, offset_px (signed byte),
+// hour_mask (u16 little-endian), second_mask (u16 little-endian),
+// roman_numerals. Not a memcpy target on the C side (MarkerTextConfig
+// has padding around its two u16 masks), but PKJS still needs to send
+// exactly these 8 bytes in exactly this order for that unpack to work.
+function markerTextBytes() {
+  var hourMask = markerTextHourMaskCode();
+  var secMask = markerTextSecMaskCode();
+  return [
+    markerTextTargetCode(),
+    markerTextFontCode(),
+    toU8(markerTextOffsetCode()),
+    hourMask & 0xFF, (hourMask >> 8) & 0xFF,
+    secMask & 0xFF, (secMask >> 8) & 0xFF,
+    markerTextRomanCode()
+  ];
+}
+
+// COLORS: 6 bytes -- custom_bg, custom_text, custom_accent,
+// night_custom_bg, night_custom_text, night_custom_accent.
+// Deliberately NOT night_scheme_enabled too (still its own separate
+// key -- see apply_consolidated_fields()'s own comment in
+// pebble-eclipse-watch.c for why).
+function colorsBytes() {
+  return [
+    customBgByte(), customTextByte(), customAccentByte(),
+    nightCustomBgByte(), nightCustomTextByte(), nightCustomAccentByte()
+  ];
+}
+
 // Populates every settings-derived AppMessage field (all ~148 of
 // them) into `dict`, reading current values fresh from localStorage
 // each time -- no send-related side effects of its own (no cache
@@ -812,13 +950,8 @@ function populateSettingsFields(dict) {
   dict['TEMP_UNIT'] = tempUnitCode();
   dict['WIND_SPEED_UNIT'] = windSpeedUnitCode();
   dict['SHOW_SECONDS'] = showSecondsCode();
-  dict['CUSTOM_BG'] = customBgByte();
-  dict['CUSTOM_TEXT'] = customTextByte();
-  dict['CUSTOM_ACCENT'] = customAccentByte();
+  dict['COLORS'] = colorsBytes();
   dict['NIGHT_SCHEME_ENABLED'] = nightSchemeEnabledCode();
-  dict['NIGHT_CUSTOM_BG'] = nightCustomBgByte();
-  dict['NIGHT_CUSTOM_TEXT'] = nightCustomTextByte();
-  dict['NIGHT_CUSTOM_ACCENT'] = nightCustomAccentByte();
   dict['BOTTOM_STYLE'] = bottomStyleCode();
   dict['SUN_MOON_SIZE_PCT'] = sunMoonSizeCode();
   dict['SKY_MODE'] = skyModeCode();
@@ -832,88 +965,12 @@ function populateSettingsFields(dict) {
   dict['BIG_ANALOG_MARKER_STYLE'] = bigAnalogMarkerStyleCode();
   dict['BITMAP_MARKER_TRANSPARENT'] = bitmapMarkerTransparentCode();
   dict['DRAW_FEATURES_BENEATH_HANDS'] = drawFeaturesBeneathHandsCode();
-  dict['CUSTOM_HOUR_STYLE'] = customHourStyleCode();
-  dict['CUSTOM_HOUR_THICKNESS'] = customHourThicknessCode();
-  dict['CUSTOM_HOUR_INNER_ECC'] = customHourInnerEccCode();
-  dict['CUSTOM_HOUR_OUTER_ECC'] = customHourOuterEccCode();
-  dict['CUSTOM_HOUR_INNER_BORDER'] = customHourInnerBorderCode();
-  dict['CUSTOM_HOUR_OUTER_BORDER'] = customHourOuterBorderCode();
-  dict['CUSTOM_HOUR_TRANSLUCENT'] = customHourTranslucentCode();
-  dict['CUSTOM_HOUR_COLOR'] = customHourColorCode();
-  dict['CUSTOM_SEC_STYLE'] = customSecStyleCode();
-  dict['CUSTOM_SEC_THICKNESS'] = customSecThicknessCode();
-  dict['CUSTOM_SEC_INNER_ECC'] = customSecInnerEccCode();
-  dict['CUSTOM_SEC_OUTER_ECC'] = customSecOuterEccCode();
-  dict['CUSTOM_SEC_INNER_BORDER'] = customSecInnerBorderCode();
-  dict['CUSTOM_SEC_OUTER_BORDER'] = customSecOuterBorderCode();
-  dict['CUSTOM_SEC_TRANSLUCENT'] = customSecTranslucentCode();
-  dict['CUSTOM_SEC_COLOR'] = customSecColorCode();
-  dict['MARKER_TEXT_TARGET'] = markerTextTargetCode();
-  dict['MARKER_TEXT_FONT'] = markerTextFontCode();
-  dict['MARKER_TEXT_OFFSET'] = markerTextOffsetCode();
-  dict['MARKER_TEXT_HOUR_MASK'] = markerTextHourMaskCode();
-  dict['MARKER_TEXT_SEC_MASK'] = markerTextSecMaskCode();
-  dict['MARKER_TEXT_ROMAN'] = markerTextRomanCode();
-  dict['HAND_HOUR_STYLE'] = handHourStyleCode();
-  dict['HAND_HOUR_WIDTH'] = handHourWidthCode();
-  dict['HAND_HOUR_LENGTH'] = handHourLengthCode();
-  dict['HAND_HOUR_BACK_OFFSET'] = handHourBackOffsetCode();
-  dict['HAND_HOUR_MIDDLE_OFFSET'] = handHourMiddleOffsetCode();
-  dict['HAND_HOUR_SECONDARY_WIDTH'] = handHourSecondaryWidthCode();
-  dict['HAND_HOUR_COLOR'] = handHourColorCode();
-  dict['HAND_HOUR_OUTLINE_ENABLED'] = handHourOutlineEnabledCode();
-  dict['HAND_HOUR_OUTLINE_COLOR'] = handHourOutlineColorCode();
-  dict['HAND_HOUR_TRANSLUCENT'] = handHourTranslucentCode();
-  dict['HAND_HOUR_SHADOW_ENABLED'] = handHourShadowEnabledCode();
-  dict['HAND_HOUR_SHADOW_DISTANCE'] = handHourShadowDistanceCode();
-  dict['HAND_HOUR_HOLLOW'] = handHourHollowCode();
-  dict['HAND_HOUR_HOLLOW_THICKNESS'] = handHourHollowThicknessCode();
-  dict['HAND_MIN_STYLE'] = handMinStyleCode();
-  dict['HAND_MIN_WIDTH'] = handMinWidthCode();
-  dict['HAND_MIN_LENGTH'] = handMinLengthCode();
-  dict['HAND_MIN_BACK_OFFSET'] = handMinBackOffsetCode();
-  dict['HAND_MIN_MIDDLE_OFFSET'] = handMinMiddleOffsetCode();
-  dict['HAND_MIN_SECONDARY_WIDTH'] = handMinSecondaryWidthCode();
-  dict['HAND_MIN_COLOR'] = handMinColorCode();
-  dict['HAND_MIN_OUTLINE_ENABLED'] = handMinOutlineEnabledCode();
-  dict['HAND_MIN_OUTLINE_COLOR'] = handMinOutlineColorCode();
-  dict['HAND_MIN_TRANSLUCENT'] = handMinTranslucentCode();
-  dict['HAND_MIN_SHADOW_ENABLED'] = handMinShadowEnabledCode();
-  dict['HAND_MIN_SHADOW_DISTANCE'] = handMinShadowDistanceCode();
-  dict['HAND_MIN_HOLLOW'] = handMinHollowCode();
-  dict['HAND_MIN_HOLLOW_THICKNESS'] = handMinHollowThicknessCode();
-  dict['HAND_SEC_STYLE'] = handSecStyleCode();
-  dict['HAND_SEC_WIDTH'] = handSecWidthCode();
-  dict['HAND_SEC_LENGTH'] = handSecLengthCode();
-  dict['HAND_SEC_BACK_OFFSET'] = handSecBackOffsetCode();
-  dict['HAND_SEC_MIDDLE_OFFSET'] = handSecMiddleOffsetCode();
-  dict['HAND_SEC_SECONDARY_WIDTH'] = handSecSecondaryWidthCode();
-  dict['HAND_SEC_COLOR'] = handSecColorCode();
-  dict['HAND_SEC_OUTLINE_ENABLED'] = handSecOutlineEnabledCode();
-  dict['HAND_SEC_OUTLINE_COLOR'] = handSecOutlineColorCode();
-  dict['HAND_SEC_TRANSLUCENT'] = handSecTranslucentCode();
-  dict['HAND_SEC_SHADOW_ENABLED'] = handSecShadowEnabledCode();
-  dict['HAND_SEC_SHADOW_DISTANCE'] = handSecShadowDistanceCode();
-  dict['HAND_SEC_HOLLOW'] = handSecHollowCode();
-  dict['HAND_SEC_HOLLOW_THICKNESS'] = handSecHollowThicknessCode();
+  dict['MARKER_RINGS'] = markerRingsBytes();
+  dict['MARKER_TEXT'] = markerTextBytes();
+  dict['HANDS'] = handsBytes();
   dict['CENTER_CIRCLE_RADIUS'] = centerCircleRadiusCode();
   dict['CENTER_CIRCLE_COLOR'] = centerCircleColorCode();
-  dict['UPPER_MIDDLE_LINE1_CONTENT'] = upperMiddleLine1ContentCode();
-  dict['UPPER_MIDDLE_LINE1_COLOR_MODE'] = upperMiddleLine1ColorModeCode();
-  dict['UPPER_MIDDLE_LINE2_CONTENT'] = upperMiddleLine2ContentCode();
-  dict['UPPER_MIDDLE_LINE2_COLOR_MODE'] = upperMiddleLine2ColorModeCode();
-  dict['BOTTOM_MIDDLE_LINE1_CONTENT'] = bottomMiddleLine1ContentCode();
-  dict['BOTTOM_MIDDLE_LINE1_COLOR_MODE'] = bottomMiddleLine1ColorModeCode();
-  dict['BOTTOM_MIDDLE_LINE2_CONTENT'] = bottomMiddleLine2ContentCode();
-  dict['BOTTOM_MIDDLE_LINE2_COLOR_MODE'] = bottomMiddleLine2ColorModeCode();
-  dict['MIDDLE_LEFT_LINE1_CONTENT'] = middleLeftLine1ContentCode();
-  dict['MIDDLE_LEFT_LINE1_COLOR_MODE'] = middleLeftLine1ColorModeCode();
-  dict['MIDDLE_LEFT_LINE2_CONTENT'] = middleLeftLine2ContentCode();
-  dict['MIDDLE_LEFT_LINE2_COLOR_MODE'] = middleLeftLine2ColorModeCode();
-  dict['MIDDLE_RIGHT_LINE1_CONTENT'] = middleRightLine1ContentCode();
-  dict['MIDDLE_RIGHT_LINE1_COLOR_MODE'] = middleRightLine1ColorModeCode();
-  dict['MIDDLE_RIGHT_LINE2_CONTENT'] = middleRightLine2ContentCode();
-  dict['MIDDLE_RIGHT_LINE2_COLOR_MODE'] = middleRightLine2ColorModeCode();
+  dict['EDGE_LINES'] = edgeLinesBytes();
   dict['SHOW_SUN_TIME'] = showSunTimeCode();
   dict['SHOW_ISS'] = showIssCode();
   dict['AURORA_ENABLED'] = auroraEnabledCode();
