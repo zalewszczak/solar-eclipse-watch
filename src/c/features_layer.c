@@ -1081,6 +1081,7 @@ static bool content_is_weather_derived(uint8_t content) {
     case 73: // current temp only
     case 76: // weather icon + current/high/low
     case 77: // feels-like temp
+    case 87: case 88: case 89: case 90: case 91: case 92: // weather in 1-6h
       return true;
     default:
       return false;
@@ -1156,6 +1157,16 @@ typedef struct {
   bool center_vertical;
   bool allow_outline;
   bool needs_second_refresh; // true if this content must be recomputed every second (time-with-seconds displays)
+  // Digital-mode's single bottom feature is wider than a normal 68px
+  // slot and needs to shift/resize with the clock itself (see
+  // digital_clock_area()) rather than sit flush against a screen edge
+  // or centered across the full screen width -- when true, box_x/box_w
+  // below are used verbatim (relative to bounds.origin) instead of the
+  // normal is_left/center_horizontal+CORNER_BOX_W math, and the slot's
+  // content is always centered within that box.
+  bool custom_box;
+  int16_t box_x;
+  int16_t box_w;
 
   // ---- value: resolved by features_recompute_slot_value() ----
   bool draw_pill;
@@ -1562,6 +1573,30 @@ static void compute_weather_value(FeatureSlot *slot, uint8_t content, const Ecli
       GColor c = resolve_flat_color(color_mode, cond_color, main_color, accent_color);
       RenderSegment icon_seg = make_icon_segment(14, c);
       icon_seg.icon_extra = weather_icon_category(data->weather_condition, data->cloud_cover_pct);
+      slot->segment_count = 2;
+      slot->segments[0] = icon_seg;
+      slot->segments[1] = make_text_segment(buf, c);
+      return;
+    }
+    case 87: case 88: case 89: case 90: case 91: case 92: { // weather in 1-6 hours, e.g. "+3h <icon> 28C"
+      int hrs_ahead = content - 86; // 1-6
+      int idx = hrs_ahead - 1;
+      GColor c;
+      if (data->forecast_temp_c[idx] <= -128) {
+        snprintf(buf, sizeof(buf), "+%dh N/A", hrs_ahead);
+        c = GColorLightGray;
+        slot->segment_count = 1;
+        slot->segments[0] = make_text_segment(buf, c);
+        return;
+      }
+      int16_t shown = convert_temp(data->forecast_temp_c[idx], data->temp_unit);
+      snprintf(buf, sizeof(buf), "+%dh %d%s", hrs_ahead, shown, temp_unit_suffix(data->temp_unit));
+      // Same shape as "temp + weather icon" (32): plain 7-stop gradient,
+      // not the condition-based color -- per the "Temperature readouts
+      // (including temp+weather icon)" rule.
+      c = resolve_flat_color(color_mode, seven_stop_gradient(data->forecast_temp_c[idx], -10, 40), main_color, accent_color);
+      RenderSegment icon_seg = make_icon_segment(14, c);
+      icon_seg.icon_extra = weather_icon_category(data->forecast_condition[idx], 50); // no forecast cloud% sent separately -- 50 is a neutral middle guess, only affects which of a few near-identical icon glyphs gets picked
       slot->segment_count = 2;
       slot->segments[0] = icon_seg;
       slot->segments[1] = make_text_segment(buf, c);
@@ -2044,6 +2079,7 @@ static void compute_combo_value(FeatureSlot *slot, uint8_t content, const Eclips
 // features_draw_slot() just reads x_offset/width straight off each
 // segment.
 static void resolve_segment_offsets(FeatureSlot *slot, GFont font, int16_t font_h) {
+  int16_t box_w = slot->custom_box ? slot->box_w : CORNER_BOX_W;
   int16_t advance[MAX_RENDER_SEGMENTS]; // width INCLUDING this segment's own trailing gap
   int16_t total_w = 0;
   for (int i = 0; i < slot->segment_count; i++) {
@@ -2059,10 +2095,14 @@ static void resolve_segment_offsets(FeatureSlot *slot, GFont font, int16_t font_
     }
     total_w += advance[i];
   }
-  if (total_w > CORNER_BOX_W) total_w = CORNER_BOX_W;
+  if (total_w > box_w) total_w = box_w;
 
-  int16_t start_x = slot->center_horizontal ? (CORNER_BOX_W - total_w) / 2
-                    : (!slot->is_left ? CORNER_BOX_W - total_w : 0);
+  // A custom-box slot (currently just the digital-mode bottom feature)
+  // is always centered within its own box_w -- it has no left/right
+  // edge of its own to hug, unlike every normal corner/edge slot.
+  int16_t start_x = slot->custom_box ? (box_w - total_w) / 2
+                    : (slot->center_horizontal ? (box_w - total_w) / 2
+                       : (!slot->is_left ? box_w - total_w : 0));
   int16_t x = start_x;
   for (int i = 0; i < slot->segment_count; i++) {
     slot->segments[i].x_offset = x;
@@ -2106,7 +2146,8 @@ static void features_recompute_slot_value(FeatureSlot *slot, const EclipseData *
       compute_sky_value(slot, content, data, color_mode, main_color, accent_color, now);
       break;
     case 4: case 5: case 6: case 7: case 8: case 9: case 14: case 15: case 31: case 32: case 34:
-    case 35: case 36: case 37: case 38: case 73: case 74: case 75: case 76: case 77: case 93: case 94:
+    case 35: case 36: case 37: case 38: case 73: case 74: case 75: case 76: case 77: case 87: case 88:
+    case 89: case 90: case 91: case 92: case 93: case 94:
       compute_weather_value(slot, content, data, color_mode, main_color, accent_color, bg_color);
       break;
     default: // every date/time format variant (12, 18-19, 21-30, 63-72, 86, 95-96, 103)
@@ -2307,9 +2348,11 @@ static void features_draw_slot(GContext *ctx, GRect bounds, const FeatureSlot *s
                                 bool outline_enabled, uint8_t weather_icon_style, GColor bg_color) {
   if (!slot->active || slot->segment_count == 0) return;
 
-  int16_t box_x = slot->center_horizontal
-    ? bounds.origin.x + (bounds.size.w - CORNER_BOX_W) / 2
-    : (slot->is_left ? bounds.origin.x + CORNER_INSET_PX : bounds.origin.x + bounds.size.w - CORNER_INSET_PX - CORNER_BOX_W);
+  int16_t box_w = slot->custom_box ? slot->box_w : CORNER_BOX_W;
+  int16_t box_x = slot->custom_box ? bounds.origin.x + slot->box_x
+    : (slot->center_horizontal
+       ? bounds.origin.x + (bounds.size.w - CORNER_BOX_W) / 2
+       : (slot->is_left ? bounds.origin.x + CORNER_INSET_PX : bounds.origin.x + bounds.size.w - CORNER_INSET_PX - CORNER_BOX_W));
   int16_t box_y = slot->center_vertical
     ? bounds.origin.y + (bounds.size.h - CORNER_ROW_H) / 2 + slot->top_offset
     : (slot->is_top ? bounds.origin.y + slot->top_offset
@@ -2320,7 +2363,7 @@ static void features_draw_slot(GContext *ctx, GRect bounds, const FeatureSlot *s
 
   if (slot->draw_pill) {
     graphics_context_set_fill_color(ctx, slot->pill_bg);
-    graphics_fill_rect(ctx, GRect(box_x, box_y, CORNER_BOX_W, CORNER_ROW_H), CORNER_ROW_H / 2, GCornersAll);
+    graphics_fill_rect(ctx, GRect(box_x, box_y, box_w, CORNER_ROW_H), CORNER_ROW_H / 2, GCornersAll);
   }
 
   bool do_outline = slot->allow_outline && outline_enabled;
@@ -2349,6 +2392,31 @@ static void features_draw_slot(GContext *ctx, GRect bounds, const FeatureSlot *s
 // this whole function runs (settings/shake changes) versus
 // features_layer_refresh_values()/refresh_second_slots() (which only
 // re-run the VALUE half, for slots whose layout hasn't changed at all).
+// Which horizontal band of the digital clock panel's full width the
+// clock text (and the single "bottom" feature under it, which always
+// shifts in lockstep with it) actually occupies, given which side
+// feature columns are active. One side active -> the clock shifts
+// away from it, into the freed-up space; both or neither active ->
+// centered across the full width, exactly as if no sides existed --
+// per the request, a font enabled for both-sides use is expected to
+// already be narrow enough to coexist with a centered clock without
+// needing to shrink further. Shared between pebble-eclipse-watch.c
+// (positions the clock text itself) and this file's own
+// features_recompute_layout() (positions the bottom feature to match)
+// so the two can never drift out of sync with each other.
+void digital_clock_area(uint8_t bottom_style, int16_t screen_w, int16_t *out_x, int16_t *out_w) {
+  if (bottom_style == 2) { // right side only -- shift left
+    *out_x = 0;
+    *out_w = screen_w - CORNER_BOX_W;
+  } else if (bottom_style == 3) { // left side only -- shift right
+    *out_x = CORNER_BOX_W;
+    *out_w = screen_w - CORNER_BOX_W;
+  } else { // 0 (no sides) or 4 (both sides) -- centered, full width
+    *out_x = 0;
+    *out_w = screen_w;
+  }
+}
+
 static void features_recompute_layout(FeaturesState *state) {
   for (int i = 0; i < FEATURES_MAX_SLOTS; i++) state->slots[i].active = false;
 
@@ -2506,6 +2574,98 @@ static void features_recompute_layout(FeaturesState *state) {
         .needs_second_refresh = content_needs_second_refresh(d->middle_right_line2_content),
       };
     }
+  }
+
+  // Digital-mode-only equivalent of the 4 blocks above -- the 8 edge
+  // slot indices are unused by any analog "show_*" block when
+  // !is_analog (none of those ran), so it's safe to repurpose 7 of
+  // them here: SLOT_LEFT_L1/L2 + SLOT_UPPER_L1 as the 3-line left
+  // column, SLOT_RIGHT_L1/L2 + SLOT_UPPER_L2 as the 3-line right
+  // column, SLOT_BOTTOM_L1 as the single bottom feature (SLOT_BOTTOM_L2
+  // stays unused). Deliberately reuses the SAME 8 EclipseData fields
+  // analog mode's upper/bottom/left/right-middle content uses (see
+  // their own dual-purpose comment in eclipse_data.h) rather than a
+  // separate set of digital-only fields -- the two modes never run at
+  // once, so there's nothing to actually preserve by keeping them
+  // apart, and sharing saves both the extra bytes on the watch and the
+  // extra AppMessage keys/traffic a second set would cost. Side
+  // columns only appear at all when their bottom_style value turns
+  // them on; the bottom feature always appears (shares
+  // bottom_middle_line1's existing default of content 12, short date).
+  if (!is_analog) {
+    bool show_left_col = (d->bottom_style == 3 || d->bottom_style == 4);
+    bool show_right_col = (d->bottom_style == 2 || d->bottom_style == 4);
+    int16_t clock_x, clock_w;
+    digital_clock_area(d->bottom_style, 200, &clock_x, &clock_w);
+
+    if (show_left_col) {
+      // 1 = top (nearest the clock), 3 = bottom (nearest the screen
+      // edge) -- all bottom-anchored (not top-anchored off a fixed
+      // panel offset) so a shrinking screen during a system
+      // notification shifts the whole stack up together, same as the
+      // corners already do, rather than the top row drifting away from
+      // the panel it's meant to sit inside.
+      state->slots[SLOT_LEFT_L1] = (FeatureSlot){
+        .active = true, .content = d->middle_left_line1_content, .color_mode = d->middle_left_line1_color_mode,
+        .is_top = false, .is_left = true, .is_middle = false,
+        .top_offset = 0, .bottom_shift = CORNER_ROW_H * 2, .middle_inset = 0,
+        .center_horizontal = false, .center_vertical = false, .allow_outline = true,
+        .needs_second_refresh = content_needs_second_refresh(d->middle_left_line1_content),
+      };
+      state->slots[SLOT_LEFT_L2] = (FeatureSlot){
+        .active = true, .content = d->middle_left_line2_content, .color_mode = d->middle_left_line2_color_mode,
+        .is_top = false, .is_left = true, .is_middle = false,
+        .top_offset = 0, .bottom_shift = CORNER_ROW_H, .middle_inset = 0,
+        .center_horizontal = false, .center_vertical = false, .allow_outline = true,
+        .needs_second_refresh = content_needs_second_refresh(d->middle_left_line2_content),
+      };
+      state->slots[SLOT_UPPER_L1] = (FeatureSlot){ // reused: digital left column, row 3 -- reads upper_middle_line1
+        .active = true, .content = d->upper_middle_line1_content, .color_mode = d->upper_middle_line1_color_mode,
+        .is_top = false, .is_left = true, .is_middle = false,
+        .top_offset = 0, .bottom_shift = 0, .middle_inset = 0,
+        .center_horizontal = false, .center_vertical = false, .allow_outline = true,
+        .needs_second_refresh = content_needs_second_refresh(d->upper_middle_line1_content),
+      };
+    }
+    if (show_right_col) {
+      state->slots[SLOT_RIGHT_L1] = (FeatureSlot){
+        .active = true, .content = d->middle_right_line1_content, .color_mode = d->middle_right_line1_color_mode,
+        .is_top = false, .is_left = false, .is_middle = false,
+        .top_offset = 0, .bottom_shift = CORNER_ROW_H * 2, .middle_inset = 0,
+        .center_horizontal = false, .center_vertical = false, .allow_outline = true,
+        .needs_second_refresh = content_needs_second_refresh(d->middle_right_line1_content),
+      };
+      state->slots[SLOT_RIGHT_L2] = (FeatureSlot){
+        .active = true, .content = d->middle_right_line2_content, .color_mode = d->middle_right_line2_color_mode,
+        .is_top = false, .is_left = false, .is_middle = false,
+        .top_offset = 0, .bottom_shift = CORNER_ROW_H, .middle_inset = 0,
+        .center_horizontal = false, .center_vertical = false, .allow_outline = true,
+        .needs_second_refresh = content_needs_second_refresh(d->middle_right_line2_content),
+      };
+      state->slots[SLOT_UPPER_L2] = (FeatureSlot){ // reused: digital right column, row 3 -- reads upper_middle_line2
+        .active = true, .content = d->upper_middle_line2_content, .color_mode = d->upper_middle_line2_color_mode,
+        .is_top = false, .is_left = false, .is_middle = false,
+        .top_offset = 0, .bottom_shift = 0, .middle_inset = 0,
+        .center_horizontal = false, .center_vertical = false, .allow_outline = true,
+        .needs_second_refresh = content_needs_second_refresh(d->upper_middle_line2_content),
+      };
+    }
+
+    // Single bottom feature -- reuses bottom_middle_line1 (analog's
+    // upper of its own 2-line pair; bottom_middle_line2 has no
+    // digital-mode role, 7 slots needed against 8 available fields).
+    // Shares clock_x/clock_w with the clock text itself
+    // (bottom_canvas_update_proc() in pebble-eclipse-watch.c uses the
+    // exact same digital_clock_area() call), always centered within
+    // that band, anchored to the screen's own bottom edge.
+    state->slots[SLOT_BOTTOM_L1] = (FeatureSlot){
+      .active = true, .content = d->bottom_middle_line1_content, .color_mode = d->bottom_middle_line1_color_mode,
+      .is_top = false, .is_left = true, .is_middle = false,
+      .top_offset = 0, .bottom_shift = 0, .middle_inset = 0,
+      .center_horizontal = false, .center_vertical = false, .allow_outline = true,
+      .custom_box = true, .box_x = clock_x, .box_w = clock_w,
+      .needs_second_refresh = content_needs_second_refresh(d->bottom_middle_line1_content),
+    };
   }
 
   // Corners always just draw whatever d->corner_content[] says, for

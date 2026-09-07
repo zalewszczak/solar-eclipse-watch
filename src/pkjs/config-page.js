@@ -524,7 +524,7 @@ function fontOptionsHtml(selectedId, onlyMainClock) {
   }).map(function (f) {
     return '<option value="' + f.id + '" data-preview="' + esc(f.preview) + '" data-seconds="' +
       (f.secondsDisabled ? '0' : '1') + '" data-height="' + f.height + '" data-small="' + (f.small ? '1' : '0') +
-      '" data-paired-small="' + (f.pairedSmallId !== undefined ? f.pairedSmallId : 0) + '"' +
+      '" data-paired-small="' + (f.pairedSmallId !== undefined ? f.pairedSmallId : 0) + '" data-wide="' + (f.wide ? '1' : '0') + '"' +
       (selectedId === f.id ? ' selected' : '') + '>' + esc(f.label) + '</option>';
   }).join('');
 }
@@ -700,10 +700,28 @@ var CORNER_CONTENT_OPTIONS = [
   { id: 82, label: 'Next planet rise' },
   { id: 83, label: 'Next ISS pass' },
   { id: 84, label: 'Aurora Kp index' },
-  { id: 85, label: 'Compass' }
+  { id: 85, label: 'Compass' },
+  { id: 86, label: 'AM/PM' },
+  { id: 87, label: 'Weather in 1 hour' },
+  { id: 88, label: 'Weather in 2 hours' },
+  { id: 89, label: 'Weather in 3 hours' },
+  { id: 90, label: 'Weather in 4 hours' },
+  { id: 91, label: 'Weather in 5 hours' },
+  { id: 92, label: 'Weather in 6 hours' },
+  { id: 93, label: 'Last weather update, long' },
+  { id: 94, label: 'Last weather update, short' },
+  { id: 95, label: 'Date: Weekday + Day/Month (MON 24/9)' },
+  { id: 96, label: 'Date: Weekday + Month/Day (MON 9/24)' },
+  { id: 97, label: 'Heart rate + steps' },
+  { id: 98, label: 'Bed time + wake time' },
+  { id: 99, label: 'Battery + Bluetooth (icons only)' },
+  { id: 100, label: 'Battery % + Bluetooth' },
+  { id: 101, label: 'Sleep times' },
+  { id: 102, label: 'Long date + sunrise/sunset' },
+  { id: 103, label: 'Long date + week number' }
 ];
 // Must match draw_corner_item()'s color_mode switch exactly.
-var CORNER_COLOR_MODE_LABELS = ['MONO', 'ACC', 'SEMI', 'COLOR'];
+var CORNER_COLOR_MODE_LABELS = ['MONO', 'ACC', 'PILL', 'COLOR'];
 // auroraEnabled omits id 84 entirely (not just hides it) when auroras
 // are turned off in the Astronomy section -- see onAuroraEnabledChange()
 // for the live version of this same filtering, run client-side when
@@ -1236,6 +1254,10 @@ function buildConfigHtml(current) {
   var secondsUnsupported = (bottomStyleVal === 'digital') && fontLookupEntry(clockFontId).secondsDisabled;
   var secondsChecked = (current.showSeconds && !secondsUnsupported) ? 'checked' : '';
   var secondsDisabled = secondsUnsupported ? 'disabled' : '';
+  var clockFontIsWide = !!fontLookupEntry(clockFontId).wide;
+  var digitalSidesVal = current.digitalSides || 'none';
+  var digitalLeftOn = digitalSidesVal === 'left' || digitalSidesVal === 'both';
+  var digitalRightOn = digitalSidesVal === 'right' || digitalSidesVal === 'both';
   var cornerFontId = parseInt(current.cornerFont || '1', 10);
 
   // One <button> per example-style slot (see EXAMPLE_STYLE_COUNT's own
@@ -1262,20 +1284,22 @@ function buildConfigHtml(current) {
   // slots as available that the watch itself won't actually draw.
   var markerStyleNum = parseInt(current.bigAnalogMarkerStyle || '0', 10);
   var isBitmapMarkerStyle = markerStyleNum >= 3 && markerStyleNum !== 8 && markerStyleNum !== 9;
+  var bitmapCornerOverride = !!current.bitmapCornerOverride;
   var edgeAvail = { upper: false, bottom: false, left: false, right: false, cornersGrayed: false };
   if (isAnalog) {
     if (markerStyleNum < 3 || markerStyleNum === 8 || markerStyleNum === 9) {
       edgeAvail = { upper: true, bottom: true, left: true, right: true, cornersGrayed: false };
     } else if (markerStyleNum === 3 || markerStyleNum === 4 || markerStyleNum === 6) {
-      edgeAvail = { upper: true, bottom: true, left: false, right: false, cornersGrayed: true };
+      edgeAvail = { upper: true, bottom: true, left: false, right: false, cornersGrayed: !bitmapCornerOverride };
     } else if (markerStyleNum === 5) {
       // Tally -- its own mask art leaves all 4 corners clear (unlike
-      // every other bitmap style), so it alone keeps them active.
+      // every other bitmap style), so it alone keeps them active
+      // regardless of the override checkbox.
       edgeAvail = { upper: true, bottom: true, left: true, right: true, cornersGrayed: false };
     } else if (markerStyleNum === 7) {
-      edgeAvail = { upper: true, bottom: true, left: true, right: true, cornersGrayed: true };
+      edgeAvail = { upper: true, bottom: true, left: true, right: true, cornersGrayed: !bitmapCornerOverride };
     } else {
-      edgeAvail = { upper: true, bottom: false, left: false, right: false, cornersGrayed: true };
+      edgeAvail = { upper: true, bottom: false, left: false, right: false, cornersGrayed: !bitmapCornerOverride };
     }
   }
   var fontOptions = fontOptionsHtml(clockFontId, true);
@@ -1544,6 +1568,9 @@ function buildConfigHtml(current) {
 '  .slot-middle-left-l2 { left: 6px; top: calc(50% + 15px); transform: translateY(-50%); }' +
 '  .slot-middle-right-l1 { right: 6px; top: calc(50% - 15px); transform: translateY(-50%); }' +
 '  .slot-middle-right-l2 { right: 6px; top: calc(50% + 15px); transform: translateY(-50%); }' +
+'  .slot-digital-left3 { left: 6px; top: 96px; }' +
+'  .slot-digital-right3 { right: 6px; top: 96px; }' +
+'  .slot-digital-bottom { left: 50%; bottom: 34px; transform: translateX(-50%); min-width: 90px; }' +
 '</style></head>' +
 '<body>' +
 
@@ -1572,10 +1599,10 @@ function buildConfigHtml(current) {
 '    <div class="mode-btn-group" id="slotEditColorGroup" style="margin-top:10px;">' +
 '      <button type="button" class="mode-btn" onclick="slotEditorSelectColor(0)">MONO</button>' +
 '      <button type="button" class="mode-btn" onclick="slotEditorSelectColor(1)">ACC</button>' +
-'      <button type="button" class="mode-btn" onclick="slotEditorSelectColor(2)">SEMI</button>' +
+'      <button type="button" class="mode-btn" onclick="slotEditorSelectColor(2)">PILL</button>' +
 '      <button type="button" class="mode-btn" onclick="slotEditorSelectColor(3)">COLOR</button>' +
 '    </div>' +
-'    <div class="help"><b>MONO</b> = your main color, <b>ACC</b> = accent color, <b>SEMI</b> = translucent accent, <b>COLOR</b> = dynamic (changes with the value shown).</div>' +
+'    <div class="help"><b>MONO</b> = your main color, <b>ACC</b> = accent color, <b>PILL</b> = solid background-color capsule behind main-color content, <b>COLOR</b> = dynamic (changes with the value shown).</div>' +
 '    <button type="button" onclick="saveSlotEditor()" style="width:100%; box-sizing:border-box; padding:14px; font-size:16px; font-weight:600; color:#fff; background:#ff9200; border:none; border-radius:8px; margin-top:14px;">OK</button>' +
 '    <button type="button" class="modal-cancel-btn" onclick="closeSlotEditor()">Cancel</button>' +
 '  </div>' +
@@ -1839,7 +1866,11 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '        <input type="checkbox" id="bitmapMarkerTransparent" ' + (current.bitmapMarkerTransparent ? 'checked' : '') + ' onchange="updatePreview()">' +
 '        <label for="bitmapMarkerTransparent" style="margin:0;">Semi transparent markers (see the sky through them)</label>' +
 '      </div>' +
-'      <div class="help">Bitmap styles are tinted with your main color (see the preview above) and their mask art shows behind the hands there once you\'ve added a resource PNG for that style. Which edge-middle info slots they support (instead of the 4 corners) varies by style -- see the Features section below.</div>' +
+'      <div class="checkbox-row" id="bitmapCornerOverrideRow" style="margin-top:12px;' + ((isBitmapMarkerStyle && markerStyleNum !== 5) ? '' : ' display:none;') + '">' +
+'        <input type="checkbox" id="bitmapCornerOverride" ' + (current.bitmapCornerOverride ? 'checked' : '') + ' onchange="onBitmapCornerOverrideChange()">' +
+'        <label for="bitmapCornerOverride" style="margin:0;">Enable corner features anyway (may overlap this style\'s artwork)</label>' +
+'      </div>' +
+'      <div class="help">Bitmap styles are tinted with your main color (see the preview above) and their mask art shows behind the hands there once you\'ve added a resource PNG for that style. Which edge-middle info slots they support (instead of the 4 corners) varies by style -- see the Features section below. The 4 corners are off by default for these styles (their artwork usually already fills that space) -- check the box above if you want them anyway.</div>' +
 '      <div class="help">When an eclipse is actually happening, the Sun fills the whole screen as a background behind the hands.</div>' +
 
 '      <div id="customMarkerSection" style="' + (current.bigAnalogMarkerStyle === '8' ? '' : 'display:none;') + '">' +
@@ -1868,15 +1899,16 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    <div class="help">Realistic clouds are a soft painterly shape shaded by the Sun\'s actual position -- costs more battery per redraw, and adds occasional lightning during a storm. Simple uses plain circle puffs instead.</div>' +
 '    </div>' +
 
-'    <div class="subsection" id="showSunTimeSection" style="' + (bottomStyleVal === 'digital' ? '' : 'display:none;') + '">' +
-'      <label>Week number or sunrise/sunset</label>' +
-'      <div class="mode-btn-group" id="showSunTimeGroup">' +
-'        <button type="button" class="mode-btn' + (!current.showSunTime ? ' active' : '') + '" onclick="selectSunTimeMode(false)">WEEK #</button>' +
-'        <button type="button" class="mode-btn' + (current.showSunTime ? ' active' : '') + '" onclick="selectSunTimeMode(true)">SUN/SET</button>' +
+'    <div class="subsection" id="digitalSidesSection" style="' + ((bottomStyleVal === 'digital' && !clockFontIsWide) ? '' : 'display:none;') + '">' +
+'      <label>Side features</label>' +
+'      <div class="mode-btn-group" id="digitalSidesGroup">' +
+'        <button type="button" class="mode-btn' + (digitalLeftOn ? ' active' : '') + '" data-side="left" onclick="toggleDigitalSide(\'left\')">LEFT SIDE</button>' +
+'        <button type="button" class="mode-btn' + (digitalRightOn ? ' active' : '') + '" data-side="right" onclick="toggleDigitalSide(\'right\')">RIGHT SIDE</button>' +
 '      </div>' +
-'      <input type="hidden" id="showSunTime" value="' + (current.showSunTime ? 'true' : 'false') + '">' +
-'      <div class="help">Falls back to the week number once today\'s sunset has passed, until the next refresh rolls over to a new day. Only applies to digital mode -- analog\'s 4 feature rows below can each independently be set to Week number or Sunrise/sunset instead.</div>' +
+'      <input type="hidden" id="digitalSides" value="' + esc(digitalSidesVal) + '">' +
+'      <div class="help">Adds up to 3 short info lines down each side of the clock -- pick their content in the Features section below. Only offered for narrower clock fonts (this one qualifies); picking both sides assumes the font is already narrow enough to share the screen with them without shrinking the clock any further.</div>' +
 '    </div>' +
+'    <div class="help" id="digitalSidesWideHelp" style="' + ((bottomStyleVal === 'digital' && clockFontIsWide) ? '' : 'display:none;') + '">This font runs too wide for side features -- pick a narrower one above to use them.</div>' +
 
 '    <div class="checkbox-row subsection">' +
 '      <input type="checkbox" id="outlineEnabled" ' + (current.outlineEnabled !== false ? 'checked' : '') + '>' +
@@ -1998,6 +2030,13 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      <button type="button" class="slot-btn slot-middle-left-l2" id="slotBtn-middleLeftLine2" onclick="openSlotEditor(\'middleLeftLine2\')"></button>' +
 '      <button type="button" class="slot-btn slot-middle-right-l1" id="slotBtn-middleRightLine1" onclick="openSlotEditor(\'middleRightLine1\')"></button>' +
 '      <button type="button" class="slot-btn slot-middle-right-l2" id="slotBtn-middleRightLine2" onclick="openSlotEditor(\'middleRightLine2\')"></button>' +
+'      <button type="button" class="slot-btn slot-middle-left-l1" id="slotBtn-digitalLeft1" onclick="openSlotEditor(\'digitalLeft1\')"></button>' +
+'      <button type="button" class="slot-btn slot-middle-left-l2" id="slotBtn-digitalLeft2" onclick="openSlotEditor(\'digitalLeft2\')"></button>' +
+'      <button type="button" class="slot-btn slot-digital-left3" id="slotBtn-digitalLeft3" onclick="openSlotEditor(\'digitalLeft3\')"></button>' +
+'      <button type="button" class="slot-btn slot-middle-right-l1" id="slotBtn-digitalRight1" onclick="openSlotEditor(\'digitalRight1\')"></button>' +
+'      <button type="button" class="slot-btn slot-middle-right-l2" id="slotBtn-digitalRight2" onclick="openSlotEditor(\'digitalRight2\')"></button>' +
+'      <button type="button" class="slot-btn slot-digital-right3" id="slotBtn-digitalRight3" onclick="openSlotEditor(\'digitalRight3\')"></button>' +
+'      <button type="button" class="slot-btn slot-digital-bottom" id="slotBtn-digitalBottom" onclick="openSlotEditor(\'digitalBottom\')"></button>' +
 '    </div>' +
 
 '    <label for="cornerFont">Font</label>' +
@@ -2652,7 +2691,11 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  56: "NYC 07:34", 57: "CHI 06:34", 58: "DEN 05:34", 59: "LAX 04:34", 60: "ANC 03:34", 61: "HNL 02:34", 62: "SAO 09:34",' +
 '  63: "14:32:07", 64: "07", 65: "7", 66: "7", 67: "5", 68: "05", 69: "8", 70: "08", 71: "3", 72: "8",' +
 '  73: "22C", 74: "H 28C", 75: "L 11C", 76: "22 H28 L11C", 77: "FL 20C", 78: "(bt)",' +
-'  79: "3 planets", 80: "Perseids", 81: "Rings 12%", 82: "VEN 18:32", 83: "22:47", 84: "Kp 4.3", 85: "NNW"' +
+'  79: "3 planets", 80: "Perseids", 81: "Rings 12%", 82: "VEN 18:32", 83: "22:47", 84: "Kp 4.3", 85: "NNW",' +
+'  86: "PM", 93: "Last updated 12:34", 94: "12:34", 95: "MON 24/9", 96: "MON 9/24",' +
+'  87: "+1h 24C", 88: "+2h 23C", 89: "+3h 22C", 90: "+4h 21C", 91: "+5h 20C", 92: "+6h 19C",' +
+'  97: "72 5234", 98: "23:45 /07:20", 99: "(batt)(bt)", 100: "68% (bt)", 101: "7h32m (2h15m) 42%",' +
+'  102: "Mon 23 Sep 19:42", 103: "Mon 23 Sep WK34"' +
 '};' +
 
 'function hasPreviewContent(contentId) {' +
@@ -2937,7 +2980,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  var isAnalog = styleVal === "analog";' +
 '  document.getElementById("digitalOnlySettings").style.display = (styleVal === "digital") ? "block" : "none";' +
 '  document.getElementById("bigAnalogSettings").style.display = isAnalog ? "block" : "none";' +
-'  document.getElementById("showSunTimeSection").style.display = (styleVal === "digital") ? "block" : "none";' +
+'  updateDigitalSidesVisibility();' +
 '  var secondsBox = document.getElementById("showSeconds");' +
 '  var fontSel = document.getElementById("clockFont");' +
 '  var opt = fontSel.options[fontSel.selectedIndex];' +
@@ -2949,6 +2992,41 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  renderSlotPicker();' +
 '  updatePreview();' +
 '}' +
+// A font switch can turn side features on/off (the "too wide" check
+// depends on the clock font, not just digital-vs-analog), so both this
+// and onBottomStyleChange() above call it. If the newly-selected font
+// can't support them, forces digitalSides back to "none" -- same
+// reasoning clearCornersIfUnavailable() clears stale corner picks
+// instead of leaving a hidden section quietly keep sending a value the
+// watch would otherwise still draw.
+'function updateDigitalSidesVisibility() {' +
+'  var styleVal = document.getElementById("bottomStyleValue").value;' +
+'  var fontSel = document.getElementById("clockFont");' +
+'  var opt = fontSel.options[fontSel.selectedIndex];' +
+'  var fontIsWide = opt.getAttribute("data-wide") === "1";' +
+'  var isDigital = styleVal === "digital";' +
+'  document.getElementById("digitalSidesSection").style.display = (isDigital && !fontIsWide) ? "" : "none";' +
+'  document.getElementById("digitalSidesWideHelp").style.display = (isDigital && fontIsWide) ? "" : "none";' +
+'  if (!isDigital || fontIsWide) {' +
+'    document.getElementById("digitalSides").value = "none";' +
+'    var buttons = document.getElementById("digitalSidesGroup").getElementsByClassName("mode-btn");' +
+'    for (var i = 0; i < buttons.length; i++) buttons[i].className = "mode-btn";' +
+'  }' +
+'}' +
+'function toggleDigitalSide(side) {' +
+'  var hidden = document.getElementById("digitalSides");' +
+'  var cur = hidden.value;' +
+'  var leftOn = cur === "left" || cur === "both";' +
+'  var rightOn = cur === "right" || cur === "both";' +
+'  if (side === "left") leftOn = !leftOn; else rightOn = !rightOn;' +
+'  var next = leftOn && rightOn ? "both" : (leftOn ? "left" : (rightOn ? "right" : "none"));' +
+'  hidden.value = next;' +
+'  var buttons = document.getElementById("digitalSidesGroup").getElementsByClassName("mode-btn");' +
+'  buttons[0].className = "mode-btn" + (leftOn ? " active" : "");' +
+'  buttons[1].className = "mode-btn" + (rightOn ? " active" : "");' +
+'  renderSlotPicker();' +
+'  updatePreview();' +
+'}' +
 // Runtime copy of the category groupings + full item labels (the
 // generator-side CORNER_CONTENT_OPTIONS/CORNER_CATEGORIES data can\'t
 // be reused here -- this needs to run in the browser, re-populating
@@ -2956,7 +3034,8 @@ handEditorModalHtml('sec', 'Edit second hand') +
 // CORNER_PREVIEW_LABELS below is its own separate runtime copy rather
 // than reusing the generator-side labels). Keep in sync with
 // CORNER_CONTENT_OPTIONS/CORNER_CATEGORIES above by hand -- every
-// content id 0-85 must appear in exactly one category\'s items list.
+// content id features_layer.c actually implements (0-103, minus the
+// retired id 33) must appear in exactly one category\'s items list.
 'var CONTENT_SELECT_IDS = ["cornerTL", "cornerTR", "cornerBL", "cornerBR", ' +
 '  "upperMiddleLine1Content", "upperMiddleLine2Content", "bottomMiddleLine1Content", "bottomMiddleLine2Content", ' +
 '  "middleLeftLine1Content", "middleLeftLine2Content", "middleRightLine1Content", "middleRightLine2Content"];' +
@@ -2983,7 +3062,9 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    { id: 65, label: "Time: hour, 24h (7)" }, { id: 66, label: "Time: hour, 12h (7)" },' +
 '    { id: 67, label: "Time: minute (5)" }, { id: 68, label: "Time: minute, leading zero (05)" },' +
 '    { id: 69, label: "Time: second (8)" }, { id: 70, label: "Time: second, leading zero (08)" },' +
-'    { id: 71, label: "Time: seconds, tens digit" }, { id: 72, label: "Time: seconds, ones digit" }' +
+'    { id: 71, label: "Time: seconds, tens digit" }, { id: 72, label: "Time: seconds, ones digit" },' +
+'    { id: 86, label: "AM/PM" },' +
+'    { id: 95, label: "Date: Weekday + Day/Month (MON 24/9)" }, { id: 96, label: "Date: Weekday + Month/Day (MON 9/24)" }' +
 '  ] },' +
 '  { id: "timezone", label: "Timezone", items: [' +
 '    { id: 44, label: "GMT+0 London" }, { id: 45, label: "GMT+1 Paris / Berlin / Madrid" }, { id: 46, label: "GMT+2 Cairo" },' +
@@ -3008,6 +3089,16 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    { id: 79, label: "Planets visible now" }, { id: 80, label: "Meteor shower" },' +
 '    { id: 81, label: "Saturn ring angle" }, { id: 82, label: "Next planet rise" },' +
 '    { id: 83, label: "Next ISS pass" }' + (current.auroraEnabled ? ', { id: 84, label: "Aurora Kp index" }' : '') +
+'  ] },' +
+'  { id: "wide", label: "Wide", items: [' +
+'    { id: 97, label: "Heart rate + steps" }, { id: 98, label: "Bed time + wake time" },' +
+'    { id: 99, label: "Battery + Bluetooth (icons only)" }, { id: 100, label: "Battery % + Bluetooth" },' +
+'    { id: 101, label: "Sleep times" }, { id: 102, label: "Long date + sunrise/sunset" },' +
+'    { id: 103, label: "Long date + week number" },' +
+'    { id: 93, label: "Last weather update, long" }, { id: 94, label: "Last weather update, short" },' +
+'    { id: 87, label: "Weather in 1 hour" }, { id: 88, label: "Weather in 2 hours" },' +
+'    { id: 89, label: "Weather in 3 hours" }, { id: 90, label: "Weather in 4 hours" },' +
+'    { id: 91, label: "Weather in 5 hours" }, { id: 92, label: "Weather in 6 hours" }' +
 '  ] }' +
 '];' +
 'function categoryForContentId(contentId) {' +
@@ -3038,14 +3129,30 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  cornerTR: { contentId: "cornerTR", colorId: "cornerTRColor", btnId: "slotBtn-cornerTR", label: "Top-right", avail: function (a) { return !a.cornersGrayed; } },' +
 '  cornerBL: { contentId: "cornerBL", colorId: "cornerBLColor", btnId: "slotBtn-cornerBL", label: "Bottom-left", avail: function (a) { return !a.cornersGrayed; } },' +
 '  cornerBR: { contentId: "cornerBR", colorId: "cornerBRColor", btnId: "slotBtn-cornerBR", label: "Bottom-right", avail: function (a) { return !a.cornersGrayed; } },' +
-'  upperMiddleLine1: { contentId: "upperMiddleLine1Content", colorId: "upperMiddleLine1Color", btnId: "slotBtn-upperMiddleLine1", label: "Upper-middle, line 1", avail: function (a) { return a.upper; } },' +
-'  upperMiddleLine2: { contentId: "upperMiddleLine2Content", colorId: "upperMiddleLine2Color", btnId: "slotBtn-upperMiddleLine2", label: "Upper-middle, line 2", avail: function (a) { return a.upper; } },' +
-'  bottomMiddleLine1: { contentId: "bottomMiddleLine1Content", colorId: "bottomMiddleLine1Color", btnId: "slotBtn-bottomMiddleLine1", label: "Bottom-middle, line 1", avail: function (a) { return a.bottom; } },' +
-'  bottomMiddleLine2: { contentId: "bottomMiddleLine2Content", colorId: "bottomMiddleLine2Color", btnId: "slotBtn-bottomMiddleLine2", label: "Bottom-middle, line 2", avail: function (a) { return a.bottom; } },' +
-'  middleLeftLine1: { contentId: "middleLeftLine1Content", colorId: "middleLeftLine1Color", btnId: "slotBtn-middleLeftLine1", label: "Middle-left, line 1", avail: function (a) { return a.left; } },' +
-'  middleLeftLine2: { contentId: "middleLeftLine2Content", colorId: "middleLeftLine2Color", btnId: "slotBtn-middleLeftLine2", label: "Middle-left, line 2", avail: function (a) { return a.left; } },' +
-'  middleRightLine1: { contentId: "middleRightLine1Content", colorId: "middleRightLine1Color", btnId: "slotBtn-middleRightLine1", label: "Middle-right, line 1", avail: function (a) { return a.right; } },' +
-'  middleRightLine2: { contentId: "middleRightLine2Content", colorId: "middleRightLine2Color", btnId: "slotBtn-middleRightLine2", label: "Middle-right, line 2", avail: function (a) { return a.right; } }' +
+'  upperMiddleLine1: { contentId: "upperMiddleLine1Content", colorId: "upperMiddleLine1Color", btnId: "slotBtn-upperMiddleLine1", label: "Upper-middle, line 1", analogOnly: true, avail: function (a) { return a.upper; } },' +
+'  upperMiddleLine2: { contentId: "upperMiddleLine2Content", colorId: "upperMiddleLine2Color", btnId: "slotBtn-upperMiddleLine2", label: "Upper-middle, line 2", analogOnly: true, avail: function (a) { return a.upper; } },' +
+'  bottomMiddleLine1: { contentId: "bottomMiddleLine1Content", colorId: "bottomMiddleLine1Color", btnId: "slotBtn-bottomMiddleLine1", label: "Bottom-middle, line 1", analogOnly: true, avail: function (a) { return a.bottom; } },' +
+'  bottomMiddleLine2: { contentId: "bottomMiddleLine2Content", colorId: "bottomMiddleLine2Color", btnId: "slotBtn-bottomMiddleLine2", label: "Bottom-middle, line 2", analogOnly: true, avail: function (a) { return a.bottom; } },' +
+'  middleLeftLine1: { contentId: "middleLeftLine1Content", colorId: "middleLeftLine1Color", btnId: "slotBtn-middleLeftLine1", label: "Middle-left, line 1", analogOnly: true, avail: function (a) { return a.left; } },' +
+'  middleLeftLine2: { contentId: "middleLeftLine2Content", colorId: "middleLeftLine2Color", btnId: "slotBtn-middleLeftLine2", label: "Middle-left, line 2", analogOnly: true, avail: function (a) { return a.left; } },' +
+'  middleRightLine1: { contentId: "middleRightLine1Content", colorId: "middleRightLine1Color", btnId: "slotBtn-middleRightLine1", label: "Middle-right, line 1", analogOnly: true, avail: function (a) { return a.right; } },' +
+'  middleRightLine2: { contentId: "middleRightLine2Content", colorId: "middleRightLine2Color", btnId: "slotBtn-middleRightLine2", label: "Middle-right, line 2", analogOnly: true, avail: function (a) { return a.right; } },' +
+  // digitalLeft/Right/Bottom below deliberately point contentId/colorId
+  // at the SAME underlying elements as their analog counterparts
+  // (middleLeftLine1/2, middleRightLine1/2, upperMiddleLine1/2,
+  // bottomMiddleLine1) rather than a separate set of digital-only ones
+  // -- matches eclipse_data.h's own dual-purpose field reuse, and since
+  // analogOnly/digitalOnly slots are never both visible at once (see
+  // renderSlotPicker()), two SLOT_DEFS entries safely sharing one
+  // underlying <select>/<input> pair is no different from any other
+  // slot reading/writing its own.
+'  digitalLeft1: { contentId: "middleLeftLine1Content", colorId: "middleLeftLine1Color", btnId: "slotBtn-digitalLeft1", label: "Left side, row 1 (top)", digitalOnly: true, avail: function (a) { return a.digitalLeft; } },' +
+'  digitalLeft2: { contentId: "middleLeftLine2Content", colorId: "middleLeftLine2Color", btnId: "slotBtn-digitalLeft2", label: "Left side, row 2", digitalOnly: true, avail: function (a) { return a.digitalLeft; } },' +
+'  digitalLeft3: { contentId: "upperMiddleLine1Content", colorId: "upperMiddleLine1Color", btnId: "slotBtn-digitalLeft3", label: "Left side, row 3 (bottom)", digitalOnly: true, avail: function (a) { return a.digitalLeft; } },' +
+'  digitalRight1: { contentId: "middleRightLine1Content", colorId: "middleRightLine1Color", btnId: "slotBtn-digitalRight1", label: "Right side, row 1 (top)", digitalOnly: true, avail: function (a) { return a.digitalRight; } },' +
+'  digitalRight2: { contentId: "middleRightLine2Content", colorId: "middleRightLine2Color", btnId: "slotBtn-digitalRight2", label: "Right side, row 2", digitalOnly: true, avail: function (a) { return a.digitalRight; } },' +
+'  digitalRight3: { contentId: "upperMiddleLine2Content", colorId: "upperMiddleLine2Color", btnId: "slotBtn-digitalRight3", label: "Right side, row 3 (bottom)", digitalOnly: true, avail: function (a) { return a.digitalRight; } },' +
+'  digitalBottom: { contentId: "bottomMiddleLine1Content", colorId: "bottomMiddleLine1Color", btnId: "slotBtn-digitalBottom", label: "Bottom feature", digitalOnly: true, avail: function () { return true; } }' +
 '};' +
 'var CURRENT_SLOT_KEY = null;' +
 'var SLOT_EDITOR_DRAFT_COLOR = 0;' +
@@ -3058,18 +3165,22 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  var styleVal = document.getElementById("bottomStyleValue").value;' +
 '  var isAnalog = styleVal === "analog";' +
 '  var markerStyle = parseInt(document.getElementById("bigAnalogMarkerStyle").value, 10);' +
-'  var avail = { upper: false, bottom: false, left: false, right: false, cornersGrayed: false };' +
+'  var override = document.getElementById("bitmapCornerOverride").checked;' +
+'  var digitalSidesVal = document.getElementById("digitalSides").value;' +
+'  var avail = { upper: false, bottom: false, left: false, right: false, cornersGrayed: false,' +
+'    digitalLeft: !isAnalog && (digitalSidesVal === "left" || digitalSidesVal === "both"),' +
+'    digitalRight: !isAnalog && (digitalSidesVal === "right" || digitalSidesVal === "both") };' +
 '  if (isAnalog) {' +
 '    if (markerStyle < 3 || markerStyle === 8 || markerStyle === 9) {' +
 '      avail.upper = avail.bottom = avail.left = avail.right = true;' +
 '    } else if (markerStyle === 3 || markerStyle === 4 || markerStyle === 6) {' +
-'      avail.upper = avail.bottom = true; avail.cornersGrayed = true;' +
+'      avail.upper = avail.bottom = true; avail.cornersGrayed = !override;' +
 '    } else if (markerStyle === 5) {' +
 '      avail.upper = avail.bottom = avail.left = avail.right = true;' +
 '    } else if (markerStyle === 7) {' +
-'      avail.upper = avail.bottom = avail.left = avail.right = true; avail.cornersGrayed = true;' +
+'      avail.upper = avail.bottom = avail.left = avail.right = true; avail.cornersGrayed = !override;' +
 '    } else {' +
-'      avail.upper = true; avail.cornersGrayed = true;' +
+'      avail.upper = true; avail.cornersGrayed = !override;' +
 '    }' +
 '  }' +
 '  return avail;' +
@@ -3080,11 +3191,22 @@ handEditorModalHtml('sec', 'Edit second hand') +
 // changes.
 'function renderSlotPicker() {' +
 '  var avail = computeSlotAvailability();' +
+'  var isAnalogMode = document.getElementById("bottomStyleValue").value === "analog";' +
 '  for (var key in SLOT_DEFS) {' +
 '    var def = SLOT_DEFS[key];' +
 '    var btn = document.getElementById(def.btnId);' +
 '    var baseClass = btn.getAttribute("data-base-class");' +
 '    if (!baseClass) { baseClass = btn.className; btn.setAttribute("data-base-class", baseClass); }' +
+    // analogOnly/digitalOnly slots share their screen position with
+    // their counterpart in the other mode (e.g. digitalRight1 sits
+    // exactly where middleRightLine1 does) -- only one member of each
+    // pair is ever relevant at a time, so the other is fully hidden
+    // here rather than shown as a "N/A" placeholder overlapping it.
+'    if ((def.analogOnly && !isAnalogMode) || (def.digitalOnly && isAnalogMode)) {' +
+'      btn.style.display = "none";' +
+'      continue;' +
+'    }' +
+'    btn.style.display = "";' +
 '    if (!def.avail(avail)) {' +
 '      btn.textContent = "N/A";' +
 '      btn.className = baseClass + " slot-na";' +
@@ -3249,7 +3371,27 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  document.getElementById("customMarkerSection").style.display = (val === "8") ? "" : "none";' +
 '  var isBitmap = (val === "3" || val === "4" || val === "5" || val === "6" || val === "7");' +
 '  document.getElementById("bitmapMarkerTransparentRow").style.display = isBitmap ? "" : "none";' +
+'  document.getElementById("bitmapCornerOverrideRow").style.display = (isBitmap && val !== "5") ? "" : "none";' +
 '  updateMarkerStyleButtonLabel();' +
+'  clearCornersIfUnavailable();' +
+'  renderSlotPicker();' +
+'  updatePreview();' +
+'}' +
+// The 4 corner content selections are off by default (and cleared, not
+// just visually grayed) for bitmap styles other than Tally -- their
+// artwork usually fills that space already. Without this, a value
+// picked while a procedural/custom style was active would silently
+// keep being sent to the watch even once its slot button shows "N/A",
+// since features_layer.c no longer suppresses corners itself for any
+// particular marker style (see its own note on why that moved here).
+'function clearCornersIfUnavailable() {' +
+'  var avail = computeSlotAvailability();' +
+'  if (!avail.cornersGrayed) return;' +
+'  var ids = ["cornerTL", "cornerTR", "cornerBL", "cornerBR"];' +
+'  for (var i = 0; i < ids.length; i++) { document.getElementById(ids[i]).value = "0"; }' +
+'}' +
+'function onBitmapCornerOverrideChange() {' +
+'  clearCornersIfUnavailable();' +
 '  renderSlotPicker();' +
 '  updatePreview();' +
 '}' +
@@ -4110,12 +4252,6 @@ handEditorModalHtml('sec', 'Edit second hand') +
 'function onClockFontSmallChange() {' +
 '  updatePreview();' +
 '}' +
-'function selectSunTimeMode(isSunTime) {' +
-'  document.getElementById("showSunTime").value = isSunTime ? "true" : "false";' +
-'  var buttons = document.getElementById("showSunTimeGroup").getElementsByClassName("mode-btn");' +
-'  buttons[0].className = "mode-btn" + (!isSunTime ? " active" : "");' +
-'  buttons[1].className = "mode-btn" + (isSunTime ? " active" : "");' +
-'}' +
 'function selectBottomStyle(val) {' +
 '  document.getElementById("bottomStyleValue").value = val;' +
 '  var buttons = document.getElementById("bottomStyleGroup").getElementsByClassName("mode-btn");' +
@@ -4447,6 +4583,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    CONFIG_SHADOW_ANGLE: document.getElementById("shadowAngle").value,' +
 '    CONFIG_BIG_ANALOG_MARKER_STYLE: document.getElementById("bigAnalogMarkerStyle").value,' +
 '    CONFIG_BITMAP_MARKER_TRANSPARENT: document.getElementById("bitmapMarkerTransparent").checked,' +
+'    CONFIG_BITMAP_CORNER_OVERRIDE: document.getElementById("bitmapCornerOverride").checked,' +
 '    CONFIG_DRAW_FEATURES_BENEATH_HANDS: document.getElementById("drawFeaturesBeneathHands").checked,' +
 '    CONFIG_UPPER_MIDDLE_LINE1_CONTENT: document.getElementById("upperMiddleLine1Content").value,' +
 '    CONFIG_UPPER_MIDDLE_LINE1_COLOR: document.getElementById("upperMiddleLine1Color").value,' +
@@ -4464,7 +4601,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    CONFIG_MIDDLE_RIGHT_LINE1_COLOR: document.getElementById("middleRightLine1Color").value,' +
 '    CONFIG_MIDDLE_RIGHT_LINE2_CONTENT: document.getElementById("middleRightLine2Content").value,' +
 '    CONFIG_MIDDLE_RIGHT_LINE2_COLOR: document.getElementById("middleRightLine2Color").value,' +
-'    CONFIG_SHOW_SUN_TIME: document.getElementById("showSunTime").value === "true",' +
+'    CONFIG_DIGITAL_SIDES: document.getElementById("digitalSides").value,' +
 '    CONFIG_SHOW_ISS: document.getElementById("showIss").checked,' +
 '    CONFIG_AURORA_ENABLED: document.getElementById("auroraEnabled").checked,' +
 '    CONFIG_VIBRATE_ON_PHASE_CHANGE: document.getElementById("vibrateOnPhaseChange").checked,' +

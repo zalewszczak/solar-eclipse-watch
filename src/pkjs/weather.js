@@ -205,7 +205,7 @@ function getDailyCloudGrid(lat, lon, times, nowDate, cb) {
   var url = 'https://api.open-meteo.com/v1/forecast' +
             '?latitude=' + encodeURIComponent(lat) +
             '&longitude=' + encodeURIComponent(lon) +
-            '&hourly=cloudcover,weathercode,cloudcover_low,cloudcover_mid,cloudcover_high,relativehumidity_2m,dewpoint_2m,surface_pressure' +
+            '&hourly=cloudcover,weathercode,cloudcover_low,cloudcover_mid,cloudcover_high,relativehumidity_2m,dewpoint_2m,surface_pressure,temperature_2m' +
             '&daily=sunrise,sunset,temperature_2m_max,temperature_2m_min,uv_index_max,precipitation_probability_max' +
             '&current_weather=true' +
             '&timezone=auto' +
@@ -213,7 +213,8 @@ function getDailyCloudGrid(lat, lon, times, nowDate, cb) {
   var emptyExtras = {
     sunrise: null, sunset: null, condition: 0, tempC: null, tempHighC: null, tempLowC: null,
     cloudAltitudePct: 50, uvIndexMax: null, rainChancePct: null, humidityPct: null, windSpeedKmh: null,
-    currentCloudPct: null, windDirDeg: null, dewPointC: null, pressureHpa: null, pressureTrend: 0
+    currentCloudPct: null, windDirDeg: null, dewPointC: null, pressureHpa: null, pressureTrend: 0,
+    forecastTempC: [null, null, null, null, null, null], forecastCondition: [0, 0, 0, 0, 0, 0]
   };
   xhrGetJSON(url, 8000, function (err, json) {
     if (err) return cb(err, null, emptyExtras);
@@ -290,6 +291,24 @@ function getDailyCloudGrid(lat, lon, times, nowDate, cb) {
         }
       }
 
+      // "Weather in 1-6 hours" content (features_layer.c ids 87-92) --
+      // temperature_2m/weathercode at nowIdx+1..nowIdx+6. forecast_days=2
+      // gives 48 hourly points starting at hour 0 of today, so nowIdx+6
+      // only runs off the end of the array in the last few hours of day
+      // 2 -- guarded per-index below rather than assumed safe.
+      var forecastTempC = [null, null, null, null, null, null];
+      var forecastCondition = [0, 0, 0, 0, 0, 0];
+      var hourlyTemps = json.hourly.temperature_2m;
+      for (var fh = 0; fh < 6; fh++) {
+        var fIdx = nowIdx + 1 + fh;
+        if (hourlyTemps && typeof hourlyTemps[fIdx] === 'number') {
+          forecastTempC[fh] = Math.round(hourlyTemps[fIdx]);
+        }
+        if (hourlyCodes && hourlyCodes.length > fIdx) {
+          forecastCondition[fh] = conditionFromWmoCode(hourlyCodes[fIdx]);
+        }
+      }
+
       var sunrise = null, sunset = null, tempHighC = null, tempLowC = null, uvIndexMax = null, rainChancePct = null;
       if (json.daily) {
         if (json.daily.sunrise && json.daily.sunrise[0]) sunrise = new Date(json.daily.sunrise[0]);
@@ -314,7 +333,8 @@ function getDailyCloudGrid(lat, lon, times, nowDate, cb) {
         cloudAltitudePct: cloudAltitudePct, uvIndexMax: uvIndexMax,
         rainChancePct: rainChancePct, humidityPct: humidityPct, windSpeedKmh: windSpeedKmh,
         currentCloudPct: currentCloudPct, windDirDeg: windDirDeg, dewPointC: dewPointC,
-        pressureHpa: pressureHpa, pressureTrend: pressureTrend
+        pressureHpa: pressureHpa, pressureTrend: pressureTrend,
+        forecastTempC: forecastTempC, forecastCondition: forecastCondition
       });
     } catch (e) {
       cb(e, null, emptyExtras);

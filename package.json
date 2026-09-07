@@ -232,7 +232,9 @@
       "HAND_MIN_HOLLOW_THICKNESS",
       "HAND_SEC_HOLLOW",
       "HAND_SEC_HOLLOW_THICKNESS",
-      "WEATHER_LAST_UPDATE"
+      "WEATHER_LAST_UPDATE",
+      "FORECAST_TEMP_C",
+      "FORECAST_CONDITION"
     ],
     "resources": {
       "media": [

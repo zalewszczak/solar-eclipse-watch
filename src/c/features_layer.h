@@ -89,6 +89,11 @@ void features_layer_refresh_second_slots(Layer *layer);
 // showing the compass).
 void features_layer_refresh_content(Layer *layer, uint8_t content);
 
+// See its own comment in features_layer.c -- shared with
+// pebble-eclipse-watch.c so the clock text and the digital-mode bottom
+// feature can never disagree about which horizontal band they share.
+void digital_clock_area(uint8_t bottom_style, int16_t screen_w, int16_t *out_x, int16_t *out_w);
+
 // Loads/unloads the shared corner/edge custom font on demand -- cheap to
 // call repeatedly (no-ops if the choice hasn't changed since the last
 // call). Used by this module's own value-recompute functions and the

@@ -7,7 +7,7 @@ var servicelog = require('./servicelog');
 
 var TYPE_CODE = { none: 0, partial: 1, total: 2, annular: 3 };
 
-var MAX_FEATURES = 83; // highest corner/edge content id -- see CORNER_CONTENT_OPTIONS in config-page.js
+var MAX_FEATURES = 103; // highest corner/edge content id -- see CORNER_CONTENT_OPTIONS in config-page.js
 var FONT_MAX_CONTENT_ID = 42;
 
 // ---- AppMessage chunking -------------------------------------------------
@@ -457,7 +457,12 @@ function nightCustomAccentByte() { return customColorByte('CONFIG_NIGHT_CUSTOM_A
 
 function bottomStyleCode() {
   var v = getSetting('CONFIG_BOTTOM_STYLE', 'digital');
-  return (v === 'analog' || v === 'biganalog') ? 1 : 0;
+  if (v === 'analog' || v === 'biganalog') return 1;
+  var sides = getSetting('CONFIG_DIGITAL_SIDES', 'none');
+  if (sides === 'right') return 2;
+  if (sides === 'left') return 3;
+  if (sides === 'both') return 4;
+  return 0;
 }
 
 function sunMoonSizeCode() {
@@ -757,6 +762,7 @@ function middleRightLine2ColorModeCode() {
   if (isNaN(id) || id < 0 || id > 3) id = 0;
   return id;
 }
+
 
 function showSunTimeCode() { return getSetting('CONFIG_SHOW_SUN_TIME', 'false') === 'true' ? 1 : 0; }
 function showIssCode() { return getSetting('CONFIG_SHOW_ISS', 'false') === 'true' ? 1 : 0; }
@@ -1778,6 +1784,26 @@ function extraWeatherFieldsDict(extra) {
   if (typeof extra.auroraVisibilityPct === 'number') dict['AURORA_VISIBILITY_PCT'] = extra.auroraVisibilityPct;
   // Always sent, same reasoning as ISS_ERROR_CODE above.
   dict['AURORA_ERROR_CODE'] = extra.auroraErrorCode || 0;
+  // "Weather in N hours" (features_layer.c ids 87-92) -- sent as byte
+  // arrays, one entry per forecast hour (1h through 6h ahead). Only
+  // sent when the daily-forecast fetch that produced them actually
+  // succeeded, same reasoning as every other field here -- a transient
+  // failure shouldn't wipe out the watch's last known-good forecast.
+  // forecast_temp_c can't go through as a plain signed byte (AppMessage
+  // byte-array tuples are unsigned), so each value is offset by +50
+  // celsius first; 255 is the "not available" sentinel for a single
+  // hour within an otherwise-successful fetch (see forecastTempC's own
+  // per-index null check in weather.js).
+  if (extra.forecastTempC) {
+    dict['FORECAST_TEMP_C'] = extra.forecastTempC.map(function (c) {
+      return (typeof c === 'number') ? Math.max(0, Math.min(255, Math.round(c) + 50)) : 255;
+    });
+  }
+  if (extra.forecastCondition) {
+    dict['FORECAST_CONDITION'] = extra.forecastCondition.map(function (c) {
+      return (typeof c === 'number') ? c : 0;
+    });
+  }
   return dict;
 }
 
@@ -2295,7 +2321,8 @@ function refreshAndSend(force, resendOnSkip) {
                   aqiUs: aqi.aqiUs, aqiEu: aqi.aqiEu, altitudeMeters: altitudeMeters,
                   auroraKpX10: (typeof aurora.kp === 'number') ? Math.round(aurora.kp * 10) : null,
                   auroraVisibilityPct: (typeof aurora.visibilityPct === 'number') ? aurora.visibilityPct : null,
-                  auroraErrorCode: auroraErrorCode
+                  auroraErrorCode: auroraErrorCode,
+                  forecastTempC: extras.forecastTempC, forecastCondition: extras.forecastCondition
                 };
                 if (result.hasEclipse) {
                   sendEclipseData(result, sky, cloudGrid, headlineCloud, headlineSources, locationName, moonPhase, riseSet, extras.condition, extras.tempC, meteorShower, extras.cloudAltitudePct, extras.tempHighC, extras.tempLowC, issPos, extras.uvIndexMax, extras.rainChancePct, extras.humidityPct, extras.windSpeedKmh, extras.currentCloudPct, sunRiseTomorrow, extraWeather, stars, !gridErr, weatherCls.code, issErrorCode);
@@ -2365,6 +2392,7 @@ Pebble.addEventListener('showConfiguration', function () {
     nightCustomText: getSetting('CONFIG_NIGHT_CUSTOM_TEXT', '255'),
     nightCustomAccent: getSetting('CONFIG_NIGHT_CUSTOM_ACCENT', '255'),
     bottomStyle: getSetting('CONFIG_BOTTOM_STYLE', 'digital'),
+    digitalSides: getSetting('CONFIG_DIGITAL_SIDES', 'none'),
     sunMoonSize: getSetting('CONFIG_SUN_MOON_SIZE', '75'),
     cloudRenderStyle: getSetting('CONFIG_CLOUD_RENDER_STYLE', '1'),
     skyMode: getSetting('CONFIG_SKY_MODE', '0'),
@@ -2378,6 +2406,14 @@ Pebble.addEventListener('showConfiguration', function () {
     shadowAngle: getSetting('CONFIG_SHADOW_ANGLE', '120'),
     bigAnalogMarkerStyle: getSetting('CONFIG_BIG_ANALOG_MARKER_STYLE', '0'),
     bitmapMarkerTransparent: getSetting('CONFIG_BITMAP_MARKER_TRANSPARENT', 'false') === 'true',
+    // Browser-side only -- the watch never needs this. By the time
+    // corner_content[] reaches it, the settings page has already
+    // either cleared those slots to 0 (override off) or left the
+    // user's real picks in place (override on); features_layer.c just
+    // draws whatever content id it's given either way. Persisted the
+    // same way as every other setting (getSetting/setSetting) purely
+    // so the checkbox itself doesn't reset every time the page reopens.
+    bitmapCornerOverride: getSetting('CONFIG_BITMAP_CORNER_OVERRIDE', 'false') === 'true',
     drawFeaturesBeneathHands: getSetting('CONFIG_DRAW_FEATURES_BENEATH_HANDS', 'false') === 'true',
     customHourStyle: getSetting('CONFIG_CUSTOM_HOUR_STYLE', '0'),
     customHourThickness: getSetting('CONFIG_CUSTOM_HOUR_THICKNESS', '3'),
@@ -2587,6 +2623,7 @@ Pebble.addEventListener('webviewclosed', function (e) {
   setSetting('CONFIG_NIGHT_CUSTOM_TEXT', settings.CONFIG_NIGHT_CUSTOM_TEXT || '255');
   setSetting('CONFIG_NIGHT_CUSTOM_ACCENT', settings.CONFIG_NIGHT_CUSTOM_ACCENT || '255');
   setSetting('CONFIG_BOTTOM_STYLE', (settings.CONFIG_BOTTOM_STYLE === 'analog' || settings.CONFIG_BOTTOM_STYLE === 'biganalog') ? 'analog' : 'digital');
+  setSetting('CONFIG_DIGITAL_SIDES', settings.CONFIG_DIGITAL_SIDES || 'none');
   setSetting('CONFIG_SUN_MOON_SIZE', settings.CONFIG_SUN_MOON_SIZE || '100');
   setSetting('CONFIG_CLOUD_RENDER_STYLE', settings.CONFIG_CLOUD_RENDER_STYLE || '1');
   setSetting('CONFIG_SKY_MODE', settings.CONFIG_SKY_MODE || '0');
@@ -2600,6 +2637,7 @@ Pebble.addEventListener('webviewclosed', function (e) {
   setSetting('CONFIG_SHADOW_ANGLE', settings.CONFIG_SHADOW_ANGLE || '120');
   setSetting('CONFIG_BIG_ANALOG_MARKER_STYLE', settings.CONFIG_BIG_ANALOG_MARKER_STYLE || '0');
   setSetting('CONFIG_BITMAP_MARKER_TRANSPARENT', settings.CONFIG_BITMAP_MARKER_TRANSPARENT ? 'true' : 'false');
+  setSetting('CONFIG_BITMAP_CORNER_OVERRIDE', settings.CONFIG_BITMAP_CORNER_OVERRIDE ? 'true' : 'false');
   setSetting('CONFIG_DRAW_FEATURES_BENEATH_HANDS', settings.CONFIG_DRAW_FEATURES_BENEATH_HANDS ? 'true' : 'false');
   setSetting('CONFIG_CUSTOM_HOUR_STYLE', settings.CONFIG_CUSTOM_HOUR_STYLE || '0');
   setSetting('CONFIG_CUSTOM_HOUR_THICKNESS', settings.CONFIG_CUSTOM_HOUR_THICKNESS || '3');

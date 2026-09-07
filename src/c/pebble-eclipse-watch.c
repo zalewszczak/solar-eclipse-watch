@@ -830,59 +830,38 @@ static void bottom_canvas_update_proc(Layer *layer, GContext *ctx) {
            t->tm_sec / 10,
            t->tm_sec % 10);
 
-  // ---- big time, small date/week below ----
+  // Shifts away from whichever single side-feature column is active
+  // (bottom_style 2 or 3), or stays centered/full-width otherwise
+  // (0, or 4 with both columns on -- see digital_clock_area()'s own
+  // comment for why "both" doesn't shrink the clock further). The
+  // features_layer overlay draws the side columns themselves and the
+  // single bottom feature (which used to be the fixed date/sun-time
+  // row directly below, now a user-selectable content slot instead) --
+  // this layer only ever draws the clock digits.
+  int16_t clock_x, clock_w;
+  digital_clock_area(s_data.bottom_style, bounds.size.w, &clock_x, &clock_w);
+  GRect clock_rect = GRect(bounds.origin.x + clock_x, bounds.origin.y, clock_w, bounds.size.h);
+
+  // ---- big time ----
   graphics_context_set_text_color(ctx, text_color);
   if (s_data.show_seconds && use_small_seconds_for_digital_clock()) {
     graphics_draw_text(ctx, time_buf, clock_font,
-                        GRect(bounds.origin.x, bounds.origin.y + font_lookup_y_offset(s_data.clock_font), bounds.size.w - 20, 60),
+                        GRect(clock_rect.origin.x, clock_rect.origin.y + font_lookup_y_offset(s_data.clock_font), clock_rect.size.w - 20, 60),
                         GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
     graphics_context_set_text_color(ctx, accent_color);
     graphics_draw_text(ctx, sec_buf, small_font,
-                       GRect(bounds.origin.x + bounds.size.w - 22, bounds.origin.y + 15 + font_lookup_y_offset(s_data.clock_font_small) * 2, 20, 50),
+                       GRect(clock_rect.origin.x + clock_rect.size.w - 22, clock_rect.origin.y + 15 + font_lookup_y_offset(s_data.clock_font_small) * 2, 20, 50),
                         GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft, NULL);
   } else {
     graphics_draw_text(ctx, time_buf, clock_font,
-                        GRect(bounds.origin.x, bounds.origin.y + font_lookup_y_offset(s_data.clock_font), bounds.size.w, 60),
+                        GRect(clock_rect.origin.x, clock_rect.origin.y + font_lookup_y_offset(s_data.clock_font), clock_rect.size.w, 60),
                         GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
   }
-
-  char main_buf[32];
-  strftime(main_buf, sizeof(main_buf), "%a %b %d", t);
-
-  // Computed before any second localtime() call below, since that
-  // returns a pointer to a shared static buffer and would otherwise
-  // clobber `t` before main_buf got built from it.
-  time_t sun_event_time = 0;
-  bool sun_event_is_rise = false;
-  bool show_sun_row = s_data.show_sun_time &&
-    get_next_sun_event(now, s_data.sun_rise, s_data.sun_set, s_data.sun_rise_tomorrow, &sun_event_time, &sun_event_is_rise);
-
-  graphics_context_set_text_color(ctx, text_color);
-  if (show_sun_row) {
-    char sun_time_buf[8];
-    struct tm *event_t = localtime(&sun_event_time);
-    strftime(sun_time_buf, sizeof(sun_time_buf), clock_is_24h_style() ? "%H:%M" : "%I:%M", event_t);
-
-    int16_t left_w = (bounds.size.w * 55) / 100;
-    graphics_draw_text(ctx, main_buf, small_font,
-                        GRect(bounds.origin.x, bounds.origin.y + 60 + font_lookup_y_offset(s_data.clock_font_small), left_w, 16),
-                        GTextOverflowModeTrailingEllipsis, GTextAlignmentRight, NULL);
-    int16_t icon_x = bounds.origin.x + left_w + 6;
-    int16_t icon_y = bounds.origin.y + 60 + 5;
-    int16_t icon_w = draw_sun_time_icon(ctx, GPoint(icon_x, icon_y), sun_event_is_rise, text_color, bg);
-    graphics_context_set_text_color(ctx, text_color);
-    graphics_draw_text(ctx, sun_time_buf, small_font,
-                        GRect(icon_x + icon_w + 3, bounds.origin.y + 60 + font_lookup_y_offset(s_data.clock_font_small), bounds.size.w - (icon_x + icon_w + 3), 16),
-                        GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft, NULL);
-  } else {
-    char week_buf[8];
-    strftime(week_buf, sizeof(week_buf), "%V", t);
-    char date_buf[40];
-    snprintf(date_buf, sizeof(date_buf), "%s  -  Wk%s", main_buf, week_buf);
-    graphics_draw_text(ctx, date_buf, small_font,
-                        GRect(bounds.origin.x, bounds.origin.y + 60 + font_lookup_y_offset(s_data.clock_font_small), bounds.size.w, 16),
-                        GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
-  }
+  // The date/week-or-sunrise row that used to sit directly below the
+  // clock is now the features_layer overlay's own "digital bottom"
+  // feature slot (content-selectable in settings, defaulting to
+  // "long date + sunrise/sunset" -- the exact information this fixed
+  // row always showed) -- drawn by that layer, not this one.
 }
 
 // The countdown/status label used to be a plain TextLayer, but that
@@ -1573,6 +1552,30 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
     for (int i = 0; i < n; i++) {
       s_data.mag_pct_samples[i] = raw[i];
     }
+  }
+
+  // "Weather in N hours" (87-92 in features_layer.c) -- forecast_temp_c
+  // is sent as (celsius + 50) per byte, 255 meaning "not available",
+  // since a plain byte array can't carry a signed value; decoded back
+  // to a real (possibly negative) Celsius reading here, with -128 as
+  // the sentinel s_data.forecast_temp_c itself uses for "not available"
+  // (see its own comment in eclipse_data.h).
+  if ((t = dict_find(iter, MESSAGE_KEY_FORECAST_TEMP_C))) {
+    uint8_t *raw = t->value->data;
+    int n = t->length;
+    if (n > 6) n = 6;
+    for (int i = 0; i < n; i++) {
+      s_data.forecast_temp_c[i] = (raw[i] == 255) ? -128 : ((int16_t)raw[i] - 50);
+    }
+  }
+  if ((t = dict_find(iter, MESSAGE_KEY_FORECAST_CONDITION))) {
+    uint8_t *raw = t->value->data;
+    int n = t->length;
+    if (n > 6) n = 6;
+    for (int i = 0; i < n; i++) {
+      s_data.forecast_condition[i] = raw[i];
+    }
+    if (s_features_layer) features_layer_refresh_values(s_features_layer); // arrives after features_layer_set_data() above -- same reason weather_icon_style/AQI/altitude unit below refresh explicitly
   }
 
   if ((t = dict_find(iter, MESSAGE_KEY_WEATHER_ERROR_CODE))) {

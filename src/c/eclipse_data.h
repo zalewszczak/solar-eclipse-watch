@@ -250,6 +250,20 @@ typedef struct {
   uint8_t middle_right_line1_color_mode;
   uint8_t middle_right_line2_content;
   uint8_t middle_right_line2_color_mode;
+  // Dual-purpose: analog mode (bottom_style 1) uses all 8 fields above
+  // exactly as their names say. Digital mode (bottom_style 0/2/3/4)
+  // reuses the SAME 8 fields for its own 7 slots instead of its own
+  // dedicated ones -- the two modes are mutually exclusive, so
+  // whichever one isn't active leaves these fields completely dormant,
+  // and reusing them saves both the extra bytes and the extra
+  // AppMessage keys/traffic a second set would cost. The mapping (see
+  // features_recompute_layout()'s digital branch in features_layer.c
+  // for where this is actually applied): middle_left_line1/2 -> left
+  // column rows 1/2, upper_middle_line1 -> left column row 3,
+  // middle_right_line1/2 -> right column rows 1/2, upper_middle_line2
+  // -> right column row 3, bottom_middle_line1 -> the single bottom
+  // feature. bottom_middle_line2 is the one field with no digital-mode
+  // role (7 slots needed, 8 fields available).
 
   // Colors: raw packed GColor argb bytes (one of the 64 real Pebble
   // display colors), reconstructed on-watch via a GColor union rather
@@ -271,7 +285,11 @@ typedef struct {
   uint8_t night_custom_text;
   uint8_t night_custom_accent;
 
-  uint8_t bottom_style;       // 0=digital (big time+date), 1=analog (fullscreen hands over the sky, no bottom bar)
+  uint8_t bottom_style;       // 0=digital (big time+date), 1=analog (fullscreen hands over the sky, no bottom bar),
+                               // 2=digital + right-side features, 3=digital + left-side features,
+                               // 4=digital + both sides -- see the upper/bottom/middle_left/middle_right
+                               // fields' own dual-purpose comment above for what digital mode uses them for.
+                               // Any of 0/2/3/4 draws the digital clock; only 1 is analog.
 
   uint8_t sun_moon_size_pct;   // 25/50/75/100, scales SUN_R_NORMAL/MOON_R_NORMAL. Ignored during
                                  // an active eclipse (and in big-analogue's fullscreen-sun mode) --
@@ -477,6 +495,17 @@ typedef struct {
                                  // index.js's sendEclipseData()/sendNoEclipseToday()) -- 0 if never
                                  // yet fetched. Feeds the "last weather update" corner content's
                                  // white->red staleness gradient in features_layer.c.
+  // "Weather in N hours" corner content (features_layer.c ids 87-92):
+  // temperature_2m/weathercode at hour now+1..now+6, from the same
+  // Open-Meteo hourly array the current-conditions fields above are
+  // read from -- see weather.js's getDailyCloudGrid(). Index 0 = 1h
+  // from now, index 5 = 6h from now. forecast_temp_c uses -128 as its
+  // "not available" sentinel (a real forecast temperature this extreme
+  // never occurs, unlike 0 which is a perfectly ordinary reading).
+  // forecast_condition shares the same 0-N condition codes
+  // weather_condition/conditionFromWmoCode() use elsewhere.
+  int16_t forecast_temp_c[6];
+  uint8_t forecast_condition[6];
   char location_name[32];    // reverse-geocoded place name, e.g. "Innsbruck, Austria"
 
   uint8_t timezone_id;       // index into the TIMEZONES[] table in pebble-eclipse-watch.c --
