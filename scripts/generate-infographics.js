@@ -14,7 +14,7 @@
 // preview image has to already be baked in as base64 by build time.
 //
 // The first two are the HAND STYLE PICKER popup's own image set -- the
-// 5 existing bitmap MARKER styles (modern/swiss/tally/bell/brown)
+// 5 existing bitmap MARKER styles (modern/shadow/tally/bell/fancy)
 // already have their own preview pipeline in generate-marker-previews.js
 // and src/pkjs/marker-preview-images.js; this script only covers the 4
 // procedural marker PRESETS (none/minimal/small/big) that sit

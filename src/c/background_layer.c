@@ -1820,10 +1820,10 @@ static void draw_text_markers(GContext *ctx, GPoint center, GRect screen, Canvas
 static uint32_t marker_style_resource_id(uint8_t style) {
   switch (style) {
     case 3: return RESOURCE_ID_MODERN_BACKGROUND;
-    case 4: return RESOURCE_ID_SWISS_BACKGROUND;
+    case 4: return RESOURCE_ID_SHADOW_BACKGROUND;
     case 5: return RESOURCE_ID_TALLY_BACKGROUND;
     case 6: return RESOURCE_ID_BELL_BACKGROUND;
-    case 7: return RESOURCE_ID_BROWN_BACKGROUND;
+    case 7: return RESOURCE_ID_FANCY_BACKGROUND;
     default: return 0;
   }
 }

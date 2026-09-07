@@ -51,7 +51,7 @@ typedef struct {
   // respectively (a position along the hand's own axis, and a sideways
   // thickness) -- what each one actually controls is style-specific,
   // see compute_hand_geometry_fp() in hand_layer.c.
-  int8_t middle_offset;    // -40..40 px, axial position of a style's "middle" feature (dauphine's
+  int8_t middle_offset;    // -40..80 px, axial position of a style's "middle" feature (dauphine's
                              // side points, sword's side bulge, spade/arrow's tip-ornament height,
                              // pomme's thick/thin joint) -- measured from center like back_offset,
                              // positive = toward the tip.

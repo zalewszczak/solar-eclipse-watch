@@ -978,7 +978,7 @@ function handEditorModalHtml(kind, title) {
 '      <label for="' + p + 'MiddleOffset">D. Middle offset <span class="val" id="' + p + 'MiddleOffsetVal"></span></label>' +
 '      <div class="slider-with-buttons">' +
 '      <button type="button" class="slider-step-btn" onclick="stepSlider(\'' + p + 'MiddleOffset\', -1)">&minus;</button>' +
-'      <input type="range" id="' + p + 'MiddleOffset" min="-40" max="40" step="1" oninput="onHandSliderInput(\'' + kind + '\')">' +
+'      <input type="range" id="' + p + 'MiddleOffset" min="-40" max="80" step="1" oninput="onHandSliderInput(\'' + kind + '\')">' +
 '      <button type="button" class="slider-step-btn" onclick="stepSlider(\'' + p + 'MiddleOffset\', 1)">+</button>' +
 '      </div>' +
 '    </div>' +
@@ -1263,7 +1263,7 @@ function buildConfigHtml(current) {
 '    :root { --page-bg: #1c1c1e; --card-bg: #2c2c2e; --text: #f2f2f2; --text-strong: #e5e5e5; --text-muted: #aaa; --text-faint: #999; --text-faint2: #bbb; --text-disabled: #777; --border: #48484a; --border-light: #3a3a3c; --border-lighter: #545456; --btn-bg: #3a3a3c; }' +
 '    .bitmap-marker-img { filter: none; }' +
 '    .font-preview-img { filter: none; }' +
-'    .hand-style-icon-preview img { filter: none; }' +
+'    .hand-style-icon-preview img { filter: invert(1); }' + // opposite polarity from the other two -- these are black-ink, not white-ink; see that rule's own comment
 '  }' +
 '  body { font-family: -apple-system, Helvetica, Arial, sans-serif; margin: 0; padding: 16px 20px 90px; background: var(--page-bg); color: var(--text); }' +
 '  html, body { touch-action: manipulation; }' + // belt-and-suspenders alongside the viewport meta tag --
@@ -1302,7 +1302,7 @@ function buildConfigHtml(current) {
 '  .style-picker-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 8px; }' +
 '  .style-picker-btn { position: relative; aspect-ratio: 1; box-sizing: border-box; border-radius: 8px; border: 1px solid var(--border); background: var(--btn-bg); overflow: hidden; padding: 0; }' +
 '  .style-picker-btn img { width: 100%; height: 100%; object-fit: cover; display: block; }' +
-// The 5 bitmap marker style thumbnails (Modern/Swiss/Tally/Bell/Brown)
+// The 5 bitmap marker style thumbnails (Modern/Shadow/Tally/Bell/Fancy)
 // are the SAME mask art the watch itself tints with the user's main
 // color -- i.e. drawn in white on transparent, meant to be recolored
 // before display, never shown as-is. Shown as-is here (no tint
@@ -1344,12 +1344,18 @@ function buildConfigHtml(current) {
 // -name shape the font picker uses (left cell + right cell, trigger
 // variant included), just a 1/4-3/4 split instead of that one's own
 // ~1/3-2/3, per this button\'s own request. The icons themselves are
-// plain black-on-transparent PNGs (see generate_hand_style_icons.py),
-// so -- same reasoning as .font-preview-img just above and
-// .bitmap-marker-img elsewhere -- they\'d disappear entirely in dark
-// mode without the same invert-for-dark-mode treatment.
+// plain black-on-transparent PNGs (see generate_hand_style_icons.py)
+// -- the OPPOSITE polarity from .font-preview-img/.bitmap-marker-img
+// above/below (those are white-on-transparent) -- so they need the
+// mirror-image treatment: shown as-is (filter: none) in light mode,
+// where black-on-light is already visible, and inverted to white
+// only in dark mode, where black-on-dark would otherwise disappear.
+// Previously used the same invert(1)-by-default rule as the white-ink
+// images, which made these invisible in light mode instead (black
+// inverted to white, on a light page background) -- fixed below; see
+// the dark-mode override further up for the other half of this.
 '  .hand-style-icon-preview { flex: 0 0 25%; }' +
-'  .hand-style-icon-preview img { max-width: 100%; max-height: 100%; display: block; filter: invert(1); }' +
+'  .hand-style-icon-preview img { max-width: 100%; max-height: 100%; display: block; filter: none; }' +
 // Weather icon style previews -- unlike the plain black-on-transparent
 // hand-style icons just above, these are actual on-watch artwork (a
 // real image with its own colors/background, per features_layer.c's
@@ -1769,10 +1775,10 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '        <option value="1"' + (current.bigAnalogMarkerStyle === '1' ? ' selected' : '') + '>Small markers (hour + second)</option>' +
 '        <option value="2"' + (current.bigAnalogMarkerStyle === '2' ? ' selected' : '') + '>Big markers (thick hour, thin second)</option>' +
 '        <option value="3"' + (current.bigAnalogMarkerStyle === '3' ? ' selected' : '') + '>Modern</option>' +
-'        <option value="4"' + (current.bigAnalogMarkerStyle === '4' ? ' selected' : '') + '>Swiss</option>' +
+'        <option value="4"' + (current.bigAnalogMarkerStyle === '4' ? ' selected' : '') + '>Shadow</option>' +
 '        <option value="5"' + (current.bigAnalogMarkerStyle === '5' ? ' selected' : '') + '>Tally</option>' +
 '        <option value="6"' + (current.bigAnalogMarkerStyle === '6' ? ' selected' : '') + '>Bell</option>' +
-'        <option value="7"' + (current.bigAnalogMarkerStyle === '7' ? ' selected' : '') + '>Brown</option>' +
+'        <option value="7"' + (current.bigAnalogMarkerStyle === '7' ? ' selected' : '') + '>Fancy</option>' +
 '        <option value="8"' + (current.bigAnalogMarkerStyle === '8' ? ' selected' : '') + '>Custom</option>' +
 '      </select>' +
 '      <div class="checkbox-row" id="bitmapMarkerTransparentRow" style="margin-top:12px;' + (isBitmapMarkerStyle ? '' : ' display:none;') + '">' +
@@ -2932,7 +2938,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  { id: "utilities", label: "Utilities", items: [' +
 '    { id: 10, label: "Battery" }, { id: 13, label: "Location" }, { id: 17, label: "Pebble logo /w battery bar" },' +
 '    { id: 20, label: "Bluetooth connection" }, { id: 78, label: "Bluetooth status (icon only)" }, { id: 38, label: "Altitude" },' +
-'    { id: 85, label: "Compass" }' +
+'    { id: 85, label: "Compass" }, { id: 99, label: "Battery + Bluetooth (icons only)" }, { id: 100, label: "Battery % + Bluetooth" }' +
 '  ] },' +
 '  { id: "health", label: "Health", items: [' +
 '    { id: 1, label: "Heart rate" }, { id: 2, label: "Steps today" }, { id: 3, label: "Step goal %" },' +
@@ -2970,7 +2976,10 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    { id: 32, label: "Temp + weather icon" }, { id: 34, label: "Pressure" }, { id: 35, label: "Wind direction" },' +
 '    { id: 36, label: "Air quality" }, { id: 37, label: "Dew point" }, { id: 73, label: "Current temp" },' +
 '    { id: 74, label: "High temp" }, { id: 75, label: "Low temp" }, { id: 76, label: "Weather icon + all temps" },' +
-'    { id: 77, label: "Feels like temp" }' +
+'    { id: 77, label: "Feels like temp" },' +
+'    { id: 87, label: "Weather in 1 hour" }, { id: 88, label: "Weather in 2 hours" },' +
+'    { id: 89, label: "Weather in 3 hours" }, { id: 90, label: "Weather in 4 hours" },' +
+'    { id: 91, label: "Weather in 5 hours" }, { id: 92, label: "Weather in 6 hours" }' +
 '  ] },' +
 '  { id: "astro", label: "Astronomy", items: [' +
 '    { id: 11, label: "Moon phase" }, { id: 16, label: "Sunrise / sunset" },' +
@@ -2980,13 +2989,9 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  ] },' +
 '  { id: "wide", label: "Wide", items: [' +
 '    { id: 97, label: "Heart rate + steps" }, { id: 98, label: "Bed time + wake time" },' +
-'    { id: 99, label: "Battery + Bluetooth (icons only)" }, { id: 100, label: "Battery % + Bluetooth" },' +
 '    { id: 101, label: "Sleep times" }, { id: 102, label: "Long date + sunrise/sunset" },' +
 '    { id: 103, label: "Long date + week number" },' +
-'    { id: 93, label: "Last weather update, long" }, { id: 94, label: "Last weather update, short" },' +
-'    { id: 87, label: "Weather in 1 hour" }, { id: 88, label: "Weather in 2 hours" },' +
-'    { id: 89, label: "Weather in 3 hours" }, { id: 90, label: "Weather in 4 hours" },' +
-'    { id: 91, label: "Weather in 5 hours" }, { id: 92, label: "Weather in 6 hours" }' +
+'    { id: 93, label: "Last weather update, long" }, { id: 94, label: "Last weather update, short" }' +
 '  ] }' +
 '];' +
 'function categoryForContentId(contentId) {' +
@@ -3611,10 +3616,10 @@ handEditorModalHtml('sec', 'Edit second hand') +
 // MARKER_PRESET_IMAGES (generate-infographics.js).
 'var MARKER_BITMAP_STYLES = [' +
 '  { value: "3", title: "Modern" },' +
-'  { value: "4", title: "Swiss" },' +
+'  { value: "4", title: "Shadow" },' +
 '  { value: "5", title: "Tally" },' +
 '  { value: "6", title: "Bell" },' +
-'  { value: "7", title: "Brown" }' +
+'  { value: "7", title: "Fancy" }' +
 '];' +
 'var MARKER_PRESET_STYLES = [' +
 '  { value: "9", title: "None", image: "none" },' +

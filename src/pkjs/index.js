@@ -624,7 +624,7 @@ function handShadowDistanceCode(key) { return clampInt(getSetting(key, '2'), 1, 
 // for styles 3-7 (dauphine/sword/spade/arrow/pomme), ignored by 0-2,
 // but always sent/clamped the same way regardless of the hand's
 // current style so switching styles doesn't need its own save/reset.
-function handMiddleOffsetCode(key) { return clampInt(getSetting(key, '0'), -40, 40, 0); }
+function handMiddleOffsetCode(key) { return clampInt(getSetting(key, '0'), -40, 80, 0); }
 function handSecondaryWidthCode(key) { return clampInt(getSetting(key, '6'), 1, 40, 6); }
 // hollow_thickness: same 1-40 range as width -- <= 1 draws the original
 // plain 1px perimeter trace, see HandConfig.hollow's own comment in

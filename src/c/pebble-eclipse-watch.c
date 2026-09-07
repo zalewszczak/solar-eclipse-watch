@@ -1017,7 +1017,7 @@ static void bg_anim_timer_callback(void *data) {
 static void maybe_start_startup_background_animation(void) {
   if (s_bg_anim_played || s_data.bg_anim_mode == 0) return;
   // Marker animation (bg_anim_mode 2) has no actual visual effect for
-  // bitmap marker styles (Modern/Swiss/Tally/Bell/Brown -- the PNG-
+  // bitmap marker styles (Modern/Shadow/Tally/Bell/Fancy -- the PNG-
   // backed marker backgrounds, big_analog_marker_style 3-7):
   // draw_marker_bitmap() in background_layer.c already draws them
   // immediately regardless of anim_active/anim_progress_1000, since a

@@ -32,16 +32,21 @@ var SUFFIX = '_background.png';
 
 // Must match the big-analog bitmap marker style IDs used throughout
 // the app (see bigAnalogMarkerStyle in src/pkjs/config-page.js and
-// marker_style_resource_id() in src/c/pebble-eclipse-watch.c) --
-// and the resource names already declared in package.json
-// (MODERN_BACKGROUND, SWISS_BACKGROUND, etc.), just lowercased since
-// that's the actual filename convention on disk.
+// marker_style_resource_id() in src/c/background_layer.c). Keys here
+// are the actual filename convention on disk (resources/images/
+// <name>_background.png), NOT the package.json resource name -- those
+// two have diverged for styles 4 and 7 (package.json's "name" is now
+// SHADOW_BACKGROUND/FANCY_BACKGROUND, matching the new "Shadow"/
+// "Fancy" UI labels, but the PNGs on disk are still named
+// swiss_background.png/brown_background.png pending a manual file
+// rename) -- keep these keys pointed at whatever the files are
+// actually called until that rename happens, then update here too.
 var STYLE_IDS_BY_NAME = {
   modern: '3',
-  swiss: '4',
+  swiss: '4', // TODO: rename to `shadow` once swiss_background.png -> shadow_background.png
   tally: '5',
   bell: '6',
-  brown: '7'
+  brown: '7' // TODO: rename to `fancy` once brown_background.png -> fancy_background.png
 };
 
 var entries = {};

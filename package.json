@@ -324,7 +324,7 @@
         },
         {
           "type": "bitmap",
-          "name": "SWISS_BACKGROUND",
+          "name": "SHADOW_BACKGROUND",
           "file": "images/swiss_background.png"
         },
         {
@@ -339,7 +339,7 @@
         },
         {
           "type": "bitmap",
-          "name": "BROWN_BACKGROUND",
+          "name": "FANCY_BACKGROUND",
           "file": "images/brown_background.png"
         },
         {

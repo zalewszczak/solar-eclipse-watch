@@ -221,8 +221,8 @@ typedef struct {
   // marker styles (<3, no artwork constraints) use all 4 alongside
   // the corners; analog mode's bitmap styles (>=3) are limited to
   // whichever slots that specific mask graphic's design actually has
-  // room for (upper-middle alone for swiss/bell, upper+left for
-  // tally, upper+bottom for modern/brown), and suppress the 4 corners
+  // room for (upper-middle alone for shadow/bell, upper+left for
+  // tally, upper+bottom for modern/fancy), and suppress the 4 corners
   // entirely since the mask already fills most of the screen. Same
   // content/color-mode codes as the corners (content 12 = short date).
   // Upper-middle and bottom-middle each hold two independently-chosen
@@ -380,7 +380,7 @@ typedef struct {
   // (see MARKER_STYLE_PRESETS in that file) rather than their own separate procedural
   // drawing code -- same code path as style 8 (custom), just with fixed presets instead
   // of the user's own custom_hour_marker/custom_second_marker.
-  // 3=modern, 4=swiss, 5=tally, 6=bell, 7=brown -- each a user-supplied bitmap mask
+  // 3=modern, 4=shadow, 5=tally, 6=bell, 7=fancy -- each a user-supplied bitmap mask
   // (RESOURCE_ID_xxx_BACKGROUND) tinted with the main color, replacing the procedural
   // markers entirely. See corner_content/upper_middle_content below for how picking a
   // bitmap style also disables the 4 corners in favor of one upper-middle slot.
