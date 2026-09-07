@@ -208,27 +208,6 @@ var MODE_BTN_ICONS = {
     '<rect x="4" y="4" width="192" height="220" rx="20"/>' +
     '<text x="100" y="128" font-size="38" font-weight="400" font-family="sans-serif" text-anchor="middle" fill="currentColor" opacity="0.5">Sun</text>' +
     '</svg>',
-
-  // Off/On shake/Permanent -- an empty screen, a dashed (i.e. not
-  // always there) outlined bar with an upward chevron above it
-  // suggesting it slides up into view, and a solid always-there bar,
-  // respectively. Same bar position/size across the latter two so
-  // only "solid vs dashed-plus-arrow" differs between them.
-  barOff:
-    '<svg viewBox="0 0 200 228" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">' +
-    '<rect x="4" y="4" width="192" height="220" rx="20"/>' +
-    '</svg>',
-  barShake:
-    '<svg viewBox="0 0 200 228" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">' +
-    '<rect x="4" y="4" width="192" height="220" rx="20"/>' +
-    '<path d="M85 155 L100 133 L115 155"/>' +
-    '<rect x="16" y="176" width="168" height="36" rx="8" stroke-width="6" stroke-dasharray="14 10"/>' +
-    '</svg>',
-  barPermanent:
-    '<svg viewBox="0 0 200 228" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">' +
-    '<rect x="4" y="4" width="192" height="220" rx="20"/>' +
-    '<rect x="16" y="176" width="168" height="36" rx="8" fill="currentColor" stroke="none"/>' +
-    '</svg>'
 };
 
 // Base64 data: URIs for each bitmap marker style's preview image,
@@ -2147,16 +2126,6 @@ handEditorModalHtml('sec', 'Edit second hand') +
         { value: '2', label: 'SOFT', icon: MODE_BTN_ICONS.labelSoft }
       ], current.labelStyle || '0') +
 '    <div class="help">Boxed is an opaque rounded box with white text (the original look). Outlined uses your main color with a contrasting outline. Soft is plain light-gray text with no background or outline.</div>' +
-
-'    <div class="subsection">' +
-'      <label>Clouds/visibility/location bar (bottom of sky view)</label>' +
-        modeButtonGroupHtml('bottomInfoBarModeGroup', 'bottomInfoBarMode', [
-          { value: '0', label: 'OFF', icon: MODE_BTN_ICONS.barOff },
-          { value: '1', label: 'ON SHAKE', icon: MODE_BTN_ICONS.barShake },
-          { value: '2', label: 'PERMANENT', icon: MODE_BTN_ICONS.barPermanent }
-        ], current.bottomInfoBarMode || '1') +
-'      <div class="help">On shake shows it (with the name labels above) only briefly. Permanent shifts the sky view up 20px to make room, rather than the bar overlapping it. Not shown in analog mode, which already has this in its persistent info panel.</div>' +
-'    </div>' +
 
 '    <div class="checkbox-row subsection">' +
 '      <input type="checkbox" id="showIss" ' + (current.showIss ? 'checked' : '') + '>' +
@@ -4547,7 +4516,6 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    CONFIG_SUN_MOON_SIZE: document.getElementById("sunMoonSize").value,' +
 '    CONFIG_SHAKE_LABEL_SECONDS: document.getElementById("shakeLabelSeconds").value,' +
 '    CONFIG_LABEL_STYLE: document.getElementById("labelStyle").value,' +
-'    CONFIG_BOTTOM_INFO_BAR_MODE: document.getElementById("bottomInfoBarMode").value,' +
 '    CONFIG_TEST_MODE: document.getElementById("testMode").checked,' +
 '    CONFIG_TEST_DATETIME: document.getElementById("testDateTime").value,' +
 '    CONFIG_DEBUG_OVERRIDE_ENABLED: document.getElementById("debugOverrideEnabled").checked,' +

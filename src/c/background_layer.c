@@ -531,51 +531,6 @@ static const SunColorAnchor SUN_COLOR_ANCHORS[] = {
 #define SUN_COLOR_SPACE_G 190
 #define SUN_COLOR_SPACE_B 60
 
-// A handful of thin rays radiating out from the Sun's own disc,
-// slowly rotating with a gentle per-ray length pulse (each ray offset
-// from the others so they flicker independently rather than all
-// breathing in lockstep, reading more like solar activity than one
-// uniform pulse) -- decorates the space-view Sun (see
-// SUN_COLOR_SPACE_R's own comment above) specifically while it's part
-// of an animated sequence: Planet seek on shake, the "Planets"
-// bg-animation on startup. Not used for the eclipse's own fullscreen
-// Sun, which -- unlike those two -- isn't a timed animation at all,
-// just however the sky happens to look for the eclipse's whole
-// duration; rays there would just be visual noise sitting still
-// indefinitely rather than reading as motion. Also skipped entirely
-// for Weather/Clear sky (both call sites gate this on sky_mode == 2
-// themselves) -- rays were showing up there too even though they were
-// only ever meant to be a space-view thing, per this comment's own
-// original claim; Weather/Clear sky's animated Sun looks exactly like
-// its own normal, non-animated disc now.
-static void draw_sun_rays(GContext *ctx, GPoint center, int16_t sun_r, GColor color, uint16_t elapsed_ms) {
-  #define SUN_RAY_COUNT 8
-  int32_t rot = (int32_t)(((int64_t)elapsed_ms * TRIG_MAX_ANGLE) / 4000) % TRIG_MAX_ANGLE; // one slow rotation every 4s
-  graphics_context_set_stroke_color(ctx, color);
-  graphics_context_set_stroke_width(ctx, 2);
-  for (int i = 0; i < SUN_RAY_COUNT; i++) {
-    int32_t angle = (rot + (int32_t)(((int64_t)i * TRIG_MAX_ANGLE) / SUN_RAY_COUNT)) & 0xFFFF;
-    // A gentler, slower breathe than this used to have (was a
-    // sun_r/3 swing every 1500ms -- closer to 65% of the ray's own
-    // base length, fast enough to read as strobing rather than the
-    // slow, subtle shimmer real corona activity actually looks like).
-    // sun_r/6 over 3000ms keeps the same per-ray phase-offset idea
-    // (still doesn't pulse in lockstep) but at roughly a third of the
-    // old amplitude and half the old speed.
-    int32_t pulse_phase = (int32_t)(((((int64_t)elapsed_ms * TRIG_MAX_ANGLE) / 3000) +
-                                      ((int64_t)i * TRIG_MAX_ANGLE) / SUN_RAY_COUNT)) & 0xFFFF;
-    int16_t pulse = (int16_t)(((int32_t)(sun_r / 6) * (sin_lookup(pulse_phase) + TRIG_MAX_RATIO)) / (2 * TRIG_MAX_RATIO));
-    int16_t inner_r = sun_r + 3;
-    int16_t outer_r = inner_r + (sun_r / 2) + pulse;
-    GPoint p1 = GPoint(center.x + (inner_r * sin_lookup(angle)) / TRIG_MAX_RATIO,
-                        center.y - (inner_r * cos_lookup(angle)) / TRIG_MAX_RATIO);
-    GPoint p2 = GPoint(center.x + (outer_r * sin_lookup(angle)) / TRIG_MAX_RATIO,
-                        center.y - (outer_r * cos_lookup(angle)) / TRIG_MAX_RATIO);
-    graphics_draw_line(ctx, p1, p2);
-  }
-  #undef SUN_RAY_COUNT
-}
-
 static RGB8 sun_color_for_altitude(int16_t alt_decideg) {
   RGB8 out;
   if (alt_decideg >= SUN_COLOR_ANCHORS[0].alt_decideg) {
@@ -2155,8 +2110,7 @@ static void draw_planet_seek_edge_label(GContext *ctx, GRect bounds, GPoint arro
 static void draw_planet_seek_body(GContext *ctx, GRect bounds, const char *name,
                                    uint16_t az_decideg, GPoint normal_center, int16_t radius,
                                    GColor fill_color, int32_t heading_deg, int32_t blend_t_1000,
-                                   uint8_t label_style, GColor main_color,
-                                   bool draw_rays, uint16_t rays_elapsed_ms) {
+                                   uint8_t label_style, GColor main_color) {
   int32_t offset_decideg = planet_seek_az_offset_decideg(az_decideg, heading_deg);
   // 90deg field of view across the full screen width -- +-45deg maps
   // to the left/right edges. Whether this body ends up drawn as an
@@ -2176,12 +2130,6 @@ static void draw_planet_seek_body(GContext *ctx, GRect bounds, const char *name,
     int16_t blended_x = (int16_t)(normal_center.x + (((int32_t)compass_x - normal_center.x) * blend_t_1000) / 1000);
     GPoint pos = GPoint(blended_x, normal_center.y);
     if (pos.x >= bounds.origin.x - radius && pos.x <= bounds.origin.x + bounds.size.w + radius) {
-      // Rays first, disc on top -- so they read as radiating FROM the
-      // Sun rather than a ring drawn over it. Sun only (see
-      // draw_planet_seek_overlay's own call site) and only while
-      // actually on-screen -- an edge-pinned arrow further down has no
-      // disc for rays to radiate from.
-      if (draw_rays) draw_sun_rays(ctx, pos, radius, fill_color, rays_elapsed_ms);
       graphics_context_set_fill_color(ctx, fill_color);
       graphics_fill_circle(ctx, pos, radius);
       draw_label(ctx, bounds, pos, name, label_style, main_color);
@@ -2258,23 +2206,16 @@ static void draw_bg_anim_planets_overlay(GContext *ctx, CanvasState *state, cons
     // Space view (see SUN_COLOR_SPACE_R's own comment): flat color
     // rather than state->cached_sun_fill_color's own altitude-based
     // one (this overlay is the one exception, not a change to that
-    // shared cached value itself), plus animated rays -- see
-    // draw_sun_rays()'s own comment on why rays are a space-view-only
-    // decoration; Weather/Clear sky draws a completely plain disc here,
-    // identical to a normal (non-animated) redraw, no rays at all.
-    // Weather/Clear sky modes use the real altitude-based color
-    // instead -- state->cached_sun_fill_color already reflects
-    // wherever sky_now (the animated sweep) currently sits, so the
-    // Sun genuinely shades from white through orange to red as it
-    // sweeps toward the horizon, the same way it would on a normal
-    // (non-animated) redraw -- rather than staying one flat color for
-    // the whole sweep, which is what made this look like a different,
-    // simplified "cartoon sun" instead of this app's own real one.
+    // shared cached value itself); Weather/Clear sky modes use the
+    // real altitude-based color instead -- state->cached_sun_fill_color
+    // already reflects wherever sky_now (the animated sweep) currently
+    // sits, so the Sun genuinely shades from white through orange to
+    // red as it sweeps toward the horizon, the same way it would on a
+    // normal (non-animated) redraw.
     bool is_space_view = d->sky_mode == 2;
     GColor sun_fill = is_space_view
       ? GColorFromRGB(SUN_COLOR_SPACE_R, SUN_COLOR_SPACE_G, SUN_COLOR_SPACE_B)
       : state->cached_sun_fill_color;
-    if (is_space_view) draw_sun_rays(ctx, state->cached_sun_center, state->cached_sun_r, sun_fill, state->bg_anim_elapsed_ms);
     graphics_context_set_fill_color(ctx, sun_fill);
     graphics_fill_circle(ctx, state->cached_sun_center, state->cached_sun_r);
   }
@@ -2303,17 +2244,17 @@ static void draw_bg_anim_planets_overlay(GContext *ctx, CanvasState *state, cons
 // canvas_update_proc's own skip_marker_paint for why -- cheap either
 // way (one sin/cos per mark, see draw_marker_ring()'s own comment).
 static void draw_bg_anim_markers_overlay(GContext *ctx, CanvasState *state, const EclipseData *d,
-                                          GRect full_bounds, time_t now) {
+                                          GRect bounds, time_t now) {
   if (d->bottom_style != 1) return; // markers are analog-mode only
 
-  GPoint full_center = GPoint(full_bounds.size.w / 2, full_bounds.size.h / 2);
+  GPoint center = GPoint(bounds.size.w / 2, bounds.size.h / 2);
   GColor bg, main_color, accent_color;
   get_active_color_scheme(d, now, &bg, &main_color, &accent_color);
 
   int32_t progress_1000 = ((int32_t)state->bg_anim_elapsed_ms * 1000) / BG_ANIM_MS;
   if (progress_1000 > 1000) progress_1000 = 1000;
 
-  draw_all_markers(ctx, state, full_center, full_bounds, d, main_color, accent_color, bg, true, progress_1000);
+  draw_all_markers(ctx, state, center, bounds, d, main_color, accent_color, bg, true, progress_1000);
 }
 
 static void draw_planet_seek_overlay(GContext *ctx, CanvasState *state, const EclipseData *d,
@@ -2328,33 +2269,29 @@ static void draw_planet_seek_overlay(GContext *ctx, CanvasState *state, const Ec
 
   if (state->cached_sun_up) {
     // Space view (see SUN_COLOR_SPACE_R's own comment): flat color,
-    // not the normal altitude-based shift, plus animated rays (see
-    // draw_sun_rays()) since this whole overlay only exists while
-    // Planet seek's own shake-triggered animation is running.
-    // Weather/Clear sky modes use the real altitude-based color
-    // instead, same reasoning and same fix as draw_bg_anim_planets_
-    // overlay()'s own identical case above -- state->cached_sun_fill_color
-    // already reflects the Sun's real current altitude (Planet seek
-    // doesn't substitute sky_now the way the "Planets" bg-anim does,
-    // it only repositions bodies by compass heading, so there's no
-    // animated sweep to worry about here, just the correct color for
-    // right now).
+    // not the normal altitude-based shift. Weather/Clear sky modes use
+    // the real altitude-based color instead, same reasoning and same
+    // fix as draw_bg_anim_planets_overlay()'s own identical case above
+    // -- state->cached_sun_fill_color already reflects the Sun's real
+    // current altitude (Planet seek doesn't substitute sky_now the way
+    // the "Planets" bg-anim does, it only repositions bodies by
+    // compass heading, so there's no animated sweep to worry about
+    // here, just the correct color for right now).
     GColor sun_fill = (d->sky_mode == 2)
       ? GColorFromRGB(SUN_COLOR_SPACE_R, SUN_COLOR_SPACE_G, SUN_COLOR_SPACE_B)
       : state->cached_sun_fill_color;
     draw_planet_seek_body(ctx, bounds, "Sun", interp_sun_az_decideg(d, now), state->cached_sun_center, sun_r,
-                           sun_fill, heading_deg, eased_t_1000, d->label_style, main_color,
-                           d->sky_mode == 2, state->planet_seek_elapsed_ms);
+                           sun_fill, heading_deg, eased_t_1000, d->label_style, main_color);
   }
   if (state->cached_moon_visible) {
     draw_planet_seek_body(ctx, bounds, "Moon", interp_moon_az_decideg(d, now), state->cached_moon_center, moon_r,
-                           GColorWhite, heading_deg, eased_t_1000, d->label_style, main_color, false, 0);
+                           GColorWhite, heading_deg, eased_t_1000, d->label_style, main_color);
   }
   for (int p = 0; p < PLANET_COUNT; p++) {
     if (!state->cached_planet_visible[p]) continue;
     draw_planet_seek_body(ctx, bounds, PLANET_NAMES[p], interp_planet_az_decideg(d, (PlanetId)p, now),
                            state->cached_planet_center[p], PLANET_R, planet_color((PlanetId)p),
-                           heading_deg, eased_t_1000, d->label_style, main_color, false, 0);
+                           heading_deg, eased_t_1000, d->label_style, main_color);
   }
 }
 
@@ -2414,16 +2351,6 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
   // own separate always-drawn treatment further down, since they
   // don't exist at all outside this mode.
   bool sky_dark_for_bodies = sky_is_dark || d->sky_mode == 2;
-
-  // Full screen, captured before any shrink below -- the bottom info
-  // bar always sits at the true bottom of the physical screen
-  // regardless of whether the sky content above it has been
-  // compressed to make room.
-  GRect full_bounds = bounds;
-  if (d->bottom_info_bar_mode == 2) {
-    bounds.size.h -= 20;
-    center = GPoint(bounds.size.w / 2, bounds.size.h / 2);
-  }
 
   // Shared by every Sun/Moon/planet paint call below: skip painting
   // the body into this frame (it still gets fully positioned/sized as
@@ -2535,7 +2462,7 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
       draw_bg_anim_planets_overlay(ctx, state, d, bounds);
     }
     if (state->bg_anim_active && d->bg_anim_mode == 2) {
-      draw_bg_anim_markers_overlay(ctx, state, d, full_bounds, now);
+      draw_bg_anim_markers_overlay(ctx, state, d, bounds, now);
     }
     return;
   }
@@ -2934,31 +2861,6 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
     draw_weather_effect(ctx, bounds, d->weather_condition, cloud_pct, d->cloud_altitude_pct);
   }
 
-  // The clouds%/visibility/location bar (and its black "horizon"
-  // backing strip): off, shown only on shake (alongside the
-  // Sun/Moon/planet name labels), or permanently visible (in which
-  // case the sky content above has already been compressed by 20px,
-  // see full_bounds/bounds above, so this doesn't overlap it).
-  GRect ground = GRect(full_bounds.origin.x, full_bounds.origin.y + full_bounds.size.h - 18, full_bounds.size.w, 18);
-  bool show_bottom_bar = (d->bottom_info_bar_mode == 2) || (d->bottom_info_bar_mode == 1 && state->show_labels);
-  if (show_bottom_bar) {
-    graphics_context_set_fill_color(ctx, GColorBlack);
-    graphics_fill_rect(ctx, ground, 0, GCornerNone);
-
-    static char weather_buf[64];
-    if (d->location_name[0] != '\0') {
-      snprintf(weather_buf, sizeof(weather_buf), "Clds %d%% Vis %d%% @ %s",
-               d->cloud_cover_pct, d->vis_score_pct, d->location_name);
-    } else {
-      snprintf(weather_buf, sizeof(weather_buf), "Clouds %d%%  Vis %d%%",
-               d->cloud_cover_pct, d->vis_score_pct);
-    }
-    graphics_context_set_text_color(ctx, GColorWhite);
-    graphics_draw_text(ctx, weather_buf, fonts_get_system_font(FONT_KEY_GOTHIC_14),
-                        GRect(ground.origin.x + 4, ground.origin.y, ground.size.w - 8, 16),
-                        GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft, NULL);
-  }
-
   // Shake-to-reveal: brief name labels next to whichever bodies are
   // actually on screen right now. Needs its own main_color -- the
   // scheme lookup below is otherwise only computed further down,
@@ -2998,22 +2900,19 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
   }
 
   // Hour/second markers -- analog mode only. Drawn on top of
-  // everything above (sky, sun/moon, clouds, ground, labels) so they
-  // stay visible over any part of the sky, using full_bounds/its own
-  // unshrunk center rather than the (possibly bottom-bar-shrunk) `bounds`
-  // above -- matching hands_layer_update_proc's own positioning, which
-  // always uses the full unobstructed screen regardless of the bottom
-  // info bar, so markers and hands stay aligned with each other.
+  // everything above (sky, sun/moon, clouds, labels) so they stay
+  // visible over any part of the sky -- matching hands_layer_update_proc's
+  // own positioning, which always uses the full unobstructed screen, so
+  // markers and hands stay aligned with each other.
   // skip_marker_paint: this frame's markers get drawn afterward
   // instead, by draw_bg_anim_markers_overlay(), so the cache stays
   // marker-free for every subsequent cheap frame to blit and overlay
   // onto -- same "skip it here, draw it fresh as an overlay after"
   // trick skip_body_paint uses above for bg_anim_mode 1's bodies.
   if (d->bottom_style == 1 && !skip_marker_paint) {
-    GPoint full_center = GPoint(full_bounds.size.w / 2, full_bounds.size.h / 2);
     GColor bg, main_color, accent_color;
     get_active_color_scheme(d, now, &bg, &main_color, &accent_color);
-    draw_all_markers(ctx, state, full_center, full_bounds, d, main_color, accent_color, bg, false, 0);
+    draw_all_markers(ctx, state, center, bounds, d, main_color, accent_color, bg, false, 0);
   }
 
   // Cache what was just drawn: capture the real framebuffer (this is
@@ -3054,7 +2953,7 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
     draw_planet_seek_overlay(ctx, state, d, bounds, now, planet_seek_eased_t_1000(state, d), main_color);
   }
   if (state->bg_anim_active && d->bg_anim_mode == 2) {
-    draw_bg_anim_markers_overlay(ctx, state, d, full_bounds, now);
+    draw_bg_anim_markers_overlay(ctx, state, d, bounds, now);
   }
   if (state->bg_anim_active && d->bg_anim_mode == 1) {
     draw_bg_anim_planets_overlay(ctx, state, d, bounds);

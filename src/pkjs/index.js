@@ -90,7 +90,7 @@ var KEY_TYPE_MAP = (function () {
     'MIDDLE_LEFT_LINE2_CONTENT', 'MIDDLE_LEFT_LINE2_COLOR_MODE',
     'MIDDLE_RIGHT_LINE1_CONTENT', 'MIDDLE_RIGHT_LINE1_COLOR_MODE',
     'MIDDLE_RIGHT_LINE2_CONTENT', 'MIDDLE_RIGHT_LINE2_COLOR_MODE',
-    'BOTTOM_INFO_BAR_MODE', 'SHOW_SUN_TIME', 'SHOW_ISS', 'AURORA_ENABLED',
+    'SHOW_SUN_TIME', 'SHOW_ISS', 'AURORA_ENABLED',
     'DAILY_STEP_GOAL'
   ]);
 
@@ -510,10 +510,6 @@ function labelStyleCode() {
   if (isNaN(id) || id < 0 || id > 2) id = 0;
   return id;
 }
-function bottomInfoBarModeCode() {
-  var v = parseInt(getSetting('CONFIG_BOTTOM_INFO_BAR_MODE', '1'), 10);
-  return [0, 1, 2].indexOf(v) === -1 ? 1 : v;
-}
 
 // A single global style choice -- solid black shadows, or dithered
 // translucent ones -- applied to every hand's shadow. Defaults to translucent.
@@ -831,7 +827,6 @@ function populateSettingsFields(dict) {
   dict['ALTITUDE_UNIT'] = altitudeUnitCode();
   dict['SHAKE_LABEL_SECONDS'] = shakeLabelSecondsCode();
   dict['LABEL_STYLE'] = labelStyleCode();
-  dict['BOTTOM_INFO_BAR_MODE'] = bottomInfoBarModeCode();
   dict['SHADOW_TRANSLUCENT'] = shadowTranslucentCode();
   dict['SHADOW_ANGLE'] = shadowAngleCode();
   dict['BIG_ANALOG_MARKER_STYLE'] = bigAnalogMarkerStyleCode();
@@ -1580,7 +1575,6 @@ function sendFlatDict(dict) {
 '  "AQI_EU": 18,'+
 '  "SHAKE_LABEL_SECONDS": 8,'+
 '  "LABEL_STYLE": 0,'+
-'  "BOTTOM_INFO_BAR_MODE": 0,'+
 '  "SHADOW_TRANSLUCENT": 1,'+
 '  "SHADOW_ANGLE": 120,'+
 '  "BIG_ANALOG_MARKER_STYLE": 8,'+
@@ -2385,7 +2379,6 @@ Pebble.addEventListener('showConfiguration', function () {
     altitudeUnit: getSetting('CONFIG_ALTITUDE_UNIT', '0'),
     shakeLabelSeconds: getSetting('CONFIG_SHAKE_LABEL_SECONDS', '3'),
     labelStyle: getSetting('CONFIG_LABEL_STYLE', '0'),
-    bottomInfoBarMode: getSetting('CONFIG_BOTTOM_INFO_BAR_MODE', '1'),
     shadowTranslucent: getSetting('CONFIG_SHADOW_TRANSLUCENT', 'true'),
     shadowAngle: getSetting('CONFIG_SHADOW_ANGLE', '120'),
     bigAnalogMarkerStyle: getSetting('CONFIG_BIG_ANALOG_MARKER_STYLE', '0'),
@@ -2614,7 +2607,6 @@ Pebble.addEventListener('webviewclosed', function (e) {
   setSetting('CONFIG_ALTITUDE_UNIT', settings.CONFIG_ALTITUDE_UNIT || '0');
   setSetting('CONFIG_SHAKE_LABEL_SECONDS', settings.CONFIG_SHAKE_LABEL_SECONDS || '3');
   setSetting('CONFIG_LABEL_STYLE', settings.CONFIG_LABEL_STYLE || '0');
-  setSetting('CONFIG_BOTTOM_INFO_BAR_MODE', settings.CONFIG_BOTTOM_INFO_BAR_MODE || '1');
   setSetting('CONFIG_SHADOW_TRANSLUCENT', settings.CONFIG_SHADOW_TRANSLUCENT || 'true');
   setSetting('CONFIG_SHADOW_ANGLE', settings.CONFIG_SHADOW_ANGLE || '120');
   setSetting('CONFIG_BIG_ANALOG_MARKER_STYLE', settings.CONFIG_BIG_ANALOG_MARKER_STYLE || '0');

@@ -296,10 +296,6 @@ typedef struct {
                                  // outline, same technique corner/edge feature text already uses),
                                  // 2=Soft (plain light-gray text, no background or outline). See
                                  // draw_label() in background_layer.c.
-  uint8_t bottom_info_bar_mode; // user setting: the clouds%/visibility/location bar at the
-                                  // bottom of the sky view -- 0=off, 1=on shake (with the
-                                  // Sun/Moon/planet name labels), 2=permanent (sky view shifts
-                                  // up 20px to make room, rather than the bar overlapping it)
   bool vibrate_on_phase_change; // user setting: brief double vibration when the eclipse crosses
                                   // into its next phase (C1/C2/C3/C4) -- not on the "there's an
                                   // eclipse today, waiting" transition, only real contact events

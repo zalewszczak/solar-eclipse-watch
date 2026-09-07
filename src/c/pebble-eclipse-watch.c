@@ -704,9 +704,8 @@ static void hands_layer_update_proc(Layer *layer, GContext *ctx) {
 // that file's own top-of-file note. s_features_layer below is created
 // via features_layer_create()/destroyed via features_layer_destroy() in
 // apply_layout()/window_unload(), and fed with
-// features_layer_set_data()/set_labels_visible()/refresh_values()/
-// refresh_second_slots()/refresh_content() instead of being recomputed
-// on every redraw.
+// features_layer_set_data()/refresh_values()/refresh_second_slots()/
+// refresh_content() instead of being recomputed on every redraw.
 
 
 // ---- rendering ---------------------------------------------------------
@@ -1363,10 +1362,6 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
     s_data.label_style = t->value->uint8;
     if (s_canvas_layer) layer_mark_dirty(s_canvas_layer);
   }
-  if ((t = dict_find(iter, MESSAGE_KEY_BOTTOM_INFO_BAR_MODE))) {
-    s_data.bottom_info_bar_mode = t->value->uint8;
-    if (s_canvas_layer) layer_mark_dirty(s_canvas_layer);
-  }
   if ((t = dict_find(iter, MESSAGE_KEY_BG_ANIM_MODE))) {
     uint8_t v = t->value->uint8;
     s_data.bg_anim_mode = (v <= 2) ? v : 0; // clamped -- used as a raw array-free switch/compare, but still worth guarding against a stray out-of-range byte
@@ -1679,14 +1674,10 @@ static void hide_labels_callback(void *data) {
   s_label_timer = NULL;
   s_labels_visible = false;
   eclipse_canvas_set_show_labels(s_canvas_layer, false);
-  // Recomputes (not just marks dirty) since the bottom corners' shift-up-
-  // for-the-info-bar offset depends on s_labels_visible -- see
-  // features_recompute_slots() in features_layer.c.
-  if (s_features_layer) features_layer_set_labels_visible(s_features_layer, false);
 }
 
 static void tap_handler(AccelAxisType axis, int32_t direction) {
-  // Planet seek (shake_anim_mode 4) draws its own dynamic label next
+  // Planet seek (shake_anim_mode 2) draws its own dynamic label next
   // to each body, tracking its live compass-relative position as the
   // watch turns (see draw_planet_seek_body() in background_layer.c) --
   // turning on the regular, fixed-position shake-to-reveal labels too
@@ -1694,14 +1685,12 @@ static void tap_handler(AccelAxisType axis, int32_t direction) {
   // eclipse-time position, one actually moving with the seek
   // animation, laid right on top of each other. Skipped only for the
   // canvas's own per-body labels (eclipse_canvas_set_show_labels) --
-  // the reveal window itself (s_labels_visible, the small-analog
-  // panel's layout shift, the shake_anim burst) still needs to open
-  // normally regardless of which mode is active.
-  if (s_data.shake_anim_mode != 4) {
+  // the reveal window itself (s_labels_visible, the shake_anim burst)
+  // still needs to open normally regardless of which mode is active.
+  if (s_data.shake_anim_mode != 2) {
     eclipse_canvas_set_show_labels(s_canvas_layer, true);
   }
   s_labels_visible = true;
-  if (s_features_layer) features_layer_set_labels_visible(s_features_layer, true);
   uint8_t seconds = s_data.shake_label_seconds > 0 ? s_data.shake_label_seconds : 3;
   uint32_t reveal_ms = (uint32_t)seconds * 1000;
   if (s_label_timer) {

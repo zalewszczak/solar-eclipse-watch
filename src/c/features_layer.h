@@ -16,10 +16,9 @@
 //
 //   - LAYOUT (which of the 12 slots are active, and where each one's box
 //     sits) depends only on settings (bottom_style, big_analog_marker_style,
-//     bottom_info_bar_mode, the corner/edge content+color-mode fields) plus
-//     the shake-triggered label state -- resolved by
+//     the corner/edge content+color-mode fields) -- resolved by
 //     features_recompute_layout() (features_layer.c, private), only ever
-//     called from features_layer_set_data()/set_labels_visible() below.
+//     called from features_layer_set_data() below.
 //
 //   - VALUE (the actual text/icon/color for a slot's current content --
 //     a health reading, the weather, the clock, a compass heading) changes

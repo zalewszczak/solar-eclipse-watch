@@ -1166,7 +1166,6 @@ typedef struct {
 
 typedef struct {
   EclipseData *data;
-  bool labels_visible;
   FeatureSlot slots[FEATURES_MAX_SLOTS];
 } FeaturesState;
 
@@ -2369,16 +2368,15 @@ static void features_draw_slot(GContext *ctx, GRect bounds, const FeatureSlot *s
   }
 }
 
-// ---- layout resolution (settings/shake-driven) -------------------------
+// ---- layout resolution (settings-driven) -------------------------
 //
 // Which of the 12 slots are even active, and where each one's box
 // sits, depends only on settings (bottom_style, big_analog_marker_style,
-// bottom_info_bar_mode, the corner/edge content+color-mode fields) plus
-// the shake-triggered label state -- never on the current time or any
-// live reading. Resolved here, then features_recompute_slot_value() is
-// called once per newly-active slot to fill in its actual content --
-// see features_layer_set_data()/set_labels_visible() below for when
-// this whole function runs (settings/shake changes) versus
+// the corner/edge content+color-mode fields) -- never on the current
+// time, any live reading, or the shake-to-reveal state. Resolved here,
+// then features_recompute_slot_value() is called once per newly-active
+// slot to fill in its actual content -- see features_layer_set_data()
+// below for when this whole function runs (a settings change) versus
 // features_layer_refresh_values()/refresh_second_slots() (which only
 // re-run the VALUE half, for slots whose layout hasn't changed at all).
 // Which horizontal band of the digital clock panel's full width the
@@ -2416,23 +2414,17 @@ static void features_recompute_layout(FeaturesState *state) {
   uint8_t marker_style = d->big_analog_marker_style;
   bool is_bitmap_style = is_analog && marker_style >= 3 && marker_style != 8 && marker_style != 9;
 
-  bool show_upper = false, show_bottom = false, show_left = false, show_right = false;
-  if (is_analog) {
-    if (marker_style < 3 || marker_style == 8 || marker_style == 9) {
-      show_upper = show_bottom = show_left = show_right = true;
-    } else {
-      switch (marker_style) {
-        case 3: case 4: case 6: // Modern, Swiss, Bell -- only top middle and bottom middle
-          show_upper = show_bottom = true;
-          break;
-        case 5: case 7: // Tally, Brown -- all inside
-          show_upper = show_bottom = show_left = show_right = true;
-          break;
-        default:
-          break;
-      }
-    }
-  }
+  // Which of the 12 slots actually apply for the current marker/
+  // bottom_style is decided entirely on the phone (see
+  // computeSlotAvailability()/CORNER_CATEGORIES in config-page.js and
+  // the availability check in index.js's dict-building step) -- by the
+  // time a content field reaches here, it's already 0 ("None") for any
+  // slot that shouldn't show for the current style, so this file just
+  // builds every slot from whatever content it was given, unconditionally,
+  // and trusts a content of 0 to mean "draws nothing" (already true --
+  // see features_recompute_slot_value()'s own content==0 early return)
+  // rather than keeping its own separate copy of "which styles support
+  // which slots" to decide that upfront.
 
   // Inner-empty-area margins: procedural presets (0/1/2) and "none" (9)
   // are calculated from that style's own marker-ring geometry via
@@ -2484,7 +2476,7 @@ static void features_recompute_layout(FeaturesState *state) {
     if (right_reach > dyn_right_inset) dyn_right_inset = right_reach;
   }
 
-  if (show_upper) {
+  if (is_analog) {
     bool has_line2 = d->upper_middle_line2_content != 0;
     int16_t line1_offset = has_line2 ? dyn_upper_offset : dyn_upper_offset + CORNER_ROW_H / 2;
     state->slots[SLOT_UPPER_L1] = (FeatureSlot){
@@ -2503,9 +2495,8 @@ static void features_recompute_layout(FeaturesState *state) {
         .needs_second_refresh = content_needs_second_refresh(d->upper_middle_line2_content),
       };
     }
-  }
-  if (show_bottom) {
-    bool has_line2 = d->bottom_middle_line2_content != 0;
+
+    has_line2 = d->bottom_middle_line2_content != 0;
     int16_t line1_shift = has_line2 ? dyn_bottom_shift + CORNER_ROW_H : dyn_bottom_shift + CORNER_ROW_H / 2;
     state->slots[SLOT_BOTTOM_L1] = (FeatureSlot){
       .active = true, .content = d->bottom_middle_line1_content, .color_mode = d->bottom_middle_line1_color_mode,
@@ -2523,10 +2514,9 @@ static void features_recompute_layout(FeaturesState *state) {
         .needs_second_refresh = content_needs_second_refresh(d->bottom_middle_line2_content),
       };
     }
-  }
-  if (show_left) {
-    bool has_line2 = d->middle_left_line2_content != 0;
-    int16_t line1_offset = has_line2 ? -(CORNER_ROW_H / 2) : 0;
+
+    has_line2 = d->middle_left_line2_content != 0;
+    line1_offset = has_line2 ? -(CORNER_ROW_H / 2) : 0;
     state->slots[SLOT_LEFT_L1] = (FeatureSlot){
       .active = true, .content = d->middle_left_line1_content, .color_mode = d->middle_left_line1_color_mode,
       .is_top = false, .is_left = true, .is_middle = true,
@@ -2543,10 +2533,9 @@ static void features_recompute_layout(FeaturesState *state) {
         .needs_second_refresh = content_needs_second_refresh(d->middle_left_line2_content),
       };
     }
-  }
-  if (show_right) {
-    bool has_line2 = d->middle_right_line2_content != 0;
-    int16_t line1_offset = has_line2 ? -(CORNER_ROW_H / 2) : 0;
+
+    has_line2 = d->middle_right_line2_content != 0;
+    line1_offset = has_line2 ? -(CORNER_ROW_H / 2) : 0;
     state->slots[SLOT_RIGHT_L1] = (FeatureSlot){
       .active = true, .content = d->middle_right_line1_content, .color_mode = d->middle_right_line1_color_mode,
       .is_top = false, .is_left = false, .is_middle = true,
@@ -2577,68 +2566,64 @@ static void features_recompute_layout(FeaturesState *state) {
   // separate set of digital-only fields -- the two modes never run at
   // once, so there's nothing to actually preserve by keeping them
   // apart, and sharing saves both the extra bytes on the watch and the
-  // extra AppMessage keys/traffic a second set would cost. Side
-  // columns only appear at all when their bottom_style value turns
-  // them on; the bottom feature always appears (shares
-  // bottom_middle_line1's existing default of content 12, short date).
+  // extra AppMessage keys/traffic a second set would cost. Which side
+  // columns actually apply for the current bottom_style (0/2/3/4) is
+  // decided phone-side same as everything else here -- the content
+  // fields already arrive zeroed for whichever side isn't turned on,
+  // so both columns are just built unconditionally below.
   if (!is_analog) {
-    bool show_left_col = (d->bottom_style == 3 || d->bottom_style == 4);
-    bool show_right_col = (d->bottom_style == 2 || d->bottom_style == 4);
     int16_t clock_x, clock_w;
     digital_clock_area(d->bottom_style, 200, &clock_x, &clock_w);
 
-    if (show_left_col) {
-      // 1 = top (nearest the clock), 3 = bottom (nearest the screen
-      // edge) -- all bottom-anchored (not top-anchored off a fixed
-      // panel offset) so a shrinking screen during a system
-      // notification shifts the whole stack up together, same as the
-      // corners already do, rather than the top row drifting away from
-      // the panel it's meant to sit inside.
-      state->slots[SLOT_LEFT_L1] = (FeatureSlot){
-        .active = true, .content = d->middle_left_line1_content, .color_mode = d->middle_left_line1_color_mode,
-        .is_top = false, .is_left = true, .is_middle = false,
-        .top_offset = 0, .bottom_shift = CORNER_ROW_H * 2, .middle_inset = 0,
-        .center_horizontal = false, .center_vertical = false, .allow_outline = true,
-        .needs_second_refresh = content_needs_second_refresh(d->middle_left_line1_content),
-      };
-      state->slots[SLOT_LEFT_L2] = (FeatureSlot){
-        .active = true, .content = d->middle_left_line2_content, .color_mode = d->middle_left_line2_color_mode,
-        .is_top = false, .is_left = true, .is_middle = false,
-        .top_offset = 0, .bottom_shift = CORNER_ROW_H, .middle_inset = 0,
-        .center_horizontal = false, .center_vertical = false, .allow_outline = true,
-        .needs_second_refresh = content_needs_second_refresh(d->middle_left_line2_content),
-      };
-      state->slots[SLOT_UPPER_L1] = (FeatureSlot){ // reused: digital left column, row 3 -- reads upper_middle_line1
-        .active = true, .content = d->upper_middle_line1_content, .color_mode = d->upper_middle_line1_color_mode,
-        .is_top = false, .is_left = true, .is_middle = false,
-        .top_offset = 0, .bottom_shift = 0, .middle_inset = 0,
-        .center_horizontal = false, .center_vertical = false, .allow_outline = true,
-        .needs_second_refresh = content_needs_second_refresh(d->upper_middle_line1_content),
-      };
-    }
-    if (show_right_col) {
-      state->slots[SLOT_RIGHT_L1] = (FeatureSlot){
-        .active = true, .content = d->middle_right_line1_content, .color_mode = d->middle_right_line1_color_mode,
-        .is_top = false, .is_left = false, .is_middle = false,
-        .top_offset = 0, .bottom_shift = CORNER_ROW_H * 2, .middle_inset = 0,
-        .center_horizontal = false, .center_vertical = false, .allow_outline = true,
-        .needs_second_refresh = content_needs_second_refresh(d->middle_right_line1_content),
-      };
-      state->slots[SLOT_RIGHT_L2] = (FeatureSlot){
-        .active = true, .content = d->middle_right_line2_content, .color_mode = d->middle_right_line2_color_mode,
-        .is_top = false, .is_left = false, .is_middle = false,
-        .top_offset = 0, .bottom_shift = CORNER_ROW_H, .middle_inset = 0,
-        .center_horizontal = false, .center_vertical = false, .allow_outline = true,
-        .needs_second_refresh = content_needs_second_refresh(d->middle_right_line2_content),
-      };
-      state->slots[SLOT_UPPER_L2] = (FeatureSlot){ // reused: digital right column, row 3 -- reads upper_middle_line2
-        .active = true, .content = d->upper_middle_line2_content, .color_mode = d->upper_middle_line2_color_mode,
-        .is_top = false, .is_left = false, .is_middle = false,
-        .top_offset = 0, .bottom_shift = 0, .middle_inset = 0,
-        .center_horizontal = false, .center_vertical = false, .allow_outline = true,
-        .needs_second_refresh = content_needs_second_refresh(d->upper_middle_line2_content),
-      };
-    }
+    // 1 = top (nearest the clock), 3 = bottom (nearest the screen
+    // edge) -- all bottom-anchored (not top-anchored off a fixed
+    // panel offset) so a shrinking screen during a system
+    // notification shifts the whole stack up together, same as the
+    // corners already do, rather than the top row drifting away from
+    // the panel it's meant to sit inside.
+    state->slots[SLOT_LEFT_L1] = (FeatureSlot){
+      .active = true, .content = d->middle_left_line1_content, .color_mode = d->middle_left_line1_color_mode,
+      .is_top = false, .is_left = true, .is_middle = false,
+      .top_offset = 0, .bottom_shift = CORNER_ROW_H * 2, .middle_inset = 0,
+      .center_horizontal = false, .center_vertical = false, .allow_outline = true,
+      .needs_second_refresh = content_needs_second_refresh(d->middle_left_line1_content),
+    };
+    state->slots[SLOT_LEFT_L2] = (FeatureSlot){
+      .active = true, .content = d->middle_left_line2_content, .color_mode = d->middle_left_line2_color_mode,
+      .is_top = false, .is_left = true, .is_middle = false,
+      .top_offset = 0, .bottom_shift = CORNER_ROW_H, .middle_inset = 0,
+      .center_horizontal = false, .center_vertical = false, .allow_outline = true,
+      .needs_second_refresh = content_needs_second_refresh(d->middle_left_line2_content),
+    };
+    state->slots[SLOT_UPPER_L1] = (FeatureSlot){ // reused: digital left column, row 3 -- reads upper_middle_line1
+      .active = true, .content = d->upper_middle_line1_content, .color_mode = d->upper_middle_line1_color_mode,
+      .is_top = false, .is_left = true, .is_middle = false,
+      .top_offset = 0, .bottom_shift = 0, .middle_inset = 0,
+      .center_horizontal = false, .center_vertical = false, .allow_outline = true,
+      .needs_second_refresh = content_needs_second_refresh(d->upper_middle_line1_content),
+    };
+
+    state->slots[SLOT_RIGHT_L1] = (FeatureSlot){
+      .active = true, .content = d->middle_right_line1_content, .color_mode = d->middle_right_line1_color_mode,
+      .is_top = false, .is_left = false, .is_middle = false,
+      .top_offset = 0, .bottom_shift = CORNER_ROW_H * 2, .middle_inset = 0,
+      .center_horizontal = false, .center_vertical = false, .allow_outline = true,
+      .needs_second_refresh = content_needs_second_refresh(d->middle_right_line1_content),
+    };
+    state->slots[SLOT_RIGHT_L2] = (FeatureSlot){
+      .active = true, .content = d->middle_right_line2_content, .color_mode = d->middle_right_line2_color_mode,
+      .is_top = false, .is_left = false, .is_middle = false,
+      .top_offset = 0, .bottom_shift = CORNER_ROW_H, .middle_inset = 0,
+      .center_horizontal = false, .center_vertical = false, .allow_outline = true,
+      .needs_second_refresh = content_needs_second_refresh(d->middle_right_line2_content),
+    };
+    state->slots[SLOT_UPPER_L2] = (FeatureSlot){ // reused: digital right column, row 3 -- reads upper_middle_line2
+      .active = true, .content = d->upper_middle_line2_content, .color_mode = d->upper_middle_line2_color_mode,
+      .is_top = false, .is_left = false, .is_middle = false,
+      .top_offset = 0, .bottom_shift = 0, .middle_inset = 0,
+      .center_horizontal = false, .center_vertical = false, .allow_outline = true,
+      .needs_second_refresh = content_needs_second_refresh(d->upper_middle_line2_content),
+    };
 
     // Single bottom feature -- reuses bottom_middle_line1 (analog's
     // upper of its own 2-line pair; bottom_middle_line2 has no
@@ -2661,10 +2646,6 @@ static void features_recompute_layout(FeaturesState *state) {
   // every marker style including bitmap ones -- defaulting that to
   // "off" for bitmap styles (and offering an "enable corner features"
   // override) is the settings page's job, not this file's.
-  bool bar_will_draw = (d->bottom_info_bar_mode == 2) ||
-                        (d->bottom_info_bar_mode == 1 && state->labels_visible);
-  int16_t bottom_shift = bar_will_draw ? 18 : 0;
-
   state->slots[SLOT_CORNER_TL] = (FeatureSlot){
     .active = true, .content = d->corner_content[0], .color_mode = d->corner_color_mode[0],
     .is_top = true, .is_left = true, .is_middle = false,
@@ -2682,14 +2663,14 @@ static void features_recompute_layout(FeaturesState *state) {
   state->slots[SLOT_CORNER_BL] = (FeatureSlot){
     .active = true, .content = d->corner_content[2], .color_mode = d->corner_color_mode[2],
     .is_top = false, .is_left = true, .is_middle = false,
-    .top_offset = 0, .bottom_shift = bottom_shift,
+    .top_offset = 0, .bottom_shift = 0,
     .center_horizontal = false, .center_vertical = false, .allow_outline = true,
     .needs_second_refresh = content_needs_second_refresh(d->corner_content[2]),
   };
   state->slots[SLOT_CORNER_BR] = (FeatureSlot){
     .active = true, .content = d->corner_content[3], .color_mode = d->corner_color_mode[3],
     .is_top = false, .is_left = false, .is_middle = false,
-    .top_offset = 0, .bottom_shift = bottom_shift,
+    .top_offset = 0, .bottom_shift = 0,
     .center_horizontal = false, .center_vertical = false, .allow_outline = true,
     .needs_second_refresh = content_needs_second_refresh(d->corner_content[3]),
   };
@@ -2747,8 +2728,8 @@ static void features_recompute_second_slots(FeaturesState *state) {
 //
 // Does no computation of its own at all -- every slot's position,
 // color, icon, and text was already resolved by whichever of
-// features_layer_set_data()/set_labels_visible()/refresh_values()/
-// refresh_second_slots() last ran. This is purely a blit loop.
+// features_layer_set_data()/refresh_values()/refresh_second_slots()
+// last ran. This is purely a blit loop.
 static void features_layer_update_proc(Layer *layer, GContext *ctx) {
   FeaturesState *state = (FeaturesState *)layer_get_data(layer);
   if (!state->data) return;
@@ -2772,7 +2753,6 @@ Layer *features_layer_create(GRect frame) {
   Layer *layer = layer_create_with_data(frame, sizeof(FeaturesState));
   FeaturesState *state = (FeaturesState *)layer_get_data(layer);
   state->data = NULL;
-  state->labels_visible = false;
   for (int i = 0; i < FEATURES_MAX_SLOTS; i++) state->slots[i].active = false;
   layer_set_update_proc(layer, features_layer_update_proc);
   return layer;
@@ -2785,14 +2765,6 @@ void features_layer_destroy(Layer *layer) {
 void features_layer_set_data(Layer *layer, EclipseData *data) {
   FeaturesState *state = (FeaturesState *)layer_get_data(layer);
   state->data = data;
-  features_recompute_layout(state);
-  features_recompute_all_values(state);
-  layer_mark_dirty(layer);
-}
-
-void features_layer_set_labels_visible(Layer *layer, bool visible) {
-  FeaturesState *state = (FeaturesState *)layer_get_data(layer);
-  state->labels_visible = visible;
   features_recompute_layout(state);
   features_recompute_all_values(state);
   layer_mark_dirty(layer);
