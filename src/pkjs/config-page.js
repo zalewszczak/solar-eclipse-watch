@@ -1369,7 +1369,16 @@ function buildConfigHtml(current) {
 // what it actually looks like rather than just adapting a silhouette's
 // polarity to the theme.
 '  .weather-icon-style-preview { flex: 0 0 25%; }' +
-'  .weather-icon-style-preview img { max-width: 100%; max-height: 100%; display: block; image-rendering: pixelated; }' +
+// Fixed pixel cap rather than max-width/max-height:100% -- percentages
+// here resolve against this flex cell's own auto height, which is
+// itself set BY the image (align-items:center row, nothing else
+// tall in it), so "100%" was really "however big the source PNG
+// happens to be" (64x48 native, see generate-weather-icon-previews.js)
+// with nothing actually constraining it. That's what made the icons
+// -- and with them the whole button row, padding included -- too
+// big. A real pixel size keeps every button the same compact height
+// no matter what resolution the 3 source icons are authored at.
+'  .weather-icon-style-preview img { width: 28px; height: 28px; object-fit: contain; display: block; image-rendering: pixelated; }' +
 // The always-visible trigger button that replaces each plain <select>
 // -- looks like one .font-picker-btn row (so the CURRENTLY chosen
 // font is already shown in its own real typeface before the popup
@@ -2164,8 +2173,14 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    <div class="help">Ignored during an actual eclipse, which sizes the Sun and Moon by their real geometry instead.</div>' +
 
 '    <div class="subsection">' +
-'      <label for="shakeLabelSeconds">Shake-to-reveal labels stay on screen for</label>' +
-'      <input type="number" id="shakeLabelSeconds" min="1" max="10" step="1" value="' + esc(current.shakeLabelSeconds || '3') + '"> seconds' +
+'      <div class="slider-row">' +
+'        <label for="shakeLabelSeconds">Shake-to-reveal labels stay on screen for <span class="val" id="shakeLabelSecondsVal">' + esc(current.shakeLabelSeconds || '3') + 's</span></label>' +
+'        <div class="slider-with-buttons">' +
+'        <button type="button" class="slider-step-btn" onclick="stepSlider(\'shakeLabelSeconds\', -1)">&minus;</button>' +
+'          <input type="range" id="shakeLabelSeconds" min="0" max="30" step="1" value="' + esc(current.shakeLabelSeconds || '3') + '" oninput="document.getElementById(\'shakeLabelSecondsVal\').textContent = this.value + \'s\';">' +
+'        <button type="button" class="slider-step-btn" onclick="stepSlider(\'shakeLabelSeconds\', 1)">+</button>' +
+'        </div>' +
+'      </div>' +
 '    </div>' +
 
 '    <label>Label style</label>' +
@@ -2221,8 +2236,14 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  <fieldset>' +
 '    <div class="section-legend" onclick="toggleSection(\'updates\')">Updates <span class="chevron" id="chev-updates">&#9656;</span></div>' +
 '    <div class="section-body" id="section-updates" style="display:none;">' +
-'    <label for="updateMins">Refresh interval (minutes, 5-60)</label>' +
-'    <input type="number" id="updateMins" min="5" max="60" step="5" value="' + esc(current.updateMins) + '">' +
+'    <div class="slider-row">' +
+'      <label for="updateMins">Refresh interval <span class="val" id="updateMinsVal">' + esc(current.updateMins) + ' min</span></label>' +
+'      <div class="slider-with-buttons">' +
+'      <button type="button" class="slider-step-btn" onclick="stepSlider(\'updateMins\', -5)">&minus;</button>' +
+'        <input type="range" id="updateMins" min="5" max="60" step="5" value="' + esc(current.updateMins) + '" oninput="document.getElementById(\'updateMinsVal\').textContent = this.value + \' min\';">' +
+'      <button type="button" class="slider-step-btn" onclick="stepSlider(\'updateMins\', 5)">+</button>' +
+'      </div>' +
+'    </div>' +
 '    <div class="help">The watch won\'t re-fetch more often than this unless your location changes by more than ~10km.</div>' +
 '    <button type="button" class="secondary-btn" onclick="save(true)">Force refresh now</button>' +
 '    <div class="help">Fetches fresh data on the same terms as a normal refresh, bypassing the "don\'t refetch if recent and unmoved" skip. See the Debug section below to inspect exactly what gets sent.</div>' +
