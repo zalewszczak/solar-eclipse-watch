@@ -39,7 +39,7 @@ void eclipse_canvas_set_show_labels(Layer *layer, bool show);
 // exact condition.
 void eclipse_canvas_set_bg_anim(Layer *layer, bool active, uint16_t elapsed_ms);
 
-// Drives "Planet seek" (shake_anim_mode 4) -- see its own comment in
+// Drives "Planet seek" (shake_anim_mode 2 or 3) -- see its own comment in
 // canvas_update_proc(), and shake_anim_mode's own comment in
 // eclipse_data.h for the feature as a whole.
 void eclipse_canvas_set_planet_seek(Layer *layer, bool active, uint16_t elapsed_ms, int32_t heading_deg);

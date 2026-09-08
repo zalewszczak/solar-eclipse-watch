@@ -59,6 +59,22 @@ static FontSlot s_clock_font_slot = FONT_SLOT_EMPTY;
 // static declarations:
 static void tick_handler(struct tm *tick_time, TimeUnits units_changed);
 
+// ---- battery saver (sleep mode) state -- see the full block near
+// corners_timer_callback() below for the actual logic/comments. Just
+// the enum + runtime state + forward declarations here, since
+// update_tick_subscription() and refresh_status_and_maybe_canvas()
+// (both defined well before that block) need to read/react to this.
+typedef enum {
+  BATTERY_SAVER_AWAKE = 0,
+  BATTERY_SAVER_SLEEP = 1,      // >=2h since the last shake
+  BATTERY_SAVER_DEEP_SLEEP = 2, // >=4h since the last shake
+} BatterySaverPhase;
+static time_t s_last_shake_time = 0;
+static BatterySaverPhase s_battery_saver_phase = BATTERY_SAVER_AWAKE;
+static BatterySaverPhase battery_saver_compute_phase(time_t now);
+static void battery_saver_apply_phase_change(BatterySaverPhase new_phase);
+static void battery_saver_send_phase_to_phone(BatterySaverPhase phase);
+
 // ---- color schemes ------------------------------------------------------
 
 // Built at runtime via GColorFromRGB rather than named palette
@@ -291,21 +307,37 @@ static void compute_startup_hand_anim(int32_t target_angle, uint16_t elapsed_ms,
 // ---- shake animation ------------------------------------------------------
 // User setting ("On shake animation" section, off by default, radio-style
 // single choice via shake_anim_mode: 0=off, 1=smooth second hand, 2=Planet
-// seek -- see its own eclipse_data.h comment): while the shake-to-reveal
-// labels are up, the second hand (if shown) switches from its normal
-// once-a-second jump to continuous sub-second motion (mode 1), or the sky
-// view repositions to face wherever the compass currently points (mode 2,
-// see maybe_start_compass_feature()). Driven by its own fast timer, same
-// shape as the two startup animations above -- and, like them, keyed off a
-// frame counter (s_shake_anim_elapsed_ms) rather than wall-clock time(NULL)
-// seconds, so many consecutive redraws within the same second don't all
-// compute an identical value.
+// seek, 3=Both -- see its own eclipse_data.h comment): while the shake-to-
+// reveal labels are up, the second hand (if shown) switches from its normal
+// once-a-second jump to continuous sub-second motion (mode 1 or 3), and/or
+// the sky view repositions to face wherever the compass currently points
+// (mode 2 or 3, see maybe_start_compass_feature()). Every site below that
+// cares which behavior(s) are wanted goes through
+// shake_anim_wants_smooth_second()/shake_anim_wants_planet_seek() rather
+// than comparing shake_anim_mode to 1 or 2 directly -- both used to just
+// key off s_shake_anim_active being true, which meant Planet seek (mode 2)
+// silently dragged smooth-second along with it any time seconds were shown,
+// since nothing actually distinguished "shake anim is running at all" from
+// "smooth second hand specifically was the one requested". Driven by its
+// own fast timer, same shape as the two startup animations above -- and,
+// like them, keyed off a frame counter (s_shake_anim_elapsed_ms) rather
+// than wall-clock time(NULL) seconds, so many consecutive redraws within
+// the same second don't all compute an identical value.
 #define SHAKE_ANIM_FRAME_MS 33 // 30fps, per request
 
 static AppTimer *s_shake_anim_timer = NULL;
 static bool s_shake_anim_active = false;
 static uint32_t s_shake_anim_elapsed_ms = 0;
 static uint32_t s_shake_anim_duration_ms = 3000;
+
+// True for shake_anim_mode 1 (smooth second hand only) or 3 (Both).
+static bool shake_anim_wants_smooth_second(uint8_t mode) {
+  return mode == 1 || mode == 3;
+}
+// True for shake_anim_mode 2 (Planet seek only) or 3 (Both).
+static bool shake_anim_wants_planet_seek(uint8_t mode) {
+  return mode == 2 || mode == 3;
+}
 
 // ---- shared ease-out lookup table -----------------------------------
 // Cubic ease-out (1-(1-t)^3), precomputed at 21 points (0, 50, 100,
@@ -570,7 +602,7 @@ static void maybe_start_compass_feature(void) {
   compass_service_subscribe(compass_feature_handler);
 }
 
-// While Planet seek (shake_anim_mode 4) is active, the countdown label
+// While Planet seek (shake_anim_mode 2 or 3) is active, the countdown label
 // at the top of the screen would otherwise just sit hidden (per
 // countdown_layer_update_proc's own comment, it only ever shows
 // eclipse-phase text, and Planet seek never runs on an eclipse day --
@@ -603,19 +635,20 @@ static void update_planet_seek_accuracy_label(bool active) {
 static void shake_anim_timer_callback(void *data) {
   s_shake_anim_elapsed_ms += SHAKE_ANIM_FRAME_MS;
   bool still_active = s_labels_visible && s_shake_anim_elapsed_ms < s_shake_anim_duration_ms;
+  bool planet_seek_wanted = shake_anim_wants_planet_seek(s_data.shake_anim_mode);
   if (!still_active) {
     s_shake_anim_active = false;
     s_shake_anim_timer = NULL;
-    if (s_data.shake_anim_mode == 2) compass_service_unsubscribe(); // stop the magnetometer the moment planet seek's own window ends, not just on app exit
+    if (planet_seek_wanted) compass_service_unsubscribe(); // stop the magnetometer the moment planet seek's own window ends, not just on app exit
   } else {
     s_shake_anim_timer = app_timer_register(SHAKE_ANIM_FRAME_MS, shake_anim_timer_callback, NULL);
   }
-  if (s_data.shake_anim_mode == 2) planet_seek_heading_physics_step(); // advance the compass spring exactly once per frame, regardless of how often raw samples arrived -- see this function's own comment
-  if (s_data.shake_anim_mode == 2) update_planet_seek_accuracy_label(still_active);
+  if (planet_seek_wanted) planet_seek_heading_physics_step(); // advance the compass spring exactly once per frame, regardless of how often raw samples arrived -- see this function's own comment
+  if (planet_seek_wanted) update_planet_seek_accuracy_label(still_active);
   if (s_hands_layer) layer_mark_dirty(s_hands_layer);
   if (s_features_layer) layer_mark_dirty(s_features_layer);
   if (s_countdown_layer) layer_mark_dirty(s_countdown_layer);
-  if (s_canvas_layer && s_data.shake_anim_mode == 2) {
+  if (s_canvas_layer && planet_seek_wanted) {
     eclipse_canvas_set_planet_seek(s_canvas_layer, still_active, s_shake_anim_elapsed_ms, planet_seek_heading_deg());
   }
 }
@@ -626,14 +659,14 @@ static void shake_anim_timer_callback(void *data) {
 // the gradient/hand-smoothing window rather than just extending it.
 static void maybe_start_shake_animation(void) {
   if (s_data.shake_anim_mode == 0) return;
-  if (s_data.shake_anim_mode == 2 && s_data.has_eclipse) return; // Planet seek never runs on an eclipse day, per request
+  if (shake_anim_wants_planet_seek(s_data.shake_anim_mode) && s_data.has_eclipse) return; // Planet seek (modes 2 and 3) never runs on an eclipse day, per request
   s_shake_anim_active = true;
   s_shake_anim_elapsed_ms = 0;
   uint8_t seconds = s_data.shake_label_seconds > 0 ? s_data.shake_label_seconds : 3;
   s_shake_anim_duration_ms = (uint32_t)seconds * 1000;
   if (s_shake_anim_timer) app_timer_cancel(s_shake_anim_timer);
   s_shake_anim_timer = app_timer_register(SHAKE_ANIM_FRAME_MS, shake_anim_timer_callback, NULL);
-  if (s_data.shake_anim_mode == 2) {
+  if (shake_anim_wants_planet_seek(s_data.shake_anim_mode)) {
     // Fresh compass smoothing state each time Planet seek (re)starts
     // -- see s_planet_seek_heading_has_reading's own comment for why
     // (otherwise the first reading of a new session would slowly
@@ -680,7 +713,7 @@ static void hands_layer_update_proc(Layer *layer, GContext *ctx) {
   int32_t min_angle = ((t->tm_min * 60 + t->tm_sec) * TRIG_MAX_ANGLE) / (60 * 60);
 
   int32_t sec_angle;
-  if (s_shake_anim_active && s_data.show_seconds) {
+  if (s_shake_anim_active && s_data.show_seconds && shake_anim_wants_smooth_second(s_data.shake_anim_mode)) {
     // Shake animation: continuous sub-second motion instead of the
     // normal once-a-second jump -- time_ms() gives a fresh timestamp
     // with its own within-the-second millisecond offset, read
@@ -891,7 +924,24 @@ static void refresh_status_and_maybe_canvas(bool force_canvas) {
   // now (see eclipse_get_status_text), so there's nothing for it to
   // show in that case. Error/loading states still display normally,
   // since those aren't "no eclipse," they're "don't know yet."
-  layer_set_hidden(s_countdown_layer, s_data.valid && !s_data.has_eclipse);
+  bool hide_label = s_data.valid && !s_data.has_eclipse;
+
+  // Battery saver's sleep/deep-sleep indicator takes over this same
+  // top-of-screen label -- same free-real-estate reasoning
+  // update_planet_seek_accuracy_label() already uses for Planet
+  // seek's own compass-accuracy warning just below. The two never
+  // actually collide: Planet seek only ever runs in the few seconds
+  // right after a shake, which is exactly what resets battery saver
+  // straight back to BATTERY_SAVER_AWAKE (see tap_handler()).
+  if (s_battery_saver_phase == BATTERY_SAVER_DEEP_SLEEP) {
+    snprintf(s_countdown_buf, sizeof(s_countdown_buf), "Zzzzzzz");
+    hide_label = false;
+  } else if (s_battery_saver_phase == BATTERY_SAVER_SLEEP) {
+    snprintf(s_countdown_buf, sizeof(s_countdown_buf), "Zzz");
+    hide_label = false;
+  }
+
+  layer_set_hidden(s_countdown_layer, hide_label);
   layer_mark_dirty(s_countdown_layer);
 
   // The bottom canvas (time/date, or the analog clock) is cheap
@@ -1134,7 +1184,14 @@ static bool need_second_precision(void) {
 }
 
 static void update_tick_subscription(void) {
-  bool need_seconds = need_second_precision();
+  // Battery saver overrides need_second_precision() outright while
+  // resting -- see the "battery saver" block below for the full
+  // state machine. A live seconds hand/digit is exactly the kind of
+  // per-second wakeup this feature exists to stop once nobody's
+  // actually looking at the watch; tap_handler() already snaps this
+  // straight back to a normal SECOND_UNIT subscription (if one's
+  // still wanted) the instant a shake wakes it back up.
+  bool need_seconds = need_second_precision() && s_battery_saver_phase == BATTERY_SAVER_AWAKE;
   if (s_tick_subscribed && need_seconds == s_tick_unit_is_seconds) return; // already at the right granularity
   s_tick_subscribed = true;
   s_tick_unit_is_seconds = need_seconds;
@@ -1189,7 +1246,7 @@ typedef struct {
 // own comment for why MK_* (an array index) is a compile-time constant where
 // MESSAGE_KEY_* (the real, link-time-assigned key) isn't. This table lives in
 // .rodata instead of being populated into .bss by a runtime init function.
-#define SIMPLE_FIELD_MAP_COUNT 62
+#define SIMPLE_FIELD_MAP_COUNT 63
 static const SimpleFieldMapping SIMPLE_FIELD_MAP[SIMPLE_FIELD_MAP_COUNT] = {
   { MK_ERROR_CODE, F_U8, offsetof(EclipseData, error_code) },
   { MK_TEMP_UNIT, F_U8, offsetof(EclipseData, temp_unit) },
@@ -1198,6 +1255,7 @@ static const SimpleFieldMapping SIMPLE_FIELD_MAP[SIMPLE_FIELD_MAP_COUNT] = {
   { MK_VIBRATE_ON_PHASE_CHANGE, F_BOOL, offsetof(EclipseData, vibrate_on_phase_change) },
   { MK_STARTUP_CLOCK_ANIMATION_ENABLED, F_BOOL, offsetof(EclipseData, startup_clock_animation_enabled) },
   { MK_OUTLINE_ENABLED, F_BOOL, offsetof(EclipseData, outline_enabled) },
+  { MK_BATTERY_SAVER_ENABLED, F_BOOL, offsetof(EclipseData, battery_saver_enabled) },
   { MK_CORNER_FONT, F_U8, offsetof(EclipseData, corner_font) },
   { MK_CENTER_CIRCLE_RADIUS, F_U8, offsetof(EclipseData, center_circle_radius) },
   { MK_CENTER_CIRCLE_COLOR, F_U8, offsetof(EclipseData, center_circle_color) },
@@ -1411,7 +1469,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   }
   if ((t = dict_find(iter, MESSAGE_KEY_SHAKE_ANIM_MODE))) {
     uint8_t v = t->value->uint8;
-    s_data.shake_anim_mode = (v <= 2) ? v : 0;
+    s_data.shake_anim_mode = (v <= 3) ? v : 0;
   }
   if ((t = dict_find(iter, MESSAGE_KEY_SHADOW_TRANSLUCENT))) {
     s_data.shadow_translucent = t->value->uint8 != 0;
@@ -1687,6 +1745,13 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
     s_data.meteor_shower_name[sizeof(s_data.meteor_shower_name) - 1] = '\0';
   }
 
+  // Re-evaluate right away -- most relevantly, catches
+  // battery_saver_enabled just having been turned off (or on, while
+  // already past 2h/4h idle) from the settings page, rather than
+  // leaving the watch in a stale phase until the next tick.
+  BatterySaverPhase recomputed_phase = battery_saver_compute_phase(time(NULL));
+  if (recomputed_phase != s_battery_saver_phase) battery_saver_apply_phase_change(recomputed_phase);
+
   update_tick_subscription(); // re-checks whether live seconds are actually needed -- switches SECOND_UNIT/MINUTE_UNIT if this settings update changed that (show_seconds, or which content a corner/edge slot now shows)
   save_data();
   refresh_status_and_maybe_canvas(true);
@@ -1699,7 +1764,27 @@ static void inbox_dropped_handler(AppMessageResult reason, void *context) {
 // ---- tick + click ---------------------------------------------------------
 
 static void tick_handler(struct tm *tick_time, TimeUnits units_changed) {
-  refresh_status_and_maybe_canvas(false);
+  BatterySaverPhase new_phase = battery_saver_compute_phase(time(NULL));
+  if (new_phase != s_battery_saver_phase) battery_saver_apply_phase_change(new_phase);
+  battery_saver_send_phase_to_phone(s_battery_saver_phase); // cheap no-op once the phone's already caught up -- see that function's own comment
+
+  // Deep sleep's "every full 5 minutes" cadence has no matching
+  // TickTimerService granularity to subscribe at directly (only
+  // SECOND/MINUTE/HOUR/DAY/MONTH/YEAR exist) -- so this still ticks
+  // every minute like plain sleep does, and just skips the actual
+  // redraw work on the 4 minutes out of 5 that aren't a :00/:05/:10...
+  // boundary, rather than genuinely reducing how often the CPU wakes.
+  bool deep_sleep_skip = (s_battery_saver_phase == BATTERY_SAVER_DEEP_SLEEP) && (tick_time->tm_min % 5 != 0);
+  if (!deep_sleep_skip) {
+    refresh_status_and_maybe_canvas(false);
+    // Stands in for s_corners_timer's own once-a-minute refresh while
+    // that timer is stopped (see battery_saver_apply_phase_change()) --
+    // same features_layer_refresh_values() call corners_timer_callback()
+    // itself makes, just driven by this tick instead of its own timer.
+    if (s_battery_saver_phase != BATTERY_SAVER_AWAKE && s_features_layer) {
+      features_layer_refresh_values(s_features_layer);
+    }
+  }
   // Piggybacks on the same SECOND_UNIT ticks show_seconds already
   // needs, rather than a separate wake source, to give seconds-
   // precision corner/edge content (Time: second, etc.) genuinely live
@@ -1720,17 +1805,32 @@ static void hide_labels_callback(void *data) {
 }
 
 static void tap_handler(AccelAxisType axis, int32_t direction) {
-  // Planet seek (shake_anim_mode 2) draws its own dynamic label next
-  // to each body, tracking its live compass-relative position as the
-  // watch turns (see draw_planet_seek_body() in background_layer.c) --
-  // turning on the regular, fixed-position shake-to-reveal labels too
+  // Battery saver's own idle clock -- every shake resets it, regardless
+  // of shake_anim_mode/whether battery saver is even turned on, since
+  // it's cheaper to always track this than to check the setting first.
+  // If the watch was actually resting (SLEEP/DEEP_SLEEP), wake it back
+  // up immediately rather than waiting for the next once-a-minute (or
+  // once-every-5-minutes) tick -- a shake is exactly "someone's looking
+  // at it right now", so the very next thing they see should already be
+  // a normal, fully redrawn face, not a stale "Zzz" for up to another
+  // 5 minutes.
+  s_last_shake_time = time(NULL);
+  if (s_battery_saver_phase != BATTERY_SAVER_AWAKE) {
+    battery_saver_apply_phase_change(BATTERY_SAVER_AWAKE);
+    refresh_status_and_maybe_canvas(true);
+  }
+
+  // Planet seek (shake_anim_mode 2 or 3) draws its own dynamic label
+  // next to each body, tracking its live compass-relative position as
+  // the watch turns (see draw_planet_seek_body() in background_layer.c)
+  // -- turning on the regular, fixed-position shake-to-reveal labels too
   // would show both at once for the same body: one stuck at the plain
   // eclipse-time position, one actually moving with the seek
   // animation, laid right on top of each other. Skipped only for the
   // canvas's own per-body labels (eclipse_canvas_set_show_labels) --
   // the reveal window itself (s_labels_visible, the shake_anim burst)
   // still needs to open normally regardless of which mode is active.
-  if (s_data.shake_anim_mode != 2) {
+  if (!shake_anim_wants_planet_seek(s_data.shake_anim_mode)) {
     eclipse_canvas_set_show_labels(s_canvas_layer, true);
   }
   s_labels_visible = true;
@@ -1764,6 +1864,100 @@ static AppTimer *s_corners_timer = NULL;
 static void corners_timer_callback(void *data) {
   if (s_features_layer) features_layer_refresh_values(s_features_layer);
   s_corners_timer = app_timer_register(FEATURES_REFRESH_MS, corners_timer_callback, NULL);
+}
+
+// ---- battery saver (sleep mode) -------------------------------------------
+// User setting ("Updates" section, default off): "Preserve battery when
+// watch is not in use". Tracks real wall-clock time since the last shake
+// (s_last_shake_time, updated by tap_handler() on EVERY shake regardless of
+// what shake_anim_mode is set to -- this is a distinct, always-on activity
+// signal, unrelated to that feature) and, the longer it's gone unshaken,
+// progressively drops the whole watchface into a lower-power state: on the
+// assumption a watch nobody has picked up/shaken in hours is more likely
+// lying on a nightstand than being worn and glanced at.
+//
+//   < 2h since last shake: BATTERY_SAVER_AWAKE  -- completely normal operation.
+//   >= 2h:                 BATTERY_SAVER_SLEEP      -- once-a-minute redraw
+//                           ("Zzz" where the eclipse status normally sits,
+//                           see refresh_status_and_maybe_canvas()), the
+//                           independent corners refresh timer stopped (its
+//                           job folds into that same once-a-minute tick
+//                           instead -- see tick_handler()), and the phone
+//                           told to hold its own periodic refresh
+//                           (see battery_saver_send_phase_to_phone()).
+//   >= 4h:                 BATTERY_SAVER_DEEP_SLEEP -- redraw only on a
+//                           :00/:05/:10... boundary ("Zzzzzzz" instead of
+//                           "Zzz" -- see tick_handler()'s own deep_sleep_skip).
+//
+// NOTE on "low power mode": the request behind this feature also asked
+// whether Pebble exposes a system-level low-power-mode flag apps could key
+// off. It doesn't -- BatteryStateService/BatteryChargeState only ever
+// reports charge_percent/is_charging/is_plugged
+// (https://developer.rebble.io/docs/c/Foundation/Event_Service/BatteryStateService/),
+// and the only OS-level user toggle Pebble exposes to watchapps at all is
+// quiet_time_is_active() for Do Not Disturb, which is unrelated (mutes
+// vibration, nothing to do with power). So there's no separate system flag
+// to fold in here -- this is driven entirely by the shake-idle heuristic
+// above.
+#define BATTERY_SAVER_SLEEP_SECONDS ((time_t)2 * 60 * 60)      // 2h
+#define BATTERY_SAVER_DEEP_SLEEP_SECONDS ((time_t)4 * 60 * 60) // 4h
+
+static BatterySaverPhase battery_saver_compute_phase(time_t now) {
+  if (!s_data.battery_saver_enabled) return BATTERY_SAVER_AWAKE;
+  time_t idle_s = now - s_last_shake_time;
+  if (idle_s >= BATTERY_SAVER_DEEP_SLEEP_SECONDS) return BATTERY_SAVER_DEEP_SLEEP;
+  if (idle_s >= BATTERY_SAVER_SLEEP_SECONDS) return BATTERY_SAVER_SLEEP;
+  return BATTERY_SAVER_AWAKE;
+}
+
+// Sends the current phase to the phone so PKJS's own periodic refresh
+// (setInterval on CONFIG_UPDATE_MINS, in index.js) can hold off firing
+// until the next full hour while resting -- "stop requesting updates from
+// the phone till full hour" only makes sense phone-side, since the
+// periodic refresh itself lives entirely in PKJS; the watch has no
+// standing "ask for data" timer of its own to turn off (request_update()
+// only ever runs at startup/until the first valid reply, see its own
+// comment). A no-op once the phone's already caught up to the current
+// phase -- called every tick (see tick_handler()) rather than only right
+// on a transition, so a send that failed (e.g. app_message_outbox_begin()
+// busy) gets retried on the very next tick instead of leaving the phone
+// stuck on a stale phase until the next transition, possibly hours away.
+static void battery_saver_send_phase_to_phone(BatterySaverPhase phase) {
+  static uint8_t s_last_sent_phase = 0xFF; // sentinel -- no phase value, so the first real send always goes out
+  if ((uint8_t)phase == s_last_sent_phase) return;
+  DictionaryIterator *iter;
+  if (app_message_outbox_begin(&iter) != APP_MSG_OK) return; // will retry next tick, see this function's own comment
+  dict_write_uint8(iter, MESSAGE_KEY_BATTERY_SAVER_PHASE, (uint8_t)phase);
+  if (app_message_outbox_send() == APP_MSG_OK) s_last_sent_phase = (uint8_t)phase;
+}
+
+static void battery_saver_apply_phase_change(BatterySaverPhase new_phase) {
+  bool was_resting = s_battery_saver_phase != BATTERY_SAVER_AWAKE;
+  bool now_resting = new_phase != BATTERY_SAVER_AWAKE;
+  s_battery_saver_phase = new_phase;
+
+  update_tick_subscription(); // switches SECOND_UNIT<->MINUTE_UNIT per update_tick_subscription()'s own battery-saver gating
+
+  if (now_resting && !was_resting) {
+    // Entering sleep or deep sleep: stop the corners timer's own
+    // independent cadence -- tick_handler() takes over that job for
+    // as long as the watch stays resting (once a minute in sleep,
+    // once every 5 in deep sleep), so there's exactly one heartbeat
+    // driving every kind of redraw while nobody's using the watch,
+    // not two overlapping ones.
+    if (s_corners_timer) {
+      app_timer_cancel(s_corners_timer);
+      s_corners_timer = NULL;
+    }
+  } else if (!now_resting && was_resting) {
+    // Waking back up -- restart the corners timer's own normal
+    // cadence (tap_handler() already forces an immediate redraw
+    // itself; this just resumes its ongoing once-a-minute refresh
+    // going forward).
+    if (!s_corners_timer) {
+      s_corners_timer = app_timer_register(FEATURES_REFRESH_MS, corners_timer_callback, NULL);
+    }
+  }
 }
 
 // ---- window lifecycle ----------------------------------------------------
@@ -1982,6 +2176,7 @@ static void init(void) {
   }
 
   load_data();
+  s_last_shake_time = time(NULL); // fresh launch counts as "just active" -- see battery saver's own top comment for why this isn't persisted/resumed across relaunches
 
   s_window = window_create();
   window_set_window_handlers(s_window, (WindowHandlers){

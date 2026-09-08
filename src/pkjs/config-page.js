@@ -1159,13 +1159,6 @@ function buildConfigHtml(current) {
     ? current.debugOverrideData
     : (mostRecentRawChunk ? JSON.stringify(mostRecentRawChunk, null, 2) : '');
   var bottomStyleVal = (current.bottomStyle === 'analog' || current.bottomStyle === 'biganalog') ? 'analog' : 'digital';
-  // Drives whether the "Weather icon style" dropdown in the Weather
-  // section starts visible -- true if any of the 12 corner/edge slots
-  // is already set to "Weather icon" (31) or "Temp + weather icon" (32).
-  var weatherIconFeatureInUse = ['cornerTL', 'cornerTR', 'cornerBL', 'cornerBR',
-    'upperMiddleLine1Content', 'upperMiddleLine2Content', 'bottomMiddleLine1Content', 'bottomMiddleLine2Content',
-    'middleLeftLine1Content', 'middleLeftLine2Content', 'middleRightLine1Content', 'middleRightLine2Content'
-  ].some(function (key) { return current[key] === '31' || current[key] === '32'; });
   var isAnalog = bottomStyleVal === 'analog';
   var clockFontId = parseInt(current.clockFont || '8', 10);
   var clockFontIsWide = !!fontLookupEntry(clockFontId).wide;
@@ -1267,7 +1260,6 @@ function buildConfigHtml(current) {
 '  @media (prefers-color-scheme: dark) {' +
 '    :root { --page-bg: #1c1c1e; --card-bg: #2c2c2e; --text: #f2f2f2; --text-strong: #e5e5e5; --text-muted: #aaa; --text-faint: #999; --text-faint2: #bbb; --text-disabled: #777; --border: #48484a; --border-light: #3a3a3c; --border-lighter: #545456; --btn-bg: #3a3a3c; }' +
 '    .bitmap-marker-img { filter: none; }' +
-'    .font-preview-img { filter: none; }' +
 '    .hand-style-icon-preview img { filter: invert(1); }' + // opposite polarity from the other two -- these are black-ink, not white-ink; see that rule's own comment
 '  }' +
 '  body { font-family: -apple-system, Helvetica, Arial, sans-serif; margin: 0; padding: 16px 20px 90px; background: var(--page-bg); color: var(--text); }' +
@@ -1300,13 +1292,13 @@ function buildConfigHtml(current) {
 '  .preset-icon-btn { width: 44px; flex-shrink: 0; font-size: 18px; background: var(--btn-bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text-strong); }' +
 '  .preset-name-input { flex: 1; box-sizing: border-box; }' +
 '  .example-style-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 8px; }' +
-'  .example-style-btn { position: relative; aspect-ratio: 1; box-sizing: border-box; border-radius: 8px; border: 1px solid var(--border); background: var(--btn-bg); overflow: hidden; padding: 0; }' +
+'  .example-style-btn { position: relative; aspect-ratio: 200 / 228; box-sizing: border-box; border-radius: 8px; border: 1px solid var(--border); background: var(--btn-bg); overflow: hidden; padding: 0; }' +
 '  .example-style-btn:disabled { opacity: 0.4; }' +
-'  .example-style-btn img { width: 100%; height: 100%; object-fit: cover; display: block; }' +
+'  .example-style-btn img { width: 100%; height: 100%; object-fit: contain; display: block; }' +
 '  .example-style-btn-empty { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; font-size: 13px; font-weight: 600; color: var(--text); }' +
 '  .style-picker-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 8px; }' +
-'  .style-picker-btn { position: relative; aspect-ratio: 1; box-sizing: border-box; border-radius: 8px; border: 1px solid var(--border); background: var(--btn-bg); overflow: hidden; padding: 0; }' +
-'  .style-picker-btn img { width: 100%; height: 100%; object-fit: cover; display: block; }' +
+'  .style-picker-btn { position: relative; aspect-ratio: 200 / 228; box-sizing: border-box; border-radius: 8px; border: 1px solid var(--border); background: var(--btn-bg); overflow: hidden; padding: 0; }' +
+'  .style-picker-btn img { width: 100%; height: 100%; object-fit: contain; display: block; }' +
 // The 5 bitmap marker style thumbnails (Modern/Shadow/Tally/Bell/Fancy)
 // are the SAME mask art the watch itself tints with the user's main
 // color -- i.e. drawn in white on transparent, meant to be recolored
@@ -1339,12 +1331,18 @@ function buildConfigHtml(current) {
 '  .font-picker-preview { flex: 0 0 34%; display: flex; align-items: center; justify-content: center; padding: 10px 4px; box-sizing: border-box; border-right: 1px solid var(--border); overflow: hidden; white-space: nowrap; color: var(--text-strong); line-height: 1.1; }' +
 '  .font-picker-name { flex: 1 1 auto; display: flex; align-items: center; padding: 10px 12px; font-size: 13px; font-weight: 600; color: var(--text-strong); box-sizing: border-box; }' +
 // Real on-watch renderings (see FONT_PREVIEW_IMAGES's own comment)
-// rather than styled text, for the fonts that have one -- same
-// light/dark trick .bitmap-marker-img uses below: render white text
-// on a transparent background (looks right in dark mode as-is,
-// filter: none there) and invert it for light mode instead of needing
-// a second, separately-authored light-mode source image.
-'  .font-preview-img { max-width: 100%; max-height: 100%; filter: invert(1); }' +
+// rather than styled text, for the fonts that have one. Unlike
+// .bitmap-marker-img/.hand-style-icon-preview img just below (which
+// stay plain <img>s, filtered to flip black/white polarity for the
+// page's own light/dark mode), these render as a CSS mask instead: the
+// source PNG is white ink on transparent (see generate-font-previews.js),
+// so using it as a mask and filling with an arbitrary background-color
+// lets fontPreviewInnerHtml() paint these in the exact same color as
+// every live-Google-Fonts-text preview around them (the current color
+// scheme's own text color, not just page-theme black/white) -- a plain
+// filter can only flip polarity, not recolor to red/yellow/whatever a
+// scheme's text color actually is.
+'  .font-preview-img { display: inline-block; width: 100%; height: 100%; -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; -webkit-mask-position: center; mask-position: center; -webkit-mask-size: contain; mask-size: contain; }' +
 // Hand-style icon picker buttons -- same .font-picker-btn/-preview/
 // -name shape the font picker uses (left cell + right cell, trigger
 // variant included), just a 1/4-3/4 split instead of that one's own
@@ -1455,7 +1453,7 @@ function buildConfigHtml(current) {
 '  .modal-cancel-btn { width: 100%; padding: 12px; font-size: 14px; font-weight: 600; color: var(--text-strong); background: var(--border-light); border: none; border-radius: 8px; margin-top: 12px; }' +
 '  .modal-confirm-btn { width: 100%; padding: 12px; font-size: 14px; font-weight: 600; color: #fff; background: #ff9200; border: none; border-radius: 8px; margin-top: 8px; }' +
 '  .modal-confirm-btn:active { background: #e08300; }' +
-'  .example-style-modal-img { width: 100%; border-radius: 8px; display: block; }' +
+'  .example-style-modal-img { max-width: min(50%, 3cm); width: auto; height: auto; margin: 0 auto; border-radius: 8px; display: block; }' +
 '  .example-style-modal-title { font-weight: 700; font-size: 16px; margin-top: 10px; text-align: center; color: var(--text-strong); }' +
 '  .mode-btn-group { display: flex; width: 100%; margin-top: 6px; border-radius: 6px; overflow: hidden; border: 1px solid var(--border); box-sizing: border-box; }' +
 // 9 icon-only, roughly-square buttons for the slot editor's category
@@ -1812,7 +1810,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '        <button type="button" class="marker-edit-btn" onclick="openCenterCircleEditor()">Edit center circle: <span id="centerCircleStatusLabel"></span> &rsaquo;</button>' +
           handHiddenInputsHtml(current) +
 '      </div>' +
-'      <button type="button" class="marker-edit-btn" onclick="openShadowStyleEditor()">Edit shadow style: <span id="shadowStyleStatusLabel"></span> &rsaquo;</button>' +
+'      <button type="button" class="marker-edit-btn" id="shadowStyleTriggerBtn" onclick="openShadowStyleEditor()">Edit shadow style: <span id="shadowStyleStatusLabel"></span> &rsaquo;</button>' +
 
 '      <label style="margin-top:12px;">Hour/seconds indices style</label>' +
 '      <button type="button" class="marker-edit-btn" id="markerStyleTriggerBtn" style="margin-top:8px;" onclick="openMarkerStyleModal()">Indices style: <span id="markerStyleTriggerLabel"></span> &rsaquo;</button>' +
@@ -2009,7 +2007,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    </button>' +
 '    <div class="help">Applies to corner/edge feature text and the analog date. Bigger display fonts are hidden by default in the picker -- see "Show incompatible fonts" there.</div>' +
 
-'    <div id="weatherIconStyleRow" style="' + (weatherIconFeatureInUse ? '' : 'display:none;') + '">' +
+'    <div id="weatherIconStyleRow">' +
 '      <label>Weather icon style</label>' +
 '      <select id="weatherIconStyle" style="display:none;">' +
 '        <option value="0"' + (current.weatherIconStyle === '0' ? ' selected' : '') + '>Simple</option>' +
@@ -2020,7 +2018,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '        <span class="font-picker-preview weather-icon-style-preview"></span>' +
 '        <span class="font-picker-name"></span>' +
 '      </button>' +
-'      <div class="help">"Simple" is a placeholder for now. Hollow follows the slot\'s own color mode like any other icon; Full color is a genuine multi-color image with its own baked-in colors (see README.md), so it ignores the slot\'s color mode entirely. Shown here because a Weather icon feature is picked below.</div>' +
+'      <div class="help">"Simple" is a placeholder for now. Hollow follows the slot\'s own color mode like any other icon; Full color is a genuine multi-color image with its own baked-in colors (see README.md), so it ignores the slot\'s color mode entirely. Applies wherever a Weather icon feature is picked below.</div>' +
 '    </div>' +
 
 '    <div style="display:none;" id="slotDataStore">' +
@@ -2088,10 +2086,11 @@ handEditorModalHtml('sec', 'Edit second hand') +
       verticalButtonGroupHtml('shakeAnimModeGroup', 'shakeAnimMode', [
         { value: '0', label: 'Off' },
         { value: '1', label: 'Smooth second hand' },
-        { value: '2', label: 'Planet seek' }
+        { value: '2', label: 'Planet seek' },
+        { value: '3', label: 'Both' }
       ], current.shakeAnimMode || '0') +
 '    </div>' +
-'    <div class="help">Off by default: runs for as long as the shake labels stay up -- see "Shake-to-reveal labels stay on screen for" in the Astronomy section. "Planet seek" points the sky view at whichever 90&deg; slice of the horizon your compass currently faces, repositioning the Sun/Moon/planets to match as you turn -- weather is hidden for the duration, and it never runs on a day with an eclipse.</div>' +
+'    <div class="help">Off by default: runs for as long as the shake labels stay up -- see "Shake-to-reveal labels stay on screen for" in the Astronomy section. "Planet seek" points the sky view at whichever 90&deg; slice of the horizon your compass currently faces, repositioning the Sun/Moon/planets to match as you turn -- weather is hidden for the duration, and it never runs on a day with an eclipse. "Both" runs Smooth second hand and Planet seek together; picking just one of the two runs only that one.</div>' +
 '    </div>' +
 
 '    </div>' +
@@ -2236,6 +2235,11 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  <fieldset>' +
 '    <div class="section-legend" onclick="toggleSection(\'updates\')">Updates <span class="chevron" id="chev-updates">&#9656;</span></div>' +
 '    <div class="section-body" id="section-updates" style="display:none;">' +
+'    <div class="checkbox-row">' +
+'      <input type="checkbox" id="batterySaverEnabled" ' + (current.batterySaverEnabled ? 'checked' : '') + '>' +
+'      <label for="batterySaverEnabled" style="margin:0;">Preserve battery when watch is not in use</label>' +
+'    </div>' +
+'    <div class="help">If the watch goes 2 hours without being shaken, it redraws only once a minute and shows "Zzz" where the eclipse status normally sits; after 4 hours that drops further to once every 5 minutes ("Zzzzzzz"), and the phone holds off on its own periodic refresh until the next full hour too. Any shake wakes it back up immediately. Off by default.</div>' +
 '    <div class="slider-row">' +
 '      <label for="updateMins">Refresh interval <span class="val" id="updateMinsVal">' + esc(current.updateMins) + ' min</span></label>' +
 '      <div class="slider-with-buttons">' +
@@ -2462,6 +2466,18 @@ handEditorModalHtml('sec', 'Edit second hand') +
 'function nightColors() {' +
 '  return colorsFor("nightCustomBgValue", "nightCustomTextValue", "nightCustomAccentValue");' +
 '}' +
+// The color every font-picker preview (both the masked system-font
+// images and the live Google-Fonts CSS text) paints itself in --
+// the current DAY color scheme's own text color, same source
+// updatePreview()'s main canvas preview already reads (dayColors()).
+// Font choice isn't itself a day-vs-night-specific setting, so there's
+// no separate "which scheme is this preview for" question the way the
+// Colors section's own day/night tabs have -- day's color is simply
+// "the current scheme" here, matching how the rest of this page
+// already treats it.
+'function fontPreviewColor() {' +
+'  return dayColors().text;' +
+'}' +
 
 'function canvasFontFor(previewCss, px) {' +
 '  var familyMatch = /font-family:\\s*([^;]+);?/.exec(previewCss);' +
@@ -2539,8 +2555,12 @@ handEditorModalHtml('sec', 'Edit second hand') +
 'function fontPreviewInnerHtml(fontId, role, text) {' +
 '  var images = FONT_PREVIEW_IMAGES[fontId];' +
 '  var src = images && images[role];' +
-'  if (src) return \'<img class="font-preview-img" src="\' + src + \'" alt="\' + esc(text) + \'">\';' +
-'  return esc(text);' +
+'  var color = fontPreviewColor();' +
+'  if (src) {' +
+'    var maskCss = "-webkit-mask-image:url(\'" + src + "\'); mask-image:url(\'" + src + "\'); background-color:" + color + ";";' +
+'    return \'<span class="font-preview-img" role="img" aria-label="\' + esc(text) + \'" style="\' + maskCss + \'"></span>\';' +
+'  }' +
+'  return \'<span style="color:\' + color + \';">\' + esc(text) + "</span>";' +
 '}' +
 
 // Fills one trigger button\'s own preview/name spans from whatever its
@@ -3302,21 +3322,15 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  updateWeatherIconStyleVisibility();' +
 '  updatePreview();' +
 '}' +
-// Shows the "Weather icon style" dropdown (in the Weather section) only
-// when at least one of the 12 corner/edge slots is currently set to
-// "Weather icon" (31) or "Temp + weather icon" (32) -- hidden otherwise,
-// per the brief. Slot content only actually changes in saveSlotEditor(),
-// so that (plus once at page load) is all that needs to call this.
-'var WEATHER_ICON_SLOT_CONTENT_IDS = ["cornerTL", "cornerTR", "cornerBL", "cornerBR",' +
-'  "upperMiddleLine1Content", "upperMiddleLine2Content", "bottomMiddleLine1Content", "bottomMiddleLine2Content",' +
-'  "middleLeftLine1Content", "middleLeftLine2Content", "middleRightLine1Content", "middleRightLine2Content"];' +
+// Weather icon style is now always shown (not gated on any corner/edge
+// slot being set to "Weather icon"/"Temp + weather icon" -- previously
+// tying visibility to that meant the selector went missing for anyone
+// using it on the middle-feature or other content types, or who just
+// wanted to preview it in advance). This still refreshes the trigger
+// button's own preview/label though -- called from saveSlotEditor() plus
+// once at page load, same as before, just no longer touched on slot
+// content specifically.
 'function updateWeatherIconStyleVisibility() {' +
-'  var inUse = WEATHER_ICON_SLOT_CONTENT_IDS.some(function (id) {' +
-'    var el = document.getElementById(id);' +
-'    return el && (el.value === "31" || el.value === "32");' +
-'  });' +
-'  var row = document.getElementById("weatherIconStyleRow");' +
-'  if (row) row.style.display = inUse ? "" : "none";' +
 '  updateWeatherIconStyleTriggerLabel();' +
 '}' +
 
@@ -4124,6 +4138,12 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  var shSpan = document.getElementById("shadowStyleStatusLabel");' +
 '  var shEl = document.getElementById("shadowTranslucent");' +
 '  if (shSpan && shEl) shSpan.textContent = shEl.value === "false" ? "Solid" : "Translucent";' +
+'  var anyHandShadow = ["hour", "min", "sec"].some(function (kind) {' +
+'    var el = document.getElementById(heHiddenPrefix(kind) + "ShadowEnabled");' +
+'    return el && el.value === "true";' +
+'  });' +
+'  var shBtn = document.getElementById("shadowStyleTriggerBtn");' +
+'  if (shBtn) shBtn.disabled = !anyHandShadow;' +
 '  ["Hour", "Sec"].forEach(function (kindCap) {' +
 '    var span = document.getElementById("cm" + kindCap + "StatusLabel");' +
 '    var el = document.getElementById("custom" + kindCap + "Style");' +
@@ -4653,6 +4673,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    CONFIG_BG_ANIM_MODE: document.getElementById("bgAnimMode").value,' +
 '    CONFIG_SHAKE_ANIM_MODE: document.getElementById("shakeAnimMode").value,' +
 '    CONFIG_OUTLINE_ENABLED: document.getElementById("outlineEnabled").checked,' +
+'    CONFIG_BATTERY_SAVER_ENABLED: document.getElementById("batterySaverEnabled").checked,' +
 '    CONFIG_CORNER_FONT: document.getElementById("cornerFont").value,' +
 '    CONFIG_CORNER_TL: avail.cornersGrayed ? "0" : document.getElementById("cornerTL").value,' +
 '    CONFIG_CORNER_TR: avail.cornersGrayed ? "0" : document.getElementById("cornerTR").value,' +

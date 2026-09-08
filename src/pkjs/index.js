@@ -261,6 +261,22 @@ function pumpSendQueue() {
 }
 
 var refreshTimer = null;
+// Battery saver: last BATTERY_SAVER_PHASE the watch has reported (0=awake,
+// 1=sleep, 2=deep sleep -- see shake_anim_mode's neighboring comment block
+// in eclipse_data.h/pebble-eclipse-watch.c for the full state machine on
+// the watch side). While non-zero, the watch itself has said nobody's
+// shaken it in 2h+, so the periodic refresh below holds off except right
+// at the top of the hour (see scheduleRefresh()/startBatterySaverHourlyCheck()) --
+// "stop requesting updates from the phone till full hour" only makes sense
+// here, phone-side, since the periodic refresh is a PKJS setInterval with
+// no watch-side equivalent to turn off.
+var lastBatterySaverPhase = 0;
+// Guards startBatterySaverHourlyCheck()'s once-a-minute check against
+// firing more than once inside the same top-of-hour minute -- a plain
+// "is it :00 right now" test alone would refresh every time that timer
+// callback happens to land during minute 0, not just the first.
+var lastHourlyRefreshHourKey = null;
+var batterySaverHourlyTimer = null;
 // Guards against a slow, older refresh's response arriving AFTER a
 // newer one and overwriting it with stale data -- e.g. the periodic
 // background timer firing (using the phone's real GPS location) right
@@ -779,12 +795,13 @@ function bgAnimModeCode() {
   var v = parseInt(getSetting('CONFIG_BG_ANIM_MODE', '0'), 10);
   return [0, 1, 2].indexOf(v) === -1 ? 0 : v;
 }
-// Radio-style, exactly one of 0=off, 1=smooth second hand, 2=Planet seek -- see shake_anim_mode's own comment in eclipse_data.h.
+// Radio-style, exactly one of 0=off, 1=smooth second hand, 2=Planet seek, 3=Both -- see shake_anim_mode's own comment in eclipse_data.h.
 function shakeAnimModeCode() {
   var v = parseInt(getSetting('CONFIG_SHAKE_ANIM_MODE', '0'), 10);
-  return [0, 1, 2].indexOf(v) === -1 ? 0 : v;
+  return [0, 1, 2, 3].indexOf(v) === -1 ? 0 : v;
 }
 function outlineEnabledCode() { return getSetting('CONFIG_OUTLINE_ENABLED', 'true') === 'true' ? 1 : 0; }
+function batterySaverEnabledCode() { return getSetting('CONFIG_BATTERY_SAVER_ENABLED', 'false') === 'true' ? 1 : 0; }
 function cornerFontCode() {
   return clampInt(getSetting('CONFIG_CORNER_FONT', '1'), 0, FONT_MAX_CONTENT_ID, 1); // 1 = System Medium, the old default
 }
@@ -981,6 +998,7 @@ function populateSettingsFields(dict) {
   dict['BG_ANIM_MODE'] = bgAnimModeCode();
   dict['SHAKE_ANIM_MODE'] = shakeAnimModeCode();
   dict['OUTLINE_ENABLED'] = outlineEnabledCode();
+  dict['BATTERY_SAVER_ENABLED'] = batterySaverEnabledCode();
   dict['CORNER_FONT'] = cornerFontCode();
   dict['CORNER_CONTENT'] = cornerContentBytes();
   dict['CORNER_COLOR_MODE'] = cornerColorModeBytes();
@@ -2382,7 +2400,37 @@ function scheduleRefresh() {
   if (refreshTimer) clearInterval(refreshTimer);
   var mins = parseInt(getSetting('CONFIG_UPDATE_MINS', '20'), 10);
   if (isNaN(mins) || mins < 5) mins = 20;
-  refreshTimer = setInterval(function () { refreshAndSend(false, false); }, mins * 60000);
+  refreshTimer = setInterval(function () {
+    // Battery saver: the watch has told us (BATTERY_SAVER_PHASE) it's
+    // gone 2h+ without a shake -- hold off on this normal cadence
+    // entirely and let startBatterySaverHourlyCheck() below handle
+    // refreshing, at most once per full hour, instead.
+    if (lastBatterySaverPhase !== 0) return;
+    refreshAndSend(false, false);
+  }, mins * 60000);
+}
+
+// Battery saver's "till full hour" cadence while the watch reports
+// sleep/deep sleep -- runs alongside scheduleRefresh()'s own timer
+// (which self-skips above while resting) rather than replacing it, so
+// a normal cadence resumes immediately, with nothing further to
+// re-arm, the moment the watch reports being awake again. A plain
+// once-a-minute check for "is it :00 right now" rather than trying to
+// compute and re-schedule a timer landing exactly on the next hour
+// boundary -- simpler, and the watch's own once-a-minute tick while
+// resting already has this exact same shape (see tick_handler()'s
+// deep_sleep_skip in pebble-eclipse-watch.c).
+function startBatterySaverHourlyCheck() {
+  if (batterySaverHourlyTimer) clearInterval(batterySaverHourlyTimer);
+  batterySaverHourlyTimer = setInterval(function () {
+    if (lastBatterySaverPhase === 0) return;
+    var now = new Date();
+    if (now.getMinutes() !== 0) return;
+    var hourKey = now.getFullYear() + '-' + now.getMonth() + '-' + now.getDate() + '-' + now.getHours();
+    if (hourKey === lastHourlyRefreshHourKey) return; // already refreshed this hour
+    lastHourlyRefreshHourKey = hourKey;
+    refreshAndSend(false, false);
+  }, 60000);
 }
 
 // ---- Pebble lifecycle --------------------------------------------------
@@ -2391,6 +2439,7 @@ Pebble.addEventListener('ready', function () {
   console.log('eclipse-watch: PKJS ready, capabilities OK, starting first refresh');
   refreshAndSend(false, false);
   scheduleRefresh();
+  startBatterySaverHourlyCheck();
 });
 
 Pebble.addEventListener('appmessage', function (e) {
@@ -2408,6 +2457,15 @@ Pebble.addEventListener('appmessage', function (e) {
     // why every OTHER caller of refreshAndSend() deliberately leaves
     // resendOnSkip false instead of also passing true here.
     refreshAndSend(false, true);
+  }
+  // Battery saver: the watch's own current awake/sleep/deep-sleep
+  // phase, resent whenever it changes (and retried by the watch on
+  // the next tick if a send ever fails) -- see this variable's own
+  // comment near the top of this file for what it gates. Checked with
+  // !== undefined rather than a truthy check like REQUEST_UPDATE above,
+  // since 0 (awake) is a legitimate, meaningful value here, not "absent".
+  if (e && e.payload && e.payload.BATTERY_SAVER_PHASE !== undefined) {
+    lastBatterySaverPhase = e.payload.BATTERY_SAVER_PHASE;
   }
 });
 
@@ -2550,6 +2608,7 @@ Pebble.addEventListener('showConfiguration', function () {
     bgAnimMode: getSetting('CONFIG_BG_ANIM_MODE', '0'),
     shakeAnimMode: getSetting('CONFIG_SHAKE_ANIM_MODE', '0'),
     outlineEnabled: getSetting('CONFIG_OUTLINE_ENABLED', 'true') === 'true',
+    batterySaverEnabled: getSetting('CONFIG_BATTERY_SAVER_ENABLED', 'false') === 'true',
     cornerFont: getSetting('CONFIG_CORNER_FONT', '1'),
     testMode: getSetting('CONFIG_TEST_MODE', 'false') === 'true',
     testDateTime: getSetting('CONFIG_TEST_DATETIME', ''),
@@ -2771,6 +2830,7 @@ Pebble.addEventListener('webviewclosed', function (e) {
   setSetting('CONFIG_BG_ANIM_MODE', settings.CONFIG_BG_ANIM_MODE || '0');
   setSetting('CONFIG_SHAKE_ANIM_MODE', settings.CONFIG_SHAKE_ANIM_MODE || '0');
   setSetting('CONFIG_OUTLINE_ENABLED', settings.CONFIG_OUTLINE_ENABLED ? 'true' : 'false');
+  setSetting('CONFIG_BATTERY_SAVER_ENABLED', settings.CONFIG_BATTERY_SAVER_ENABLED ? 'true' : 'false');
   setSetting('CONFIG_CORNER_FONT', settings.CONFIG_CORNER_FONT || '1');
   setSetting('CONFIG_TEST_MODE', settings.CONFIG_TEST_MODE ? 'true' : 'false');
   setSetting('CONFIG_TEST_DATETIME', settings.CONFIG_TEST_DATETIME || '');

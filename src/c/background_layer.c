@@ -80,7 +80,7 @@ typedef struct {
                                  // once-a-minute cadence the rest of the time
   bool bg_anim_active;       // "animate background on start" -- see eclipse_canvas_set_bg_anim()
   uint16_t bg_anim_elapsed_ms; // and canvas_update_proc's own use of both these fields
-  bool planet_seek_active;      // "Planet seek" (shake_anim_mode 4) -- see
+  bool planet_seek_active;      // "Planet seek" (shake_anim_mode 2 or 3) -- see
   uint16_t planet_seek_elapsed_ms; // eclipse_canvas_set_planet_seek() and canvas_update_proc's
   int32_t planet_seek_heading_deg; // own use of these three fields
   GBitmap *sky_cache;       // last full render, captured via graphics_capture_frame_buffer;
@@ -1972,7 +1972,7 @@ static void draw_all_markers(GContext *ctx, CanvasState *state, GPoint center, G
 }
 
 
-// ---- "Planet seek" (shake_anim_mode 4) ---------------------------------
+// ---- "Planet seek" (shake_anim_mode 2 or 3) ---------------------------------
 // See shake_anim_mode's own eclipse_data.h comment for the feature as a
 // whole. Draws each visible body (cached_sun_up/cached_moon_visible/
 // cached_planet_visible[], all populated by the most recent normal

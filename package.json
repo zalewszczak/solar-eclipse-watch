@@ -150,7 +150,9 @@
       "MARKER_RINGS",
       "EDGE_LINES",
       "MARKER_TEXT",
-      "COLORS"
+      "COLORS",
+      "BATTERY_SAVER_ENABLED",
+      "BATTERY_SAVER_PHASE"
     ],
     "resources": {
       "media": [

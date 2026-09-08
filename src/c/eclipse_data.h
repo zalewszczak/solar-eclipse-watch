@@ -325,12 +325,31 @@ typedef struct {
                              // left-to-right across the screen by compass-relative azimuth, with
                              // off-screen bodies shown as an edge-pinned label + arrow instead.
                              // Unavailable whenever today has an eclipse -- see s_data.has_eclipse's
-                             // own gating at the trigger site).
+                             // own gating at the trigger site), 3=Both (smooth second hand AND
+                             // Planet seek run together for the same window -- see
+                             // shake_anim_wants_smooth_second()/shake_anim_wants_planet_seek() in
+                             // pebble-eclipse-watch.c, which every site that used to check
+                             // "== 1"/"== 2" directly now goes through instead, precisely so 1 and 2
+                             // stay mutually exclusive while 3 opts into both).
   bool outline_enabled; // user setting: 1px contrasting-color outline behind corner/edge text,
                           // the big-analog date, the eclipse phase text, and (procedurally, non-
                           // translucent mode only) corner/edge icons. Hands have their own
                           // per-hand outline_enabled instead (HandConfig, in hand_hour/
                           // hand_minute/hand_second below) -- this setting doesn't touch them.
+  bool battery_saver_enabled; // user setting ("Updates" section, default off): "Preserve battery
+                                // when watch is not in use" -- once no shake has been detected for
+                                // 2h, then 4h, the watch progressively drops to a once-a-minute
+                                // then once-every-5-minutes redraw cadence, stops the independent
+                                // corner/edge refresh timer, and tells the phone (via
+                                // MESSAGE_KEY_BATTERY_SAVER_PHASE) to hold off on its own periodic
+                                // refresh until the next full hour. See the "battery saver" block
+                                // in pebble-eclipse-watch.c for the whole state machine -- s_data
+                                // itself only ever holds whether the feature is turned on; the
+                                // actual awake/sleep/deep-sleep phase is runtime-only state, not
+                                // persisted (s_last_shake_time/s_battery_saver_phase), since it
+                                // should always start fresh (awake) right after a relaunch rather
+                                // than resume however idle the watch happened to be last time it
+                                // was running.
   uint8_t corner_font; // unified font id (see font_lookup.h) for corner/edge feature text and the
                          // big-analog date text; default (1 = System Medium) matches the old
                          // corner_font_size default
