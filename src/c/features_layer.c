@@ -19,6 +19,20 @@
 // from the bezel.
 #define CORNER_INSET_PX 4
 
+// The digital mode's bottom (clock) panel's own fixed height -- screen
+// height (228) minus the sky canvas's fixed top-of-panel value (152,
+// see apply_layout()/unobstructed_change_handler() in
+// pebble-eclipse-watch.c, both of which keep the panel at this exact
+// height and instead shift its TOP up as a system notification
+// obstructs the bottom of the screen, rather than shrinking it). Used
+// below purely to keep the two BOTTOM corner slots anchored to the
+// sky's own bottom edge in digital mode (see their own comment) --
+// the obstruction itself cancels out of that distance (both the sky
+// and the full screen shrink by the exact same amount), so this can
+// stay a plain constant instead of something recomputed on every
+// unobstructed-area change.
+#define DIGITAL_PANEL_H 76
+
 // point_in_convex_polygon()/fill_polygon_dithered() used to live here
 // for the old "semi" color mode's dithered highlight plate -- removed
 // now that Pill mode draws a plain solid-fill capsule instead (see
@@ -2654,17 +2668,29 @@ static void features_recompute_layout(FeaturesState *state) {
     .center_horizontal = false, .center_vertical = false, .allow_outline = true,
     .needs_second_refresh = content_needs_second_refresh(d->corner_content[1]),
   };
+  // Bottom corners (BL/BR): stay anchored to the SKY's own bottom
+  // edge, not the full screen's -- meaningfully different only in
+  // digital mode, where the sky canvas only occupies the screen's top
+  // portion and the digital clock's own bottom panel fills the rest.
+  // features_layer's own frame spans the FULL screen in both modes
+  // (see apply_layout()), so a plain bottom_shift of 0 here would put
+  // these two corners down inside the digital panel instead of at the
+  // sky's own bottom-left/-right -- adding DIGITAL_PANEL_H's worth of
+  // shift pulls them back up to the sky boundary. Analog mode has no
+  // separate panel (sky already fills the screen), so bottom_shift
+  // stays 0 there, same as before.
+  int16_t bottom_corner_shift = is_analog ? 0 : DIGITAL_PANEL_H;
   state->slots[SLOT_CORNER_BL] = (FeatureSlot){
     .active = true, .content = d->corner_content[2], .color_mode = d->corner_color_mode[2],
     .is_top = false, .is_left = true, .is_middle = false,
-    .top_offset = 0, .bottom_shift = 0,
+    .top_offset = 0, .bottom_shift = bottom_corner_shift,
     .center_horizontal = false, .center_vertical = false, .allow_outline = true,
     .needs_second_refresh = content_needs_second_refresh(d->corner_content[2]),
   };
   state->slots[SLOT_CORNER_BR] = (FeatureSlot){
     .active = true, .content = d->corner_content[3], .color_mode = d->corner_color_mode[3],
     .is_top = false, .is_left = false, .is_middle = false,
-    .top_offset = 0, .bottom_shift = 0,
+    .top_offset = 0, .bottom_shift = bottom_corner_shift,
     .center_horizontal = false, .center_vertical = false, .allow_outline = true,
     .needs_second_refresh = content_needs_second_refresh(d->corner_content[3]),
   };

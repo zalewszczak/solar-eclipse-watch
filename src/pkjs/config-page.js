@@ -1511,6 +1511,13 @@ function buildConfigHtml(current) {
 '  .slot-corner-tr { right: 6px; top: 6px; }' +
 '  .slot-corner-bl { left: 6px; bottom: 6px; }' +
 '  .slot-corner-br { right: 6px; bottom: 6px; }' +
+// In digital mode the bottom-left/-right corners need to sit above
+// #slotDiagramClockBar (bottom 25% of the diagram) instead of at the
+// diagram's own bottom edge -- they represent the two corner features,
+// which stay in the sky area on the real watch, same reasoning as
+// DIGITAL_PANEL_H in features_layer.c. Toggled by the same
+// renderSlotPicker() call that shows/hides the clock bar itself.
+'  .slot-corner-bl.slot-corner-above-bar, .slot-corner-br.slot-corner-above-bar { bottom: calc(25% + 6px); }' +
 '  .slot-upper-l1 { left: 50%; top: 34px; transform: translateX(-50%); }' +
 '  .slot-upper-l2 { left: 50%; top: 62px; transform: translateX(-50%); }' +
 '  .slot-bottom-l1 { left: 50%; bottom: 62px; transform: translateX(-50%); }' +
@@ -3619,6 +3626,8 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  var avail = computeSlotAvailability();' +
 '  var isAnalogMode = document.getElementById("bottomStyleValue").value === "analog";' +
 '  document.getElementById("slotDiagramClockBar").style.display = isAnalogMode ? "none" : "block";' +
+'  document.getElementById("slotBtn-cornerBL").classList.toggle("slot-corner-above-bar", !isAnalogMode);' +
+'  document.getElementById("slotBtn-cornerBR").classList.toggle("slot-corner-above-bar", !isAnalogMode);' +
 '  for (var key in SLOT_DEFS) {' +
 '    var def = SLOT_DEFS[key];' +
 '    var btn = document.getElementById(def.btnId);' +

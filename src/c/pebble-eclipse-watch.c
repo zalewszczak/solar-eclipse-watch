@@ -30,7 +30,9 @@ static GColor s_countdown_text_color;
 static Layer *s_canvas_layer;
 static Layer *s_bottom_layer; // digital/analog mode only
 static Layer *s_hands_layer;  // big-analogue mode only
-static Layer *s_features_layer; // always present -- overlays the sky canvas's own bounds;
+static Layer *s_features_layer; // always present -- overlays the FULL screen (not just the sky
+                                  // canvas's own frame, which in digital mode is only the top 152px --
+                                  // this layer's own bottom-anchored slots need the real screen bottom);
                                   // see features_layer.h -- owns its own per-layer state now
 static uint8_t s_current_layout_style = 255; // sentinel: forces initial layout setup
 static bool s_current_draw_features_beneath_hands = false; // mirrors s_data's own default
@@ -2104,15 +2106,19 @@ static void apply_layout(void) {
     apply_clock_font();
   }
 
-  // Overlays exactly the sky canvas's own bounds -- reuses its
-  // just-created frame rather than duplicating the size logic above, so
-  // it always matches regardless of mode. In every mode except "analog
-  // with features beneath hands" (handled above, where it was
-  // already created and added before the hands layer), it's created
-  // and added here, last, so it draws on top of everything else built
-  // so far -- per the original brief's "on top of the eclipse layer".
+  // Overlays the FULL screen in both modes now -- not just reusing the
+  // sky canvas's own frame the way this used to, since that frame is
+  // only the top 152px in digital mode (see the `style == 1` branch
+  // above) and features_recompute_layout()'s digital-only slots (the
+  // 3-line side columns + single bottom feature, all bottom-anchored
+  // off THIS layer's own bounds) need the real screen bottom -- where
+  // the digital clock's own bottom panel actually sits -- not the
+  // sky's, to land in the right place at all. Bottom corner features
+  // stay correctly anchored to the sky's own bottom edge regardless
+  // (see DIGITAL_PANEL_H's own comment in features_layer.c) despite
+  // this layer now being taller than the sky in digital mode.
   if (!s_features_layer) {
-    s_features_layer = features_layer_create(layer_get_frame(s_canvas_layer));
+    s_features_layer = features_layer_create(GRect(0, 0, bounds.size.w, bounds.size.h));
     layer_add_child(root, s_features_layer);
   }
 
