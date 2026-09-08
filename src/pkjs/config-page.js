@@ -993,11 +993,11 @@ function handEditorModalHtml(kind, title) {
 '    <div class="help" id="' + p + 'MiddleSecondaryHelp">Middle offset: Dauphine\'s side points, Sword\'s mid-bulge position, Pomme\'s thick/thin joint, Spade\'s droplet point height, Arrow\'s tip-triangle height, Leaf\'s peak position, Syringe\'s needle corner position, Serpentine\'s curve diameter/direction. Secondary width (all except Leaf): Sword\'s mid-bulge width, Pomme\'s tail width, Spade\'s droplet diameter, Arrow\'s tip-triangle width, Syringe\'s needle-tip width, Serpentine\'s squiggle envelope.</div>' +
 
 '    <label for="' + p + 'Color">Color</label>' +
-'    <select id="' + p + 'Color">' + schemeColorOptionsHtml('0') + '<option value="3">None (don\'t fill)</option></select>' +
+'    <select id="' + p + 'Color" onchange="onHandSliderInput(\'' + kind + '\')">' + schemeColorOptionsHtml('0') + '<option value="3">None (don\'t fill)</option></select>' +
 '    <div class="help">"None" skips the fill entirely -- combine with Outline below for a hollow look.</div>' +
 
 '    <div class="checkbox-row" style="margin-top:12px;">' +
-'      <input type="checkbox" id="' + p + 'Translucent">' +
+'      <input type="checkbox" id="' + p + 'Translucent" onchange="onHandSliderInput(\'' + kind + '\')">' +
 '      <label for="' + p + 'Translucent" style="margin:0;">Semi-transparent</label>' +
 '    </div>' +
 '    <div class="help">Dithers the fill (and outline, if enabled) to ~50% so the sky shows through.</div>' +
@@ -1017,11 +1017,11 @@ function handEditorModalHtml(kind, title) {
 '    </div>' +
 
 '    <div class="checkbox-row" style="margin-top:12px;">' +
-'      <input type="checkbox" id="' + p + 'OutlineEnabled">' +
+'      <input type="checkbox" id="' + p + 'OutlineEnabled" onchange="onHandSliderInput(\'' + kind + '\')">' +
 '      <label for="' + p + 'OutlineEnabled" style="margin:0;">Outline</label>' +
 '    </div>' +
 '    <label for="' + p + 'OutlineColor">Outline color</label>' +
-'    <select id="' + p + 'OutlineColor">' + schemeColorOptionsHtml('0') + '</select>' +
+'    <select id="' + p + 'OutlineColor" onchange="onHandSliderInput(\'' + kind + '\')">' + schemeColorOptionsHtml('0') + '</select>' +
 
 '    <div class="checkbox-row" style="margin-top:12px;">' +
 '      <input type="checkbox" id="' + p + 'ShadowEnabled" onchange="onHandSliderInput(\'' + kind + '\')">' +
@@ -2717,6 +2717,49 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  ctx.globalAlpha = 1;' +
 '}' +
 
+// Direct port of features_recompute_layout()'s own margin computation
+// (background_layer.c/features_layer.c) -- how far in from each edge
+// the "middle" feature slots (upper/bottom-middle, middle-left/right)
+// have to start so they land INSIDE the empty area the current marker
+// style/hands actually leave clear, rather than overlapping the
+// marker ring. 44/40/30/30 are the same defaults (and BITMAP_STYLE_
+// MARGINS\' own values, identical across all 5 bitmap styles) the
+// watch falls back to; for the procedural presets (0-2) and custom (8)
+// the margin instead grows to wherever that style\'s own inner ring
+// boundary reaches at each of the 4 cardinal points, via the exact
+// same point_on_ring() technique the marker ring itself is drawn with.
+// Values returned are already scaled into this canvas\'s own pixel
+// space (see readHandConfig()\'s own `scale` comment for why that\'s
+// needed at all).
+'function computeMiddleFeatureMargins(w, h) {' +
+'  var scale = w / 200;' +
+'  var margins = { top: 44 * scale, bottom: 40 * scale, left: 30 * scale, right: 30 * scale };' +
+'  var markerStyle = parseInt(document.getElementById("bigAnalogMarkerStyle").value, 10);' +
+'  var isBitmapStyle = markerStyle >= 3 && markerStyle !== 8 && markerStyle !== 9;' +
+'  if (isBitmapStyle) return margins;' + // BITMAP_STYLE_MARGINS's 5 entries are all identical to the defaults above -- nothing to differ
+'  var pct, ecc;' +
+'  if (markerStyle === 8) {' +
+'    var hourCfg = readCustomMarkerConfig("hour");' +
+'    pct = hourCfg.innerBorderPct; ecc = hourCfg.innerEccentricity;' +
+'  } else if (markerStyle <= 2) {' +
+'    var hour = MARKER_STYLE_HOUR_PRESETS[markerStyle], sec = MARKER_STYLE_SECOND_PRESETS[markerStyle];' +
+'    if (sec.thickness === 0 || hour.innerBorderPct <= sec.innerBorderPct) { pct = hour.innerBorderPct; ecc = hour.innerEccentricity; }' +
+'    else { pct = sec.innerBorderPct; ecc = sec.innerEccentricity; }' +
+'  } else { pct = 100; ecc = 0; }' + // 9 ("none") or anything unrecognized -- background_marker_inner_reach()'s own "fully retracted" fallback
+'  var cx = w / 2, cy = h / 2;' +
+'  var topPt = pointOnRing(cx, cy, w, h, 0, pct, ecc);' +
+'  var rightPt = pointOnRing(cx, cy, w, h, Math.PI / 2, pct, ecc);' +
+'  var bottomPt = pointOnRing(cx, cy, w, h, Math.PI, pct, ecc);' +
+'  var leftPt = pointOnRing(cx, cy, w, h, 3 * Math.PI / 2, pct, ecc);' +
+'  var margin = 4 * scale;' +
+'  if (topPt.y + margin > margins.top) margins.top = topPt.y + margin;' +
+'  if (h - bottomPt.y + margin > margins.bottom) margins.bottom = h - bottomPt.y + margin;' +
+'  var leftReach = leftPt.x + margin, rightReach = w - rightPt.x + margin;' +
+'  if (leftReach > margins.left) margins.left = leftReach;' +
+'  if (rightReach > margins.right) margins.right = rightReach;' +
+'  return margins;' +
+'}' +
+
 'function drawCornersAndEdges(ctx, w, h, colors, skyBottom) {' +
 '  var bottomY = (typeof skyBottom === "number") ? skyBottom : h;' +
 '  var lineH = 14;' +
@@ -2724,59 +2767,302 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  if (slotAvailable("cornerTRWrap")) drawCornerSlot(ctx, "cornerTR", "cornerTRColor", w - 5, 5, "right", colors);' +
 '  if (slotAvailable("cornerBLWrap")) drawCornerSlot(ctx, "cornerBL", "cornerBLColor", 5, bottomY - 14, "left", colors);' +
 '  if (slotAvailable("cornerBRWrap")) drawCornerSlot(ctx, "cornerBR", "cornerBRColor", w - 5, bottomY - 14, "right", colors);' +
+'  var needMiddleMargins = slotAvailable("upperMiddleWrap") || slotAvailable("bottomMiddleWrap") || slotAvailable("middleLeftWrap") || slotAvailable("middleRightWrap");' +
+'  var mm = needMiddleMargins ? computeMiddleFeatureMargins(w, h) : null;' +
 '  if (slotAvailable("upperMiddleWrap")) {' +
 '    var upperHasLine2 = hasPreviewContent("upperMiddleLine2Content");' +
-'    drawCornerSlot(ctx, "upperMiddleLine1Content", "upperMiddleLine1Color", w / 2, upperHasLine2 ? 26 : 26 + lineH / 2, "center", colors);' +
-'    if (upperHasLine2) drawCornerSlot(ctx, "upperMiddleLine2Content", "upperMiddleLine2Color", w / 2, 26 + lineH, "center", colors);' +
+'    drawCornerSlot(ctx, "upperMiddleLine1Content", "upperMiddleLine1Color", w / 2, upperHasLine2 ? mm.top : mm.top + lineH / 2, "center", colors);' +
+'    if (upperHasLine2) drawCornerSlot(ctx, "upperMiddleLine2Content", "upperMiddleLine2Color", w / 2, mm.top + lineH, "center", colors);' +
 '  }' +
 '  if (slotAvailable("bottomMiddleWrap")) {' +
 '    var bottomHasLine2 = hasPreviewContent("bottomMiddleLine2Content");' +
-'    drawCornerSlot(ctx, "bottomMiddleLine1Content", "bottomMiddleLine1Color", w / 2, bottomHasLine2 ? bottomY - 24 - lineH : bottomY - 24 - lineH / 2, "center", colors);' +
-'    if (bottomHasLine2) drawCornerSlot(ctx, "bottomMiddleLine2Content", "bottomMiddleLine2Color", w / 2, bottomY - 24, "center", colors);' +
+'    drawCornerSlot(ctx, "bottomMiddleLine1Content", "bottomMiddleLine1Color", w / 2, bottomHasLine2 ? bottomY - mm.bottom - lineH : bottomY - mm.bottom - lineH / 2, "center", colors);' +
+'    if (bottomHasLine2) drawCornerSlot(ctx, "bottomMiddleLine2Content", "bottomMiddleLine2Color", w / 2, bottomY - mm.bottom, "center", colors);' +
 '  }' +
 '  if (slotAvailable("middleLeftWrap")) {' +
 '    var midLeftHasLine2 = hasPreviewContent("middleLeftLine2Content");' +
-'    drawCornerSlot(ctx, "middleLeftLine1Content", "middleLeftLine1Color", 5, midLeftHasLine2 ? h / 2 - 4 - lineH / 2 : h / 2 - 4, "left", colors);' +
-'    if (midLeftHasLine2) drawCornerSlot(ctx, "middleLeftLine2Content", "middleLeftLine2Color", 5, h / 2 - 4 + lineH / 2, "left", colors);' +
+'    drawCornerSlot(ctx, "middleLeftLine1Content", "middleLeftLine1Color", mm.left, midLeftHasLine2 ? h / 2 - 4 - lineH / 2 : h / 2 - 4, "left", colors);' +
+'    if (midLeftHasLine2) drawCornerSlot(ctx, "middleLeftLine2Content", "middleLeftLine2Color", mm.left, h / 2 - 4 + lineH / 2, "left", colors);' +
 '  }' +
 '  if (slotAvailable("middleRightWrap")) {' +
 '    var midRightHasLine2 = hasPreviewContent("middleRightLine2Content");' +
-'    drawCornerSlot(ctx, "middleRightLine1Content", "middleRightLine1Color", w - 5, midRightHasLine2 ? h / 2 - 4 - lineH / 2 : h / 2 - 4, "right", colors);' +
-'    if (midRightHasLine2) drawCornerSlot(ctx, "middleRightLine2Content", "middleRightLine2Color", w - 5, h / 2 - 4 + lineH / 2, "right", colors);' +
+'    drawCornerSlot(ctx, "middleRightLine1Content", "middleRightLine1Color", w - mm.right, midRightHasLine2 ? h / 2 - 4 - lineH / 2 : h / 2 - 4, "right", colors);' +
+'    if (midRightHasLine2) drawCornerSlot(ctx, "middleRightLine2Content", "middleRightLine2Color", w - mm.right, h / 2 - 4 + lineH / 2, "right", colors);' +
 '  }' +
 '}' +
 
-// Rough triangular pointer for both hour and minute hands in the
-// preview -- every hand is a "custom" hand now (see HAND_PRESETS'
-// own comment), and this canvas preview never modeled the full
-// custom-hand shape system (dot/triangle/square/dauphine/.../
-// serpentine) anyway, so it just keeps using the one generic
-// silhouette it always fell back to for anything other than the 4
-// now-removed procedural presets.
-'function drawBigHandPreview(ctx, cx, cy, angle, length, color, transparent) {' +
-'  ctx.save();' +
-'  ctx.translate(cx, cy);' +
-'  ctx.rotate(angle);' +
-'  var hw = Math.max(4, length / 6);' +
-'  ctx.beginPath();' +
-'  ctx.moveTo(-hw, 6); ctx.lineTo(hw, 6); ctx.lineTo(0, -length); ctx.closePath();' +
-'  if (transparent) {' +
-'    ctx.globalAlpha = 0.5;' +
-'    ctx.fillStyle = color; ctx.fill();' +
-'    ctx.globalAlpha = 1;' +
-'  } else {' +
-'    ctx.fillStyle = color; ctx.fill();' +
+// ---- hand preview geometry --------------------------------------------
+// A direct port of hand_layer.c's compute_hand_geometry_fp() (and the
+// draw passes around it) from the watch's own fixed-point trig into
+// plain floating-point canvas math -- there\'s no fixed-point precision
+// need here the way the watch has, so every SUBPIXEL_BITS/int64 step
+// over there is just its equivalent float multiply/sin/cos here. Kept
+// in the exact same per-style order/shape as compute_hand_geometry_fp()
+// so the two stay easy to compare side by side; see that function\'s
+// own per-style comments in hand_layer.c for what each shape/field
+// combination actually means -- not re-explained per style here.
+//
+// angle is in radians, same clockwise-from-12 convention already used
+// elsewhere on this page (see hourAngle/minAngle below): x = cx +
+// axial*sin(angle), y = cy - axial*cos(angle), matching
+// point_at_axial_fp()\'s own dx/dy exactly.
+'function handAxialPoint(cx, cy, angle, axial) {' +
+'  return { x: cx + axial * Math.sin(angle), y: cy - axial * Math.cos(angle) };' +
+'}' +
+'function handPerpOffset(angle, halfW) {' +
+'  return { dx: halfW * Math.cos(angle), dy: halfW * Math.sin(angle) };' +
+'}' +
+// cfg fields here are already SCALED to canvas px by the caller (see
+// readHandConfig()\'s own comment) -- this function itself has no idea
+// the watch is really 200x228; it just draws in whatever unit its
+// inputs are given in, same as compute_hand_geometry_fp() does with
+// its own already-fixed-point inputs.
+'function computeHandGeometry(cx, cy, angle, cfg) {' +
+'  var len = cfg.length, back = -cfg.backOffset, mid = cfg.middleOffset;' +
+'  var halfW = Math.max(0.5, cfg.width / 2), halfSW = Math.max(0.5, cfg.secondaryWidth / 2);' +
+'  var polys = [], circles = [];' +
+'  function axial(a) { return handAxialPoint(cx, cy, angle, a); }' +
+'  function perp(hw) { return handPerpOffset(angle, hw); }' +
+'  function capsule(innerAx, outerAx, hw, roundCaps) {' +
+'    var inner = axial(innerAx), outer = axial(outerAx), p = perp(hw);' +
+'    polys.push([' +
+'      { x: inner.x - p.dx, y: inner.y - p.dy }, { x: inner.x + p.dx, y: inner.y + p.dy },' +
+'      { x: outer.x + p.dx, y: outer.y + p.dy }, { x: outer.x - p.dx, y: outer.y - p.dy }' +
+'    ]);' +
+'    if (roundCaps) { circles.push({ x: inner.x, y: inner.y, r: hw }); circles.push({ x: outer.x, y: outer.y, r: hw }); }' +
 '  }' +
+'  function taper(baseAx, hw, tipPoint) {' +
+'    var base = axial(baseAx), p = perp(hw);' +
+'    polys.push([{ x: base.x - p.dx, y: base.y - p.dy }, { x: base.x + p.dx, y: base.y + p.dy }, tipPoint]);' +
+'  }' +
+
+'  switch (cfg.style) {' +
+'    case 1: { var outer = axial(len); taper(back, halfW, outer); break; }' + // triangle
+
+'    case 3: {' + // dauphine
+'      var effBack = Math.max(cfg.backOffset, cfg.middleOffset);' +
+'      var backTip = axial(-effBack), topTip = axial(len), midPt = axial(mid), p = perp(halfW);' +
+'      polys.push([backTip, { x: midPt.x - p.dx, y: midPt.y - p.dy }, topTip, { x: midPt.x + p.dx, y: midPt.y + p.dy }]);' +
+'      break;' +
+'    }' +
+'    case 4: {' + // sword
+'      var midAx = Math.min(mid, len);' +
+'      var top = axial(len), base = axial(back), midPt = axial(midAx);' +
+'      var pw = perp(halfW), psw = perp(halfSW);' +
+'      polys.push([' +
+'        { x: base.x - pw.dx, y: base.y - pw.dy }, { x: midPt.x - psw.dx, y: midPt.y - psw.dy }, top,' +
+'        { x: midPt.x + psw.dx, y: midPt.y + psw.dy }, { x: base.x + pw.dx, y: base.y + pw.dy }' +
+'      ]);' +
+'      break;' +
+'    }' +
+'    case 5: capsule(mid, len, halfW, true); capsule(back, mid, halfSW, false); break;' + // pomme
+
+'    case 6: {' + // spade
+'      capsule(back, len, halfW, true);' +
+'      var tip = axial(len);' +
+'      circles.push({ x: tip.x, y: tip.y, r: halfSW });' +
+'      var centerAx = (len + back) / 2, apexAx = centerAx + mid;' +
+'      if (apexAx > len) {' +
+'        var apex = axial(apexAx), psw = perp(halfSW);' +
+'        polys.push([{ x: tip.x - psw.dx, y: tip.y - psw.dy }, { x: tip.x + psw.dx, y: tip.y + psw.dy }, apex]);' +
+'      }' +
+'      break;' +
+'    }' +
+'    case 7: {' + // arrow
+'      var tip = axial(len);' +
+'      taper(back, halfW, tip);' +
+'      var apex = axial(len + mid), psw = perp(halfSW);' +
+'      polys.push([{ x: tip.x - psw.dx, y: tip.y - psw.dy }, { x: tip.x + psw.dx, y: tip.y + psw.dy }, apex]);' +
+'      break;' +
+'    }' +
+'    case 8: {' + // leaf
+'      var centerAx = (back + len) / 2, peakAx = centerAx + mid;' +
+'      if (peakAx < back) peakAx = back;' +
+'      if (peakAx > len) peakAx = len;' +
+'      var N = 2;' +
+'      var haveBack = peakAx > back, haveTip = peakAx < len;' +
+'      var plusA = [], minusA = [], plusB = [], minusB = [];' +
+'      if (haveBack) {' +
+'        for (var k = 1; k <= N; k++) {' +
+'          var u = k / (N + 1), ax = back + (peakAx - back) * u, w = halfW * Math.sin(Math.PI / 2 * u);' +
+'          var p = axial(ax), pw = perp(w);' +
+'          plusA.push({ x: p.x + pw.dx, y: p.y + pw.dy }); minusA.push({ x: p.x - pw.dx, y: p.y - pw.dy });' +
+'        }' +
+'      }' +
+'      if (haveTip) {' +
+'        for (var k = 1; k <= N; k++) {' +
+'          var v = k / (N + 1), ax = peakAx + (len - peakAx) * v, w = halfW * Math.cos(Math.PI / 2 * v);' +
+'          var p = axial(ax), pw = perp(w);' +
+'          plusB.push({ x: p.x + pw.dx, y: p.y + pw.dy }); minusB.push({ x: p.x - pw.dx, y: p.y - pw.dy });' +
+'        }' +
+'      }' +
+'      var peakP = axial(peakAx), pPerp = perp(halfW);' +
+'      var peakPlus = { x: peakP.x + pPerp.dx, y: peakP.y + pPerp.dy }, peakMinus = { x: peakP.x - pPerp.dx, y: peakP.y - pPerp.dy };' +
+'      var pts = [];' +
+'      if (haveBack) { pts.push(axial(back)); for (var i = 0; i < N; i++) pts.push(plusA[i]); }' +
+'      pts.push(peakPlus);' +
+'      if (haveTip) { for (var i = 0; i < N; i++) pts.push(plusB[i]); pts.push(axial(len)); for (var i = N - 1; i >= 0; i--) pts.push(minusB[i]); }' +
+'      pts.push(peakMinus);' +
+'      if (haveBack) { for (var i = N - 1; i >= 0; i--) pts.push(minusA[i]); }' +
+'      polys.push(pts);' +
+'      break;' +
+'    }' +
+'    case 9: {' + // syringe
+'      capsule(back, len, halfW, false);' +
+'      var cornerAx = len + mid, taperLen = Math.max(0.5, halfW - halfSW), tipAx = cornerAx + taperLen;' +
+'      var corner = axial(cornerAx), tip = axial(tipAx), pw = perp(halfW), psw = perp(halfSW);' +
+'      polys.push([' +
+'        { x: corner.x - pw.dx, y: corner.y - pw.dy }, { x: corner.x + pw.dx, y: corner.y + pw.dy },' +
+'        { x: tip.x + psw.dx, y: tip.y + psw.dy }, { x: tip.x - psw.dx, y: tip.y - psw.dy }' +
+'      ]);' +
+'      break;' +
+'    }' +
+'    case 10: {' + // serpentine
+'      var SEG = 6;' +
+'      var amp = Math.max(0, halfSW - halfW);' +
+'      var diameter = Math.abs(cfg.middleOffset); if (diameter < 4) diameter = 4;' +
+'      var period = diameter * 2, dirSign = cfg.middleOffset < 0 ? -1 : 1, span = len - back;' +
+'      var verts = [];' +
+'      for (var i = 0; i <= SEG; i++) {' +
+'        var sRel = span * i / SEG, ax = back + sRel;' +
+'        var ang = (sRel / period) * 2 * Math.PI;' +
+'        var dev = amp * Math.sin(ang) * dirSign;' +
+'        var p = axial(ax), pd = perp(dev);' +
+'        verts.push({ x: p.x + pd.dx, y: p.y + pd.dy });' +
+'      }' +
+'      for (var i = 0; i < SEG; i++) {' +
+'        var a = verts[i], b = verts[i + 1];' +
+'        var tx = b.x - a.x, ty = b.y - a.y, tlen = Math.sqrt(tx * tx + ty * ty);' +
+'        var ox, oy;' +
+'        if (tlen === 0) { var pd = perp(halfW); ox = pd.dx; oy = pd.dy; }' +
+'        else { ox = -ty * halfW / tlen; oy = tx * halfW / tlen; }' +
+'        polys.push([{ x: a.x - ox, y: a.y - oy }, { x: a.x + ox, y: a.y + oy }, { x: b.x + ox, y: b.y + oy }, { x: b.x - ox, y: b.y - oy }]);' +
+'      }' +
+'      break;' +
+'    }' +
+'    case 0: case 2: default: capsule(back, len, halfW, cfg.style === 0); break;' + // dot / square
+'  }' +
+'  return { polys: polys, circles: circles };' +
+'}' +
+
+'function handPathPolygon(ctx, pts) {' +
+'  ctx.beginPath();' +
+'  ctx.moveTo(pts[0].x, pts[0].y);' +
+'  for (var i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);' +
+'  ctx.closePath();' +
+'}' +
+// Approximates fill_polygon_ring_fp()/fill_circle_ring_fp() (an inward
+// polygon/circle offset, filled only between the original boundary and
+// that offset) with clip+stroke: clip to the exact shape, then stroke
+// its own path at 2x the requested thickness -- centered strokes put
+// half their width outside the clip (discarded) and half inside,
+// leaving exactly a `thickness`-px ring along the inside of the
+// boundary, same as the real inset ring.
+'function handFillRing(ctx, pathFn, thicknessPx, color) {' +
+'  ctx.save();' +
+'  pathFn(); ctx.clip();' +
+'  pathFn(); ctx.lineWidth = thicknessPx * 2; ctx.strokeStyle = color; ctx.stroke();' +
 '  ctx.restore();' +
 '}' +
-// 0=main, 1=accent, 2=background, 3=none -- same HandConfig.color
-// enum handHourColor/handMinColor already use; "none" (skip the
-// fill) isn\'t worth modeling in this rough preview, so it just falls
-// back to main like 0 does.
+'function handGeometryPaths(geo) {' +
+'  return geo.polys.map(function (pts) { return function (ctx) { handPathPolygon(ctx, pts); }; })' +
+'    .concat(geo.circles.map(function (c) { return function (ctx) { ctx.beginPath(); ctx.arc(c.x, c.y, Math.max(0, c.r), 0, 2 * Math.PI); }; }));' +
+'}' +
+// Mirrors draw_hand_shape_from_geometry(): hollow (thickness<=1 = a
+// plain 1px stroke, else the inset-ring approximation above) or a
+// solid fill, dithering approximated as ~50% opacity throughout this
+// preview (same simplification the old placeholder hand preview always
+// than a genuine Bayer stipple).
+'function drawHandGeometryFill(ctx, geo, color, translucent, hollow, hollowThicknessPx) {' +
+'  ctx.globalAlpha = translucent ? 0.5 : 1;' +
+'  ctx.fillStyle = color; ctx.strokeStyle = color; ctx.lineWidth = 1;' +
+'  handGeometryPaths(geo).forEach(function (pathFn) {' +
+'    if (hollow) {' +
+'      if (hollowThicknessPx <= 1) { pathFn(ctx); ctx.lineWidth = 1; ctx.stroke(); }' +
+'      else handFillRing(ctx, function () { pathFn(ctx); }, hollowThicknessPx, color);' +
+'    } else { pathFn(ctx); ctx.fill(); }' +
+'  });' +
+'  ctx.globalAlpha = 1;' +
+'}' +
+// Mirrors draw_hand_outline_from_geometry(): a genuine 1px perimeter
+// trace, drawn OUTSIDE hollow\'s own inline ring (this is a completely
+// separate pass/setting on the watch -- see HandConfig.outline_enabled).
+'function drawHandGeometryOutline(ctx, geo, color, translucent) {' +
+'  ctx.globalAlpha = translucent ? 0.5 : 1;' +
+'  ctx.strokeStyle = color; ctx.lineWidth = 1;' +
+'  handGeometryPaths(geo).forEach(function (pathFn) { pathFn(ctx); ctx.stroke(); });' +
+'  ctx.globalAlpha = 1;' +
+'}' +
+// Mirrors draw_hand_shadow_once_fp(): the same geometry, translated by
+// shadowDistancePx in shadowAngleDeg\'s direction (a shared light-
+// source angle, not rotated with the hand), filled solid or at reduced
+// opacity in black -- ~50%/~25% approximating the real ~50%/~25%
+// Bayer-dithered density (see that function\'s own threshold comment).
+'function drawHandShadow(ctx, cx, cy, angle, cfg, shadowAngleDeg, shadowTranslucentStyle) {' +
+'  if (!cfg.shadowEnabled) return;' +
+'  var shadowAngleRad = (shadowAngleDeg || 0) * Math.PI / 180;' +
+'  var dx = cfg.shadowDistance * Math.sin(shadowAngleRad), dy = -cfg.shadowDistance * Math.cos(shadowAngleRad);' +
+'  var geo = computeHandGeometry(cx + dx, cy + dy, angle, cfg);' +
+'  ctx.globalAlpha = shadowTranslucentStyle ? (cfg.translucent ? 0.25 : 0.5) : 1;' +
+'  ctx.fillStyle = "#000";' +
+'  handGeometryPaths(geo).forEach(function (pathFn) { pathFn(ctx); ctx.fill(); });' +
+'  ctx.globalAlpha = 1;' +
+'}' +
+// 0=main, 1=accent, 2=background, 3=none -- same HandConfig.color enum
+// handHourColor/handMinColor/handSecColor use. Returns null for "none"
+// so callers can skip the fill entirely (see hand_layer_draw()\'s own
+// `if (cfg->color != 3)` gate) instead of silently drawing main color.
 'function resolveHandPreviewColor(colorVal, colors) {' +
 '  if (colorVal === "1") return colors.accent;' +
 '  if (colorVal === "2") return colors.bg;' +
+'  if (colorVal === "3") return null;' +
 '  return colors.text;' +
+'}' +
+// Reads one hand\'s full HandConfig, scaled from real watch pixels
+// (every slider in the editor is a real on-watch px value, 200x228
+// screen) into this preview canvas\'s own smaller pixel space via
+// `scale` -- length/width/offsets/shadow distance all need it,
+// anything already a ratio/flag/enum doesn\'t. Reads the popup\'s own
+// LIVE draft fields (hePopupPrefix) while that hand\'s editor is open
+// (s_openHandEditorKind), so every slider drag updates the preview in
+// real time -- see s_openHandEditorKind\'s own comment -- and the
+// committed handHour*/handMin*/handSec* hidden fields otherwise.
+'function readHandConfig(kind, scale) {' +
+'  var prefix = (s_openHandEditorKind === kind) ? hePopupPrefix(kind) : heHiddenPrefix(kind);' +
+'  function num(field, def) { var el = document.getElementById(prefix + field); var v = el ? parseFloat(el.value) : NaN; return isNaN(v) ? def : v; }' +
+'  function str(field, def) { var el = document.getElementById(prefix + field); return el ? el.value : def; }' +
+'  function bool(field) {' +
+'    var el = document.getElementById(prefix + field);' +
+'    if (!el) return false;' +
+'    return (el.type === "checkbox") ? el.checked : el.value === "true";' +
+'  }' +
+'  return {' +
+'    style: parseInt(str("Style", "0"), 10) || 0,' +
+'    width: num("Width", 12) * scale,' +
+'    length: num("Length", 51) * scale,' +
+'    backOffset: num("BackOffset", 0) * scale,' +
+'    middleOffset: num("MiddleOffset", 0) * scale,' +
+'    secondaryWidth: num("SecondaryWidth", 6) * scale,' +
+'    color: str("Color", "0"),' +
+'    outlineEnabled: bool("OutlineEnabled"),' +
+'    outlineColor: str("OutlineColor", "0"),' +
+'    translucent: bool("Translucent"),' +
+'    shadowEnabled: bool("ShadowEnabled"),' +
+'    shadowDistance: num("ShadowDistance", 2) * scale,' +
+'    hollow: bool("Hollow"),' +
+'    hollowThickness: num("HollowThickness", 1) * scale' +
+'  };' +
+'}' +
+// Full hand draw: shadow, then outline (if enabled), then fill (unless
+// color is "none") -- same order/gating as hand_layer_draw() itself.
+'function drawHandFull(ctx, cx, cy, angle, cfg, colors, shadowAngleDeg, shadowTranslucentStyle) {' +
+'  drawHandShadow(ctx, cx, cy, angle, cfg, shadowAngleDeg, shadowTranslucentStyle);' +
+'  var geo = computeHandGeometry(cx, cy, angle, cfg);' +
+'  if (cfg.outlineEnabled) {' +
+'    drawHandGeometryOutline(ctx, geo, resolveHandPreviewColor(cfg.outlineColor, colors) || colors.text, cfg.translucent);' +
+'  }' +
+'  var fillColor = resolveHandPreviewColor(cfg.color, colors);' +
+'  if (fillColor) drawHandGeometryFill(ctx, geo, fillColor, cfg.translucent, cfg.hollow, cfg.hollowThickness);' +
 '}' +
 
 // Loaded lazily and cached per style -- base64 data: URIs decode
@@ -2850,63 +3136,193 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  return true;' +
 '}' +
 
+// ---- marker ring preview -------------------------------------------------
+// Direct port of background_layer.c's point_on_ring_fp()/point_on_ring():
+// blends a point on a circle of radius reach(pct) with a point on a
+// screen-proportioned rectangle of the same reach along its dominant
+// axis, by eccentricityPct (0=circle, 100=rectangle). w/h here are this
+// canvas\'s own pixel dimensions -- the same 200:228 aspect ratio the
+// real watch screen has (see the canvas element\'s own width/height), so
+// the ratios this function relies on come out identical without any
+// separate scale factor the way hand lengths need.
+'function markerReach(w, h, pct) {' +
+'  var reachMin = Math.min(w / 4, h / 4), reachMax = Math.max(w / 2, h / 2);' +
+'  return reachMin + (reachMax - reachMin) * pct / 100;' +
+'}' +
+'function pointOnRing(cx, cy, w, h, angle, pct, eccentricityPct) {' +
+'  var sinV = Math.sin(angle), cosV = Math.cos(angle);' +
+'  var reach = markerReach(w, h, pct);' +
+'  var circlePt = { x: cx + reach * sinV, y: cy - reach * cosV };' +
+'  if (!eccentricityPct) return circlePt;' +
+'  var hw = w / 2, hh = h / 2, reachMax = Math.max(hw, hh);' +
+'  var rectHw = reach * hw / reachMax, rectHh = reach * hh / reachMax;' +
+'  var adx = Math.abs(sinV), ady = Math.abs(cosV);' +
+'  var tx = adx === 0 ? Infinity : rectHw / adx, ty = ady === 0 ? Infinity : rectHh / ady;' +
+'  var t = Math.min(tx, ty);' +
+'  var rectPt = { x: cx + t * sinV, y: cy - t * cosV };' +
+'  return {' +
+'    x: circlePt.x + (rectPt.x - circlePt.x) * eccentricityPct / 100,' +
+'    y: circlePt.y + (rectPt.y - circlePt.y) * eccentricityPct / 100' +
+'  };' +
+'}' +
+// Direct port of draw_ring_mark_fp(): a straight quad from inner to
+// outer, halfThick wide, with the requested cap style -- 0=dot (round,
+// via circles at both ends), 1=line (flush ends), 2=square (ends
+// extended outward by halfThick, like stroke-linecap:square).
+'function drawRingMark(ctx, inner, outer, angle, halfThick, style, color, translucent) {' +
+'  ctx.globalAlpha = translucent ? 0.5 : 1;' +
+'  ctx.fillStyle = color;' +
+'  var sinV = Math.sin(angle), cosV = Math.cos(angle);' +
+'  if (inner.x === outer.x && inner.y === outer.y) {' +
+'    ctx.beginPath(); ctx.arc(inner.x, inner.y, halfThick, 0, 2 * Math.PI); ctx.fill();' +
+'    ctx.globalAlpha = 1; return;' +
+'  }' +
+'  var dxW = halfThick * cosV, dyW = halfThick * sinV;' +
+'  var a = inner, b = outer;' +
+'  if (style === 2) {' +
+'    var ex = halfThick * sinV, ey = halfThick * cosV;' +
+'    a = { x: inner.x - ex, y: inner.y + ey }; b = { x: outer.x + ex, y: outer.y - ey };' +
+'  }' +
+'  ctx.beginPath();' +
+'  ctx.moveTo(a.x - dxW, a.y - dyW); ctx.lineTo(a.x + dxW, a.y + dyW);' +
+'  ctx.lineTo(b.x + dxW, b.y + dyW); ctx.lineTo(b.x - dxW, b.y - dyW); ctx.closePath();' +
+'  ctx.fill();' +
+'  if (style === 0) {' +
+'    ctx.beginPath(); ctx.arc(inner.x, inner.y, halfThick, 0, 2 * Math.PI); ctx.fill();' +
+'    ctx.beginPath(); ctx.arc(outer.x, outer.y, halfThick, 0, 2 * Math.PI); ctx.fill();' +
+'  }' +
+'  ctx.globalAlpha = 1;' +
+'}' +
+// Direct port of draw_marker_ring() (no startup-animation handling --
+// nothing here to preview, the watch\'s own marks always settle at
+// their final positions almost immediately). cfg: {style, thickness,
+// innerEccentricity, outerEccentricity, innerBorderPct, outerBorderPct,
+// translucent, color}. skipStep mirrors the C call\'s own use (5, for
+// the 60-mark second ring, to skip the marks that coincide with hour
+// positions) -- 0 means "skip none".
+'function drawMarkerRing(ctx, cx, cy, w, h, cfg, marks, skipStep, colors) {' +
+'  if (!cfg || !cfg.thickness) return;' +
+'  var color = resolveHandPreviewColor(String(cfg.color), colors) || colors.text;' +
+'  var innerPct = cfg.innerBorderPct, outerPct = Math.max(cfg.innerBorderPct, cfg.outerBorderPct);' +
+'  var halfThick = Math.max(0.5, cfg.thickness / 2);' +
+'  for (var i = 0; i < marks; i++) {' +
+'    if (skipStep > 0 && i % skipStep === 0) continue;' +
+'    var angle = i * 2 * Math.PI / marks;' +
+'    var outer = pointOnRing(cx, cy, w, h, angle, outerPct, cfg.outerEccentricity);' +
+'    var inner = pointOnRing(cx, cy, w, h, angle, innerPct, cfg.innerEccentricity);' +
+'    drawRingMark(ctx, inner, outer, angle, halfThick, cfg.style, color, cfg.translucent);' +
+'  }' +
+'}' +
+// Matches MARKER_STYLE_HOUR_PRESETS/MARKER_STYLE_SECOND_PRESETS in
+// background_layer.c exactly (style/thickness/eccentricity/border by
+// index 0=minimal, 1=small, 2=big) -- used for bigAnalogMarkerStyle 0-2.
+'var MARKER_STYLE_HOUR_PRESETS = [' +
+'  { style: 1, thickness: 1, innerEccentricity: 0, outerEccentricity: 0, innerBorderPct: 65, outerBorderPct: 85, translucent: false, color: 0 },' +
+'  { style: 1, thickness: 1, innerEccentricity: 0, outerEccentricity: 0, innerBorderPct: 60, outerBorderPct: 85, translucent: false, color: 0 },' +
+'  { style: 2, thickness: 5, innerEccentricity: 0, outerEccentricity: 0, innerBorderPct: 60, outerBorderPct: 85, translucent: false, color: 0 }' +
+'];' +
+'var MARKER_STYLE_SECOND_PRESETS = [' +
+'  { style: 1, thickness: 0, innerEccentricity: 0, outerEccentricity: 0, innerBorderPct: 65, outerBorderPct: 85, translucent: false, color: 0 },' +
+'  { style: 1, thickness: 1, innerEccentricity: 0, outerEccentricity: 0, innerBorderPct: 65, outerBorderPct: 85, translucent: false, color: 0 },' +
+'  { style: 1, thickness: 1, innerEccentricity: 0, outerEccentricity: 0, innerBorderPct: 65, outerBorderPct: 85, translucent: false, color: 0 }' +
+'];' +
+// Reads the customHour*/customSec* hidden fields into a cfg object in
+// drawMarkerRing()\'s own shape, same field-per-field mapping
+// customMarkerHiddenInputsHtml() writes them with.
+'function readCustomMarkerConfig(kind) {' +
+'  var p = "custom" + (kind === "hour" ? "Hour" : "Sec");' +
+'  function v(f) { var el = document.getElementById(p + f); return el ? el.value : null; }' +
+'  return {' +
+'    style: parseInt(v("Style"), 10) || 0,' +
+'    thickness: parseFloat(v("Thickness")) || 0,' +
+'    innerEccentricity: parseFloat(v("InnerEcc")) || 0,' +
+'    outerEccentricity: parseFloat(v("OuterEcc")) || 0,' +
+'    innerBorderPct: parseFloat(v("InnerBorder")) || 0,' +
+'    outerBorderPct: parseFloat(v("OuterBorder")) || 0,' +
+'    translucent: v("Translucent") === "true",' +
+'    color: parseInt(v("Color"), 10) || 0' +
+'  };' +
+'}' +
+// Direct port of draw_text_markers() -- only ever called for the
+// custom marker style (bigAnalogMarkerStyle 8), same as on the watch.
+// hourCfg/secCfg are whichever MarkerRingConfig-shaped objects the
+// caller is currently using for those two rings (preset or custom),
+// since text markers piggyback on that ring\'s own innerBorderPct/
+// innerEccentricity to decide where the numeral sits.
+'function romanNumeral(num) {' +
+'  if (num <= 0) return String(num);' +
+'  var VALUES = [50, 40, 10, 9, 5, 4, 1], SYMBOLS = ["L", "XL", "X", "IX", "V", "IV", "I"];' +
+'  var out = "";' +
+'  for (var i = 0; i < VALUES.length && num > 0; i++) { while (num >= VALUES[i]) { out += SYMBOLS[i]; num -= VALUES[i]; } }' +
+'  return out;' +
+'}' +
+'function drawTextMarkers(ctx, cx, cy, w, h, colors) {' +
+'  var target = document.getElementById("markerTextTarget").value;' +
+'  if (target === "0") return;' +
+'  var isHour = target === "1";' +
+'  var ring = isHour ? readCustomMarkerConfig("hour") : readCustomMarkerConfig("sec");' +
+'  var mask = parseInt(document.getElementById(isHour ? "markerTextHourMask" : "markerTextSecMask").value, 10) || 0;' +
+'  if (!mask) return;' +
+'  var fontSel = document.getElementById("markerTextFont");' +
+'  var opt = fontSel.options[fontSel.selectedIndex];' +
+'  var roman = document.getElementById("markerTextRoman").checked;' +
+'  var offsetPx = parseFloat(document.getElementById("markerTextOffset").value) || 0;' +
+'  var scale = w / 200;' +
+'  ctx.font = canvasFontFor(opt.getAttribute("data-preview") || "", 14 * scale);' +
+'  ctx.fillStyle = colors.text;' +
+'  ctx.textAlign = "center"; ctx.textBaseline = "middle";' +
+'  for (var i = 0; i < 12; i++) {' +
+'    if (!(mask & (1 << i))) continue;' +
+'    var angle = i * 2 * Math.PI / 12;' +
+'    var offsetPct = Math.max(0, Math.min(100, ring.innerBorderPct + offsetPx));' +
+'    var pos = pointOnRing(cx, cy, w, h, angle, offsetPct, ring.innerEccentricity);' +
+'    var label = isHour ? (i === 0 ? 12 : i) : i * 5;' +
+'    var text = roman ? (label > 0 ? romanNumeral(label) : "") : String(label);' +
+'    ctx.fillText(text, pos.x, pos.y);' +
+'  }' +
+'}' +
+
 'function drawBigAnalogPreview(ctx, colors, now, showSeconds, w, h, markerImageDrawn) {' +
-'  var cx = w / 2, cy = h / 2, r = Math.min(w, h) / 2 - 12;' +
+'  var cx = w / 2, cy = h / 2;' +
+'  var scale = w / 200;' + // every hand/shadow dimension below is a real on-watch px value (200x228 screen) -- see readHandConfig()'s own comment
 '  var markerStyle = parseInt(document.getElementById("bigAnalogMarkerStyle").value, 10);' +
 
 '  if (markerStyle <= 2) {' +
-'    var showSecondMarkers = markerStyle !== 0;' +
-'    var hourOuter = r + (markerStyle === 2 ? 4 : 3);' +
-'    var hourWidth = markerStyle === 2 ? 3 : 1;' +
-'    for (var hIdx = 0; hIdx < 12; hIdx++) {' +
-'      var ang = hIdx * Math.PI / 6;' +
-'      var inner = (hIdx % 3 === 0) ? hourOuter - 5 : hourOuter - 3;' +
-'      ctx.strokeStyle = colors.text; ctx.lineWidth = hourWidth;' +
-'      ctx.beginPath();' +
-'      ctx.moveTo(cx + hourOuter * Math.sin(ang), cy - hourOuter * Math.cos(ang));' +
-'      ctx.lineTo(cx + inner * Math.sin(ang), cy - inner * Math.cos(ang));' +
-'      ctx.stroke();' +
-'    }' +
-'    if (showSecondMarkers) {' +
-'      for (var s = 0; s < 60; s++) {' +
-'        if (s % 5 === 0) continue;' +
-'        var ang2 = s * Math.PI / 30;' +
-'        var outer2 = r + 1, inner2 = r - 1;' +
-'        ctx.strokeStyle = colors.text; ctx.lineWidth = 1;' +
-'        ctx.beginPath();' +
-'        ctx.moveTo(cx + outer2 * Math.sin(ang2), cy - outer2 * Math.cos(ang2));' +
-'        ctx.lineTo(cx + inner2 * Math.sin(ang2), cy - inner2 * Math.cos(ang2));' +
-'        ctx.stroke();' +
-'      }' +
-'    }' +
+'    var idx = markerStyle;' +
+'    drawMarkerRing(ctx, cx, cy, w, h, MARKER_STYLE_SECOND_PRESETS[idx], 60, 5, colors);' +
+'    drawMarkerRing(ctx, cx, cy, w, h, MARKER_STYLE_HOUR_PRESETS[idx], 12, 0, colors);' +
+'  } else if (markerStyle === 8) {' +
+'    var secCfg = readCustomMarkerConfig("sec"), hourCfg = readCustomMarkerConfig("hour");' +
+'    drawMarkerRing(ctx, cx, cy, w, h, secCfg, 60, 5, colors);' +
+'    drawMarkerRing(ctx, cx, cy, w, h, hourCfg, 12, 0, colors);' +
+'    drawTextMarkers(ctx, cx, cy, w, h, colors);' +
 '  } else if (markerStyle === 9) {' +
 '    /* none -- no marker ring, no placeholder text either */' +
 '  } else if (!markerImageDrawn) {' +
 '    ctx.font = "10px sans-serif";' +
 '    ctx.fillStyle = colors.text;' +
 '    ctx.textAlign = "center"; ctx.textBaseline = "middle";' +
-'    ctx.fillText(markerStyle === 8 ? "(custom -- edit below)" : "(bitmap markers)", cx, cy - r - 8);' +
+'    ctx.fillText("(bitmap markers)", cx, 12);' +
 '  }' +
 
 '  var hh = now.getHours() % 12, mm = now.getMinutes(), ss = now.getSeconds();' +
 '  var hourAngle = ((hh * 60 + mm) / 720) * 2 * Math.PI;' +
 '  var minAngle = (mm / 60) * 2 * Math.PI;' +
-'  var hourColor = resolveHandPreviewColor(document.getElementById("handHourColor").value, colors);' +
-'  var minColor = resolveHandPreviewColor(document.getElementById("handMinColor").value, colors);' +
-'  var hourTransparent = document.getElementById("handHourTranslucent").value === "true";' +
-'  var minTransparent = document.getElementById("handMinTranslucent").value === "true";' +
-'  drawBigHandPreview(ctx, cx, cy, hourAngle, r * 0.55, hourColor, hourTransparent);' +
-'  drawBigHandPreview(ctx, cx, cy, minAngle, r * 0.85, minColor, minTransparent);' +
-
+'  var secAngle = (ss / 60) * 2 * Math.PI;' +
+'  var shadowAngleDeg = parseFloat(document.getElementById("shadowAngle").value) || 0;' +
+'  var shadowTranslucentStyle = document.getElementById("shadowTranslucent").value !== "false";' +
+'  drawHandFull(ctx, cx, cy, hourAngle, readHandConfig("hour", scale), colors, shadowAngleDeg, shadowTranslucentStyle);' +
+'  drawHandFull(ctx, cx, cy, minAngle, readHandConfig("min", scale), colors, shadowAngleDeg, shadowTranslucentStyle);' +
 '  if (showSeconds) {' +
-'    var secAngle = (ss / 60) * 2 * Math.PI;' +
-'    ctx.strokeStyle = colors.accent; ctx.lineWidth = 1;' +
-'    ctx.beginPath(); ctx.moveTo(cx, cy);' +
-'    ctx.lineTo(cx + r * 0.92 * Math.sin(secAngle), cy - r * 0.92 * Math.cos(secAngle));' +
-'    ctx.stroke();' +
+'    drawHandFull(ctx, cx, cy, secAngle, readHandConfig("sec", scale), colors, shadowAngleDeg, shadowTranslucentStyle);' +
 '  }' +
-'  ctx.fillStyle = colors.text;' +
-'  ctx.beginPath(); ctx.arc(cx, cy, 2, 0, 2 * Math.PI); ctx.fill();' +
+
+'  var ccRadius = (parseFloat(document.getElementById("centerCircleRadius").value) || 0) * scale;' +
+'  if (ccRadius > 0) {' +
+'    var ccColor = resolveHandPreviewColor(document.getElementById("centerCircleColor").value, colors) || colors.text;' +
+'    ctx.fillStyle = ccColor;' +
+'    ctx.beginPath(); ctx.arc(cx, cy, ccRadius, 0, 2 * Math.PI); ctx.fill();' +
+'  }' +
 '}' +
 
 'function drawDigitalPreview(ctx, colors, now, showSeconds, w, panelTop, panelBottom) {' +
@@ -4249,13 +4665,26 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  updateHandFieldVisibility(kind);' +
 '  updatePreview();' +
 '}' +
+// Which hand editor popup (if any) is currently open -- null when
+// closed. updatePreview()'s readHandConfig() checks this: for the hand
+// currently being edited, it reads the popup's own draft fields
+// (hePopupPrefix) so the preview reflects every slider drag/checkbox
+// toggle live, per the request; for every other hand (and once this
+// one closes, saved or cancelled), it reads the committed handHour*/
+// handMin*/handSec* hidden fields instead -- which is also exactly
+// what makes Cancel work correctly: an untouched committed value is
+// what the preview falls back to the moment the popup closes without
+// a Save.
+'var s_openHandEditorKind = null;' +
 'function onHandSliderInput(kind) {' +
 '  updateHandValLabels(kind);' +
+'  updatePreview();' +
 '}' +
 // Pre-fills the popup from the currently-saved handHour*/handMin*/
 // handSec* hidden inputs -- nothing is written back until
 // saveHandEditor() runs.
 'function openHandEditor(kind) {' +
+'  s_openHandEditorKind = kind;' +
 '  var hp = heHiddenPrefix(kind), p = hePopupPrefix(kind);' +
 '  HE_FIELDS.forEach(function (f) {' +
 '    var hidden = document.getElementById(hp + f);' +
@@ -4269,9 +4698,12 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  document.getElementById("handEditorModal-" + kind).className = "modal-overlay open";' +
 '}' +
 'function closeHandEditor(kind) {' +
+'  s_openHandEditorKind = null;' +
 '  document.getElementById("handEditorModal-" + kind).className = "modal-overlay";' +
+'  updatePreview();' +
 '}' +
 'function saveHandEditor(kind) {' +
+'  s_openHandEditorKind = null;' +
 '  var hp = heHiddenPrefix(kind), p = hePopupPrefix(kind);' +
 '  HE_FIELDS.forEach(function (f) {' +
 '    var hidden = document.getElementById(hp + f);' +
