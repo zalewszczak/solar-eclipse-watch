@@ -996,21 +996,26 @@ static int16_t convert_wind(int16_t kmh, uint8_t wind_speed_unit) {
   return kmh;
 }
 
-// Combined width of an icon plus its gap before the text that
-// follows it, per icon_kind -- used to position the icon+text group
-// as a unit for alignment (see draw_corner_item).
+// Combined width of an icon plus its gap before whatever segment
+// follows it (another icon or text), per icon_kind -- used to
+// position multi-segment icon+text/icon+icon groups so consecutive
+// segments land 5px apart instead of overlapping (see draw_corner_item
+// and this function's own per-kind comments for what each icon
+// actually measures out to).
 static int16_t icon_plus_gap_width(int icon_kind) { // TODO: This might not be neccessary anymore
   switch (icon_kind) {
-    case 1: case 2: case 5: case 6: case 7: case 8: case 9: case 10: case 13:
+    case 1: case 2: case 5: case 6: case 7: case 8: case 9: case 10:
     case 18: case 19: case 20: case 21: case 22: case 23: case 24: case 25: case 26:
-      return 11; // bitmap icons (7-wide at 140% scale) + gap
-    case 3: return 10; // battery + gap
+      return 15; // bitmap icons (7-wide at 140% scale, ~10px) + 5px gap
+    case 3: return 13; // battery (8px wide outlined body) + 5px gap
     case 4: return 21; // moon (radius 9, so 2*9+2 diameter box) + gap
     case 11: return 22; // sun-time glyph (fixed 20px, drawn via direct primitives) + gap
+    case 13: return 15; // bluetooth (own case now -- see its own comment in draw_render_icon; same ~10px bitmap width as the SIMPLE_ICONS bucket) + 5px gap
     case 14: return 20; // weather icon (16-wide box, worst case a bit wider for the sun's rays) + gap
     case 15: return 12; // pressure trend chevron + gap
     case 16: return 14; // wind direction arrow + gap
     case 17: return 20; // mountain icon (16-wide box) + gap
+    case 27: return 21; // compass rose (~16px-wide box, same footprint class as moon/mountain) + 5px gap
     default: return 0; // no icon
   }
 }
@@ -2053,7 +2058,7 @@ static void resolve_segment_offsets(FeatureSlot *slot, GFont font, int16_t font_
       GSize sz = graphics_text_layout_get_content_size(seg->text, font, GRect(0, 0, 200, font_h + 10),
                                                         GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft);
       seg->width = sz.w + 2;
-      advance[i] = seg->width + 3;
+      advance[i] = seg->width + 5; // 5px gap before whatever segment follows (icon or more text) -- matches icon_plus_gap_width()'s own gap
     }
     total_w += advance[i];
   }
@@ -2152,7 +2157,6 @@ static const struct { uint8_t kind; uint32_t resource_id; int16_t x_nudge; } SIM
   { 8,  RESOURCE_ID_ICON_GPS_PIN,          6 },
   { 9,  RESOURCE_ID_ICON_EYE,              6 },
   { 10, RESOURCE_ID_ICON_CLOUD,            6 },
-  { 13, RESOURCE_ID_ICON_BLUETOOTH,        6 },
   { 18, RESOURCE_ID_ICON_BED_ARROW_IN,     6 },
   { 19, RESOURCE_ID_ICON_BED_ARROW_OUT,    6 },
   { 20, RESOURCE_ID_ICON_BED_CHECK,        6 },
@@ -2274,6 +2278,22 @@ static void draw_render_icon(GContext *ctx, const RenderSegment *seg, int16_t ic
         }
       }
       draw_mountain_icon(ctx, pos, color);
+      return;
+    }
+    case 13: { // bluetooth -- own case rather than the generic SIMPLE_ICONS
+               // bucket above: that bucket draws each bitmap right-anchored
+               // within its own 16px box (icon_x - ICON_WIDTH + x_nudge),
+               // which is fine for a bitmap that's always the FIRST/only
+               // segment in its slot, but bluetooth routinely follows
+               // another segment (battery icon, a "NN%" text) -- and a
+               // right-anchored draw there lands up to (ICON_WIDTH -
+               // x_nudge) px to the LEFT of icon_x, i.e. back on top of
+               // whatever precedes it, cancelling out that segment's own
+               // trailing gap entirely. Left-anchored at icon_x instead,
+               // matching every other multi-segment-capable icon kind
+               // (battery, moon, compass, ...) below.
+      GPoint pos = GPoint(icon_x, box_y + (CORNER_ROW_H - ICON_ROWS) / 2);
+      draw_icon_resource_with_outline(ctx, pos, RESOURCE_ID_ICON_BLUETOOTH, do_outline, outline_color, color);
       return;
     }
     case 27: { // compass -- asleep (Zz glyph) or a live heading rose with a distinct north arrow

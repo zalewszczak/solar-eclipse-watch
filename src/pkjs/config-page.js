@@ -1449,6 +1449,19 @@ function buildConfigHtml(current) {
 '  .example-style-modal-img { width: 100%; border-radius: 8px; display: block; }' +
 '  .example-style-modal-title { font-weight: 700; font-size: 16px; margin-top: 10px; text-align: center; color: var(--text-strong); }' +
 '  .mode-btn-group { display: flex; width: 100%; margin-top: 6px; border-radius: 6px; overflow: hidden; border: 1px solid var(--border); box-sizing: border-box; }' +
+// 9 icon-only, roughly-square buttons for the slot editor's category
+// picker (replacing what used to be a plain <select>). A fixed 44px
+// button size (>= this page's other buttons -- .slider-step-btn is
+// 34px, .mode-btn\'s own padding alone is 18px plus content) with
+// flex-wrap means the browser decides 1 vs 2 rows purely from
+// available width: 9 * 44px plus gaps doesn\'t fit the modal\'s own
+// max-width (400px) at all, let alone narrower phone screens, so this
+// always wraps to two rows in practice -- but stays correct (and
+// would use one row) if the modal is ever widened.
+'  .category-btn-group { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }' +
+'  .category-btn { width: 44px; height: 44px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; padding: 0; box-sizing: border-box; background: var(--btn-bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text-strong); }' +
+'  .category-btn.active { background: #ff9200; border-color: #ff9200; color: #fff; }' +
+'  .category-btn svg { width: 26px; height: 26px; pointer-events: none; }' +
 '  .mode-btn { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 8px 0 10px; font-size: 12px; font-weight: 700; color: var(--text-strong); background: var(--btn-bg); border: none; border-right: 1px solid var(--border); }' +
 '  .mode-btn svg { width: 23px; height: 26px; display: block; }' +
 '  .mode-btn:last-child { border-right: none; }' +
@@ -1541,8 +1554,9 @@ function buildConfigHtml(current) {
 '<div class="modal-overlay" id="slotEditModal" onclick="if (event.target === this) closeSlotEditor();">' +
 '  <div class="modal-box">' +
 '    <div class="modal-title" id="slotEditTitle">Edit slot</div>' +
-'    <label for="slotEditCategory">Category</label>' +
-'    <select id="slotEditCategory" onchange="onSlotEditCategoryChange()"></select>' +
+'    <label>Category</label>' +
+'    <div class="category-btn-group" id="slotEditCategoryGroup"></div>' +
+'    <input type="hidden" id="slotEditCategory">' +
 '    <label for="slotEditContent" style="margin-top:10px;">Content</label>' +
 '    <select id="slotEditContent" onchange="onSlotEditContentChange()">' + cornerContentOptionsHtml(0) + '</select>' +
 '    <div class="help" id="slotEditCategoryHelp" style="display:none;">DST is calculated for current-era US and EU rules -- Sydney and Auckland don\'t adjust for DST yet.</div>' +
@@ -2962,6 +2976,31 @@ handEditorModalHtml('sec', 'Edit second hand') +
 'var CONTENT_SELECT_IDS = ["cornerTL", "cornerTR", "cornerBL", "cornerBR", ' +
 '  "upperMiddleLine1Content", "upperMiddleLine2Content", "bottomMiddleLine1Content", "bottomMiddleLine2Content", ' +
 '  "middleLeftLine1Content", "middleLeftLine2Content", "middleRightLine1Content", "middleRightLine2Content"];' +
+// One small (24x24 viewBox) icon per CORNER_CATEGORIES entry below,
+// for the category picker's icon-only buttons (see slotEditCategoryGroup
+// in the slot editor popup) -- all currentColor so CSS alone (see
+// .category-btn/.category-btn.active) handles both light/dark mode and
+// the active/inactive button state, same as every other icon button on
+// this page.
+'var CATEGORY_ICONS = {' +
+  // Off/power symbol -- the universal "this does nothing" glyph.
+'  none: \'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3 L12 11"/><path d="M7 6.5 A8 8 0 1 0 17 6.5"/></svg>\',' +
+  // Gear simplified as a ring of 8 short spokes + hub -- safer to
+  // render correctly at 24px than a true gear-tooth polygon.
+'  utilities: \'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="6.5"/><line x1="12" y1="1" x2="12" y2="4"/><line x1="12" y1="20" x2="12" y2="23"/><line x1="1" y1="12" x2="4" y2="12"/><line x1="20" y1="12" x2="23" y2="12"/><line x1="4.2" y1="4.2" x2="6.3" y2="6.3"/><line x1="17.7" y1="17.7" x2="19.8" y2="19.8"/><line x1="4.2" y1="19.8" x2="6.3" y2="17.7"/><line x1="17.7" y1="6.3" x2="19.8" y2="4.2"/><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/></svg>\',' +
+'  health: \'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 21s-7.5-4.6-10-9.3C.5 8.4 2.3 5 5.7 5c2 0 3.4 1.1 4.3 2.5C10.9 6.1 12.3 5 14.3 5c3.4 0 5.2 3.4 3.7 6.7C19.5 16.4 12 21 12 21z"/></svg>\',' +
+'  date: \'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/><rect x="7" y="13" width="3" height="3" fill="currentColor" stroke="none"/></svg>\',' +
+'  time: \'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><line x1="12" y1="12" x2="12" y2="6.5"/><line x1="12" y1="12" x2="16" y2="14"/></svg>\',' +
+  // Globe (world map stand-in): outer circle + one vertical meridian
+  // ellipse + equator + two curved latitude lines.
+'  timezone: \'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><ellipse cx="12" cy="12" rx="4" ry="9"/><line x1="3" y1="12" x2="21" y2="12"/><path d="M4.5 7 C8 8.5, 16 8.5, 19.5 7"/><path d="M4.5 17 C8 15.5, 16 15.5, 19.5 17"/></svg>\',' +
+  // Partly cloudy: small sun peeking above a cloud.
+'  weather: \'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="8" cy="7.5" r="3.2" fill="currentColor" stroke="none"/><line x1="8" y1="1" x2="8" y2="2.5"/><line x1="1.5" y1="7.5" x2="3" y2="7.5"/><line x1="3.3" y1="2.8" x2="4.4" y2="3.9"/><path d="M6 20h11a4 4 0 0 0 .6-7.95A5.5 5.5 0 0 0 7.2 10.8 3.8 3.8 0 0 0 6 20z" fill="currentColor" stroke="none"/></svg>\',' +
+  // Solar system: central star + two tilted orbit ellipses + a couple of planet dots.
+'  astro: \'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="12" cy="12" r="2.3" fill="currentColor" stroke="none"/><ellipse cx="12" cy="12" rx="10" ry="4"/><ellipse cx="12" cy="12" rx="6.5" ry="9" transform="rotate(60 12 12)"/><circle cx="21.3" cy="12" r="1.3" fill="currentColor" stroke="none"/><circle cx="9.6" cy="4.1" r="1.1" fill="currentColor" stroke="none"/></svg>\',' +
+  // Horizontal double-headed arrow, like Unicode's own long left-right arrow.
+'  wide: \'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><polyline points="8,7 3,12 8,17"/><polyline points="16,7 21,12 16,17"/></svg>\'' +
+'};' +
 'var CORNER_CATEGORIES = [' +
 '  { id: "none", label: "None", items: [{ id: 0, label: "None" }] },' +
 '  { id: "utilities", label: "Utilities", items: [' +
@@ -2974,20 +3013,23 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    { id: 39, label: "Sleep duration" }, { id: 40, label: "Restful sleep duration" }, { id: 41, label: "Sleep quality %" },' +
 '    { id: 42, label: "Bed time" }, { id: 43, label: "Wake time" }' +
 '  ] },' +
-'  { id: "datetime", label: "Date/Time", items: [' +
-'    { id: 12, label: "Short date" }, { id: 18, label: "Time" }, { id: 19, label: "Week number" },' +
+'  { id: "date", label: "Date", items: [' +
+'    { id: 12, label: "Short date" }, { id: 19, label: "Week number" },' +
 '    { id: 21, label: "Date: Month Day (SEP 11)" }, { id: 22, label: "Date: Day of month (11)" },' +
 '    { id: 23, label: "Date: Weekday, short (MON)" }, { id: 24, label: "Date: Weekday, long (Monday)" },' +
 '    { id: 25, label: "Date: Month, short (SEP)" }, { id: 26, label: "Date: Month, long (September)" },' +
 '    { id: 27, label: "Date: Day/Month (11/9)" }, { id: 28, label: "Date: Month/Day (9/11)" },' +
 '    { id: 29, label: "Date: Full (24/9/2026)" }, { id: 30, label: "Date: Full, imperial (9/24/26)" },' +
+'    { id: 95, label: "Date: Weekday + Day/Month (MON 24/9)" }, { id: 96, label: "Date: Weekday + Month/Day (MON 9/24)" }' +
+'  ] },' +
+'  { id: "time", label: "Time", items: [' +
+'    { id: 18, label: "Time" },' +
 '    { id: 63, label: "Time: full (H:M:S)" }, { id: 64, label: "Time: hour, 24h leading zero (07)" },' +
 '    { id: 65, label: "Time: hour, 24h (7)" }, { id: 66, label: "Time: hour, 12h (7)" },' +
 '    { id: 67, label: "Time: minute (5)" }, { id: 68, label: "Time: minute, leading zero (05)" },' +
 '    { id: 69, label: "Time: second (8)" }, { id: 70, label: "Time: second, leading zero (08)" },' +
 '    { id: 71, label: "Time: seconds, tens digit" }, { id: 72, label: "Time: seconds, ones digit" },' +
-'    { id: 86, label: "AM/PM" },' +
-'    { id: 95, label: "Date: Weekday + Day/Month (MON 24/9)" }, { id: 96, label: "Date: Weekday + Month/Day (MON 9/24)" }' +
+'    { id: 86, label: "AM/PM" }' +
 '  ] },' +
 '  { id: "timezone", label: "Timezone", items: [' +
 '    { id: 44, label: "GMT+0 London" }, { id: 45, label: "GMT+1 Paris / Berlin / Madrid" }, { id: 46, label: "GMT+2 Cairo" },' +
@@ -3168,14 +3210,38 @@ handEditorModalHtml('sec', 'Edit second hand') +
 'function onSlotEditContentChange() {' +
 '  setSlotEditorColorGroupVisibility(document.getElementById("slotEditContent").value);' +
 '}' +
+// Renders the 9 category picker buttons once (their icons/order never
+// change at runtime, unlike Content below which is rebuilt per open) --
+// called once at page init, see the bottom of this script.
+'function renderCategoryButtons() {' +
+'  var group = document.getElementById("slotEditCategoryGroup");' +
+'  group.innerHTML = CORNER_CATEGORIES.map(function (c) {' +
+'    return \'<button type="button" class="category-btn" data-category="\' + c.id + \'" onclick="selectSlotEditCategory(\\\'\' + c.id + \'\\\')" title="\' + c.label + \'">\' + CATEGORY_ICONS[c.id] + \'</button>\';' +
+'  }).join("");' +
+'}' +
+'function updateCategoryButtonActive(categoryId) {' +
+'  var buttons = document.getElementById("slotEditCategoryGroup").getElementsByClassName("category-btn");' +
+'  for (var i = 0; i < buttons.length; i++) {' +
+'    buttons[i].className = "category-btn" + (buttons[i].getAttribute("data-category") === categoryId ? " active" : "");' +
+'  }' +
+'}' +
+'function selectSlotEditCategory(categoryId) {' +
+'  document.getElementById("slotEditCategory").value = categoryId;' +
+'  updateCategoryButtonActive(categoryId);' +
+'  onSlotEditCategoryChange();' +
+'}' +
 // Repopulates the item dropdown to just the newly-chosen category's
 // items whenever the category itself changes -- defaults to that
 // category\'s first item, since the previously-selected content id
 // (from a different category) is never one of the new options.
+// "None" has nothing else to pick, so Content is disabled rather than
+// left showing a single always-selected "None" option to interact with.
 'function onSlotEditCategoryChange() {' +
 '  var categoryId = document.getElementById("slotEditCategory").value;' +
 '  var firstItemId = findCategory(categoryId).items[0].id;' +
-'  document.getElementById("slotEditContent").innerHTML = categoryItemOptionsHtml(categoryId, firstItemId);' +
+'  var contentSelect = document.getElementById("slotEditContent");' +
+'  contentSelect.innerHTML = categoryItemOptionsHtml(categoryId, firstItemId);' +
+'  contentSelect.disabled = (categoryId === "none");' +
 '  document.getElementById("slotEditCategoryHelp").style.display = (categoryId === "timezone") ? "" : "none";' +
 '  onSlotEditContentChange();' +
 '}' +
@@ -3191,11 +3257,11 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  var contentVal = document.getElementById(def.contentId).value;' +
 '  var colorVal = document.getElementById(def.colorId).value;' +
 '  var categoryId = categoryForContentId(contentVal);' +
-'  var categorySelect = document.getElementById("slotEditCategory");' +
-'  categorySelect.innerHTML = CORNER_CATEGORIES.map(function (c) {' +
-'    return "<option value=\\"" + c.id + "\\"" + (c.id === categoryId ? " selected" : "") + ">" + c.label + "</option>";' +
-'  }).join("");' +
-'  document.getElementById("slotEditContent").innerHTML = categoryItemOptionsHtml(categoryId, contentVal);' +
+'  document.getElementById("slotEditCategory").value = categoryId;' +
+'  updateCategoryButtonActive(categoryId);' +
+'  var contentSelect = document.getElementById("slotEditContent");' +
+'  contentSelect.innerHTML = categoryItemOptionsHtml(categoryId, contentVal);' +
+'  contentSelect.disabled = (categoryId === "none");' +
 '  document.getElementById("slotEditCategoryHelp").style.display = (categoryId === "timezone") ? "" : "none";' +
 '  setSlotEditorColorGroupVisibility(contentVal);' +
 '  setSlotEditorColorButtons(colorVal);' +
@@ -4690,6 +4756,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 'refreshEditButtonLabels();' +
 'renderHandStyleGrid();' +
 'renderMarkerStyleGrid();' +
+'renderCategoryButtons();' +
 'updateWeatherIconStyleVisibility();' +
 'adjustTopBarSpacing();' +
 'if (document.fonts && document.fonts.ready) { document.fonts.ready.then(updatePreview); }' +
