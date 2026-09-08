@@ -700,12 +700,14 @@ function upperMiddleLine2ColorModeCode() {
   if (isNaN(id) || id < 0 || id > 3) id = 0;
   return id;
 }
-// Bottom-middle line 1 (the upper of its own pair) defaults to short
-// date (content 12) -- matches what used to be the separate "show
-// date behind the hands" toggle's default-on behavior, now folded
-// into the regular content system instead of being its own setting.
+// Bottom-middle line 1 (the upper of its own pair) defaults to "Long
+// date + sunrise/sunset" (content 102) -- the digital clock's own
+// always-on bottom-bar feature (see the digitalBottom SLOT_DEFS entry
+// in config-page.js) reuses this same field, and that's the one this
+// default is actually tuned for; analog mode's own "Bottom-middle,
+// line 1" slot shares it too since the two never run at once.
 function bottomMiddleLine1ContentCode() {
-  var id = parseInt(getSetting('CONFIG_BOTTOM_MIDDLE_LINE1_CONTENT', '12'), 10);
+  var id = parseInt(getSetting('CONFIG_BOTTOM_MIDDLE_LINE1_CONTENT', '102'), 10);
   if (isNaN(id) || id < 0 || id > MAX_FEATURES) id = 0;
   return id;
 }
@@ -2519,7 +2521,7 @@ Pebble.addEventListener('showConfiguration', function () {
     upperMiddleLine1Color: getSetting('CONFIG_UPPER_MIDDLE_LINE1_COLOR', '0'),
     upperMiddleLine2Content: getSetting('CONFIG_UPPER_MIDDLE_LINE2_CONTENT', '0'),
     upperMiddleLine2Color: getSetting('CONFIG_UPPER_MIDDLE_LINE2_COLOR', '0'),
-    bottomMiddleLine1Content: getSetting('CONFIG_BOTTOM_MIDDLE_LINE1_CONTENT', '12'),
+    bottomMiddleLine1Content: getSetting('CONFIG_BOTTOM_MIDDLE_LINE1_CONTENT', '102'),
     bottomMiddleLine1Color: getSetting('CONFIG_BOTTOM_MIDDLE_LINE1_COLOR', '0'),
     bottomMiddleLine2Content: getSetting('CONFIG_BOTTOM_MIDDLE_LINE2_CONTENT', '0'),
     bottomMiddleLine2Color: getSetting('CONFIG_BOTTOM_MIDDLE_LINE2_COLOR', '0'),

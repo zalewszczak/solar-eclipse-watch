@@ -1200,9 +1200,14 @@ function buildConfigHtml(current) {
 
   // Which edge-middle slots (upper/bottom/left/right-middle) does the
   // current mode/style support, and are the 4 corners themselves
-  // suppressed? Must match features_recompute_slots's rules in
-  // features_layer.c exactly, or the settings page would show
-  // slots as available that the watch itself won't actually draw.
+  // suppressed? Must match computeSlotAvailability()'s client-side
+  // logic (and features_recompute_slots's rules in features_layer.c)
+  // exactly, or the settings page would show slots as available that
+  // the watch itself won't actually draw. (Not currently read by
+  // anything below -- computeSlotAvailability() is what actually
+  // drives the rendered page -- but kept in sync anyway since this
+  // comment already promises it matches, and a future reader/caller
+  // shouldn't inherit a silently-stale copy.)
   var markerStyleNum = parseInt(current.bigAnalogMarkerStyle || '0', 10);
   var isBitmapMarkerStyle = markerStyleNum >= 3 && markerStyleNum !== 8 && markerStyleNum !== 9;
   var bitmapCornerOverride = !!current.bitmapCornerOverride;
@@ -1211,7 +1216,7 @@ function buildConfigHtml(current) {
     if (markerStyleNum < 3 || markerStyleNum === 8 || markerStyleNum === 9) {
       edgeAvail = { upper: true, bottom: true, left: true, right: true, cornersGrayed: false };
     } else if (markerStyleNum === 3 || markerStyleNum === 4 || markerStyleNum === 6) {
-      edgeAvail = { upper: true, bottom: true, left: false, right: false, cornersGrayed: !bitmapCornerOverride };
+      edgeAvail = { upper: true, bottom: true, left: bitmapCornerOverride, right: bitmapCornerOverride, cornersGrayed: !bitmapCornerOverride };
     } else if (markerStyleNum === 5) {
       // Tally -- its own mask art leaves all 4 corners clear (unlike
       // every other bitmap style), so it alone keeps them active
@@ -1220,7 +1225,7 @@ function buildConfigHtml(current) {
     } else if (markerStyleNum === 7) {
       edgeAvail = { upper: true, bottom: true, left: true, right: true, cornersGrayed: !bitmapCornerOverride };
     } else {
-      edgeAvail = { upper: true, bottom: false, left: false, right: false, cornersGrayed: !bitmapCornerOverride };
+      edgeAvail = { upper: true, bottom: bitmapCornerOverride, left: bitmapCornerOverride, right: bitmapCornerOverride, cornersGrayed: !bitmapCornerOverride };
     }
   }
   var fontOptions = fontOptionsHtml(clockFontId, true);
@@ -1494,9 +1499,28 @@ function buildConfigHtml(current) {
 '  .slot-middle-left-l2 { left: 6px; top: calc(50% + 15px); transform: translateY(-50%); }' +
 '  .slot-middle-right-l1 { right: 6px; top: calc(50% - 15px); transform: translateY(-50%); }' +
 '  .slot-middle-right-l2 { right: 6px; top: calc(50% + 15px); transform: translateY(-50%); }' +
-'  .slot-digital-left3 { left: 6px; top: 96px; }' +
-'  .slot-digital-right3 { right: 6px; top: 96px; }' +
-'  .slot-digital-bottom { left: 50%; bottom: 34px; transform: translateX(-50%); min-width: 90px; }' +
+// The digital clock's own bottom bar -- matches digital_clock_area()/
+// the bottom-third panel on the actual watch (see
+// unobstructed_change_handler's full_top=152 on a 228px-tall screen,
+// i.e. roughly the bottom quarter) -- shown only in digital mode (see
+// updateSlotDiagramMode()) so this diagram actually represents what
+// bottom_style==1 looks like instead of reusing the analog sky
+// backdrop for slots that don't live there at all.
+'  #slotDiagramClockBar { position: absolute; left: 0; right: 0; bottom: 0; height: 25%; background: #000; border-radius: 0 0 8px 8px; display: none; }' +
+'  #slotDiagramClockText { position: absolute; left: 50%; top: 8px; transform: translateX(-50%); color: #fff; font-family: "Courier New", monospace; font-size: 22px; font-weight: 700; letter-spacing: 1px; pointer-events: none; }' +
+// 3 rows per side, bottom-anchored within the clock bar (row 1 nearest
+// the clock/top of the bar, row 3 nearest the screen's bottom edge --
+// same ordering as SLOT_LEFT_L1..UPPER_L1/SLOT_RIGHT_L1..UPPER_L2 in
+// features_layer.c), plus the single always-on feature centered
+// beneath the clock at the very bottom edge, the same width band the
+// clock text itself occupies on the watch (digital_clock_area()).
+'  .slot-digital-left1 { left: 4px; bottom: 42px; }' +
+'  .slot-digital-left2 { left: 4px; bottom: 21px; }' +
+'  .slot-digital-left3 { left: 4px; bottom: 2px; }' +
+'  .slot-digital-right1 { right: 4px; bottom: 42px; }' +
+'  .slot-digital-right2 { right: 4px; bottom: 21px; }' +
+'  .slot-digital-right3 { right: 4px; bottom: 2px; }' +
+'  .slot-digital-bottom { left: 50%; bottom: 2px; transform: translateX(-50%); min-width: 90px; }' +
 '</style></head>' +
 '<body>' +
 
@@ -1785,11 +1809,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '        <input type="checkbox" id="bitmapMarkerTransparent" ' + (current.bitmapMarkerTransparent ? 'checked' : '') + ' onchange="updatePreview()">' +
 '        <label for="bitmapMarkerTransparent" style="margin:0;">Semi transparent markers (see the sky through them)</label>' +
 '      </div>' +
-'      <div class="checkbox-row" id="bitmapCornerOverrideRow" style="margin-top:12px;' + ((isBitmapMarkerStyle && markerStyleNum !== 5) ? '' : ' display:none;') + '">' +
-'        <input type="checkbox" id="bitmapCornerOverride" ' + (current.bitmapCornerOverride ? 'checked' : '') + ' onchange="onBitmapCornerOverrideChange()">' +
-'        <label for="bitmapCornerOverride" style="margin:0;">Enable corner features anyway (may overlap this style\'s artwork)</label>' +
-'      </div>' +
-'      <div class="help">Bitmap styles are tinted with your main color (see the preview above) and their mask art shows behind the hands there once you\'ve added a resource PNG for that style. Which edge-middle info slots they support (instead of the 4 corners) varies by style -- see the Features section below. The 4 corners are off by default for these styles (their artwork usually already fills that space) -- check the box above if you want them anyway.</div>' +
+'      <div class="help">Bitmap styles are tinted with your main color (see the preview above) and their mask art shows behind the hands there once you\'ve added a resource PNG for that style. Which edge-middle info slots they support varies by style -- some are off by default so they don\'t overlap the artwork; see "Incompatible features" in the Features section below if you want them anyway.</div>' +
 '      <div class="help">When an eclipse is actually happening, the Sun fills the whole screen as a background behind the hands.</div>' +
 
 '      <div id="customMarkerSection" style="' + (current.bigAnalogMarkerStyle === '8' ? '' : 'display:none;') + '">' +
@@ -1808,17 +1828,6 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    </div>' +
 '    <input type="hidden" id="skyMode" value="' + esc(current.skyMode || '0') + '">' +
 '    <div class="help">Weather sky shows clouds/rain/snow and the day-night gradient. Clear sky keeps the gradient but never draws weather. Space view drops the gradient entirely for a fixed dark sky, always shows the Sun/Moon/planets when above the horizon regardless of time of day, and adds a field of bright named stars (tap/shake to reveal names).</div>' +
-
-'    <div class="subsection" id="digitalSidesSection" style="' + ((bottomStyleVal === 'digital' && !clockFontIsWide) ? '' : 'display:none;') + '">' +
-'      <label>Side features</label>' +
-'      <div class="mode-btn-group" id="digitalSidesGroup">' +
-'        <button type="button" class="mode-btn' + (digitalLeftOn ? ' active' : '') + '" data-side="left" onclick="toggleDigitalSide(\'left\')">LEFT SIDE</button>' +
-'        <button type="button" class="mode-btn' + (digitalRightOn ? ' active' : '') + '" data-side="right" onclick="toggleDigitalSide(\'right\')">RIGHT SIDE</button>' +
-'      </div>' +
-'      <input type="hidden" id="digitalSides" value="' + esc(digitalSidesVal) + '">' +
-'      <div class="help">Adds up to 3 short info lines down each side of the clock -- pick their content in the Features section below. Only offered for narrower clock fonts (this one qualifies); picking both sides assumes the font is already narrow enough to share the screen with them without shrinking the clock any further.</div>' +
-'    </div>' +
-'    <div class="help" id="digitalSidesWideHelp" style="' + ((bottomStyleVal === 'digital' && clockFontIsWide) ? '' : 'display:none;') + '">This font runs too wide for side features -- pick a narrower one above to use them.</div>' +
 
 '    <div class="checkbox-row subsection">' +
 '      <input type="checkbox" id="outlineEnabled" ' + (current.outlineEnabled !== false ? 'checked' : '') + '>' +
@@ -1928,6 +1937,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    <div class="help">Features are small info readouts (weather, health, date/time, and more) placed around your watch face. Tap a slot on the diagram below to pick what it shows and how it\'s colored -- grayed-out slots aren\'t available for your current style.</div>' +
 
 '    <div id="slotPickerDiagram">' +
+'      <div id="slotDiagramClockBar"><span id="slotDiagramClockText">12:34</span></div>' +
 '      <button type="button" class="slot-btn slot-corner-tl" id="slotBtn-cornerTL" onclick="openSlotEditor(\'cornerTL\')"></button>' +
 '      <button type="button" class="slot-btn slot-corner-tr" id="slotBtn-cornerTR" onclick="openSlotEditor(\'cornerTR\')"></button>' +
 '      <button type="button" class="slot-btn slot-corner-bl" id="slotBtn-cornerBL" onclick="openSlotEditor(\'cornerBL\')"></button>' +
@@ -1940,16 +1950,35 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      <button type="button" class="slot-btn slot-middle-left-l2" id="slotBtn-middleLeftLine2" onclick="openSlotEditor(\'middleLeftLine2\')"></button>' +
 '      <button type="button" class="slot-btn slot-middle-right-l1" id="slotBtn-middleRightLine1" onclick="openSlotEditor(\'middleRightLine1\')"></button>' +
 '      <button type="button" class="slot-btn slot-middle-right-l2" id="slotBtn-middleRightLine2" onclick="openSlotEditor(\'middleRightLine2\')"></button>' +
-'      <button type="button" class="slot-btn slot-middle-left-l1" id="slotBtn-digitalLeft1" onclick="openSlotEditor(\'digitalLeft1\')"></button>' +
-'      <button type="button" class="slot-btn slot-middle-left-l2" id="slotBtn-digitalLeft2" onclick="openSlotEditor(\'digitalLeft2\')"></button>' +
+'      <button type="button" class="slot-btn slot-digital-left1" id="slotBtn-digitalLeft1" onclick="openSlotEditor(\'digitalLeft1\')"></button>' +
+'      <button type="button" class="slot-btn slot-digital-left2" id="slotBtn-digitalLeft2" onclick="openSlotEditor(\'digitalLeft2\')"></button>' +
 '      <button type="button" class="slot-btn slot-digital-left3" id="slotBtn-digitalLeft3" onclick="openSlotEditor(\'digitalLeft3\')"></button>' +
-'      <button type="button" class="slot-btn slot-middle-right-l1" id="slotBtn-digitalRight1" onclick="openSlotEditor(\'digitalRight1\')"></button>' +
-'      <button type="button" class="slot-btn slot-middle-right-l2" id="slotBtn-digitalRight2" onclick="openSlotEditor(\'digitalRight2\')"></button>' +
+'      <button type="button" class="slot-btn slot-digital-right1" id="slotBtn-digitalRight1" onclick="openSlotEditor(\'digitalRight1\')"></button>' +
+'      <button type="button" class="slot-btn slot-digital-right2" id="slotBtn-digitalRight2" onclick="openSlotEditor(\'digitalRight2\')"></button>' +
 '      <button type="button" class="slot-btn slot-digital-right3" id="slotBtn-digitalRight3" onclick="openSlotEditor(\'digitalRight3\')"></button>' +
 '      <button type="button" class="slot-btn slot-digital-bottom" id="slotBtn-digitalBottom" onclick="openSlotEditor(\'digitalBottom\')"></button>' +
 '    </div>' +
 
+'    <div class="checkbox-row" id="bitmapCornerOverrideRow" style="margin-top:12px;' + ((isBitmapMarkerStyle && markerStyleNum !== 5) ? '' : ' display:none;') + '">' +
+'      <input type="checkbox" id="bitmapCornerOverride" ' + (current.bitmapCornerOverride ? 'checked' : '') + ' onchange="onBitmapCornerOverrideChange()">' +
+'      <label for="bitmapCornerOverride" style="margin:0;">Incompatible features (may overlap the design)</label>' +
+'    </div>' +
+'    <div class="help" id="bitmapCornerOverrideHelp" style="' + ((isBitmapMarkerStyle && markerStyleNum !== 5) ? '' : 'display:none;') + '">Your current bitmap marker style\'s artwork doesn\'t leave room for every feature slot -- corners and side edges are grayed out above by default so they don\'t overlap it. Check this box to enable all of them anyway.</div>' +
+
+'    <div class="subsection" id="digitalSidesSection" style="' + ((bottomStyleVal === 'digital' && !clockFontIsWide) ? '' : 'display:none;') + '">' +
+'      <label>Side features</label>' +
+'      <div class="mode-btn-group" id="digitalSidesGroup">' +
+'        <button type="button" class="mode-btn' + (digitalLeftOn ? ' active' : '') + '" data-side="left" onclick="toggleDigitalSide(\'left\')">LEFT SIDE</button>' +
+'        <button type="button" class="mode-btn' + (digitalRightOn ? ' active' : '') + '" data-side="right" onclick="toggleDigitalSide(\'right\')">RIGHT SIDE</button>' +
+'      </div>' +
+'      <input type="hidden" id="digitalSides" value="' + esc(digitalSidesVal) + '">' +
+'      <div class="help">Adds up to 3 short info lines down each side of the digital clock, on the bottom bar -- pick their content on the diagram above. Only offered for narrower clock fonts (this one qualifies); picking both sides assumes the font is already narrow enough to share the bar with them without shrinking the clock any further.</div>' +
+'    </div>' +
+'    <div class="help" id="digitalSidesWideHelp" style="' + ((bottomStyleVal === 'digital' && clockFontIsWide) ? '' : 'display:none;') + '">This font runs too wide for side features -- pick a narrower one in the Style section to use them.</div>' +
+
 '    <label for="cornerFont">Font</label>' +
+
+
 '    <select id="cornerFont" onchange="onCornerFontChange()" style="display:none;">' + fontOptionsHtml(cornerFontId, false) + '</select>' +
 '    <button type="button" class="font-picker-btn font-picker-trigger" id="cornerFontTrigger" onclick="openFontPicker(\'cornerFont\')">' +
 '      <span class="font-picker-preview" id="cornerFontTriggerPreview"></span>' +
@@ -2890,7 +2919,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 // depends on the clock font, not just digital-vs-analog), so both this
 // and onBottomStyleChange() above call it. If the newly-selected font
 // can't support them, forces digitalSides back to "none" -- same
-// reasoning clearCornersIfUnavailable() clears stale corner picks
+// reasoning clearGrayedSlotsIfUnavailable() clears stale corner/edge picks
 // instead of leaving a hidden section quietly keep sending a value the
 // watch would otherwise still draw.
 'function updateDigitalSidesVisibility() {' +
@@ -3052,8 +3081,13 @@ handEditorModalHtml('sec', 'Edit second hand') +
 // Procedural marker styles (<3) have all 8 slots and the 4 corners;
 // bitmap styles are each limited to whatever their own artwork
 // actually has room for and (Tally excepted -- its own mask leaves
-// all 4 corners clear) suppress the corners entirely, since the mask
-// fills most of the rest of the screen either way.
+// all 4 corners clear) suppress the corners -- and, for the styles
+// whose mask only really has room for upper+bottom, the left/right
+// edges too -- by default, since the mask fills most of the rest of
+// the screen either way. The "Incompatible features" checkbox
+// (bitmapCornerOverride) unlocks all of it at once: corners AND
+// whichever middle edges that style would otherwise leave off, not
+// just the corners.
 'function computeSlotAvailability() {' +
 '  var styleVal = document.getElementById("bottomStyleValue").value;' +
 '  var isAnalog = styleVal === "analog";' +
@@ -3067,13 +3101,13 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    if (markerStyle < 3 || markerStyle === 8 || markerStyle === 9) {' +
 '      avail.upper = avail.bottom = avail.left = avail.right = true;' +
 '    } else if (markerStyle === 3 || markerStyle === 4 || markerStyle === 6) {' +
-'      avail.upper = avail.bottom = true; avail.cornersGrayed = !override;' +
+'      avail.upper = avail.bottom = true; avail.left = avail.right = override; avail.cornersGrayed = !override;' +
 '    } else if (markerStyle === 5) {' +
 '      avail.upper = avail.bottom = avail.left = avail.right = true;' +
 '    } else if (markerStyle === 7) {' +
 '      avail.upper = avail.bottom = avail.left = avail.right = true; avail.cornersGrayed = !override;' +
 '    } else {' +
-'      avail.upper = true; avail.cornersGrayed = !override;' +
+'      avail.upper = true; avail.bottom = avail.left = avail.right = override; avail.cornersGrayed = !override;' +
 '    }' +
 '  }' +
 '  return avail;' +
@@ -3085,16 +3119,19 @@ handEditorModalHtml('sec', 'Edit second hand') +
 'function renderSlotPicker() {' +
 '  var avail = computeSlotAvailability();' +
 '  var isAnalogMode = document.getElementById("bottomStyleValue").value === "analog";' +
+'  document.getElementById("slotDiagramClockBar").style.display = isAnalogMode ? "none" : "block";' +
 '  for (var key in SLOT_DEFS) {' +
 '    var def = SLOT_DEFS[key];' +
 '    var btn = document.getElementById(def.btnId);' +
 '    var baseClass = btn.getAttribute("data-base-class");' +
 '    if (!baseClass) { baseClass = btn.className; btn.setAttribute("data-base-class", baseClass); }' +
-    // analogOnly/digitalOnly slots share their screen position with
-    // their counterpart in the other mode (e.g. digitalRight1 sits
-    // exactly where middleRightLine1 does) -- only one member of each
-    // pair is ever relevant at a time, so the other is fully hidden
-    // here rather than shown as a "N/A" placeholder overlapping it.
+    // analogOnly/digitalOnly slots are two different underlying
+    // AppMessage fields sharing one settings <select> (see SLOT_DEFS'
+    // own comment) but sit at DIFFERENT diagram positions now (the
+    // digital ones on the clock bar, the analog ones around the dial)
+    // -- only one member of each pair is ever relevant at a time, so
+    // the other is fully hidden here rather than shown as a "N/A"
+    // placeholder over a spot that mode doesn't even use.
 '    if ((def.analogOnly && !isAnalogMode) || (def.digitalOnly && isAnalogMode)) {' +
 '      btn.style.display = "none";' +
 '      continue;' +
@@ -3265,26 +3302,47 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  var isBitmap = (val === "3" || val === "4" || val === "5" || val === "6" || val === "7");' +
 '  document.getElementById("bitmapMarkerTransparentRow").style.display = isBitmap ? "" : "none";' +
 '  document.getElementById("bitmapCornerOverrideRow").style.display = (isBitmap && val !== "5") ? "" : "none";' +
+'  document.getElementById("bitmapCornerOverrideHelp").style.display = (isBitmap && val !== "5") ? "" : "none";' +
 '  updateMarkerStyleButtonLabel();' +
-'  clearCornersIfUnavailable();' +
+'  clearGrayedSlotsIfUnavailable();' +
 '  renderSlotPicker();' +
 '  updatePreview();' +
 '}' +
-// The 4 corner content selections are off by default (and cleared, not
-// just visually grayed) for bitmap styles other than Tally -- their
-// artwork usually fills that space already. Without this, a value
-// picked while a procedural/custom style was active would silently
-// keep being sent to the watch even once its slot button shows "N/A",
-// since features_layer.c no longer suppresses corners itself for any
-// particular marker style (see its own note on why that moved here).
-'function clearCornersIfUnavailable() {' +
+// The 4 corner content selections -- and, since the "Incompatible
+// features" override now covers them too, left/right middle-edge
+// content -- are off by default (and cleared, not just visually
+// grayed) for bitmap styles whose artwork doesn't leave room for them.
+// Without this, a value picked while a procedural/custom style (or
+// the override) was active would silently keep being sent to the
+// watch even once its slot button shows "N/A", since features_layer.c
+// no longer suppresses any of this itself (see its own note on why
+// that moved here).
+'function clearGrayedSlotsIfUnavailable() {' +
 '  var avail = computeSlotAvailability();' +
-'  if (!avail.cornersGrayed) return;' +
-'  var ids = ["cornerTL", "cornerTR", "cornerBL", "cornerBR"];' +
-'  for (var i = 0; i < ids.length; i++) { document.getElementById(ids[i]).value = "0"; }' +
+'  if (avail.cornersGrayed) {' +
+'    var cornerIds = ["cornerTL", "cornerTR", "cornerBL", "cornerBR"];' +
+'    for (var i = 0; i < cornerIds.length; i++) { document.getElementById(cornerIds[i]).value = "0"; }' +
+'  }' +
+  // middleLeft/RightLineContent are dual-purpose (digital mode's own
+  // side-feature columns reuse these same fields -- see SLOT_DEFS'
+  // own comment), and avail.left/right stay false unconditionally in
+  // digital mode (it tracks its own availability via
+  // avail.digitalLeft/digitalRight instead) -- so this only clears
+  // them in analog mode, where !avail.left/right specifically means
+  // "this bitmap style doesn't support it without the override",
+  // never "wrong mode".
+'  var isAnalog = document.getElementById("bottomStyleValue").value === "analog";' +
+'  if (isAnalog && !avail.left) {' +
+'    document.getElementById("middleLeftLine1Content").value = "0";' +
+'    document.getElementById("middleLeftLine2Content").value = "0";' +
+'  }' +
+'  if (isAnalog && !avail.right) {' +
+'    document.getElementById("middleRightLine1Content").value = "0";' +
+'    document.getElementById("middleRightLine2Content").value = "0";' +
+'  }' +
 '}' +
 'function onBitmapCornerOverrideChange() {' +
-'  clearCornersIfUnavailable();' +
+'  clearGrayedSlotsIfUnavailable();' +
 '  renderSlotPicker();' +
 '  updatePreview();' +
 '}' +
