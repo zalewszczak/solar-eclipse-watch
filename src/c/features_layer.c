@@ -2493,11 +2493,11 @@ static void features_recompute_layout(FeaturesState *state) {
   // they use a fixed per-style table instead, each side independent.
   typedef struct { int16_t top, bottom, left, right; } EdgeMargins;
   static const EdgeMargins BITMAP_STYLE_MARGINS[5] = {
-    { 44, 40, 30, 30 }, // 3: Modern
-    { 44, 40, 30, 30 }, // 4: Shadow
-    { 44, 40, 30, 30 }, // 5: Tally
-    { 44, 40, 30, 30 }, // 6: Bell
-    { 44, 40, 30, 30 }, // 7: Fancy
+    { 34, 30, 35, 30 }, // 3: Modern
+    { 34, 30, 35, 30 }, // 4: Shadow
+    { 44, 40, 25, 15 }, // 5: Tally
+    { 44, 40, 40, 40 }, // 6: Bell
+    { 44, 40, 30, 20 }, // 7: Fancy
   };
   int16_t dyn_upper_offset = 44, dyn_bottom_shift = 40, dyn_left_inset = 30, dyn_right_inset = 30;
   if (is_bitmap_style && marker_style >= 3 && marker_style <= 7) {
