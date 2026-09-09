@@ -335,15 +335,15 @@ var FONT_PREVIEW_IMAGES = require('./font-preview-images');
 // each one says why in its own comment. Every non-approx entry below
 // is the literal same family as what's baked into the watch resource.
 var FONT_LOOKUP = [
-  { id: 0,  label: 'System Small',        height: 14, preview: "font-family: Arial, sans-serif;", small: true,
+  { id: 0,  label: 'Gothic X-Small',        height: 14, preview: "font-family: Arial, sans-serif;", small: true,
     google: null, sizePx: 14, approx: true }, // Pebble's built-in "Gothic" system font -- no Google Fonts equivalent by name; Arial/Helvetica is the closest common grotesque.
-  { id: 1,  label: 'System Medium',       height: 18, preview: "font-family: Arial, sans-serif; font-weight: 700;", small: true,
+  { id: 1,  label: 'Gothic Small',       height: 18, preview: "font-family: Arial, sans-serif; font-weight: 700;", small: true,
     google: null, sizePx: 18, approx: true }, // see id 0
-  { id: 2,  label: 'System Large',        height: 24, preview: "font-family: Arial, sans-serif; font-weight: 700;", small: true,
+  { id: 2,  label: 'Gothic Medium',        height: 24, preview: "font-family: Arial, sans-serif; font-weight: 700;", small: true,
     google: null, sizePx: 24, approx: true }, // see id 0
-  { id: 3,  label: 'System XL',           height: 32, preview: "font-family: Arial, sans-serif; font-weight: 700;", small: true,
+  { id: 3,  label: 'Gothic Large',           height: 32, preview: "font-family: Arial, sans-serif; font-weight: 700;", small: true,
     google: null, sizePx: 32, approx: true }, // see id 0
-  { id: 4,  label: 'System XXL',          height: 36, preview: "font-family: Arial, sans-serif; font-weight: 700;", small: true,
+  { id: 4,  label: 'Gothic X-Large',          height: 36, preview: "font-family: Arial, sans-serif; font-weight: 700;", small: true,
     google: null, sizePx: 36, approx: true }, // see id 0
   { id: 5,  label: 'Leco Small',          height: 17, preview: "font-family: Arial, sans-serif; font-weight: 300;", small: false, mainClock: true, google: null, sizePx: 17, approx: true }, // Pebble's built-in rounded numerals font -- no Google Fonts equivalent; no substitute attempted beyond a plain sans, since Leco's own rounded-digit character is hard to approximate with a generic family.
   { id: 6,  label: 'Leco Medium',         height: 20, preview: "font-family: Arial, sans-serif; font-weight: 700;", small: false, mainClock: true, google: null, sizePx: 20, approx: true }, // see id 5
@@ -365,38 +365,55 @@ var FONT_LOOKUP = [
     google: 'Press Start 2P', weight: 400, sizePx: 12, approx: true }, // Minecrafter (dafont-only) isn't on Google Fonts -- Press Start 2P's blocky 8-bit game look is the closest match.
   { id: 19, label: 'Minecrafter',         height: 40, preview: "font-family: 'Press Start 2P', 'Courier New', monospace;", small: false, mainClock: true, wide: true,
     google: 'Press Start 2P', weight: 400, sizePx: 48, approx: true }, // see id 18
-  { id: 20, label: 'SF Pixelate Small',   height: 14, preview: "font-family: 'DotGothic16', 'Courier New', monospace;", small: true,
-    google: 'DotGothic16', weight: 400, sizePx: 14, approx: true }, // SF Pixelate (dafont-only) isn't on Google Fonts -- DotGothic16's clean pixel-grid look is the closest match without reusing Minecrafter's/Digital Dream's own substitutes above.
-  { id: 21, label: 'SF Pixelate',         height: 40, preview: "font-family: 'DotGothic16', 'Courier New', monospace;", small: false, mainClock: true, wide: true,
+  { id: 20, label: 'SF Pixelate',         height: 40, preview: "font-family: 'DotGothic16', 'Courier New', monospace;", small: false, mainClock: true, wide: true, secondsDisabled: true,
     google: 'DotGothic16', weight: 400, sizePx: 48, approx: true }, // see id 20
-  { id: 22, label: 'Alagard Small',       height: 19, preview: "font-family: 'Pixelify Sans', 'Century Gothic', sans-serif; font-weight: 600;", small: true,
+  { id: 21, label: 'Alagard Small',       height: 19, preview: "font-family: 'Pixelify Sans', 'Century Gothic', sans-serif; font-weight: 600;", small: true,
     google: 'Pixelify Sans', weight: 600, sizePx: 19, approx: true }, // Alagard (dafont-only, Hewett Tsoi's 16px fantasy bitmap face) isn't on Google Fonts -- Pixelify Sans's blocky pixel-game look is the closest available match.
-  { id: 23, label: 'Alagard',             height: 40, preview: "font-family: 'Pixelify Sans', 'Century Gothic', sans-serif; font-weight: 600;", small: false, mainClock: true, google: 'Pixelify Sans', weight: 600, sizePx: 48, approx: true }, // see id 22
-  { id: 24, label: 'Bebas Small',         height: 20, preview: "font-family: 'Bebas Neue', 'Century Gothic', sans-serif; letter-spacing: 1px;", small: true,
+  { id: 22, label: 'Alagard',             height: 40, preview: "font-family: 'Pixelify Sans', 'Century Gothic', sans-serif; font-weight: 600;", small: false, mainClock: true, google: 'Pixelify Sans', weight: 600, sizePx: 48, approx: true }, // see id 22
+  { id: 23, label: 'Bebas Small',         height: 20, preview: "font-family: 'Bebas Neue', 'Century Gothic', sans-serif; letter-spacing: 1px;", small: true,
     google: 'Bebas Neue', weight: 400, sizePx: 20 },
-  { id: 25, label: 'Bebas',               height: 40, preview: "font-family: 'Bebas Neue', 'Century Gothic', sans-serif; letter-spacing: 1px;", small: false, mainClock: true, google: 'Bebas Neue', weight: 400, sizePx: 48 },
-  { id: 26, label: 'Amita',               height: 40, preview: "font-family: 'Amita', Impact, sans-serif; font-weight: 700;", small: false, mainClock: true, google: 'Amita', weight: 700, sizePx: 48 },
-  { id: 27, label: 'AveriaSerifLibre',    height: 40, preview: "font-family: 'Averia Serif Libre', 'Courier New', serif; font-weight: 700; font-style: italic;", small: false, mainClock: true, wide: true,
+  { id: 24, label: 'Bebas',               height: 40, preview: "font-family: 'Bebas Neue', 'Century Gothic', sans-serif; letter-spacing: 1px;", small: false, mainClock: true, google: 'Bebas Neue', weight: 400, sizePx: 48 },
+  { id: 25, label: 'Amita',               height: 40, preview: "font-family: 'Amita', Impact, sans-serif; font-weight: 700;", small: false, mainClock: true, google: 'Amita', weight: 700, sizePx: 48 },
+  { id: 26, label: 'AveriaSerifLibre',    height: 40, preview: "font-family: 'Averia Serif Libre', 'Courier New', serif; font-weight: 700; font-style: italic;", small: false, mainClock: true, wide: true, secondsDisabled: true,
     google: 'Averia Serif Libre', weight: 700, italic: true, sizePx: 48 },
-  { id: 28, label: 'Bagel',               height: 40, preview: "font-family: 'Bagel Fat One', 'Courier New', monospace;", small: false, mainClock: true, wide: true,
+  { id: 27, label: 'Bagel',               height: 40, preview: "font-family: 'Bagel Fat One', 'Courier New', monospace;", small: false, mainClock: true, wide: true, secondsDisabled: true,
     google: 'Bagel Fat One', weight: 400, sizePx: 48 },
-  { id: 29, label: 'Bricolage Grotesque', height: 40, preview: "font-family: 'Bricolage Grotesque', Impact, 'Arial Narrow', sans-serif; font-weight: 700;", small: false, mainClock: true, wide: true,
+  { id: 28, label: 'Bricolage Grotesque', height: 40, preview: "font-family: 'Bricolage Grotesque', Impact, 'Arial Narrow', sans-serif; font-weight: 700;", small: false, mainClock: true, wide: true, secondsDisabled: true,
     google: 'Bricolage Grotesque', weight: 700, sizePx: 48 },
-  { id: 30, label: 'Chango',              height: 40, preview: "font-family: 'Chango', 'Courier New', monospace;", small: false, mainClock: true, google: 'Chango', weight: 400, sizePx: 48 },
-  { id: 31, label: 'EmblemaOne',          height: 40, preview: "font-family: 'Emblema One', 'Arial Narrow', sans-serif; letter-spacing: 1px;", small: false, mainClock: true, allowInlineSeconds: false, google: 'Emblema One', weight: 400, sizePx: 48 },
-  { id: 32, label: 'Fraunces',            height: 40, preview: "font-family: 'Fraunces', Georgia, serif; font-weight: 700;", small: false, mainClock: true, google: 'Fraunces', weight: 700, sizePx: 48 },
-  { id: 33, label: 'Geostar Fill',        height: 40, preview: "font-family: 'Geostar Fill', Impact, sans-serif;", small: false, mainClock: true, google: 'Geostar Fill', weight: 400, sizePx: 48 },
-  { id: 34, label: 'Michroma',            height: 40, preview: "font-family: 'Michroma', 'Arial Black', sans-serif; letter-spacing: 1px;", small: false, mainClock: true, wide: true,
+  { id: 29, label: 'Chango',              height: 40, preview: "font-family: 'Chango', 'Courier New', monospace;", small: false, mainClock: true, google: 'Chango', weight: 400, sizePx: 48 },
+  { id: 30, label: 'EmblemaOne',          height: 40, preview: "font-family: 'Emblema One', 'Arial Narrow', sans-serif; letter-spacing: 1px;", small: false, mainClock: true, google: 'Emblema One', weight: 400, sizePx: 48 },
+  { id: 31, label: 'Fraunces',            height: 40, preview: "font-family: 'Fraunces', Georgia, serif; font-weight: 700;", small: false, mainClock: true, google: 'Fraunces', weight: 700, sizePx: 48 },
+  { id: 32, label: 'Geostar Fill',        height: 40, preview: "font-family: 'Geostar Fill', Impact, sans-serif;", small: false, mainClock: true, google: 'Geostar Fill', weight: 400, sizePx: 48 },
+  { id: 33, label: 'Michroma',            height: 40, preview: "font-family: 'Michroma', 'Arial Black', sans-serif; letter-spacing: 1px;", small: false, mainClock: true, wide: true, secondsDisabled: true,
     google: 'Michroma', weight: 400, sizePx: 48 },
-  { id: 35, label: 'National Park',       height: 40, preview: "font-family: 'National Park', Verdana, sans-serif; font-weight: 700;", small: false, mainClock: true, google: 'National Park', weight: 700, sizePx: 48 },
-  { id: 36, label: 'Komika',              height: 40, preview: "font-family: 'Bangers', 'Comic Sans MS', cursive;", small: false, mainClock: true, wide: true,
+  { id: 34, label: 'National Park',       height: 40, preview: "font-family: 'National Park', Verdana, sans-serif; font-weight: 700;", small: false, mainClock: true, google: 'National Park', weight: 700, sizePx: 48 },
+  { id: 35, label: 'Komika',              height: 40, preview: "font-family: 'Bangers', 'Comic Sans MS', cursive;", small: false, mainClock: true, wide: true, secondsDisabled: true,
     google: 'Bangers', weight: 400, sizePx: 48, approx: true }, // Komika Hand (Apostrophic Labs, dafont-only) isn't on Google Fonts -- Bangers is the closest bold comic-lettering face Google Fonts actually has.
-  { id: 37, label: 'Quantico',            height: 40, preview: "font-family: 'Quantico', Impact, 'Arial Narrow', sans-serif; font-weight: 700; font-style: italic;", small: false, mainClock: true, google: 'Quantico', weight: 700, italic: true, sizePx: 48 },
-  { id: 38, label: 'Silkscreen',          height: 40, preview: "font-family: 'Silkscreen', Impact, 'Arial Narrow', sans-serif;", small: false, mainClock: true, google: 'Silkscreen', weight: 400, sizePx: 48 },
-  { id: 39, label: 'StackSansHeadline',   height: 40, preview: "font-family: 'Anton', 'Arial Narrow', sans-serif;", small: false, mainClock: true, google: 'Anton', weight: 400, sizePx: 48, approx: true }, // Stack Sans Headline isn't on Google Fonts (independent foundry release) -- Anton's ultra-bold condensed headline shape is the closest match.
-  { id: 40, label: 'Unbounded',           height: 40, preview: "font-family: 'Unbounded', Impact, 'Arial Narrow', sans-serif; font-weight: 500;", small: false, mainClock: true, google: 'Unbounded', weight: 500, sizePx: 48 },
-  { id: 41, label: 'Wallpoet',            height: 40, preview: "font-family: 'Wallpoet', Impact, 'Arial Narrow', sans-serif;", small: false, mainClock: true, google: 'Wallpoet', weight: 400, sizePx: 48 },
-  { id: 42, label: 'ZalandoSans',         height: 40, preview: "font-family: 'Zalando Sans Expanded', Impact, 'Arial Narrow', sans-serif; font-weight: 500;", small: false, mainClock: true, google: 'Zalando Sans Expanded', weight: 500, sizePx: 48 }
+  { id: 36, label: 'Quantico',            height: 40, preview: "font-family: 'Quantico', Impact, 'Arial Narrow', sans-serif; font-weight: 700; font-style: italic;", small: false, mainClock: true, google: 'Quantico', weight: 700, italic: true, sizePx: 48 },
+  { id: 37, label: 'Silkscreen',          height: 40, preview: "font-family: 'Silkscreen', Impact, 'Arial Narrow', sans-serif;", small: false, mainClock: true, google: 'Silkscreen', weight: 400, sizePx: 48 },
+  { id: 38, label: 'StackSansHeadline',   height: 40, preview: "font-family: 'Anton', 'Arial Narrow', sans-serif;", small: false, mainClock: true, google: 'Anton', weight: 400, sizePx: 48, approx: true }, // Stack Sans Headline isn't on Google Fonts (independent foundry release) -- Anton's ultra-bold condensed headline shape is the closest match.
+  { id: 39, label: 'Unbounded',           height: 40, preview: "font-family: 'Unbounded', Impact, 'Arial Narrow', sans-serif; font-weight: 500;", small: false, mainClock: true, google: 'Unbounded', weight: 500, sizePx: 48 },
+  { id: 40, label: 'Wallpoet',            height: 40, preview: "font-family: 'Wallpoet', Impact, 'Arial Narrow', sans-serif;", small: false, mainClock: true, google: 'Wallpoet', weight: 400, sizePx: 48 },
+  { id: 41, label: 'ZalandoSans',         height: 40, preview: "font-family: 'Zalando Sans Expanded', Impact, 'Arial Narrow', sans-serif; font-weight: 500;", small: false, mainClock: true, google: 'Zalando Sans Expanded', weight: 500, sizePx: 48 },
+ 
+  { id: 42, label: 'Bytesized',           height: 16, preview: "font-family: 'Bytesized', Impact, 'Arial Narrow', sans-serif; font-weight: 400;", small: true, mainClock: false, google: 'Bytesized', weight: 400, sizePx: 16 },
+  { id: 43, label: 'M Plus 1C',           height: 16, preview: "font-family: 'M PLUS 1 Code', Impact, 'Arial Narrow', sans-serif; font-weight: 700;", small: true, mainClock: false, google: 'M PLUS 1 Code', weight: 700, sizePx: 16 },
+  { id: 44, label: 'Noto Serif',          height: 18, preview: "font-family: 'Noto Serif', Impact, 'Arial Narrow', sans-serif; font-weight: 500; font-style: italic;", small: true, mainClock: false, google: 'Noto Serif', weight: 500, italic: true, sizePx: 18 },
+
+  { id: 45, label: 'M Plus 1C',           height: 40, preview: "font-family: 'M PLUS 1 Code', Impact, 'Arial Narrow', sans-serif; font-weight: 700;", small: false, mainClock: true, google: 'M PLUS 1 Code', weight: 700, sizePx: 48 },
+  { id: 46, label: 'Reddit Sans',         height: 40, preview: "font-family: 'Reddit Sans', Impact, 'Arial Narrow', sans-serif; font-weight: 700;", small: false, mainClock: true, google: 'Reddit Sans', weight: 700, sizePx: 48 },
+  
+  { id: 47, label: 'Arcade',              height: 18, preview: "font-family: 'Press Start 2P', 'Courier New', monospace;", small: true, mainClock: false, google: 'Press Start 2P', weight: 400, sizePx: 18 }, //TODO: add another sources with these fonts since google fonts doesnt have them...
+  { id: 48, label: 'DSDIGIB_FONT_20',     height: 20, preview: "font-family: 'Press Start 2P', 'Courier New', monospace;", small: true, mainClock: false, google: 'Press Start 2P', weight: 400, sizePx: 20 },
+  { id: 49, label: 'DSDIGIT_FONT_20',     height: 20, preview: "font-family: 'Press Start 2P', 'Courier New', monospace;", small: true, mainClock: false, google: 'Press Start 2P', weight: 400, sizePx: 20 },
+  { id: 50, label: 'LCDSOLID_FONT_18',    height: 18, preview: "font-family: 'Press Start 2P', 'Courier New', monospace;", small: true, mainClock: false, google: 'Press Start 2P', weight: 400, sizePx: 18 },
+  { id: 51, label: 'RADIOLAND_FONT_16',   height: 16, preview: "font-family: 'Press Start 2P', 'Courier New', monospace;", small: true, mainClock: false, google: 'Press Start 2P', weight: 400, sizePx: 16 },
+
+  { id: 52, label: 'ZEROZERO_FONT_48',    height: 48, preview: "font-family: 'Press Start 2P', 'Courier New', monospace;", small: true, mainClock: false, google: 'Press Start 2P', weight: 400, sizePx: 48 },
+  { id: 53, label: 'DSDIGIT_FONT_48',     height: 48, preview: "font-family: 'Press Start 2P', 'Courier New', monospace;", small: true, mainClock: false, google: 'Press Start 2P', weight: 400, sizePx: 48 },
+  { id: 54, label: 'LCDSOLID_FONT_48',    height: 48, preview: "font-family: 'Press Start 2P', 'Courier New', monospace;", small: true, mainClock: false, google: 'Press Start 2P', weight: 400, sizePx: 48 },
+  { id: 55, label: 'REBELREDUX_FONT_48',  height: 48, preview: "font-family: 'Press Start 2P', 'Courier New', monospace;", small: true, mainClock: false, google: 'Press Start 2P', weight: 400, sizePx: 48 }
+
 ]; // remember to bump FONT_MAX_CONTENT_ID in index.js!!!
 
 // Builds one combined Google Fonts stylesheet URL covering every

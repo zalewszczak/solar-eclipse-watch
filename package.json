@@ -179,8 +179,75 @@
         },
         {
           "type": "font",
-          "name": "SFPIXELATE_FONT_14",
-          "file": "fonts/SFPixelate.ttf"
+          "name": "BYTESIZED_FONT_16",
+          "file": "fonts/Bytesized-Regular.ttf"
+        },
+        {
+          "type": "font",
+          "name": "MPLUSBLACK_FONT_16",
+          "file": "fonts/MPLUSRounded1c-Black.ttf"
+        },
+        {
+          "type": "font",
+          "name": "NOTOITALIC_FONT_18",
+          "file": "fonts/NotoSerif-MediumItalic.ttf"
+        },
+        {
+          "characterRegex": "[:0-9]",
+          "type": "font",
+          "name": "MPLUSBLACK_FONT_48",
+          "file": "fonts/MPLUSRounded1c-Black.ttf"
+        },
+        {
+          "characterRegex": "[:0-9]",
+          "type": "font",
+          "name": "REDITBOLD_FONT_48",
+          "file": "fonts/RedditSans-Bold.ttf"
+        },
+        {
+          "type": "font",
+          "name": "ARCADE_FONT_18",
+          "file": "fonts/ArcadeClassic.ttf"
+        },
+        {
+          "type": "font",
+          "name": "DSDIGIB_FONT_20",
+          "file": "fonts/DS-DIGIB.TTF"
+        },
+        {
+          "type": "font",
+          "name": "DSDIGIT_FONT_20",
+          "file": "fonts/DS-DIGIT.TTF"
+        },
+        {
+          "type": "font",
+          "name": "LCDSOLID_FONT_18",
+          "file": "fonts/LCD_Solid.ttf"
+        },
+        {
+          "type": "font",
+          "name": "RADIOLAND_FONT_16",
+          "file": "fonts/RADIOLAND.ttf"
+        },
+        {
+          "type": "font",
+          "name": "ZEROZERO_FONT_48",
+          "file": "fonts/00TT.TTF"
+        },
+        {
+          "type": "font",
+          "name": "DSDIGIT_FONT_48",
+          "file": "fonts/DS-DIGIT.TTF"
+        },
+        {
+          "type": "font",
+          "name": "LCDSOLID_FONT_48",
+          "file": "fonts/LCD_Solid.ttf"
+        },
+        {
+          "type": "font",
+          "name": "REBELREDUX_FONT_48",
+          "file": "fonts/RebelRedux.ttf"
         },
         {
           "type": "png",

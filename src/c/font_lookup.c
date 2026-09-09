@@ -51,19 +51,19 @@ typedef struct {
 // tables already carried) -- good enough to keep text roughly
 // centered, not claimed to be pixel-exact.
 static const FontLookupEntry FONT_TABLE[] = {
-  [0]  = { .sys_idx = 0,  .height = 14 }, // System Small
-  [1]  = { .sys_idx = 1,  .height = 18 }, // System Medium
-  [2]  = { .sys_idx = 2,  .height = 24, .y_offset = -6  }, // System Large
-  [3]  = { .sys_idx = 3,  .height = 32, .y_offset = -8 }, // System XL
-  [4]  = { .sys_idx = 4,  .height = 36, .y_offset = -10 }, // System XXL
+  [0]  = { .sys_idx = 0,  .height = 14 }, // drop this?
+  [1]  = { .sys_idx = 1,  .height = 18 }, // call this gothic small
+  [2]  = { .sys_idx = 2,  .height = 24, .y_offset = -6  }, // call this gothic medium
+  [3]  = { .sys_idx = 3,  .height = 32, .y_offset = -8 }, // call this gothic large
+  [4]  = { .sys_idx = 4,  .height = 36, .y_offset = -10 }, // call this gothic x-large
   [5]  = { .sys_idx = 5,  .height = 17 }, // Leco Small
   [6]  = { .sys_idx = 6,  .height = 20 }, // Leco Medium
   [7]  = { .sys_idx = 7,  .height = 23 }, // Leco Large
   [8]  = { .sys_idx = 8,  .height = 26 }, // Leco XL (main clock's own default)
-  [9]  = { .sys_idx = 9,  .height = 17, .y_offset = -12 }, // Droid Serif
+  [9]  = { .sys_idx = 9,  .height = 17, .y_offset = -12 }, // Droid Serif - MARK THIS INCOMPATIBLE
   [10] = { .sys_idx = 10, .height = 15, .y_offset = -10 }, // Roboto Condensed
   [11] = { .sys_idx = 11, .height = 30, .y_offset = -2 }, // Roboto Bold (big)
-  [12] = { .sys_idx = 12, .height = 30 }, // Bitham Bold 30
+  [12] = { .sys_idx = 12, .height = 30 }, // Bitham Bold 30  - MARK THIS INCOMPATIBLE
   [13] = { .sys_idx = 13, .height = 21 }, // Bitham Medium 34
   [14] = { .sys_idx = 14, .height = 26 }, // Bitham Light (big)
   [15] = { .sys_idx = 15, .height = 26 }, // Bitham Bold (big)
@@ -72,30 +72,64 @@ static const FontLookupEntry FONT_TABLE[] = {
   [17] = { .resource_id = RESOURCE_ID_DIGITALDREAM_FONT_48,  .height = 40, .y_offset = -2 }, // Digital Dream Big
   [18] = { .resource_id = RESOURCE_ID_MINECRAFTER_FONT_12,   .height = 12, .y_offset = -2 }, // Minecrafter Small
   [19] = { .resource_id = RESOURCE_ID_MINECRAFTER_FONT_48,   .height = 40, .y_offset = 4 }, // Minecrafter Big
-  [20] = { .resource_id = RESOURCE_ID_SFPIXELATE_FONT_14,    .height = 14 }, // SF Pixelate Small
-  [21] = { .resource_id = RESOURCE_ID_SFPIXELATE_FONT_48,    .height = 40 }, // SF Pixelate Big
-  [22] = { .resource_id = RESOURCE_ID_ALAGARD_FONT_19,       .height = 19, .y_offset = -4 }, // Alagard Small
-  [23] = { .resource_id = RESOURCE_ID_ALAGARD_FONT_48,       .height = 40, .y_offset = -4 }, // Alagard Big
-  [24] = { .resource_id = RESOURCE_ID_BEBAS_FONT_20,         .height = 20, .y_offset = -6 }, // Bebas Small
-  [25] = { .resource_id = RESOURCE_ID_BEBAS_FONT_48,         .height = 40 }, // Bebas Big
-  [26] = { .resource_id = RESOURCE_ID_AMITA_FONT_48,         .height = 40 }, // Amita
-  [27] = { .resource_id = RESOURCE_ID_AVERIA_FONT_48,        .height = 40 }, // AveriaSerifLibre
-  [28] = { .resource_id = RESOURCE_ID_BAGEL_FONT_48,         .height = 40 }, // Bagel
-  [29] = { .resource_id = RESOURCE_ID_BRICOLAGE_FONT_48,     .height = 40 }, // Bricolage Grotesque
-  [30] = { .resource_id = RESOURCE_ID_CHANGO_FONT_48,        .height = 40, .y_offset = -4 }, // Chango
-  [31] = { .resource_id = RESOURCE_ID_EMBLEMA_FONT_48,       .height = 40, .y_offset = -6 }, // EmblemaOne
-  [32] = { .resource_id = RESOURCE_ID_FRAUNCES_FONT_48,      .height = 40, .y_offset = -2 }, // Fraunces
-  [33] = { .resource_id = RESOURCE_ID_GEOSTAR_FONT_48,       .height = 40, .y_offset = -2 }, // Geostar Fill
-  [34] = { .resource_id = RESOURCE_ID_MICHROMA_FONT_48,      .height = 40, .y_offset = -2 }, // Michroma
-  [35] = { .resource_id = RESOURCE_ID_NATIONALPARK_FONT_48,  .height = 40, .y_offset = -2 }, // National Park
-  [36] = { .resource_id = RESOURCE_ID_KOMIKAHB_FONT_48,      .height = 40 }, // Komika
-  [37] = { .resource_id = RESOURCE_ID_QUANTICO_FONT_48,      .height = 40 }, // Quantico
-  [38] = { .resource_id = RESOURCE_ID_SILKSCREEN_FONT_48,    .height = 40 }, // Silkscreen
-  [39] = { .resource_id = RESOURCE_ID_STACKSANSHEADLINE_FONT_48, .height = 40 }, // StackSansHeadline
-  [40] = { .resource_id = RESOURCE_ID_UNBOUNDED_FONT_48,     .height = 40 }, // Unbounded
-  [41] = { .resource_id = RESOURCE_ID_WALLPOET_FONT_48,      .height = 40 }, // Wallpoet
-  [42] = { .resource_id = RESOURCE_ID_ZALANDOSANS_FONT_48,   .height = 40 }, // ZalandoSans
+  [20] = { .resource_id = RESOURCE_ID_SFPIXELATE_FONT_48,    .height = 40 }, // SF Pixelate Big
+  [21] = { .resource_id = RESOURCE_ID_ALAGARD_FONT_19,       .height = 19, .y_offset = -4 }, // Alagard Small
+  [22] = { .resource_id = RESOURCE_ID_ALAGARD_FONT_48,       .height = 40, .y_offset = -4 }, // Alagard Big
+  [23] = { .resource_id = RESOURCE_ID_BEBAS_FONT_20,         .height = 20, .y_offset = -6 }, // Bebas Small
+  [24] = { .resource_id = RESOURCE_ID_BEBAS_FONT_48,         .height = 40 }, // Bebas Big
+  [25] = { .resource_id = RESOURCE_ID_AMITA_FONT_48,         .height = 40 }, // Amita
+  [26] = { .resource_id = RESOURCE_ID_AVERIA_FONT_48,        .height = 40 }, // AveriaSerifLibre
+  [27] = { .resource_id = RESOURCE_ID_BAGEL_FONT_48,         .height = 40 }, // Bagel
+  [28] = { .resource_id = RESOURCE_ID_BRICOLAGE_FONT_48,     .height = 40 }, // Bricolage Grotesque
+  [29] = { .resource_id = RESOURCE_ID_CHANGO_FONT_48,        .height = 40, .y_offset = -4 }, // Chango
+  [30] = { .resource_id = RESOURCE_ID_EMBLEMA_FONT_48,       .height = 40, .y_offset = -6 }, // EmblemaOne
+  [31] = { .resource_id = RESOURCE_ID_FRAUNCES_FONT_48,      .height = 40, .y_offset = -2 }, // Fraunces
+  [32] = { .resource_id = RESOURCE_ID_GEOSTAR_FONT_48,       .height = 40, .y_offset = -2 }, // Geostar Fill
+  [33] = { .resource_id = RESOURCE_ID_MICHROMA_FONT_48,      .height = 40, .y_offset = -2 }, // Michroma
+  [34] = { .resource_id = RESOURCE_ID_NATIONALPARK_FONT_48,  .height = 40, .y_offset = -2 }, // National Park
+  [35] = { .resource_id = RESOURCE_ID_KOMIKAHB_FONT_48,      .height = 40 }, // Komika
+  [36] = { .resource_id = RESOURCE_ID_QUANTICO_FONT_48,      .height = 40 }, // Quantico
+  [37] = { .resource_id = RESOURCE_ID_SILKSCREEN_FONT_48,    .height = 40 }, // Silkscreen
+  [38] = { .resource_id = RESOURCE_ID_STACKSANSHEADLINE_FONT_48, .height = 40 }, // StackSansHeadline
+  [39] = { .resource_id = RESOURCE_ID_UNBOUNDED_FONT_48,     .height = 40 }, // Unbounded
+  [40] = { .resource_id = RESOURCE_ID_WALLPOET_FONT_48,      .height = 40 }, // Wallpoet
+  [41] = { .resource_id = RESOURCE_ID_ZALANDOSANS_FONT_48,   .height = 40 }, // ZalandoSans
+  
+  [42] = { .resource_id = RESOURCE_ID_BYTESIZED_FONT_16,   .height = 16 }, // tiniest option? looks legible and takes almost no space
+  [43] = { .resource_id = RESOURCE_ID_MPLUSBLACK_FONT_16,   .height = 16 }, // this is great!
+  [44] = { .resource_id = RESOURCE_ID_NOTOITALIC_FONT_18,   .height = 18 }, // this is even better than above, 18 seems fine
+  
+  [45] = { .resource_id = RESOURCE_ID_MPLUSBLACK_FONT_48,   .height = 40 }, // good for main clock, very bold
+  [46] = { .resource_id = RESOURCE_ID_REDITBOLD_FONT_48,   .height = 40 }, // neat for main!
+  
+  [47] = { .resource_id = RESOURCE_ID_ARCADE_FONT_18,   .height = 18 }, // kinda like it
+  [48] = { .resource_id = RESOURCE_ID_DSDIGIB_FONT_20,   .height = 20 }, // this is really good as well!
+  [49] = { .resource_id = RESOURCE_ID_DSDIGIT_FONT_20,   .height = 20 }, // this is perfect
+  [50] = { .resource_id = RESOURCE_ID_LCDSOLID_FONT_18,   .height = 18 }, // this is great! 18 seems perfect
+  [51] = { .resource_id = RESOURCE_ID_RADIOLAND_FONT_16,   .height = 16 }, // 16 looks really good
+  
+  [52] = { .resource_id = RESOURCE_ID_ZEROZERO_FONT_48,   .height = 48 }, // kinda cool
+  [53] = { .resource_id = RESOURCE_ID_DSDIGIT_FONT_48,   .height = 48 }, // why not?
+  [54] = { .resource_id = RESOURCE_ID_LCDSOLID_FONT_48,   .height = 48 }, // i like this too
+  [55] = { .resource_id = RESOURCE_ID_REBELREDUX_FONT_48,   .height = 48 }, // could be good for big
 };
+
+//
+//
+//ZEROZERO_FONT_18
+//ACKNOWS_FONT_18
+//ALPHABETA_FONT_18
+//ARCADE_FONT_18
+//CRYSTA_FONT_18
+//DING_FONT_18
+//DIN_FONT_18
+//DSDIGIB_FONT_18
+//DSDIGIT_FONT_18
+//INFO3_FONT_18
+//INFO6_FONT_18
+//LCDSOLID_FONT_18
+//RADIOLAND_FONT_18
+//REBELREDUX_FONT_18
 
 const uint8_t FONT_LOOKUP_COUNT = sizeof(FONT_TABLE) / sizeof(FONT_TABLE[0]);
 
