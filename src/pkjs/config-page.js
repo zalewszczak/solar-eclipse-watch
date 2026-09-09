@@ -404,15 +404,15 @@ var FONT_LOOKUP = [
   { id: 46, label: 'Reddit Sans',         height: 40, preview: "font-family: 'Reddit Sans', Impact, 'Arial Narrow', sans-serif; font-weight: 700;", small: false, mainClock: true, google: 'Reddit Sans', weight: 700, sizePx: 48 },
   
   { id: 47, label: 'Arcade',              height: 18, preview: "font-family: 'Press Start 2P', 'Courier New', monospace;", small: true, mainClock: false, google: 'Press Start 2P', weight: 400, sizePx: 18 }, //TODO: add another sources with these fonts since google fonts doesnt have them...
-  { id: 48, label: 'DSDIGIB_FONT_20',     height: 20, preview: "font-family: 'Press Start 2P', 'Courier New', monospace;", small: true, mainClock: false, google: 'Press Start 2P', weight: 400, sizePx: 20 },
-  { id: 49, label: 'DSDIGIT_FONT_20',     height: 20, preview: "font-family: 'Press Start 2P', 'Courier New', monospace;", small: true, mainClock: false, google: 'Press Start 2P', weight: 400, sizePx: 20 },
-  { id: 50, label: 'LCDSOLID_FONT_18',    height: 18, preview: "font-family: 'Press Start 2P', 'Courier New', monospace;", small: true, mainClock: false, google: 'Press Start 2P', weight: 400, sizePx: 18 },
-  { id: 51, label: 'RADIOLAND_FONT_16',   height: 16, preview: "font-family: 'Press Start 2P', 'Courier New', monospace;", small: true, mainClock: false, google: 'Press Start 2P', weight: 400, sizePx: 16 },
+  { id: 48, label: 'DS Digital Bold',     height: 20, preview: "font-family: 'Press Start 2P', 'Courier New', monospace;", small: true, mainClock: false, google: 'Press Start 2P', weight: 400, sizePx: 20 },
+  { id: 49, label: 'DS Digital Bold Italic',height: 20, preview: "font-family: 'Press Start 2P', 'Courier New', monospace;", small: true, mainClock: false, google: 'Press Start 2P', weight: 400, sizePx: 20 },
+  { id: 50, label: 'LCD',                 height: 18, preview: "font-family: 'Press Start 2P', 'Courier New', monospace;", small: true, mainClock: false, google: 'Press Start 2P', weight: 400, sizePx: 18 },
+  { id: 51, label: 'Radioland',           height: 16, preview: "font-family: 'Press Start 2P', 'Courier New', monospace;", small: true, mainClock: false, google: 'Press Start 2P', weight: 400, sizePx: 16 },
 
-  { id: 52, label: 'ZEROZERO_FONT_48',    height: 48, preview: "font-family: 'Press Start 2P', 'Courier New', monospace;", small: true, mainClock: false, google: 'Press Start 2P', weight: 400, sizePx: 48 },
-  { id: 53, label: 'DSDIGIT_FONT_48',     height: 48, preview: "font-family: 'Press Start 2P', 'Courier New', monospace;", small: true, mainClock: false, google: 'Press Start 2P', weight: 400, sizePx: 48 },
-  { id: 54, label: 'LCDSOLID_FONT_48',    height: 48, preview: "font-family: 'Press Start 2P', 'Courier New', monospace;", small: true, mainClock: false, google: 'Press Start 2P', weight: 400, sizePx: 48 },
-  { id: 55, label: 'REBELREDUX_FONT_48',  height: 48, preview: "font-family: 'Press Start 2P', 'Courier New', monospace;", small: true, mainClock: false, google: 'Press Start 2P', weight: 400, sizePx: 48 }
+  { id: 52, label: 'DS Digital Bold',     height: 48, preview: "font-family: 'Press Start 2P', 'Courier New', monospace;", small: false, mainClock: true, google: 'Press Start 2P', weight: 400, sizePx: 48 },
+  { id: 53, label: 'DS Digital Bold Italic',height: 48, preview: "font-family: 'Press Start 2P', 'Courier New', monospace;", small: false, mainClock: true, google: 'Press Start 2P', weight: 400, sizePx: 48 },
+  { id: 54, label: 'LCD',                 height: 48, preview: "font-family: 'Press Start 2P', 'Courier New', monospace;", small: false, mainClock: true, google: 'Press Start 2P', weight: 400, sizePx: 48 },
+  { id: 55, label: 'Rebel Redux',         height: 48, preview: "font-family: 'Arial Narrow', 'Impact', sans-serif; font-weight: 500;", small: false, mainClock: true }
 
 ]; // remember to bump FONT_MAX_CONTENT_ID in index.js!!!
 
