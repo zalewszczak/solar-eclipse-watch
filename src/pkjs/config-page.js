@@ -563,16 +563,16 @@ var CORNER_CONTENT_OPTIONS = [
   { id: 18, label: 'Time' },
   { id: 19, label: 'Week number' },
   { id: 20, label: 'Bluetooth connection' },
-  { id: 21, label: 'Date: Month Day (SEP 11)' },
-  { id: 22, label: 'Date: Day of month (11)' },
-  { id: 23, label: 'Date: Weekday, short (MON)' },
-  { id: 24, label: 'Date: Weekday, long (Monday)' },
-  { id: 25, label: 'Date: Month, short (SEP)' },
-  { id: 26, label: 'Date: Month, long (September)' },
-  { id: 27, label: 'Date: Day/Month (11/9)' },
-  { id: 28, label: 'Date: Month/Day (9/11)' },
-  { id: 29, label: 'Date: Full (24/9/2026)' },
-  { id: 30, label: 'Date: Full, imperial (9/24/26)' },
+  { id: 21, label: 'Month Day (SEP 11)' },
+  { id: 22, label: 'Day of month (11)' },
+  { id: 23, label: 'Weekday short (MON)' },
+  { id: 24, label: 'Weekday long (Monday)' },
+  { id: 25, label: 'Month short (SEP)' },
+  { id: 26, label: 'Month long (September)' },
+  { id: 27, label: 'Day/Month (11/9)' },
+  { id: 28, label: 'Month/Day (9/11)' },
+  { id: 29, label: 'Full date (24/9/2026)' },
+  { id: 30, label: 'Full date, imperial (9/24/26)' },
   { id: 31, label: 'Weather icon' },
   { id: 32, label: 'Temp + weather icon' },
   { id: 34, label: 'Pressure' },
@@ -616,16 +616,16 @@ var CORNER_CONTENT_OPTIONS = [
   { id: 60, label: 'GMT-9 Anchorage' },
   { id: 61, label: 'GMT-10 Honolulu' },
   { id: 62, label: 'GMT-3 Sao Paulo' },
-  { id: 63, label: 'Time: full (H:M:S)' },
-  { id: 64, label: 'Time: hour, 24h leading zero (07)' },
-  { id: 65, label: 'Time: hour, 24h (7)' },
-  { id: 66, label: 'Time: hour, 12h (7)' },
-  { id: 67, label: 'Time: minute (5)' },
-  { id: 68, label: 'Time: minute, leading zero (05)' },
-  { id: 69, label: 'Time: second (8)' },
-  { id: 70, label: 'Time: second, leading zero (08)' },
-  { id: 71, label: 'Time: seconds, tens digit' },
-  { id: 72, label: 'Time: seconds, ones digit' },
+  { id: 63, label: 'Time full (H:M:S)' },
+  { id: 64, label: 'Hour, 24h leading zero (07)' },
+  { id: 65, label: 'Hour, 24h (7)' },
+  { id: 66, label: 'Hour, 12h (7)' },
+  { id: 67, label: 'Minute (5)' },
+  { id: 68, label: 'Minute, leading zero (05)' },
+  { id: 69, label: 'Seconds (8)' },
+  { id: 70, label: 'Second, leading zero (08)' },
+  { id: 71, label: 'Seconds, tens digit' },
+  { id: 72, label: 'Seconds, ones digit' },
   { id: 73, label: 'Current temp' },
   { id: 74, label: 'High temp' },
   { id: 75, label: 'Low temp' },
@@ -648,8 +648,8 @@ var CORNER_CONTENT_OPTIONS = [
   { id: 92, label: 'Weather in 6 hours' },
   { id: 93, label: 'Last weather update, long' },
   { id: 94, label: 'Last weather update, short' },
-  { id: 95, label: 'Date: Weekday + Day/Month (MON 24/9)' },
-  { id: 96, label: 'Date: Weekday + Month/Day (MON 9/24)' },
+  { id: 95, label: 'Weekday + Day/Month (MON 24/9)' },
+  { id: 96, label: 'Weekday + Month/Day (MON 9/24)' },
   { id: 97, label: 'Heart rate + steps' },
   { id: 98, label: 'Bed time + wake time' },
   { id: 99, label: 'Battery + Bluetooth (icons only)' },
@@ -3531,20 +3531,20 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  ] },' +
 '  { id: "date", label: "Date", items: [' +
 '    { id: 12, label: "Short date" }, { id: 19, label: "Week number" },' +
-'    { id: 21, label: "Date: Month Day (SEP 11)" }, { id: 22, label: "Date: Day of month (11)" },' +
-'    { id: 23, label: "Date: Weekday, short (MON)" }, { id: 24, label: "Date: Weekday, long (Monday)" },' +
-'    { id: 25, label: "Date: Month, short (SEP)" }, { id: 26, label: "Date: Month, long (September)" },' +
-'    { id: 27, label: "Date: Day/Month (11/9)" }, { id: 28, label: "Date: Month/Day (9/11)" },' +
-'    { id: 29, label: "Date: Full (24/9/2026)" }, { id: 30, label: "Date: Full, imperial (9/24/26)" },' +
-'    { id: 95, label: "Date: Weekday + Day/Month (MON 24/9)" }, { id: 96, label: "Date: Weekday + Month/Day (MON 9/24)" }' +
+'    { id: 21, label: "Month Day (SEP 11)" }, { id: 22, label: "Day of month (11)" },' +
+'    { id: 23, label: "Weekday, short (MON)" }, { id: 24, label: "Weekday, long (Monday)" },' +
+'    { id: 25, label: "Month, short (SEP)" }, { id: 26, label: "Month, long (September)" },' +
+'    { id: 27, label: "Day/Month (11/9)" }, { id: 28, label: "Month/Day (9/11)" },' +
+'    { id: 29, label: "Full date (24/9/2026)" }, { id: 30, label: "Full date, imperial (9/24/26)" },' +
+'    { id: 95, label: "Weekday + Day/Month (MON 24/9)" }, { id: 96, label: "Weekday + Month/Day (MON 9/24)" }' +
 '  ] },' +
 '  { id: "time", label: "Time", items: [' +
 '    { id: 18, label: "Time" },' +
-'    { id: 63, label: "Time: full (H:M:S)" }, { id: 64, label: "Time: hour, 24h leading zero (07)" },' +
-'    { id: 65, label: "Time: hour, 24h (7)" }, { id: 66, label: "Time: hour, 12h (7)" },' +
-'    { id: 67, label: "Time: minute (5)" }, { id: 68, label: "Time: minute, leading zero (05)" },' +
-'    { id: 69, label: "Time: second (8)" }, { id: 70, label: "Time: second, leading zero (08)" },' +
-'    { id: 71, label: "Time: seconds, tens digit" }, { id: 72, label: "Time: seconds, ones digit" },' +
+'    { id: 63, label: "Full time (H:M:S)" }, { id: 64, label: "Hour, 24h leading zero (07)" },' +
+'    { id: 65, label: "Hour, 24h (7)" }, { id: 66, label: "Hour, 12h (7)" },' +
+'    { id: 67, label: "Minute (5)" }, { id: 68, label: "Tinute, leading zero (05)" },' +
+'    { id: 69, label: "Second (8)" }, { id: 70, label: "Second, leading zero (08)" },' +
+'    { id: 71, label: "Seconds, tens digit" }, { id: 72, label: "Seconds, ones digit" },' +
 '    { id: 86, label: "AM/PM" }' +
 '  ] },' +
 '  { id: "timezone", label: "Timezone", items: [' +
