@@ -297,22 +297,25 @@ var FONT_PREVIEW_IMAGES = require('./font-preview-images');
 // size. Doesn't affect the marker text font picker (all fonts always
 // shown there) or the main Clock font picker (mainClock already
 // filters that one to just the big fonts).
-// `secondsDisabled: true` marks a font that Show Seconds should be
-// entirely grayed out and force-unchecked for in digital mode (as
-// opposed to `wide` below, which just substitutes a small-font digit
-// box for the seconds rather than disabling them at all) -- these are
-// custom display fonts that read badly, clip, or plain don't have
-// numerals that suit a running seconds counter squeezed in next to
-// them. save() also re-checks this at save time and overrides
-// CONFIG_SHOW_SECONDS to false regardless of the checkbox's own state
-// if it's true, so a stale/already-saved seconds-on selection can
-// never reach the watch paired with a font that can't support it.
 // `wide: true` marks a font that runs too wide for a full HH:MM:SS
-// digital readout at its normal size, matching font_lookup.c's own
-// `wide` column exactly -- these get the seconds digits shrunk into
-// their own small-font box instead of grayed out entirely, same
-// reasoning font_lookup_is_wide()/use_small_seconds_for_digital_clock()
-// apply on the watch itself.
+// digital readout (or for a digital-mode side feature column sharing
+// the bar with it) at its normal size -- blocks BOTH Show Seconds and
+// the digital "side features" toggle for this font, forced/grayed out
+// in the UI exactly like before. save() also re-checks this at save
+// time and overrides CONFIG_SHOW_SECONDS to false regardless of the
+// checkbox's own state if it's true, so a stale/already-saved
+// seconds-on selection can never reach the watch paired with a font
+// that can't support it.
+// `allowInlineSeconds: false` marks a font that blocks ONLY Show
+// Seconds -- unlike `wide`, side features stay available, since the
+// problem here isn't running out of horizontal room but the font's
+// own numerals not reading well with a running seconds counter
+// squeezed in next to the minutes (clipping, badly-kerned digits,
+// etc.). Defaults to true (seconds allowed) wherever omitted; every
+// entry below is being marked by hand over time, so most still default
+// true even where a future check might find otherwise. EmblemaOne is
+// the first confirmed case: not wide enough to need blocking outright,
+// but its numerals clip once a seconds counter is added.
 // `sizePx` is the REAL on-watch bake size -- copied straight from each
 // custom font's own package.json resource name (the trailing _NN is
 // the actual point size Pebble's font tool renders that .ttf/.otf at,
@@ -360,11 +363,11 @@ var FONT_LOOKUP = [
   { id: 17, label: 'Digital Dream',       height: 40, preview: "font-family: 'VT323', 'Courier New', monospace; letter-spacing: 2px;", small: false, mainClock: true, google: 'VT323', weight: 400, sizePx: 48, approx: true }, // see id 16
   { id: 18, label: 'Minecrafter Small',   height: 12, preview: "font-family: 'Press Start 2P', 'Courier New', monospace;", small: true,
     google: 'Press Start 2P', weight: 400, sizePx: 12, approx: true }, // Minecrafter (dafont-only) isn't on Google Fonts -- Press Start 2P's blocky 8-bit game look is the closest match.
-  { id: 19, label: 'Minecrafter',         height: 40, preview: "font-family: 'Press Start 2P', 'Courier New', monospace;", small: false, mainClock: true, wide: true, secondsDisabled: true,
+  { id: 19, label: 'Minecrafter',         height: 40, preview: "font-family: 'Press Start 2P', 'Courier New', monospace;", small: false, mainClock: true, wide: true,
     google: 'Press Start 2P', weight: 400, sizePx: 48, approx: true }, // see id 18
   { id: 20, label: 'SF Pixelate Small',   height: 14, preview: "font-family: 'DotGothic16', 'Courier New', monospace;", small: true,
     google: 'DotGothic16', weight: 400, sizePx: 14, approx: true }, // SF Pixelate (dafont-only) isn't on Google Fonts -- DotGothic16's clean pixel-grid look is the closest match without reusing Minecrafter's/Digital Dream's own substitutes above.
-  { id: 21, label: 'SF Pixelate',         height: 40, preview: "font-family: 'DotGothic16', 'Courier New', monospace;", small: false, mainClock: true, wide: true, secondsDisabled: true,
+  { id: 21, label: 'SF Pixelate',         height: 40, preview: "font-family: 'DotGothic16', 'Courier New', monospace;", small: false, mainClock: true, wide: true,
     google: 'DotGothic16', weight: 400, sizePx: 48, approx: true }, // see id 20
   { id: 22, label: 'Alagard Small',       height: 19, preview: "font-family: 'Pixelify Sans', 'Century Gothic', sans-serif; font-weight: 600;", small: true,
     google: 'Pixelify Sans', weight: 600, sizePx: 19, approx: true }, // Alagard (dafont-only, Hewett Tsoi's 16px fantasy bitmap face) isn't on Google Fonts -- Pixelify Sans's blocky pixel-game look is the closest available match.
@@ -373,20 +376,20 @@ var FONT_LOOKUP = [
     google: 'Bebas Neue', weight: 400, sizePx: 20 },
   { id: 25, label: 'Bebas',               height: 40, preview: "font-family: 'Bebas Neue', 'Century Gothic', sans-serif; letter-spacing: 1px;", small: false, mainClock: true, google: 'Bebas Neue', weight: 400, sizePx: 48 },
   { id: 26, label: 'Amita',               height: 40, preview: "font-family: 'Amita', Impact, sans-serif; font-weight: 700;", small: false, mainClock: true, google: 'Amita', weight: 700, sizePx: 48 },
-  { id: 27, label: 'AveriaSerifLibre',    height: 40, preview: "font-family: 'Averia Serif Libre', 'Courier New', serif; font-weight: 700; font-style: italic;", small: false, mainClock: true, wide: true, secondsDisabled: true,
+  { id: 27, label: 'AveriaSerifLibre',    height: 40, preview: "font-family: 'Averia Serif Libre', 'Courier New', serif; font-weight: 700; font-style: italic;", small: false, mainClock: true, wide: true,
     google: 'Averia Serif Libre', weight: 700, italic: true, sizePx: 48 },
-  { id: 28, label: 'Bagel',               height: 40, preview: "font-family: 'Bagel Fat One', 'Courier New', monospace;", small: false, mainClock: true, wide: true, secondsDisabled: true,
+  { id: 28, label: 'Bagel',               height: 40, preview: "font-family: 'Bagel Fat One', 'Courier New', monospace;", small: false, mainClock: true, wide: true,
     google: 'Bagel Fat One', weight: 400, sizePx: 48 },
-  { id: 29, label: 'Bricolage Grotesque', height: 40, preview: "font-family: 'Bricolage Grotesque', Impact, 'Arial Narrow', sans-serif; font-weight: 700;", small: false, mainClock: true, wide: true, secondsDisabled: true,
+  { id: 29, label: 'Bricolage Grotesque', height: 40, preview: "font-family: 'Bricolage Grotesque', Impact, 'Arial Narrow', sans-serif; font-weight: 700;", small: false, mainClock: true, wide: true,
     google: 'Bricolage Grotesque', weight: 700, sizePx: 48 },
   { id: 30, label: 'Chango',              height: 40, preview: "font-family: 'Chango', 'Courier New', monospace;", small: false, mainClock: true, google: 'Chango', weight: 400, sizePx: 48 },
-  { id: 31, label: 'EmblemaOne',          height: 40, preview: "font-family: 'Emblema One', 'Arial Narrow', sans-serif; letter-spacing: 1px;", small: false, mainClock: true, google: 'Emblema One', weight: 400, sizePx: 48 },
+  { id: 31, label: 'EmblemaOne',          height: 40, preview: "font-family: 'Emblema One', 'Arial Narrow', sans-serif; letter-spacing: 1px;", small: false, mainClock: true, allowInlineSeconds: false, google: 'Emblema One', weight: 400, sizePx: 48 },
   { id: 32, label: 'Fraunces',            height: 40, preview: "font-family: 'Fraunces', Georgia, serif; font-weight: 700;", small: false, mainClock: true, google: 'Fraunces', weight: 700, sizePx: 48 },
   { id: 33, label: 'Geostar Fill',        height: 40, preview: "font-family: 'Geostar Fill', Impact, sans-serif;", small: false, mainClock: true, google: 'Geostar Fill', weight: 400, sizePx: 48 },
-  { id: 34, label: 'Michroma',            height: 40, preview: "font-family: 'Michroma', 'Arial Black', sans-serif; letter-spacing: 1px;", small: false, mainClock: true, wide: true, secondsDisabled: true,
+  { id: 34, label: 'Michroma',            height: 40, preview: "font-family: 'Michroma', 'Arial Black', sans-serif; letter-spacing: 1px;", small: false, mainClock: true, wide: true,
     google: 'Michroma', weight: 400, sizePx: 48 },
   { id: 35, label: 'National Park',       height: 40, preview: "font-family: 'National Park', Verdana, sans-serif; font-weight: 700;", small: false, mainClock: true, google: 'National Park', weight: 700, sizePx: 48 },
-  { id: 36, label: 'Komika',              height: 40, preview: "font-family: 'Bangers', 'Comic Sans MS', cursive;", small: false, mainClock: true, wide: true, secondsDisabled: true,
+  { id: 36, label: 'Komika',              height: 40, preview: "font-family: 'Bangers', 'Comic Sans MS', cursive;", small: false, mainClock: true, wide: true,
     google: 'Bangers', weight: 400, sizePx: 48, approx: true }, // Komika Hand (Apostrophic Labs, dafont-only) isn't on Google Fonts -- Bangers is the closest bold comic-lettering face Google Fonts actually has.
   { id: 37, label: 'Quantico',            height: 40, preview: "font-family: 'Quantico', Impact, 'Arial Narrow', sans-serif; font-weight: 700; font-style: italic;", small: false, mainClock: true, google: 'Quantico', weight: 700, italic: true, sizePx: 48 },
   { id: 38, label: 'Silkscreen',          height: 40, preview: "font-family: 'Silkscreen', Impact, 'Arial Narrow', sans-serif;", small: false, mainClock: true, google: 'Silkscreen', weight: 400, sizePx: 48 },
@@ -434,12 +437,12 @@ function fontOptionsHtml(selectedId, onlyMainClock) {
   return FONT_LOOKUP.filter(function (f) {
     return !onlyMainClock || f.mainClock;
   }).map(function (f) {
-    // A wide font can't show seconds at all now (no more small-side-
-    // digit fallback -- see this file's own note on removing that),
-    // so it's folded into the same data-seconds flag secondsDisabled
-    // already drives, rather than being a second, separate check every
-    // consumer of data-seconds would otherwise need to remember too.
-    var secondsOk = !f.secondsDisabled && !f.wide;
+    // A wide font can't show seconds at all (no room), and a font
+    // that's merely marked allowInlineSeconds:false can't either (its
+    // own numerals don't read well with one) -- both fold into this
+    // same data-seconds flag rather than being two separate checks
+    // every consumer of data-seconds would otherwise need to remember.
+    var secondsOk = !f.wide && f.allowInlineSeconds !== false;
     return '<option value="' + f.id + '" data-preview="' + esc(f.preview) + '" data-seconds="' +
       (secondsOk ? '1' : '0') + '" data-height="' + f.height + '" data-small="' + (f.small ? '1' : '0') +
       '" data-wide="' + (f.wide ? '1' : '0') + '"' +
@@ -1162,11 +1165,11 @@ function buildConfigHtml(current) {
   var isAnalog = bottomStyleVal === 'analog';
   var clockFontId = parseInt(current.clockFont || '8', 10);
   var clockFontIsWide = !!fontLookupEntry(clockFontId).wide;
-  // A wide font can't show seconds at all (no small-side-digit
-  // fallback exists anymore), so it disables the checkbox the exact
-  // same way secondsDisabled already does -- see fontOptionsHtml()'s
-  // own comment on why data-seconds folds both together too.
-  var secondsUnsupported = (bottomStyleVal === 'digital') && (fontLookupEntry(clockFontId).secondsDisabled || clockFontIsWide);
+  // A wide font can't show seconds at all (no room), and a font
+  // marked allowInlineSeconds:false can't either (its own numerals
+  // clip/read badly with one) -- see fontOptionsHtml()'s own comment
+  // on why data-seconds folds both of those together too.
+  var secondsUnsupported = (bottomStyleVal === 'digital') && (fontLookupEntry(clockFontId).allowInlineSeconds === false || clockFontIsWide);
   var secondsChecked = (current.showSeconds && !secondsUnsupported) ? 'checked' : '';
   var secondsDisabled = secondsUnsupported ? 'disabled' : '';
   var digitalSidesVal = current.digitalSides || 'none';
@@ -1316,8 +1319,18 @@ function buildConfigHtml(current) {
 '  .bitmap-marker-img { filter: invert(1); }' +
 '  .style-picker-btn-empty { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; font-size: 11px; font-weight: 600; color: var(--text); text-align: center; padding: 4px; box-sizing: border-box; }' +
 '  .style-picker-btn-cap { position: absolute; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.55); color: #fff; font-size: 10px; font-weight: 700; padding: 3px 2px; text-align: center; line-height: 1.2; }' +
+// Hand style selector specifically wants its name at the TOP of the
+// image rather than the bottom every other style-picker-btn grid
+// (marker/indices style) still uses -- same look, just anchored to
+// top:0 instead of bottom:0.
+'  .style-picker-btn-cap-top { position: absolute; left: 0; right: 0; top: 0; background: rgba(0,0,0,0.55); color: #fff; font-size: 10px; font-weight: 700; padding: 3px 2px; text-align: center; line-height: 1.2; }' +
 '  .style-picker-custom-btn { width: 100%; box-sizing: border-box; padding: 12px; font-size: 14px; font-weight: 600; color: var(--text-strong); background: var(--btn-bg); border: 1px solid var(--border); border-radius: 8px; margin-top: 10px; }' +
 '  .style-picker-custom-btn:active { background: var(--border-light); }' +
+// Same shape/size as "Custom" above -- reddish hue is purely to signal
+// "this turns the feature off" the same way other destructive/off
+// controls on this page read, not a different button style.
+'  .style-picker-none-btn { color: #b23a3a; border-color: #d99; background: rgba(178,58,58,0.08); }' +
+'  .style-picker-none-btn:active { background: rgba(178,58,58,0.16); }' +
 // Font picker -- one full-width row per font, left third showing that
 // font's own live preview text set in its actual (Google Fonts, where
 // available -- see FONT_LOOKUP's own comment) family at a size scaled
@@ -1424,6 +1437,15 @@ function buildConfigHtml(current) {
 '  .top-bar-preview { flex: 0 1 33%; display: flex; justify-content: center; align-items: center; min-width: 0; height: 100%; max-height: calc(25vh - 20px); padding: 1%; box-sizing: border-box; }' +
 '  #previewCanvas { height: 50%; max-height: 50%; width: auto; max-width: 98%; border-radius: 4px; }' +
 '  .subsection { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border-light); }' +
+// Dims (not disables) whichever of the day/night color sets isn't the
+// one actually in effect right now, per the request -- the controls
+// underneath stay fully clickable (no pointer-events/disabled changes)
+// since editing the inactive set is a completely legitimate thing to
+// do (e.g. setting up night colors in the middle of the day); this is
+// purely a visual hint so a change that appears to do nothing is
+// immediately explained rather than confusing.
+'  .scheme-inactive { opacity: 0.45; }' +
+'  .scheme-active-badge { font-size: 11px; font-weight: 700; color: #2e8b3d; background: rgba(46,139,61,0.15); border-radius: 4px; padding: 2px 6px; margin-left: 8px; vertical-align: middle; }' +
 '  .color-role-buttons { display: flex; gap: 8px; margin-top: 6px; }' +
 '  .color-role-btn { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 8px 4px; border: 1px solid var(--border); border-radius: 8px; background: var(--btn-bg); }' +
 '  .color-role-btn:active { background: var(--border-light); }' +
@@ -1465,10 +1487,11 @@ function buildConfigHtml(current) {
 // max-width (400px) at all, let alone narrower phone screens, so this
 // always wraps to two rows in practice -- but stays correct (and
 // would use one row) if the modal is ever widened.
-'  .category-btn-group { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }' +
-'  .category-btn { width: 44px; height: 44px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; padding: 0; box-sizing: border-box; background: var(--btn-bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text-strong); }' +
+'  .category-btn-group { display: flex; flex-wrap: wrap; margin-top: 6px; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }' +
+'  .category-btn { width: 35px; height: 35px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; padding: 0; box-sizing: border-box; background: var(--btn-bg); border: none; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); border-radius: 0; margin: 0; color: var(--text-strong); }' +
+'  .category-btn:last-child { border-right: none; }' +
 '  .category-btn.active { background: #ff9200; border-color: #ff9200; color: #fff; }' +
-'  .category-btn svg { width: 26px; height: 26px; pointer-events: none; }' +
+'  .category-btn svg { width: 21px; height: 21px; pointer-events: none; }' +
 '  .mode-btn { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 8px 0 10px; font-size: 12px; font-weight: 700; color: var(--text-strong); background: var(--btn-bg); border: none; border-right: 1px solid var(--border); }' +
 '  .mode-btn svg { width: 23px; height: 26px; display: block; }' +
 '  .mode-btn:last-child { border-right: none; }' +
@@ -1615,6 +1638,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    <div class="modal-scroll-body">' +
 '      <div class="style-picker-grid" id="markerStyleGrid"></div>' +
 '      <button type="button" class="style-picker-custom-btn" onclick="chooseMarkerStyleCustom()">Custom</button>' +
+'      <button type="button" class="style-picker-custom-btn style-picker-none-btn" onclick="chooseMarkerStyle(\'9\')">None</button>' +
 '    </div>' +
 '  </div>' +
 '</div>' +
@@ -1869,8 +1893,8 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    <div class="section-legend" onclick="toggleSection(\'colors\')">Colors <span class="chevron" id="chev-colors">&#9656;</span></div>' +
 '    <div class="section-body" id="section-colors" style="display:none;">' +
 
-'    <div class="subsection">' +
-'      <label>Colors</label>' +
+'    <div class="subsection" id="daySchemeSubsection">' +
+'      <label>Colors<span class="scheme-active-badge" id="daySchemeActiveBadge" style="display:none;">Active now</span></label>' +
 '      <div class="color-role-buttons">' +
 '        <button type="button" class="color-role-btn" onclick="openColorPicker(\'text\')">' +
 '          <span class="color-role-swatch" id="swatchMain" style="background:' + esc(initialColors.text) + ';"></span>' +
@@ -1927,7 +1951,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      <label for="nightEnabled" style="margin:0;">Use different colors at night</label>' +
 '    </div>' +
 '    <div id="nightSchemeSettings" style="' + (current.nightEnabled ? '' : 'display:none;') + '">' +
-'      <label>Night colors</label>' +
+'      <label>Night colors<span class="scheme-active-badge" id="nightSchemeActiveBadge" style="display:none;">Active now</span></label>' +
 '      <div class="color-role-buttons">' +
 '        <button type="button" class="color-role-btn" onclick="openColorPicker(\'text\', \'night\')">' +
 '          <span class="color-role-swatch" id="swatchNightMain" style="background:' + esc(initialNightColors.text) + ';"></span>' +
@@ -2097,7 +2121,19 @@ handEditorModalHtml('sec', 'Edit second hand') +
         { value: '3', label: 'Both' }
       ], current.shakeAnimMode || '0') +
 '    </div>' +
-'    <div class="help">Off by default: runs for as long as the shake labels stay up -- see "Shake-to-reveal labels stay on screen for" in the Astronomy section. "Planet seek" points the sky view at whichever 90&deg; slice of the horizon your compass currently faces, repositioning the Sun/Moon/planets to match as you turn -- weather is hidden for the duration, and it never runs on a day with an eclipse. "Both" runs Smooth second hand and Planet seek together; picking just one of the two runs only that one.</div>' +
+'    <div class="help">Off by default: runs for as long as the shake labels stay up (see the duration slider just below). "Planet seek" points the sky view at whichever 90&deg; slice of the horizon your compass currently faces, repositioning the Sun/Moon/planets to match as you turn -- weather is hidden for the duration, and it never runs on a day with an eclipse. "Both" runs Smooth second hand and Planet seek together; picking just one of the two runs only that one.</div>' +
+
+'    <div class="subsection">' +
+'      <div class="slider-row">' +
+'        <label for="shakeLabelSeconds">Shake-to-reveal labels stay on screen for <span class="val" id="shakeLabelSecondsVal">' + esc(current.shakeLabelSeconds || '3') + 's</span></label>' +
+'        <div class="slider-with-buttons">' +
+'        <button type="button" class="slider-step-btn" onclick="stepSlider(\'shakeLabelSeconds\', -1)">&minus;</button>' +
+'          <input type="range" id="shakeLabelSeconds" min="0" max="30" step="1" value="' + esc(current.shakeLabelSeconds || '3') + '" oninput="document.getElementById(\'shakeLabelSecondsVal\').textContent = this.value + \'s\';">' +
+'        <button type="button" class="slider-step-btn" onclick="stepSlider(\'shakeLabelSeconds\', 1)">+</button>' +
+'        </div>' +
+'      </div>' +
+'    </div>' +
+'    <div class="help">Also controls how long "Smooth second hand"/"Planet seek" above run for, since both are tied to the same shake-triggered window.</div>' +
 '    </div>' +
 
 '    </div>' +
@@ -2177,17 +2213,6 @@ handEditorModalHtml('sec', 'Edit second hand') +
         { value: '25', label: 'X-SMALL', icon: MODE_BTN_ICONS.sunMoon25 }
       ], current.sunMoonSize || '75') +
 '    <div class="help">Ignored during an actual eclipse, which sizes the Sun and Moon by their real geometry instead.</div>' +
-
-'    <div class="subsection">' +
-'      <div class="slider-row">' +
-'        <label for="shakeLabelSeconds">Shake-to-reveal labels stay on screen for <span class="val" id="shakeLabelSecondsVal">' + esc(current.shakeLabelSeconds || '3') + 's</span></label>' +
-'        <div class="slider-with-buttons">' +
-'        <button type="button" class="slider-step-btn" onclick="stepSlider(\'shakeLabelSeconds\', -1)">&minus;</button>' +
-'          <input type="range" id="shakeLabelSeconds" min="0" max="30" step="1" value="' + esc(current.shakeLabelSeconds || '3') + '" oninput="document.getElementById(\'shakeLabelSecondsVal\').textContent = this.value + \'s\';">' +
-'        <button type="button" class="slider-step-btn" onclick="stepSlider(\'shakeLabelSeconds\', 1)">+</button>' +
-'        </div>' +
-'      </div>' +
-'    </div>' +
 
 '    <label>Label style</label>' +
       modeButtonGroupHtml('labelStyleGroup', 'labelStyle', [
@@ -3449,10 +3474,15 @@ handEditorModalHtml('sec', 'Edit second hand') +
 'var CATEGORY_ICONS = {' +
   // Off/power symbol -- the universal "this does nothing" glyph.
 '  none: \'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3 L12 11"/><path d="M7 6.5 A8 8 0 1 0 17 6.5"/></svg>\',' +
-  // Gear simplified as a ring of 8 short spokes + hub -- safer to
-  // render correctly at 24px than a true gear-tooth polygon.
-'  utilities: \'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="6.5"/><line x1="12" y1="1" x2="12" y2="4"/><line x1="12" y1="20" x2="12" y2="23"/><line x1="1" y1="12" x2="4" y2="12"/><line x1="20" y1="12" x2="23" y2="12"/><line x1="4.2" y1="4.2" x2="6.3" y2="6.3"/><line x1="17.7" y1="17.7" x2="19.8" y2="19.8"/><line x1="4.2" y1="19.8" x2="6.3" y2="17.7"/><line x1="17.7" y1="6.3" x2="19.8" y2="4.2"/><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/></svg>\',' +
-'  health: \'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 21s-7.5-4.6-10-9.3C.5 8.4 2.3 5 5.7 5c2 0 3.4 1.1 4.3 2.5C10.9 6.1 12.3 5 14.3 5c3.4 0 5.2 3.4 3.7 6.7C19.5 16.4 12 21 12 21z"/></svg>\',' +
+  // Wrench -- reads clearly as "tools/utilities" rather than the old
+  // ring-of-spokes gear, which ended up looking like a sun/settings
+  // icon at this size instead.
+'  utilities: \'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.7 3.3a4.5 4.5 0 0 0-6 5.7L4 16.7a1.8 1.8 0 0 0 2.5 2.5L14.2 12a4.5 4.5 0 0 0 5.7-6l-2.8 2.8-2.1-2.1 2.7-2.7z"/></svg>\',' +
+  // Proper symmetric heart (was a hand-authored path that ended up
+  // lopsided/clipped at this size) -- same left/right symmetry around
+  // x=12 an actual heart emoji has, just as a plain currentColor fill
+  // so it still follows this button set's own active/inactive styling.
+'  health: \'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 20.8c-.3 0-.6-.1-.8-.3C6.5 16.6 3 13.3 3 9.6 3 6.9 5.1 5 7.7 5c1.6 0 3.1.8 4.3 2.2C13.2 5.8 14.7 5 16.3 5 18.9 5 21 6.9 21 9.6c0 3.7-3.5 7-8.2 10.9-.2.2-.5.3-.8.3z"/></svg>\',' +
 '  date: \'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/><rect x="7" y="13" width="3" height="3" fill="currentColor" stroke="none"/></svg>\',' +
 '  time: \'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><line x1="12" y1="12" x2="12" y2="6.5"/><line x1="12" y1="12" x2="16" y2="14"/></svg>\',' +
   // Globe (world map stand-in): outer circle + one vertical meridian
@@ -4120,7 +4150,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    var img = HAND_STYLE_IMAGES[String(n)];' +
 '    html += \'<button type="button" class="style-picker-btn" onclick="chooseHandStyle(\' + n + \')">\' +' +
 '      (img ? \'<img src="\' + img + \'" alt="\' + entry.title + \'">\' : \'<span class="style-picker-btn-empty">\' + entry.title + "</span>") +' +
-'      \'<span class="style-picker-btn-cap">\' + entry.title + "</span></button>";' +
+'      \'<span class="style-picker-btn-cap-top">\' + entry.title + "</span></button>";' +
 '  }' +
 '  grid.innerHTML = html;' +
 '}' +
@@ -5028,6 +5058,43 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '}' +
 'function onNightToggle() {' +
 '  document.getElementById("nightSchemeSettings").style.display = document.getElementById("nightEnabled").checked ? "block" : "none";' +
+'  updateSchemeActiveHighlight();' +
+'}' +
+
+// Rough "is it night" approximation for the day/night color highlight
+// below -- a plain local-clock-hours check, not the watch\'s own real
+// sun-altitude/civil-twilight test (get_active_color_scheme() in
+// pebble-eclipse-watch.c), since that needs a location and a real
+// astronomy calculation this page has no reason to duplicate just for
+// a visual hint. Good enough to avoid the actual confusion this
+// feature is for (editing colors that silently do nothing because
+// they\'re not the active set right now) without claiming to be exact.
+'function isNightNowApprox() {' +
+'  var h = new Date().getHours();' +
+'  return h < 6 || h >= 20;' +
+'}' +
+// Dims whichever of the day/night subsections isn\'t currently active
+// (see .scheme-inactive\'s own comment -- purely visual, nothing here
+// is disabled) and shows an "Active now" badge next to the other one.
+// Only meaningful once night colors are actually turned on -- with
+// only one set of colors there\'s nothing to disambiguate.
+'function updateSchemeActiveHighlight() {' +
+'  var dayEl = document.getElementById("daySchemeSubsection");' +
+'  var nightEl = document.getElementById("nightSchemeSettings");' +
+'  var dayBadge = document.getElementById("daySchemeActiveBadge");' +
+'  var nightBadge = document.getElementById("nightSchemeActiveBadge");' +
+'  if (!document.getElementById("nightEnabled").checked) {' +
+'    dayEl.classList.remove("scheme-inactive");' +
+'    nightEl.classList.remove("scheme-inactive");' +
+'    dayBadge.style.display = "none";' +
+'    nightBadge.style.display = "none";' +
+'    return;' +
+'  }' +
+'  var isNight = isNightNowApprox();' +
+'  dayEl.classList.toggle("scheme-inactive", isNight);' +
+'  nightEl.classList.toggle("scheme-inactive", !isNight);' +
+'  dayBadge.style.display = isNight ? "none" : "";' +
+'  nightBadge.style.display = isNight ? "" : "none";' +
 '}' +
 
 'function save(forceRefresh) {' +
@@ -5243,7 +5310,8 @@ handEditorModalHtml('sec', 'Edit second hand') +
 'updateWeatherIconStyleVisibility();' +
 'adjustTopBarSpacing();' +
 'if (document.fonts && document.fonts.ready) { document.fonts.ready.then(updatePreview); }' +
-'setInterval(updatePreview, 1000);' +
+'updateSchemeActiveHighlight();' +
+'setInterval(function () { updatePreview(); updateSchemeActiveHighlight(); }, 1000);' +
 '</script>' +
 '</body></html>';
 }
