@@ -184,10 +184,11 @@ function conditionFromWmoCode(code) {
  * cloud *altitude* estimate (0=low, 100=high), from Open-Meteo's
  * low/mid/high cloud-cover breakdown -- a weighted average of which
  * band(s) actually have cover right now -- used to bias how high up
- * the canvas draws its cloud clusters. Also today's max UV index,
- * max precipitation probability, current relative humidity, and
- * current wind speed (from the same current_weather block already
- * being fetched), for the corner-overlay readouts.
+ * the canvas draws its cloud clusters. Also today's max UV index, the
+ * current-hour UV index, max precipitation probability, current
+ * relative humidity, and current wind speed (from the same
+ * current_weather block already being fetched), for the corner-
+ * overlay readouts.
  *
  * @param {number} lat
  * @param {number} lon
@@ -198,21 +199,21 @@ function conditionFromWmoCode(code) {
  *   (Date|null), condition (0 if unknown), tempC (number|null),
  *   tempHighC (number|null), tempLowC (number|null), cloudAltitudePct
  *   (0-100, 50 if unavailable), uvIndexMax (number|null),
- *   rainChancePct (number|null), humidityPct (number|null),
- *   windSpeedKmh (number|null)
+ *   uvIndexCurrent (number|null), rainChancePct (number|null),
+ *   humidityPct (number|null), windSpeedKmh (number|null)
  */
 function getDailyCloudGrid(lat, lon, times, nowDate, cb) {
   var url = 'https://api.open-meteo.com/v1/forecast' +
             '?latitude=' + encodeURIComponent(lat) +
             '&longitude=' + encodeURIComponent(lon) +
-            '&hourly=cloudcover,weathercode,cloudcover_low,cloudcover_mid,cloudcover_high,relativehumidity_2m,dewpoint_2m,surface_pressure,temperature_2m' +
+            '&hourly=cloudcover,weathercode,cloudcover_low,cloudcover_mid,cloudcover_high,relativehumidity_2m,dewpoint_2m,surface_pressure,temperature_2m,uv_index' +
             '&daily=sunrise,sunset,temperature_2m_max,temperature_2m_min,uv_index_max,precipitation_probability_max' +
             '&current_weather=true' +
             '&timezone=auto' +
             '&forecast_days=2';
   var emptyExtras = {
     sunrise: null, sunset: null, condition: 0, tempC: null, tempHighC: null, tempLowC: null,
-    cloudAltitudePct: 50, uvIndexMax: null, rainChancePct: null, humidityPct: null, windSpeedKmh: null,
+    cloudAltitudePct: 50, uvIndexMax: null, uvIndexCurrent: null, rainChancePct: null, humidityPct: null, windSpeedKmh: null,
     currentCloudPct: null, windDirDeg: null, dewPointC: null, pressureHpa: null, pressureTrend: 0,
     forecastTempC: [null, null, null, null, null, null], forecastCondition: [0, 0, 0, 0, 0, 0]
   };
@@ -262,6 +263,14 @@ function getDailyCloudGrid(lat, lon, times, nowDate, cb) {
       var dewPointC = null;
       if (json.hourly.dewpoint_2m && typeof json.hourly.dewpoint_2m[nowIdx] === 'number') {
         dewPointC = json.hourly.dewpoint_2m[nowIdx];
+      }
+
+      // This-hour UV index, as opposed to uv_index_max below (today's
+      // whole-day peak) -- same nowIdx the rest of the hourly block
+      // already uses for "right now".
+      var uvIndexCurrent = null;
+      if (json.hourly.uv_index && typeof json.hourly.uv_index[nowIdx] === 'number') {
+        uvIndexCurrent = json.hourly.uv_index[nowIdx];
       }
 
       // Pressure trend: compare now vs. 3 hours ago (a standard
@@ -330,7 +339,7 @@ function getDailyCloudGrid(lat, lon, times, nowDate, cb) {
       cb(null, result, {
         sunrise: sunrise, sunset: sunset, condition: condition,
         tempC: tempC, tempHighC: tempHighC, tempLowC: tempLowC,
-        cloudAltitudePct: cloudAltitudePct, uvIndexMax: uvIndexMax,
+        cloudAltitudePct: cloudAltitudePct, uvIndexMax: uvIndexMax, uvIndexCurrent: uvIndexCurrent,
         rainChancePct: rainChancePct, humidityPct: humidityPct, windSpeedKmh: windSpeedKmh,
         currentCloudPct: currentCloudPct, windDirDeg: windDirDeg, dewPointC: dewPointC,
         pressureHpa: pressureHpa, pressureTrend: pressureTrend,

@@ -311,15 +311,17 @@ static void compute_startup_hand_anim(int32_t target_angle, uint16_t elapsed_ms,
 // single choice via shake_anim_mode: 0=off, 1=smooth second hand, 2=Planet
 // seek, 3=Both -- see its own eclipse_data.h comment): while the shake-to-
 // reveal labels are up, the second hand (if shown) switches from its normal
-// once-a-second jump to continuous sub-second motion (mode 1 or 3), and/or
-// the sky view repositions to face wherever the compass currently points
-// (mode 2 or 3, see maybe_start_compass_feature()). Every site below that
-// cares which behavior(s) are wanted goes through
-// shake_anim_wants_smooth_second()/shake_anim_wants_planet_seek() rather
-// than comparing shake_anim_mode to 1 or 2 directly -- both used to just
-// key off s_shake_anim_active being true, which meant Planet seek (mode 2)
-// silently dragged smooth-second along with it any time seconds were shown,
-// since nothing actually distinguished "shake anim is running at all" from
+// once-a-second jump to continuous sub-second motion (mode 1 ONLY -- see
+// hands_layer_update_proc()'s own comment for why mode 3 deliberately
+// excludes this despite also being "smooth second hand" + Planet seek
+// together), and/or the sky view repositions to face wherever the compass
+// currently points (mode 2 or 3, see maybe_start_compass_feature()). Every
+// site below that cares whether Planet seek specifically is wanted goes
+// through shake_anim_wants_planet_seek() rather than comparing
+// shake_anim_mode to 2 directly -- this used to just key off
+// s_shake_anim_active being true, which meant Planet seek (mode 2) silently
+// dragged smooth-second along with it any time seconds were shown, since
+// nothing actually distinguished "shake anim is running at all" from
 // "smooth second hand specifically was the one requested". Driven by its
 // own fast timer, same shape as the two startup animations above -- and,
 // like them, keyed off a frame counter (s_shake_anim_elapsed_ms) rather
@@ -332,10 +334,6 @@ static bool s_shake_anim_active = false;
 static uint32_t s_shake_anim_elapsed_ms = 0;
 static uint32_t s_shake_anim_duration_ms = 3000;
 
-// True for shake_anim_mode 1 (smooth second hand only) or 3 (Both).
-static bool shake_anim_wants_smooth_second(uint8_t mode) {
-  return mode == 1 || mode == 3;
-}
 // True for shake_anim_mode 2 (Planet seek only) or 3 (Both).
 static bool shake_anim_wants_planet_seek(uint8_t mode) {
   return mode == 2 || mode == 3;
@@ -715,7 +713,16 @@ static void hands_layer_update_proc(Layer *layer, GContext *ctx) {
   int32_t min_angle = ((t->tm_min * 60 + t->tm_sec) * TRIG_MAX_ANGLE) / (60 * 60);
 
   int32_t sec_angle;
-  if (s_shake_anim_active && s_data.show_seconds && shake_anim_wants_smooth_second(s_data.shake_anim_mode)) {
+  // Smooth sub-second motion only for shake_anim_mode 1 (Smooth second
+  // hand alone) -- deliberately NOT mode 3 (Both), even though "Both"
+  // is nominally "smooth second hand AND Planet seek together". During
+  // Planet seek (2 or 3) the second hand instead just ticks normally,
+  // per the request: the smooth motion read as visually competing
+  // with the sky's own compass-driven sweep rather than complementing
+  // it, so "Both" now means "Planet seek runs, second hand behaves as
+  // if shake_anim_mode were plain Off" rather than layering both
+  // effects onto the second hand at once.
+  if (s_shake_anim_active && s_data.show_seconds && s_data.shake_anim_mode == 1) {
     // Shake animation: continuous sub-second motion instead of the
     // normal once-a-second jump -- time_ms() gives a fresh timestamp
     // with its own within-the-second millisecond offset, read
@@ -899,7 +906,7 @@ static void countdown_layer_update_proc(Layer *layer, GContext *ctx) {
   // in digital mode the bottom bar is already a solid
   // color the text sits on, so neither of those needs this extra
   // background.
-  if (!s_data.outline_enabled && s_data.bottom_style == 1 && s_countdown_buf[0] != '\0') {
+  if (s_data.outline_style == 0 && s_data.bottom_style == 1 && s_countdown_buf[0] != '\0') {
     GSize text_size = graphics_text_layout_get_content_size(s_countdown_buf, font, bounds,
                                                               GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter);
     int16_t pad_x = 6;
@@ -911,7 +918,7 @@ static void countdown_layer_update_proc(Layer *layer, GContext *ctx) {
 
   draw_text_outlined(ctx, s_countdown_buf, font, bounds,
                       GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter,
-                      s_countdown_text_color, s_data.outline_enabled);
+                      s_countdown_text_color, s_data.outline_style);
 }
 
 static void refresh_status_and_maybe_canvas(bool force_canvas) {
@@ -1248,7 +1255,7 @@ typedef struct {
 // own comment for why MK_* (an array index) is a compile-time constant where
 // MESSAGE_KEY_* (the real, link-time-assigned key) isn't. This table lives in
 // .rodata instead of being populated into .bss by a runtime init function.
-#define SIMPLE_FIELD_MAP_COUNT 63
+#define SIMPLE_FIELD_MAP_COUNT 64
 static const SimpleFieldMapping SIMPLE_FIELD_MAP[SIMPLE_FIELD_MAP_COUNT] = {
   { MK_ERROR_CODE, F_U8, offsetof(EclipseData, error_code) },
   { MK_TEMP_UNIT, F_U8, offsetof(EclipseData, temp_unit) },
@@ -1256,7 +1263,7 @@ static const SimpleFieldMapping SIMPLE_FIELD_MAP[SIMPLE_FIELD_MAP_COUNT] = {
   { MK_SHAKE_LABEL_SECONDS, F_U8, offsetof(EclipseData, shake_label_seconds) },
   { MK_VIBRATE_ON_PHASE_CHANGE, F_BOOL, offsetof(EclipseData, vibrate_on_phase_change) },
   { MK_STARTUP_CLOCK_ANIMATION_ENABLED, F_BOOL, offsetof(EclipseData, startup_clock_animation_enabled) },
-  { MK_OUTLINE_ENABLED, F_BOOL, offsetof(EclipseData, outline_enabled) },
+  { MK_OUTLINE_ENABLED, F_U8, offsetof(EclipseData, outline_style) },
   { MK_BATTERY_SAVER_ENABLED, F_BOOL, offsetof(EclipseData, battery_saver_enabled) },
   { MK_CORNER_FONT, F_U8, offsetof(EclipseData, corner_font) },
   { MK_CENTER_CIRCLE_RADIUS, F_U8, offsetof(EclipseData, center_circle_radius) },
@@ -1291,6 +1298,7 @@ static const SimpleFieldMapping SIMPLE_FIELD_MAP[SIMPLE_FIELD_MAP_COUNT] = {
   { MK_WEATHER_TEMP_HIGH_C, F_I16, offsetof(EclipseData, temp_high_c) },
   { MK_WEATHER_TEMP_LOW_C, F_I16, offsetof(EclipseData, temp_low_c) },
   { MK_UV_INDEX_X10, F_U8, offsetof(EclipseData, uv_index_x10) },
+  { MK_UV_INDEX_CURRENT_X10, F_U8, offsetof(EclipseData, uv_index_current_x10) },
   { MK_RAIN_CHANCE_PCT, F_U8, offsetof(EclipseData, rain_chance_pct) },
   { MK_HUMIDITY_PCT, F_U8, offsetof(EclipseData, humidity_pct) },
   { MK_WIND_SPEED_KMH, F_I16, offsetof(EclipseData, wind_speed_kmh) },
@@ -1823,18 +1831,19 @@ static void tap_handler(AccelAxisType axis, int32_t direction) {
   }
 
   // Planet seek (shake_anim_mode 2 or 3) draws its own dynamic label
-  // next to each body, tracking its live compass-relative position as
-  // the watch turns (see draw_planet_seek_body() in background_layer.c)
-  // -- turning on the regular, fixed-position shake-to-reveal labels too
-  // would show both at once for the same body: one stuck at the plain
-  // eclipse-time position, one actually moving with the seek
-  // animation, laid right on top of each other. Skipped only for the
-  // canvas's own per-body labels (eclipse_canvas_set_show_labels) --
-  // the reveal window itself (s_labels_visible, the shake_anim burst)
-  // still needs to open normally regardless of which mode is active.
-  if (!shake_anim_wants_planet_seek(s_data.shake_anim_mode)) {
-    eclipse_canvas_set_show_labels(s_canvas_layer, true);
-  }
+  // next to the Sun/Moon/each planet, tracking its live compass-
+  // relative position as the watch turns (see draw_planet_seek_body()
+  // in background_layer.c) -- so those three specifically must not
+  // ALSO get their normal fixed-position shake-to-reveal label, or
+  // the two would show at once, one stuck at the plain eclipse-time
+  // position and one actually moving, right on top of each other.
+  // Static sky elements with no planet-seek equivalent of their own
+  // (aurora, meteor showers, stars, ISS) have no such conflict and
+  // should keep revealing normally regardless of mode -- so that
+  // per-body skip lives inside background_layer.c's own draw loop now
+  // (gated on planet_seek_active there), rather than this call
+  // disabling every one of the canvas's own per-body labels at once.
+  eclipse_canvas_set_show_labels(s_canvas_layer, true);
   s_labels_visible = true;
   uint8_t seconds = s_data.shake_label_seconds > 0 ? s_data.shake_label_seconds : 3;
   uint32_t reveal_ms = (uint32_t)seconds * 1000;

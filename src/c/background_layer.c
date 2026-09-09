@@ -106,6 +106,8 @@ typedef struct {
   bool cached_sun_up, cached_moon_visible, cached_planet_visible[PLANET_COUNT];
   GColor cached_sun_fill_color; // the Sun's own altitude-dependent color (see sun_color_for_altitude()) -- cached alongside its position for the same reason: a "Planets" bg-anim overlay frame needs it and has no other way to re-derive it without redoing the whole altitude/sky_now computation above
   int16_t cached_sun_r, cached_moon_r; // the REAL (sun_moon_size_pct-scaled) radii, not SUN_R_NORMAL/MOON_R_NORMAL directly -- same caching reason as everything else here
+  GPoint cached_iss_center;
+  bool cached_iss_visible; // same reasoning as cached_sun_up/cached_moon_visible above -- ISS's own visibility test (show_iss + dark sky + altitude + freshness) lives entirely in the normal draw path, so Planet seek's own separate overlay pass needs it cached rather than re-deriving it
 
   // Bitmap marker styles (big_analog_marker_style 3-7) -- moved in from
   // pebble-eclipse-watch.c along with the rest of marker drawing, so the
@@ -1322,7 +1324,7 @@ static void draw_label_in_box(GContext *ctx, GRect r, const char *text, uint8_t 
 
   if (label_style == 1) {
     draw_text_outlined(ctx, text, font, text_box, GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter,
-                        main_color, true);
+                        main_color, 1);
     return;
   }
   if (label_style == 2) {
@@ -1350,7 +1352,19 @@ static void draw_label_in_box(GContext *ctx, GRect r, const char *text, uint8_t 
 // no background or outline at all). User setting, right below "Shake
 // to see labels" in the Style section.
 static void draw_label(GContext *ctx, GRect bounds, GPoint near, const char *text, uint8_t label_style, GColor main_color) {
+  // 46px fits every short body name ("Mercury", "Jupiter", ...) with
+  // room to spare, so it stays the floor -- only actually measured and
+  // grown for the handful of labels long enough to need it (aurora's
+  // "Aurora Kp X.X", a custom meteor shower name). Capped well short
+  // of the screen width so a label can never eat the whole sky; text
+  // still measured against the real font rather than guessed from
+  // character count, so it grows exactly as much as it needs to and
+  // no more.
   int16_t w = 46, h = 14;
+  GSize measured = graphics_text_layout_get_content_size(text, fonts_get_system_font(FONT_KEY_GOTHIC_14),
+                                                          GRect(0, 0, 140, h + 4), GTextOverflowModeFill, GTextAlignmentCenter);
+  if (measured.w + 8 > w) w = (int16_t)(measured.w + 8);
+  if (w > 140) w = 140;
   int16_t x = near.x + 8;
   if (x + w > bounds.origin.x + bounds.size.w) x = near.x - w - 8;
   if (x < bounds.origin.x) x = bounds.origin.x;
@@ -1805,6 +1819,12 @@ static void draw_text_markers(GContext *ctx, GPoint center, GRect screen, Canvas
       int32_t local = marker_anim_mark_progress_1000_raw(i, 12, anim_overall_progress_1000);
       int32_t eased = bg_anim_ease_in_1000(local);
       label = (int)(((int32_t)label * eased) / 1000);
+      // Hour markers never legitimately target 0 (i==0 maps to 12
+      // above), so label==0 here only ever means this particular
+      // mark's own staggered count-up hasn't actually started yet --
+      // skip drawing it at all rather than showing a static "0"
+      // placeholder for however long its stagger window hasn't opened.
+      if (label == 0) continue;
     }
     if (text_cfg->roman_numerals && label > 0) int_to_roman(label, buf, sizeof(buf));
     else if (text_cfg->roman_numerals) buf[0] = '\0'; // roman numerals have no glyph for 0 -- blank rather than garbage mid-count-up
@@ -2224,6 +2244,25 @@ static void draw_planet_seek_overlay(GContext *ctx, CanvasState *state, const Ec
                            state->cached_planet_center[p], PLANET_R, planet_color((PlanetId)p),
                            heading_deg, eased_t_1000, d->label_style, main_color);
   }
+  // Stars and ISS have no full-day sample grid to interpolate through
+  // (see interp_sun_az_decideg's own comment for what that grid is
+  // for) -- each only ever carries a single "right now" azimuth from
+  // the phone, unlike the Sun/Moon/planets' whole-day arcs, so there's
+  // nothing to interpolate: d->star_az_decideg[]/d->iss_az_deg IS
+  // already "now".
+  if (d->sky_mode == 2) {
+    for (int s = 0; s < STAR_COUNT; s++) {
+      if (d->star_alt_decideg[s] <= 0) continue; // below the horizon
+      int16_t s_y = alt_to_y(d->star_alt_decideg[s], d->sky_scale_max_alt_decideg, bounds.size.h, STAR_RADIUS[s]);
+      int16_t s_x = (bounds.size.w * (int32_t)d->star_az_decideg[s]) / 3600;
+      draw_planet_seek_body(ctx, bounds, STAR_NAMES[s], (uint16_t)d->star_az_decideg[s], GPoint(s_x, s_y),
+                             STAR_RADIUS[s], GColorWhite, heading_deg, eased_t_1000, d->label_style, main_color);
+    }
+  }
+  if (state->cached_iss_visible) {
+    draw_planet_seek_body(ctx, bounds, "ISS", (uint16_t)(d->iss_az_deg * 10), state->cached_iss_center,
+                           ISS_R, GColorWhite, heading_deg, eased_t_1000, d->label_style, main_color);
+  }
 }
 
 
@@ -2499,7 +2538,7 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
     star_visible[s] = false;
     star_center[s] = GPoint(0, 0);
   }
-  if (d->sky_mode == 2) {
+  if (d->sky_mode == 2 && !skip_body_paint) {
     for (int s = 0; s < STAR_COUNT; s++) {
       int16_t s_alt = d->star_alt_decideg[s];
       if (s_alt <= 0) continue; // below the horizon -- no atmosphere doesn't mean no ground
@@ -2747,7 +2786,7 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
   // really be visible.
   bool iss_visible = false;
   GPoint iss_center = GPoint(0, 0);
-  if (d->show_iss && sky_dark_for_bodies && d->iss_alt_deg > 0 && d->iss_computed_at != 0) {
+  if (d->show_iss && sky_dark_for_bodies && d->iss_alt_deg > 0 && d->iss_computed_at != 0 && !skip_body_paint) {
     time_t iss_age = now - d->iss_computed_at;
     if (iss_age >= 0 && iss_age < 900) {
       int16_t iss_alt_decideg = d->iss_alt_deg * 10;
@@ -2761,6 +2800,19 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
       graphics_context_set_stroke_width(ctx, 1);
       graphics_draw_circle(ctx, iss_center, ISS_R);
     }
+  }
+  // Cached (independent of skip_body_paint above) so Planet seek's own
+  // overlay pass -- which runs instead of, not alongside, the plain
+  // dot just drawn -- can compass-track the ISS the same way it
+  // already does the Sun/Moon/planets, rather than the ISS being left
+  // out and just disappearing for the duration.
+  state->cached_iss_visible = d->show_iss && sky_dark_for_bodies && d->iss_alt_deg > 0 && d->iss_computed_at != 0
+    && (now - d->iss_computed_at) >= 0 && (now - d->iss_computed_at) < 900;
+  if (state->cached_iss_visible) {
+    int16_t iss_alt_decideg = d->iss_alt_deg * 10;
+    int16_t iss_y = alt_to_y(iss_alt_decideg, d->sky_scale_max_alt_decideg, bounds.size.h, ISS_R);
+    int16_t iss_x = (bounds.size.w * (int32_t)d->iss_az_deg) / 360;
+    state->cached_iss_center = GPoint(iss_x, iss_y);
   }
 
   // Aurora: dark sky, opted in, and the current Kp index plausibly
@@ -2800,21 +2852,37 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
   if (state->show_labels) {
     GColor label_bg, label_main_color, label_accent;
     get_active_color_scheme(d, now, &label_bg, &label_main_color, &label_accent);
-    if (sun_up) draw_label(ctx, bounds, sun_center, "Sun", d->label_style, label_main_color);
-    if (moon_visible) draw_label(ctx, bounds, moon_center, "Moon", d->label_style, label_main_color);
-    for (int p = 0; p < PLANET_COUNT; p++) {
-      if (planet_visible[p]) {
-        // Re-drawn on top of the clouds above -- a planet's tiny 3px
-        // dot can otherwise get almost entirely obscured by cloud
-        // cover, leaving its shake label pointing at nothing visible.
-        if (p == PLANET_SATURN) {
-          draw_saturn(ctx, planet_center[p], d->saturn_ring_open_pct);
-        } else {
-          graphics_context_set_fill_color(ctx, planet_color((PlanetId)p));
-          graphics_fill_circle(ctx, planet_center[p], PLANET_R);
+    // Sun/Moon/planets/stars/ISS only get their plain static label
+    // OUTSIDE Planet seek -- during it, draw_planet_seek_overlay()
+    // (called separately, above) already drew each one its own live,
+    // compass-tracked label, so drawing this fixed one too would lay
+    // a second, non-moving label right on top of it. Aurora and
+    // meteor showers below have no planet-seek equivalent of their
+    // own (they're diffuse/wide-area sky elements, not a single
+    // point-like body), so they keep revealing at their normal fixed
+    // position regardless of mode -- per the request, they shouldn't
+    // be panned around by the compass the way a point body is.
+    if (!state->planet_seek_active) {
+      if (sun_up) draw_label(ctx, bounds, sun_center, "Sun", d->label_style, label_main_color);
+      if (moon_visible) draw_label(ctx, bounds, moon_center, "Moon", d->label_style, label_main_color);
+      for (int p = 0; p < PLANET_COUNT; p++) {
+        if (planet_visible[p]) {
+          // Re-drawn on top of the clouds above -- a planet's tiny 3px
+          // dot can otherwise get almost entirely obscured by cloud
+          // cover, leaving its shake label pointing at nothing visible.
+          if (p == PLANET_SATURN) {
+            draw_saturn(ctx, planet_center[p], d->saturn_ring_open_pct);
+          } else {
+            graphics_context_set_fill_color(ctx, planet_color((PlanetId)p));
+            graphics_fill_circle(ctx, planet_center[p], PLANET_R);
+          }
+          draw_label(ctx, bounds, planet_center[p], PLANET_NAMES[p], d->label_style, label_main_color);
         }
-        draw_label(ctx, bounds, planet_center[p], PLANET_NAMES[p], d->label_style, label_main_color);
       }
+      for (int s = 0; s < STAR_COUNT; s++) {
+        if (star_visible[s]) draw_label(ctx, bounds, star_center[s], STAR_NAMES[s], d->label_style, label_main_color);
+      }
+      if (iss_visible) draw_label(ctx, bounds, iss_center, "ISS", d->label_style, label_main_color);
     }
     if (meteors_visible) draw_label(ctx, bounds, meteor_label_point,
                                      d->meteor_shower_name[0] != '\0' ? d->meteor_shower_name : "Meteors",
@@ -2824,10 +2892,6 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
       snprintf(aurora_label_buf, sizeof(aurora_label_buf), "Aurora Kp %d.%d", d->aurora_kp_x10 / 10, d->aurora_kp_x10 % 10);
       draw_label(ctx, bounds, aurora_label_point, aurora_label_buf, d->label_style, label_main_color);
     }
-    for (int s = 0; s < STAR_COUNT; s++) {
-      if (star_visible[s]) draw_label(ctx, bounds, star_center[s], STAR_NAMES[s], d->label_style, label_main_color);
-    }
-    if (iss_visible) draw_label(ctx, bounds, iss_center, "ISS", d->label_style, label_main_color);
   }
 
   // Hour/second markers -- analog mode only. Drawn on top of
@@ -2902,6 +2966,7 @@ Layer *eclipse_canvas_create(GRect frame) {
   state->last_eclipse_max = 0;
   state->max_vibrated = false;
   state->last_iss_visible = false;
+  state->cached_iss_visible = false;
   // GBitmapFormat8Bit matches the framebuffer's own pixel format on
   // color platforms (emery included), so the row-by-row memcpy in
   // canvas_update_proc's capture step needs no per-pixel conversion.

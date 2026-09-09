@@ -109,4 +109,4 @@ void features_layer_unload_fonts(void);
 GColor contrasting_outline_color(GColor c);
 void draw_text_outlined(GContext *ctx, const char *text, GFont font, GRect box,
                          GTextOverflowMode overflow, GTextAlignment alignment,
-                         GColor color, bool outline_enabled);
+                         GColor color, uint8_t outline_style);

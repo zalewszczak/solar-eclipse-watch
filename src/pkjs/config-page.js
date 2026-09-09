@@ -639,7 +639,8 @@ var CORNER_CONTENT_OPTIONS = [
   { id: 100, label: 'Battery % + Bluetooth' },
   { id: 101, label: 'Sleep times' },
   { id: 102, label: 'Long date + sunrise/sunset' },
-  { id: 103, label: 'Long date + week number' }
+  { id: 103, label: 'Long date + week number' },
+  { id: 104, label: 'Current UV index' }
 ];
 // Must match draw_corner_item()'s color_mode switch exactly.
 var CORNER_COLOR_MODE_LABELS = ['MONO', 'ACC', 'PILL', 'COLOR'];
@@ -1881,11 +1882,15 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    <input type="hidden" id="skyMode" value="' + esc(current.skyMode || '0') + '">' +
 '    <div class="help">Weather sky shows clouds/rain/snow and the day-night gradient. Clear sky keeps the gradient but never draws weather. Space view drops the gradient entirely for a fixed dark sky, always shows the Sun/Moon/planets when above the horizon regardless of time of day, and adds a field of bright named stars (tap/shake to reveal names).</div>' +
 
-'    <div class="checkbox-row subsection">' +
-'      <input type="checkbox" id="outlineEnabled" ' + (current.outlineEnabled !== false ? 'checked' : '') + '>' +
-'      <label for="outlineEnabled" style="margin:0;">Outline text, icons, and hands for contrast</label>' +
+'    <div class="subsection">' +
+'      <label>Outline text and icons for contrast</label>' +
+      modeButtonGroupHtml('outlineStyleGroup', 'outlineStyle', [
+        { value: '0', label: 'None' },
+        { value: '1', label: 'Thin' },
+        { value: '2', label: 'Thick' }
+      ], current.outlineStyle || '1', 'onOutlineStyleChange') +
 '    </div>' +
-'    <div class="help">Adds a thin outline (in your color scheme\'s background color) behind corner/edge text and icons, the analog date, the eclipse phase text, and the hands -- so they stay readable over any part of the sky. Icons and hands only get it outside translucent/transparent mode.</div>' +
+'    <div class="help">Adds an outline (in your color scheme\'s background color) behind corner/edge text and icons, the analog date, and the eclipse phase text -- so they stay readable over any part of the sky. Thick adds a wider 2px cardinal shift plus 1px diagonal shifts on top of Thin\'s own 1px cardinal outline. Icons only get it outside translucent/transparent mode. Hands have their own separate outline setting, per hand, in the Style section.</div>' +
 
 '  </fieldset>' +
 
@@ -3536,6 +3541,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  ] },' +
 '  { id: "weather", label: "Weather", items: [' +
 '    { id: 4, label: "High / low temperature" }, { id: 5, label: "Current conditions" }, { id: 6, label: "UV index" },' +
+'    { id: 104, label: "Current UV index" },' +
 '    { id: 7, label: "Rain chance today" }, { id: 8, label: "Humidity" }, { id: 9, label: "Wind" },' +
 '    { id: 14, label: "Visibility" }, { id: 15, label: "Cloud cover" }, { id: 31, label: "Weather icon" },' +
 '    { id: 32, label: "Temp + weather icon" }, { id: 34, label: "Pressure" }, { id: 35, label: "Wind direction" },' +
@@ -4826,6 +4832,10 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  selectModeButton("skyModeGroup", "skyMode", val);' +
 '  onSkyModeChange();' +
 '}' +
+'function onOutlineStyleChange(val) {' +
+'  selectModeButton("outlineStyleGroup", "outlineStyle", val);' +
+'  updatePreview();' +
+'}' +
 'function selectShadowTranslucent(val) {' +
 '  selectModeButton("shadowTranslucentGroup", "shadowTranslucent", val);' +
 '  refreshEditButtonLabels();' +
@@ -5180,7 +5190,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    CONFIG_STARTUP_CLOCK_ANIMATION_ENABLED: document.getElementById("startupClockAnimationEnabled").checked,' +
 '    CONFIG_BG_ANIM_MODE: document.getElementById("bgAnimMode").value,' +
 '    CONFIG_SHAKE_ANIM_MODE: document.getElementById("shakeAnimMode").value,' +
-'    CONFIG_OUTLINE_ENABLED: document.getElementById("outlineEnabled").checked,' +
+'    CONFIG_OUTLINE_ENABLED: document.getElementById("outlineStyle").value,' +
 '    CONFIG_BATTERY_SAVER_ENABLED: document.getElementById("batterySaverEnabled").checked,' +
 '    CONFIG_CORNER_FONT: document.getElementById("cornerFont").value,' +
 '    CONFIG_CORNER_TL: avail.cornersGrayed ? "0" : document.getElementById("cornerTL").value,' +

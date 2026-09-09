@@ -39,33 +39,66 @@
 // draw_pill below), which needs neither. Smaller binary, one less
 // per-pixel loop.
 
-// Shared by every outline implementation in this file (text, icons,
-// hands): draw once shifted in each cardinal direction with a
-// contrasting color, then once more normally on top. Cheap and
-// guarantees contrast against any background without needing
-// per-pixel edge detection.
-static const GPoint OUTLINE_OFFSETS[4] = { {-1, 0}, {1, 0}, {0, -1}, {0, 1} };
+// Shared by every outline implementation in this file (text, icons):
+// draw once per offset with a contrasting color, then once more
+// normally on top. Cheap and guarantees contrast against any
+// background without needing per-pixel edge detection.
+// Thin is the original/default look (4 cardinal 1px shifts). Thick
+// adds 4 cardinal 2px shifts and 4 diagonal 1px shifts on top of
+// thin's own 4 -- 12 points total -- for a visibly bolder line, per
+// the request's exact offset list.
+static const GPoint OUTLINE_OFFSETS_THIN[4] = { {-1, 0}, {1, 0}, {0, -1}, {0, 1} };
+static const GPoint OUTLINE_OFFSETS_THICK[12] = {
+  {-1, 0}, {1, 0}, {0, -1}, {0, 1},
+  {-2, 0}, {2, 0}, {0, -2}, {0, 2},
+  {1, 1}, {-1, 1}, {-1, -1}, {1, -1},
+};
+// Resolves outline_style (0=none, 1=thin, 2=thick) to the actual
+// offset table + count every outline-drawing call site below loops
+// over -- style 0 is never passed in here (every caller already
+// guards on it separately, same as outline_enabled used to be a plain
+// bool guard), so this only ever needs to pick between thin/thick.
+static void get_outline_offsets(uint8_t outline_style, const GPoint **out_offsets, int *out_count) {
+  if (outline_style >= 2) {
+    *out_offsets = OUTLINE_OFFSETS_THICK;
+    *out_count = 12;
+  } else {
+    *out_offsets = OUTLINE_OFFSETS_THIN;
+    *out_count = 4;
+  }
+}
 
 // White for dark colors, black for bright ones -- the outline has to
 // contrast with the text/icon's OWN color to do its job (a dark
 // outline on dark text is invisible regardless of what's behind it),
 // not with the scheme's background color, which is what this used to
 // (incorrectly) use.
+//
+// Threshold is 9, not the "true" midpoint of 15, specifically so a
+// fully-saturated primary like pure red (r=3,g=0,b=0, luma 9) lands on
+// the black-outline side: the classic 0.3/0.6/0.1 luma weights treat
+// red as fairly dark, but on the watch's own display a solid red
+// doesn't read as dark the way that formula implies -- a white
+// outline on it looked wrong in practice. Weaker/darker reds (and
+// blue, which is genuinely dark at any saturation) still correctly
+// fall below this and get a white outline.
 GColor contrasting_outline_color(GColor c) {
   uint8_t r = (c.argb >> 4) & 0x03;
   uint8_t g = (c.argb >> 2) & 0x03;
   uint8_t b = c.argb & 0x03;
   int luma = r * 3 + g * 6 + b; // approximates 0.3/0.6/0.1 luma weights, out of 30
-  return (luma >= 15) ? GColorBlack : GColorWhite;
+  return (luma >= 9) ? GColorBlack : GColorWhite;
 }
 
 void draw_text_outlined(GContext *ctx, const char *text, GFont font, GRect box,
                                 GTextOverflowMode overflow, GTextAlignment alignment,
-                                GColor color, bool outline_enabled) {
-  if (outline_enabled) {
+                                GColor color, uint8_t outline_style) {
+  if (outline_style != 0) {
+    const GPoint *offsets; int offset_count;
+    get_outline_offsets(outline_style, &offsets, &offset_count);
     graphics_context_set_text_color(ctx, contrasting_outline_color(color));
-    for (int i = 0; i < 4; i++) {
-      GRect shifted = GRect(box.origin.x + OUTLINE_OFFSETS[i].x, box.origin.y + OUTLINE_OFFSETS[i].y,
+    for (int i = 0; i < offset_count; i++) {
+      GRect shifted = GRect(box.origin.x + offsets[i].x, box.origin.y + offsets[i].y,
                              box.size.w, box.size.h);
       graphics_draw_text(ctx, text, font, shifted, overflow, alignment, NULL);
     }
@@ -231,12 +264,14 @@ static void draw_icon_resource(GContext *ctx, GPoint top_left, uint32_t resource
 // then the real icon" blocks -- 5 independent resource loads/decodes
 // per icon instead of the 1 this version needs.
 static void draw_icon_resource_with_outline(GContext *ctx, GPoint pos, uint32_t resource_id,
-                                             bool do_outline, GColor outline_color, GColor color) {
+                                             uint8_t outline_style, GColor outline_color, GColor color) {
   GBitmap *bmp = gbitmap_create_with_resource(resource_id);
   if (!bmp) return;
-  if (do_outline) {
-    for (int i = 0; i < 4; i++) {
-      GPoint shifted = GPoint(pos.x + OUTLINE_OFFSETS[i].x, pos.y + OUTLINE_OFFSETS[i].y);
+  if (outline_style != 0) {
+    const GPoint *offs; int offs_n;
+    get_outline_offsets(outline_style, &offs, &offs_n);
+    for (int i = 0; i < offs_n; i++) {
+      GPoint shifted = GPoint(pos.x + offs[i].x, pos.y + offs[i].y);
       draw_icon_bitmap_tinted(ctx, bmp, shifted, outline_color);
     }
   }
@@ -1055,13 +1090,13 @@ static void to_upper_str(char *s) {
 // box. The icon (when present) always precedes the text in reading
 // order regardless of alignment -- only the whole group's position
 // changes, not the icon/text order within it.
-// allow_outline gates data->outline_enabled on top of the user
+// allow_outline gates data->outline_style on top of the user
 // setting rather than replacing it -- pass true from every caller
 // that draws over the busy sky/hands canvas (corners, edge-middle
 // slots), where the outline is what keeps text legible against an
 // unpredictable background. The small-analog info panel's rows sit
 // on their own solid-color background instead, so they pass false
-// and never get one regardless of the outline_enabled setting --
+// and never get one regardless of the outline_style setting --
 // there's nothing there for it to contrast against.
 
 // Weather-derived corner content (see weather_should_show_error()'s own
@@ -1076,6 +1111,7 @@ static bool content_is_weather_derived(uint8_t content) {
     case 4:  // high/low temperature
     case 5:  // current conditions
     case 6:  // UV index
+    case 104: // current UV index
     case 7:  // rain chance
     case 8:  // humidity
     case 9:  // wind speed
@@ -1441,8 +1477,15 @@ static void __attribute__((noinline)) compute_weather_value(FeatureSlot *slot, u
       set_text_seg(slot, 0, buf, resolve_flat_color(color_mode, cond_color, main_color, accent_color));
       return;
     }
-    case 6: { // UV index
+    case 6: { // UV index (today's daily max -- see 104 for the current-hour value)
       uint8_t uv = data->uv_index_x10 / 10;
+      snprintf(buf, sizeof(buf), "UV%d", uv);
+      slot->segment_count = 1;
+      set_text_seg(slot, 0, buf, resolve_flat_color(color_mode, seven_stop_gradient(uv, 1, 13), main_color, accent_color));
+      return;
+    }
+    case 104: { // current UV index (this hour, as opposed to 6's daily max)
+      uint8_t uv = data->uv_index_current_x10 / 10;
       snprintf(buf, sizeof(buf), "UV%d", uv);
       slot->segment_count = 1;
       set_text_seg(slot, 0, buf, resolve_flat_color(color_mode, seven_stop_gradient(uv, 1, 13), main_color, accent_color));
@@ -2182,14 +2225,17 @@ static const struct { uint8_t kind; uint32_t resource_id; int16_t x_nudge; } SIM
   { 26, RESOURCE_ID_ICON_AURORA,           6 },
 };
 
-static void draw_render_icon(GContext *ctx, const RenderSegment *seg, int16_t icon_x, int16_t box_y, bool do_outline, uint8_t weather_icon_style, GColor bg_color) {
+static void draw_render_icon(GContext *ctx, const RenderSegment *seg, int16_t icon_x, int16_t box_y, uint8_t outline_style, uint8_t weather_icon_style, GColor bg_color) {
   GColor color = seg->color;
   GColor outline_color = contrasting_outline_color(color);
+  bool do_outline = outline_style != 0;
+  const GPoint *offs = NULL; int offs_n = 0;
+  if (do_outline) get_outline_offsets(outline_style, &offs, &offs_n);
 
   for (size_t i = 0; i < sizeof(SIMPLE_ICONS) / sizeof(SIMPLE_ICONS[0]); i++) {
     if (SIMPLE_ICONS[i].kind != seg->icon_kind) continue;
     GPoint pos = GPoint(icon_x - ICON_WIDTH + SIMPLE_ICONS[i].x_nudge, box_y + (CORNER_ROW_H - ICON_ROWS) / 2);
-    draw_icon_resource_with_outline(ctx, pos, SIMPLE_ICONS[i].resource_id, do_outline, outline_color, color);
+    draw_icon_resource_with_outline(ctx, pos, SIMPLE_ICONS[i].resource_id, outline_style, outline_color, color);
     return;
   }
 
@@ -2199,8 +2245,8 @@ static void draw_render_icon(GContext *ctx, const RenderSegment *seg, int16_t ic
       GColor c = seg->icon_flag ? GColorGreen : color; // charging -> always green, matching the old special case
       GColor oc = seg->icon_flag ? GColorBlack : outline_color;
       if (do_outline) {
-        for (int i = 0; i < 4; i++) {
-          draw_corner_battery_icon(ctx, GPoint(pos.x + OUTLINE_OFFSETS[i].x, pos.y + OUTLINE_OFFSETS[i].y), oc, 0);
+        for (int i = 0; i < offs_n; i++) {
+          draw_corner_battery_icon(ctx, GPoint(pos.x + offs[i].x, pos.y + offs[i].y), oc, 0);
         }
       }
       draw_corner_battery_icon(ctx, pos, c, seg->icon_extra);
@@ -2212,8 +2258,8 @@ static void draw_render_icon(GContext *ctx, const RenderSegment *seg, int16_t ic
       GRect clip = GRect(icon_x, box_y, moon_r * 2 + 2, CORNER_ROW_H);
       if (do_outline) {
         graphics_context_set_fill_color(ctx, outline_color);
-        for (int i = 0; i < 4; i++) {
-          graphics_fill_circle(ctx, GPoint(center.x + OUTLINE_OFFSETS[i].x, center.y + OUTLINE_OFFSETS[i].y), moon_r);
+        for (int i = 0; i < offs_n; i++) {
+          graphics_fill_circle(ctx, GPoint(center.x + offs[i].x, center.y + offs[i].y), moon_r);
         }
       }
       draw_moon_phase(ctx, clip, center, moon_r, (uint8_t)seg->icon_extra, seg->icon_flag, color);
@@ -2222,8 +2268,8 @@ static void draw_render_icon(GContext *ctx, const RenderSegment *seg, int16_t ic
     case 11: { // sunrise/sunset glyph
       GPoint pos = GPoint(icon_x, box_y + (CORNER_ROW_H - 9) / 2);
       if (do_outline) {
-        for (int i = 0; i < 4; i++) {
-          draw_sun_time_icon(ctx, GPoint(pos.x + OUTLINE_OFFSETS[i].x, pos.y + OUTLINE_OFFSETS[i].y), seg->icon_flag, outline_color, bg_color);
+        for (int i = 0; i < offs_n; i++) {
+          draw_sun_time_icon(ctx, GPoint(pos.x + offs[i].x, pos.y + offs[i].y), seg->icon_flag, outline_color, bg_color);
         }
       }
       draw_sun_time_icon(ctx, pos, seg->icon_flag, color, bg_color);
@@ -2236,8 +2282,8 @@ static void draw_render_icon(GContext *ctx, const RenderSegment *seg, int16_t ic
       GPoint p1 = GPoint(pos.x + 3, pos.y + 9);
       GPoint p2 = GPoint(pos.x + 3 + (35 * seg->icon_extra / 100), pos.y + 9);
       if (do_outline) {
-        for (int i = 0; i < 4; i++) {
-          draw_tiny_icon(ctx, GPoint(pos.x + OUTLINE_OFFSETS[i].x, pos.y + OUTLINE_OFFSETS[i].y), PEBBLE_ICON, 10, 40, oc);
+        for (int i = 0; i < offs_n; i++) {
+          draw_tiny_icon(ctx, GPoint(pos.x + offs[i].x, pos.y + offs[i].y), PEBBLE_ICON, 10, 40, oc);
         }
         graphics_context_set_stroke_color(ctx, oc);
         graphics_draw_line(ctx, GPoint(p1.x, p1.y + 1), GPoint(p2.x, p2.y + 1));
@@ -2252,13 +2298,18 @@ static void draw_render_icon(GContext *ctx, const RenderSegment *seg, int16_t ic
     case 14: { // weather condition icon -- style picked in settings (simple/hollow/full color)
       GPoint pos = GPoint(icon_x, box_y + (CORNER_ROW_H - ICON_ROWS) / 2 - 2);
       uint8_t category = (uint8_t)seg->icon_extra;
-      // No outline pass for style 2 (full color): draw_weather_icon_filled()
-      // ignores whatever color it's given, so shifting it 4x would just
-      // redraw the same multi-color icon 4x instead of a contrasting
-      // silhouette behind it.
-      if (do_outline && weather_icon_style != 2) {
-        for (int i = 0; i < 4; i++) {
-          draw_weather_icon(ctx, GPoint(pos.x + OUTLINE_OFFSETS[i].x, pos.y + OUTLINE_OFFSETS[i].y), category, weather_icon_style, outline_color);
+      // Full color (style 2) draws its outline pass using style 1
+      // (hollow)'s own silhouette instead of its real style --
+      // draw_weather_icon_filled() ignores whatever color it's given
+      // (it's a true-color+alpha image, no tint to apply), so shifting
+      // IT around would just stack identical copies of the same
+      // multi-color icon instead of a contrasting silhouette behind
+      // it. Hollow's outline shape in outline_color gives it a real
+      // outline without needing a second baked asset.
+      if (do_outline) {
+        uint8_t outline_icon_style = (weather_icon_style == 2) ? 1 : weather_icon_style;
+        for (int i = 0; i < offs_n; i++) {
+          draw_weather_icon(ctx, GPoint(pos.x + offs[i].x, pos.y + offs[i].y), category, outline_icon_style, outline_color);
         }
       }
       draw_weather_icon(ctx, pos, category, weather_icon_style, color);
@@ -2267,8 +2318,8 @@ static void draw_render_icon(GContext *ctx, const RenderSegment *seg, int16_t ic
     case 15: { // pressure trend chevron
       GPoint pos = GPoint(icon_x, box_y + (CORNER_ROW_H - 12) / 2);
       if (do_outline) {
-        for (int i = 0; i < 4; i++) {
-          draw_pressure_trend_icon(ctx, GPoint(pos.x + OUTLINE_OFFSETS[i].x, pos.y + OUTLINE_OFFSETS[i].y), (uint8_t)seg->icon_extra, outline_color);
+        for (int i = 0; i < offs_n; i++) {
+          draw_pressure_trend_icon(ctx, GPoint(pos.x + offs[i].x, pos.y + offs[i].y), (uint8_t)seg->icon_extra, outline_color);
         }
       }
       draw_pressure_trend_icon(ctx, pos, (uint8_t)seg->icon_extra, color);
@@ -2277,8 +2328,8 @@ static void draw_render_icon(GContext *ctx, const RenderSegment *seg, int16_t ic
     case 16: { // wind direction arrow
       GPoint pos = GPoint(icon_x, box_y + (CORNER_ROW_H - 12) / 2);
       if (do_outline) {
-        for (int i = 0; i < 4; i++) {
-          draw_wind_direction_icon(ctx, GPoint(pos.x + OUTLINE_OFFSETS[i].x, pos.y + OUTLINE_OFFSETS[i].y), seg->icon_extra, outline_color);
+        for (int i = 0; i < offs_n; i++) {
+          draw_wind_direction_icon(ctx, GPoint(pos.x + offs[i].x, pos.y + offs[i].y), seg->icon_extra, outline_color);
         }
       }
       draw_wind_direction_icon(ctx, pos, seg->icon_extra, color);
@@ -2287,8 +2338,8 @@ static void draw_render_icon(GContext *ctx, const RenderSegment *seg, int16_t ic
     case 17: { // altitude mountain glyph
       GPoint pos = GPoint(icon_x, box_y + (CORNER_ROW_H - 12) / 2);
       if (do_outline) {
-        for (int i = 0; i < 4; i++) {
-          draw_mountain_icon(ctx, GPoint(pos.x + OUTLINE_OFFSETS[i].x, pos.y + OUTLINE_OFFSETS[i].y), outline_color);
+        for (int i = 0; i < offs_n; i++) {
+          draw_mountain_icon(ctx, GPoint(pos.x + offs[i].x, pos.y + offs[i].y), outline_color);
         }
       }
       draw_mountain_icon(ctx, pos, color);
@@ -2307,14 +2358,14 @@ static void draw_render_icon(GContext *ctx, const RenderSegment *seg, int16_t ic
                // matching every other multi-segment-capable icon kind
                // (battery, moon, compass, ...) below.
       GPoint pos = GPoint(icon_x, box_y + (CORNER_ROW_H - ICON_ROWS) / 2);
-      draw_icon_resource_with_outline(ctx, pos, RESOURCE_ID_ICON_BLUETOOTH, do_outline, outline_color, color);
+      draw_icon_resource_with_outline(ctx, pos, RESOURCE_ID_ICON_BLUETOOTH, outline_style, outline_color, color);
       return;
     }
     case 27: { // compass -- asleep (Zz glyph) or a live heading rose with a distinct north arrow
       GPoint pos = GPoint(icon_x, box_y + (CORNER_ROW_H - 12) / 2);
       if (do_outline) {
-        for (int i = 0; i < 4; i++) {
-          GPoint shifted = GPoint(pos.x + OUTLINE_OFFSETS[i].x, pos.y + OUTLINE_OFFSETS[i].y);
+        for (int i = 0; i < offs_n; i++) {
+          GPoint shifted = GPoint(pos.x + offs[i].x, pos.y + offs[i].y);
           if (seg->icon_flag) draw_compass_sleep_icon(ctx, shifted, outline_color);
           else draw_compass_icon(ctx, shifted, seg->icon_extra, outline_color, outline_color);
         }
@@ -2341,7 +2392,7 @@ static void draw_render_icon(GContext *ctx, const RenderSegment *seg, int16_t ic
 // already-resolved x_offset.
 static void features_draw_slot(GContext *ctx, GRect bounds, const FeatureSlot *slot,
                                 GFont font, int16_t font_h, int16_t font_offset,
-                                bool outline_enabled, uint8_t weather_icon_style, GColor bg_color) {
+                                uint8_t outline_style, uint8_t weather_icon_style, GColor bg_color) {
   if (!slot->active || slot->segment_count == 0) return;
 
   int16_t box_w = slot->custom_box ? slot->box_w : CORNER_BOX_W;
@@ -2362,16 +2413,16 @@ static void features_draw_slot(GContext *ctx, GRect bounds, const FeatureSlot *s
     graphics_fill_rect(ctx, GRect(box_x, box_y, box_w, CORNER_ROW_H), CORNER_ROW_H / 2, GCornersAll);
   }
 
-  bool do_outline = slot->allow_outline && outline_enabled;
+  uint8_t effective_outline_style = slot->allow_outline ? outline_style : 0;
   for (int i = 0; i < slot->segment_count; i++) {
     const RenderSegment *seg = &slot->segments[i];
     int16_t seg_x = box_x + seg->x_offset;
     if (seg->is_icon) {
-      draw_render_icon(ctx, seg, seg_x, box_y, do_outline, weather_icon_style, bg_color);
+      draw_render_icon(ctx, seg, seg_x, box_y, effective_outline_style, weather_icon_style, bg_color);
     } else {
       draw_text_outlined(ctx, seg->text, font,
                           GRect(seg_x, box_y + (CORNER_ROW_H - font_h) / 2 + font_offset, seg->width + 2, font_h + 2),
-                          GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft, seg->color, do_outline);
+                          GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft, seg->color, effective_outline_style);
     }
   }
 }
@@ -2765,7 +2816,7 @@ static void features_layer_update_proc(Layer *layer, GContext *ctx) {
 
   for (int i = 0; i < FEATURES_MAX_SLOTS; i++) {
     features_draw_slot(ctx, bounds, &state->slots[i], font, font_h, font_offset,
-                        state->data->outline_enabled, state->data->weather_icon_style, bg);
+                        state->data->outline_style, state->data->weather_icon_style, bg);
   }
 }
 

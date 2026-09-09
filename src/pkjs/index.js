@@ -7,7 +7,7 @@ var servicelog = require('./servicelog');
 
 var TYPE_CODE = { none: 0, partial: 1, total: 2, annular: 3 };
 
-var MAX_FEATURES = 103; // highest corner/edge content id -- see CORNER_CONTENT_OPTIONS in config-page.js
+var MAX_FEATURES = 104; // highest corner/edge content id -- see CORNER_CONTENT_OPTIONS in config-page.js
 var FONT_MAX_CONTENT_ID = 42;
 
 // ---- migration: settings-key wire-format schema version ------------------
@@ -101,7 +101,7 @@ var KEY_TYPE_MAP = (function () {
   assign(MSG_TYPE.WEATHER, [
     'CLOUD_COVER', 'VIS_SCORE', 'WEATHER_SOURCES', 'WEATHER_ERROR_CODE', 'WEATHER_CONDITION',
     'WEATHER_TEMP_C', 'WEATHER_TEMP_HIGH_C', 'WEATHER_TEMP_LOW_C',
-    'UV_INDEX_X10', 'RAIN_CHANCE_PCT', 'HUMIDITY_PCT', 'WIND_SPEED_KMH',
+    'UV_INDEX_X10', 'UV_INDEX_CURRENT_X10', 'RAIN_CHANCE_PCT', 'HUMIDITY_PCT', 'WIND_SPEED_KMH',
     'WIND_DIR_DEG', 'DEW_POINT_C', 'PRESSURE_HPA', 'PRESSURE_TREND',
     'AQI_US', 'AQI_EU', 'ALTITUDE_M', 'WEATHER_LAST_UPDATE'
   ]);
@@ -800,7 +800,17 @@ function shakeAnimModeCode() {
   var v = parseInt(getSetting('CONFIG_SHAKE_ANIM_MODE', '0'), 10);
   return [0, 1, 2, 3].indexOf(v) === -1 ? 0 : v;
 }
-function outlineEnabledCode() { return getSetting('CONFIG_OUTLINE_ENABLED', 'true') === 'true' ? 1 : 0; }
+// 0=none, 1=thin, 2=thick -- see eclipse_data.h's own outline_style
+// comment. Backward-compatible with the setting's old plain boolean
+// ('true'/'false', from before the Thick option existed): those map
+// to thin/none respectively, same as they always looked.
+function outlineEnabledCode() {
+  var raw = getSetting('CONFIG_OUTLINE_ENABLED', '1');
+  if (raw === 'true') return 1;
+  if (raw === 'false') return 0;
+  var v = parseInt(raw, 10);
+  return [0, 1, 2].indexOf(v) === -1 ? 1 : v;
+}
 function batterySaverEnabledCode() { return getSetting('CONFIG_BATTERY_SAVER_ENABLED', 'false') === 'true' ? 1 : 0; }
 function cornerFontCode() {
   return clampInt(getSetting('CONFIG_CORNER_FONT', '1'), 0, FONT_MAX_CONTENT_ID, 1); // 1 = System Medium, the old default
@@ -1882,7 +1892,7 @@ function extraWeatherFieldsDict(extra) {
 // long enough to actually show "ERR ###" instead of quietly keeping
 // last known-good data on screen -- see weather_should_show_error()
 // in pebble-eclipse-watch.c.
-function sendNoEclipseToday(sky, cloudGrid, headlineCloud, headlineSources, locationName, moonPhase, riseSet, weatherCondition, weatherTempC, meteorShower, cloudAltitudePct, tempHighC, tempLowC, issPos, uvIndexMax, rainChancePct, humidityPct, windSpeedKmh, currentCloudPct, sunRiseTomorrow, extraWeather, stars, weatherOk, weatherErrorCode, issErrorCode) {
+function sendNoEclipseToday(sky, cloudGrid, headlineCloud, headlineSources, locationName, moonPhase, riseSet, weatherCondition, weatherTempC, meteorShower, cloudAltitudePct, tempHighC, tempLowC, issPos, uvIndexMax, uvIndexCurrent, rainChancePct, humidityPct, windSpeedKmh, currentCloudPct, sunRiseTomorrow, extraWeather, stars, weatherOk, weatherErrorCode, issErrorCode) {
   // CLOUD_COVER/VIS_SCORE prefer currentCloudPct (same-source as the
   // sky canvas's own CLOUD_SAMPLES grid) but fall back to the
   // separate eclipse-window headline average if that's all that
@@ -1914,6 +1924,7 @@ function sendNoEclipseToday(sky, cloudGrid, headlineCloud, headlineSources, loca
     dict['WEATHER_TEMP_HIGH_C'] = (typeof tempHighC === 'number') ? Math.round(tempHighC) : 0;
     dict['WEATHER_TEMP_LOW_C'] = (typeof tempLowC === 'number') ? Math.round(tempLowC) : 0;
     dict['UV_INDEX_X10'] = (typeof uvIndexMax === 'number') ? Math.round(Math.max(0, Math.min(25.5, uvIndexMax)) * 10) : 0;
+    dict['UV_INDEX_CURRENT_X10'] = (typeof uvIndexCurrent === 'number') ? Math.round(Math.max(0, Math.min(25.5, uvIndexCurrent)) * 10) : 0;
     dict['RAIN_CHANCE_PCT'] = (typeof rainChancePct === 'number') ? Math.round(rainChancePct) : 0;
     dict['HUMIDITY_PCT'] = (typeof humidityPct === 'number') ? Math.round(humidityPct) : 0;
     dict['WIND_SPEED_KMH'] = (typeof windSpeedKmh === 'number') ? Math.round(windSpeedKmh) : 0;
@@ -1930,7 +1941,7 @@ function sendNoEclipseToday(sky, cloudGrid, headlineCloud, headlineSources, loca
 
 // weatherOk/weatherErrorCode/issErrorCode: see sendNoEclipseToday's
 // own comment above -- same reasoning, same treatment.
-function sendEclipseData(result, sky, cloudGrid, headlineCloud, headlineSources, locationName, moonPhase, riseSet, weatherCondition, weatherTempC, meteorShower, cloudAltitudePct, tempHighC, tempLowC, issPos, uvIndexMax, rainChancePct, humidityPct, windSpeedKmh, currentCloudPct, sunRiseTomorrow, extraWeather, stars, weatherOk, weatherErrorCode, issErrorCode) {
+function sendEclipseData(result, sky, cloudGrid, headlineCloud, headlineSources, locationName, moonPhase, riseSet, weatherCondition, weatherTempC, meteorShower, cloudAltitudePct, tempHighC, tempLowC, issPos, uvIndexMax, uvIndexCurrent, rainChancePct, humidityPct, windSpeedKmh, currentCloudPct, sunRiseTomorrow, extraWeather, stars, weatherOk, weatherErrorCode, issErrorCode) {
   var haveCloudData = (typeof currentCloudPct === 'number') || headlineSources > 0;
   var displayCloudPct = (typeof currentCloudPct === 'number') ? currentCloudPct : (headlineCloud || 0);
   var dict = {
@@ -1964,6 +1975,7 @@ function sendEclipseData(result, sky, cloudGrid, headlineCloud, headlineSources,
     dict['WEATHER_TEMP_HIGH_C'] = (typeof tempHighC === 'number') ? Math.round(tempHighC) : 0;
     dict['WEATHER_TEMP_LOW_C'] = (typeof tempLowC === 'number') ? Math.round(tempLowC) : 0;
     dict['UV_INDEX_X10'] = (typeof uvIndexMax === 'number') ? Math.round(Math.max(0, Math.min(25.5, uvIndexMax)) * 10) : 0;
+    dict['UV_INDEX_CURRENT_X10'] = (typeof uvIndexCurrent === 'number') ? Math.round(Math.max(0, Math.min(25.5, uvIndexCurrent)) * 10) : 0;
     dict['RAIN_CHANCE_PCT'] = (typeof rainChancePct === 'number') ? Math.round(rainChancePct) : 0;
     dict['HUMIDITY_PCT'] = (typeof humidityPct === 'number') ? Math.round(humidityPct) : 0;
     dict['WIND_SPEED_KMH'] = (typeof windSpeedKmh === 'number') ? Math.round(windSpeedKmh) : 0;
@@ -2382,9 +2394,9 @@ function refreshAndSend(force, resendOnSkip) {
                   forecastTempC: extras.forecastTempC, forecastCondition: extras.forecastCondition
                 };
                 if (result.hasEclipse) {
-                  sendEclipseData(result, sky, cloudGrid, headlineCloud, headlineSources, locationName, moonPhase, riseSet, extras.condition, extras.tempC, meteorShower, extras.cloudAltitudePct, extras.tempHighC, extras.tempLowC, issPos, extras.uvIndexMax, extras.rainChancePct, extras.humidityPct, extras.windSpeedKmh, extras.currentCloudPct, sunRiseTomorrow, extraWeather, stars, !gridErr, weatherCls.code, issErrorCode);
+                  sendEclipseData(result, sky, cloudGrid, headlineCloud, headlineSources, locationName, moonPhase, riseSet, extras.condition, extras.tempC, meteorShower, extras.cloudAltitudePct, extras.tempHighC, extras.tempLowC, issPos, extras.uvIndexMax, extras.uvIndexCurrent, extras.rainChancePct, extras.humidityPct, extras.windSpeedKmh, extras.currentCloudPct, sunRiseTomorrow, extraWeather, stars, !gridErr, weatherCls.code, issErrorCode);
                 } else {
-                  sendNoEclipseToday(sky, cloudGrid, headlineCloud, headlineSources, locationName, moonPhase, riseSet, extras.condition, extras.tempC, meteorShower, extras.cloudAltitudePct, extras.tempHighC, extras.tempLowC, issPos, extras.uvIndexMax, extras.rainChancePct, extras.humidityPct, extras.windSpeedKmh, extras.currentCloudPct, sunRiseTomorrow, extraWeather, stars, !gridErr, weatherCls.code, issErrorCode);
+                  sendNoEclipseToday(sky, cloudGrid, headlineCloud, headlineSources, locationName, moonPhase, riseSet, extras.condition, extras.tempC, meteorShower, extras.cloudAltitudePct, extras.tempHighC, extras.tempLowC, issPos, extras.uvIndexMax, extras.uvIndexCurrent, extras.rainChancePct, extras.humidityPct, extras.windSpeedKmh, extras.currentCloudPct, sunRiseTomorrow, extraWeather, stars, !gridErr, weatherCls.code, issErrorCode);
                 }
                 markRefreshDone(lat, lon);
               });
@@ -2607,7 +2619,7 @@ Pebble.addEventListener('showConfiguration', function () {
     startupClockAnimationEnabled: getSetting('CONFIG_STARTUP_CLOCK_ANIMATION_ENABLED', 'true') === 'true',
     bgAnimMode: getSetting('CONFIG_BG_ANIM_MODE', '0'),
     shakeAnimMode: getSetting('CONFIG_SHAKE_ANIM_MODE', '0'),
-    outlineEnabled: getSetting('CONFIG_OUTLINE_ENABLED', 'true') === 'true',
+    outlineStyle: String(outlineEnabledCode()),
     batterySaverEnabled: getSetting('CONFIG_BATTERY_SAVER_ENABLED', 'false') === 'true',
     cornerFont: getSetting('CONFIG_CORNER_FONT', '1'),
     testMode: getSetting('CONFIG_TEST_MODE', 'false') === 'true',
@@ -2829,7 +2841,7 @@ Pebble.addEventListener('webviewclosed', function (e) {
   setSetting('CONFIG_STARTUP_CLOCK_ANIMATION_ENABLED', settings.CONFIG_STARTUP_CLOCK_ANIMATION_ENABLED ? 'true' : 'false');
   setSetting('CONFIG_BG_ANIM_MODE', settings.CONFIG_BG_ANIM_MODE || '0');
   setSetting('CONFIG_SHAKE_ANIM_MODE', settings.CONFIG_SHAKE_ANIM_MODE || '0');
-  setSetting('CONFIG_OUTLINE_ENABLED', settings.CONFIG_OUTLINE_ENABLED ? 'true' : 'false');
+  setSetting('CONFIG_OUTLINE_ENABLED', settings.CONFIG_OUTLINE_ENABLED || '1');
   setSetting('CONFIG_BATTERY_SAVER_ENABLED', settings.CONFIG_BATTERY_SAVER_ENABLED ? 'true' : 'false');
   setSetting('CONFIG_CORNER_FONT', settings.CONFIG_CORNER_FONT || '1');
   setSetting('CONFIG_TEST_MODE', settings.CONFIG_TEST_MODE ? 'true' : 'false');

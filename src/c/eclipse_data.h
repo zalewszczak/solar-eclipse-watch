@@ -187,6 +187,10 @@ typedef struct {
   int16_t temp_high_c;        // today's forecast high, whole degrees Celsius
   int16_t temp_low_c;         // today's forecast low, whole degrees Celsius
   uint8_t uv_index_x10;        // today's max UV index, x10 fixed point (e.g. 53 = UV 5.3)
+  uint8_t uv_index_current_x10; // current-hour UV index (as opposed to uv_index_x10's daily max), same x10
+                                  // fixed point -- separate corner/edge content id (104, "Current UV
+                                  // index") from the original "UV index" (6, the daily max), since the
+                                  // two answer different questions and someone may want either or both.
   uint8_t rain_chance_pct;      // today's max precipitation probability, 0-100
   uint8_t humidity_pct;          // current relative humidity, 0-100
   int16_t wind_speed_kmh;        // current wind speed, km/h
@@ -331,11 +335,15 @@ typedef struct {
                              // pebble-eclipse-watch.c, which every site that used to check
                              // "== 1"/"== 2" directly now goes through instead, precisely so 1 and 2
                              // stay mutually exclusive while 3 opts into both).
-  bool outline_enabled; // user setting: 1px contrasting-color outline behind corner/edge text,
-                          // the big-analog date, the eclipse phase text, and (procedurally, non-
-                          // translucent mode only) corner/edge icons. Hands have their own
-                          // per-hand outline_enabled instead (HandConfig, in hand_hour/
-                          // hand_minute/hand_second below) -- this setting doesn't touch them.
+  uint8_t outline_style; // user setting: 0=none, 1=thin (1px contrasting-color outline, the
+                           // original/only look this used to have), 2=thick (thin's same 4
+                           // cardinal 1px offsets PLUS 4 cardinal 2px offsets PLUS 4 diagonal
+                           // 1px offsets -- 12 total, see OUTLINE_OFFSETS_THICK in
+                           // features_layer.c) -- behind corner/edge text, the big-analog date,
+                           // the eclipse phase text, and (procedurally, non-translucent mode
+                           // only) corner/edge icons. Hands have their own per-hand
+                           // outline_enabled instead (HandConfig, in hand_hour/hand_minute/
+                           // hand_second below) -- this setting doesn't touch them.
   bool battery_saver_enabled; // user setting ("Updates" section, default off): "Preserve battery
                                 // when watch is not in use" -- once no shake has been detected for
                                 // 2h, then 4h, the watch progressively drops to a once-a-minute

@@ -152,7 +152,8 @@
       "MARKER_TEXT",
       "COLORS",
       "BATTERY_SAVER_ENABLED",
-      "BATTERY_SAVER_PHASE"
+      "BATTERY_SAVER_PHASE",
+      "UV_INDEX_CURRENT_X10"
     ],
     "resources": {
       "media": [
