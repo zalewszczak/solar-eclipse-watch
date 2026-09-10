@@ -1803,6 +1803,7 @@ Pebble.addEventListener('showConfiguration', function () {
     autoLoc: getSetting('CONFIG_AUTO_LOC', 'true') !== 'false',
     lat: getSetting('CONFIG_LAT', ''),
     lon: getSetting('CONFIG_LON', ''),
+    locationName: getSetting('CONFIG_LOCATION_NAME', ''),
     owmKey: getSetting('CONFIG_OWM_KEY', ''),
     updateMins: getSetting('CONFIG_UPDATE_MINS', '20'),
     clockFont: getSetting('CONFIG_CLOCK_FONT', '8'),
@@ -2032,6 +2033,14 @@ Pebble.addEventListener('webviewclosed', function (e) {
   setSetting('CONFIG_AUTO_LOC', settings.CONFIG_AUTO_LOC ? 'true' : 'false');
   setSetting('CONFIG_LAT', settings.CONFIG_LAT || '');
   setSetting('CONFIG_LON', settings.CONFIG_LON || '');
+  // Cached reverse-geocoded (or searched-for) display name for the
+  // manual lat/lon above -- purely for the settings page's own
+  // "Location" section sub-header (see buildConfigHtml()'s own
+  // comment), so it can show "Use Innsbruck, Austria" instead of raw
+  // coordinates without re-resolving them over the network every
+  // single time the page opens. Cleared browser-side whenever the
+  // person edits lat/lon by hand until it's re-resolved.
+  setSetting('CONFIG_LOCATION_NAME', settings.CONFIG_LOCATION_NAME || '');
   setSetting('CONFIG_OWM_KEY', settings.CONFIG_OWM_KEY || '');
   setSetting('CONFIG_UPDATE_MINS', settings.CONFIG_UPDATE_MINS || '20');
   setSetting('CONFIG_CLOCK_FONT', settings.CONFIG_CLOCK_FONT);

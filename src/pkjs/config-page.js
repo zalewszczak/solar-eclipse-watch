@@ -210,6 +210,80 @@ var MODE_BTN_ICONS = {
     '</svg>',
 };
 
+// iOS-style "app icon" for each collapsible settings section: a
+// rounded-square colour swatch (SECTION_META's own `color`) with a
+// small white glyph centered in it (see .section-icon/.section-icon
+// svg below), shown to the left of that section's title + one-line
+// summary sub-header (see buildSectionLegendHtml() and the
+// compute*Subheader() family of functions in the runtime script
+// further down -- this constant only supplies the icon, not the sub-
+// header text). Keyed by the same short id toggleSection()/the
+// section-legend's own onclick already use (examples/style/colors/
+// corners/.../testing), not the longer human label, so a header's
+// three pieces (legend markup, CATEGORY_ICONS-style glyph, sub-header
+// updater) never drift out of sync with each other. `weather` and
+// `astronomy` deliberately reuse the EXACT same glyph paths as
+// CATEGORY_ICONS.weather/.astro below (the Features section's own
+// per-category icons) rather than new art, so a person already
+// recognizes them by the time they reach this section -- CATEGORY_ICONS
+// itself lives inside the runtime <script> string (browser-only), so
+// there's no way to reference it directly from here; the two literal
+// copies need to be kept in sync by hand if either glyph ever changes.
+// `animated: true` (Animation's own entry) spins its glyph forever via
+// the .section-icon-animation svg CSS rule -- the one icon here that's
+// actually in motion, fittingly.
+var SECTION_META = {
+  examples:  { color: '#af52de', icon:
+    '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2c.4 3.2 1 4.8 2.2 6S17 9.6 20 10c-3.2.4-4.8 1-6 2.2S12.4 14.8 12 18c-.4-3.2-1-4.8-2.2-6S6.8 10.4 4 10c3.2-.4 4.8-1 6-2.2S11.6 5.2 12 2z"/><path d="M18.5 14.5c.2 1.1.4 1.6.8 2 .4.4.9.6 2 .8-1.1.2-1.6.4-2 .8-.4.4-.6.9-.8 2-.2-1.1-.4-1.6-.8-2-.4-.4-.9-.6-2-.8 1.1-.2 1.6-.4 2-.8.4-.4.6-.9.8-2z"/></svg>' },
+  style:     { color: '#5e5ce6', icon:
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19.4 3.6c1 1 1 2.6 0 3.5L11 15.5l-3.2-3.2L16.2 4c1-1 2.5-1 3.5-.4z"/><path d="M9.3 13.7L5.8 17.2c-.7.7-1 1.6-1 2.6 0 .5-.3 1-.9 1.1-.4.1-.8-.2-.7-.6.1-1 .5-1.6 1.1-2.2.8-.8 1.3-1.8 1.4-2.9l.1-1"/></svg>' },
+  colors:    { color: '#ff375f', icon:
+    '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2S5.5 11 5.5 15.2A6.5 6.5 0 0 0 12 21.7a6.5 6.5 0 0 0 6.5-6.5C18.5 11 12 2 12 2z"/></svg>' },
+  corners:   { color: '#ff9500', icon:
+    '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="8" height="8" rx="2.2"/><rect x="13" y="3" width="8" height="8" rx="2.2"/><rect x="3" y="13" width="8" height="8" rx="2.2"/><rect x="13" y="13" width="8" height="8" rx="2.2"/></svg>' },
+  animation: { color: '#34c759', animated: true, icon:
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 3a9 9 0 1 1 -6.36 2.64"/></svg>' },
+  presets:   { color: '#b8860b', icon:
+    '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M6.5 2h11a1 1 0 0 1 1 1v18.2c0 .8-.9 1.3-1.6.9L12 18.3l-4.9 3.8c-.7.4-1.6-.1-1.6-.9V3a1 1 0 0 1 1-1z"/></svg>' },
+  // Identical glyph to CATEGORY_ICONS.weather -- see this constant's
+  // own comment above.
+  weather:   { color: '#0a84ff', icon:
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="8" cy="7.5" r="3.2" fill="currentColor" stroke="none"/><line x1="8" y1="1" x2="8" y2="2.5"/><line x1="1.5" y1="7.5" x2="3" y2="7.5"/><line x1="3.3" y1="2.8" x2="4.4" y2="3.9"/><path d="M6 20h11a4 4 0 0 0 .6-7.95A5.5 5.5 0 0 0 7.2 10.8 3.8 3.8 0 0 0 6 20z" fill="currentColor" stroke="none"/></svg>' },
+  // Identical glyph to CATEGORY_ICONS.astro -- see this constant's own
+  // comment above.
+  astronomy: { color: '#1c1c3a', icon:
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="12" cy="12" r="2.3" fill="currentColor" stroke="none"/><ellipse cx="12" cy="12" rx="10" ry="4"/><ellipse cx="12" cy="12" rx="6.5" ry="9" transform="rotate(60 12 12)"/><circle cx="21.3" cy="12" r="1.3" fill="currentColor" stroke="none"/><circle cx="9.6" cy="4.1" r="1.1" fill="currentColor" stroke="none"/></svg>' },
+  location:  { color: '#ff3b30', icon:
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M12 21s7-7.7 7-13a7 7 0 1 0-14 0c0 5.3 7 13 7 13z"/><circle cx="12" cy="8" r="2.6"/></svg>' },
+  updates:   { color: '#00c7be', icon:
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 12a7.5 7.5 0 0 1 13-5.1M19.5 12a7.5 7.5 0 0 1-13 5.1"/><path d="M17.3 3.8v3.4h-3.4M6.7 20.2v-3.4h3.4"/></svg>' },
+  testing:   { color: '#8e8e93', icon:
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="14" rx="5" ry="6" fill="currentColor" stroke="none"/><line x1="12" y1="8" x2="12" y2="20"/><line x1="4.5" y1="11" x2="7.5" y2="10"/><line x1="4.5" y1="14" x2="7.5" y2="14"/><line x1="4.5" y1="18" x2="7.5" y2="17.3"/><line x1="19.5" y1="11" x2="16.5" y2="10"/><line x1="19.5" y1="14" x2="16.5" y2="14"/><line x1="19.5" y1="18" x2="16.5" y2="17.3"/><path d="M9 5.5L10.5 8M15 5.5L13.5 8"/><circle cx="12" cy="5.5" r="1.2" fill="currentColor" stroke="none"/></svg>' }
+};
+
+// Builds one section-legend header: the rounded-square icon (from
+// SECTION_META), a title + (initially empty, filled in live by
+// refreshAllSectionSubheaders() at the bottom of the runtime script)
+// one-line summary sub-header stacked underneath it, and the existing
+// expand/collapse chevron -- replaces what used to be a single plain-
+// text line for every fieldset's own <div class="section-legend">.
+// `sectionId` must match both a SECTION_META key and the id
+// toggleSection(id)/chev-<id>/section-<id> already use for that
+// fieldset, so all the pieces stay wired to the same section.
+function sectionLegendHtml(sectionId, title) {
+  var meta = SECTION_META[sectionId] || {};
+  return (
+'    <div class="section-legend" onclick="toggleSection(\'' + sectionId + '\')">' +
+'      <span class="section-icon section-icon-' + sectionId + (meta.animated ? ' section-icon-animated' : '') + '" style="background:' + (meta.color || '#999') + ';">' + (meta.icon || '') + '</span>' +
+'      <span class="section-legend-text">' +
+'        <span class="section-legend-title">' + esc(title) + '</span>' +
+'        <span class="section-legend-sub" id="subhead-' + sectionId + '"></span>' +
+'      </span>' +
+'      <span class="chevron" id="chev-' + sectionId + '">&#9656;</span>' +
+'    </div>'
+  );
+}
+
 // Base64 data: URIs for each bitmap marker style's preview image,
 // generated at build time from the same resource PNGs used on the
 // watch itself (resources/images/<name>_background.png -- see
@@ -1536,8 +1610,33 @@ function buildConfigHtml(current) {
 '  .preset-btn-row button { flex: 1; padding: 8px 0; font-size: 11px; font-weight: 700; color: var(--text-strong); background: var(--btn-bg); border: 1px solid var(--border); border-radius: 6px; }' +
 '  .marker-edit-btn { width: 100%; box-sizing: border-box; padding: 12px; font-size: 14px; font-weight: 600; color: var(--text-strong); background: var(--btn-bg); border: 1px solid var(--border); border-radius: 8px; margin-top: 8px; text-align: left; }' +
 '  .marker-edit-btn:disabled { opacity: 0.45; }' +
-'  .section-legend { cursor: pointer; display: flex; align-items: center; justify-content: space-between; width: 100%; box-sizing: border-box; margin: 0; padding: 6px 0; user-select: none; color: var(--text-strong); }' +
-'  .chevron { display: inline-block; font-size: 24px; line-height: 1; transition: transform 0.15s; }' +
+// Icon + stacked title/sub-header + chevron, replacing what used to
+// be a single plain-text line (see sectionLegendHtml() above). Kept
+// deliberately tight -- smaller title size, near-zero line-heights,
+// and less top/bottom padding than a plain label would get -- so
+// adding a whole second (sub-header) line doesn't make the collapsed
+// button noticeably taller than it was before; the icon square is
+// sized to roughly match that same two-line block's own height rather
+// than to any fixed larger "icon size", so the row still reads as one
+// compact tappable bar.
+'  .section-legend { cursor: pointer; display: flex; align-items: center; gap: 10px; width: 100%; box-sizing: border-box; margin: 0; padding: 4px 0; user-select: none; color: var(--text-strong); }' +
+'  .section-icon { width: 30px; height: 30px; border-radius: 8px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #fff; box-shadow: 0 1px 2px rgba(0,0,0,0.25); }' +
+'  .section-icon svg { width: 17px; height: 17px; display: block; }' +
+// The one icon that's actually animated (Animation's own) -- spins
+// forever, independent of any setting, purely to say "this section is
+// about motion" at a glance.
+'  @keyframes sectionIconSpin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }' +
+'  .section-icon-animated svg { animation: sectionIconSpin 2.2s linear infinite; transform-origin: 50% 50%; }' +
+'  .section-legend-text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; justify-content: center; }' +
+'  .section-legend-title { font-size: 15px; font-weight: 700; line-height: 1.15; }' +
+// Roughly half the title's own font-size, per the request -- hidden
+// entirely once the section is expanded (see toggleSection() below)
+// since the full controls underneath make it redundant at that point.
+'  .section-legend-sub { font-size: 8px; line-height: 1.25; color: var(--text-faint); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }' +
+// Colors section sub-header's own "3 dots" (current main/accent/
+// background) -- see computeColorsSubheaderHtml() further down.
+'  .subhead-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-left: 3px; border: 1px solid rgba(0,0,0,0.25); vertical-align: middle; }' +
+'  .chevron { display: inline-block; flex: 0 0 auto; font-size: 24px; line-height: 1; transition: transform 0.15s; }' +
 '  .chevron.open { transform: rotate(90deg); }' +
 '  .slider-with-buttons { display: flex; align-items: center; gap: 8px; }' +
 '  .slider-with-buttons input[type=range] { flex: 1; }' +
@@ -1812,7 +1911,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '</div>' +
 
 '  <fieldset>' +
-'    <div class="section-legend" onclick="toggleSection(\'examples\')">Example styles <span class="chevron" id="chev-examples">&#9656;</span></div>' +
+    sectionLegendHtml('examples', 'Example styles') +
 '    <div class="section-body" id="section-examples" style="display:none;">' +
 '    <div class="help">Tap a design below to preview it -- each one sets every Style, Colors, and Features setting to match once you confirm, the same as pasting its JSON into "Style Presets" further down.</div>' +
 '    <div class="example-style-grid">' + exampleStylesButtonsHtml + '</div>' +
@@ -1820,7 +1919,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  </fieldset>' +
 
 '  <fieldset>' +
-'    <div class="section-legend" onclick="toggleSection(\'style\')">Style <span class="chevron" id="chev-style">&#9656;</span></div>' +
+    sectionLegendHtml('style', 'Style') +
 '    <div class="section-body" id="section-style" style="display:none;">' +
 
 '    <label>Layout</label>' +
@@ -1912,7 +2011,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  </fieldset>' +
 
 '  <fieldset>' +
-'    <div class="section-legend" onclick="toggleSection(\'colors\')">Colors <span class="chevron" id="chev-colors">&#9656;</span></div>' +
+    sectionLegendHtml('colors', 'Colors') +
 '    <div class="section-body" id="section-colors" style="display:none;">' +
 
 '    <div class="subsection" id="daySchemeSubsection">' +
@@ -2006,7 +2105,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  </fieldset>' +
 
 '  <fieldset id="cornersFieldset">' +
-'    <div class="section-legend" onclick="toggleSection(\'corners\')">Features <span class="chevron" id="chev-corners">&#9656;</span></div>' +
+    sectionLegendHtml('corners', 'Features') +
 '    <div class="section-body" id="section-corners" style="display:none;">' +
 '    <div class="help">Features are small info readouts (weather, health, date/time, and more) placed around your watch face. Tap a slot on the diagram below to pick what it shows and how it\'s colored -- grayed-out slots aren\'t available for your current style.</div>' +
 
@@ -2116,7 +2215,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  </fieldset>' +
 
 '  <fieldset>' +
-'    <div class="section-legend" onclick="toggleSection(\'animation\')">Animation <span class="chevron" id="chev-animation">&#9656;</span></div>' +
+    sectionLegendHtml('animation', 'Animation') +
 '    <div class="section-body" id="section-animation" style="display:none;">' +
 '    <div class="checkbox-row subsection">' +
 '      <input type="checkbox" id="startupClockAnimationEnabled" ' + (current.startupClockAnimationEnabled !== false ? 'checked' : '') + '>' +
@@ -2162,7 +2261,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  </fieldset>' +
 
 '  <fieldset>' +
-'    <div class="section-legend" onclick="toggleSection(\'presets\')">Style Presets <span class="chevron" id="chev-presets">&#9656;</span></div>' +
+    sectionLegendHtml('presets', 'Style Presets') +
 '    <div class="section-body" id="section-presets" style="display:none;">' +
 '    <div class="help">Save up to 6 quick-recall snapshots of your whole Style + Colors + Features design below, or export/import it as JSON to back it up or share it.</div>' +
 
@@ -2183,7 +2282,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  </fieldset>' +
 
 '  <fieldset>' +
-'    <div class="section-legend" onclick="toggleSection(\'weather\')">Weather <span class="chevron" id="chev-weather">&#9656;</span></div>' +
+    sectionLegendHtml('weather', 'Weather') +
 '    <div class="section-body" id="section-weather" style="display:none;">' +
 '    <div class="help">Cloud cover is always pulled from Open-Meteo (no signup needed). Optionally add an OpenWeatherMap API key to average in a second forecast.</div>' +
 '    <label for="owmKey">OpenWeatherMap API key (optional)</label>' +
@@ -2224,7 +2323,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  </fieldset>' +
 
 '  <fieldset>' +
-'    <div class="section-legend" onclick="toggleSection(\'astronomy\')">Astronomy <span class="chevron" id="chev-astronomy">&#9656;</span></div>' +
+    sectionLegendHtml('astronomy', 'Astronomy') +
 '    <div class="section-body" id="section-astronomy" style="display:none;">' +
 
 '    <label>Sun &amp; Moon size</label>' +
@@ -2266,7 +2365,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  </fieldset>' +
 
 '  <fieldset>' +
-'    <div class="section-legend" onclick="toggleSection(\'location\')">Location <span class="chevron" id="chev-location">&#9656;</span></div>' +
+    sectionLegendHtml('location', 'Location') +
 '    <div class="section-body" id="section-location" style="display:none;">' +
 '    <div class="checkbox-row">' +
 '      <input type="checkbox" id="autoLoc" ' + autoLocChecked + ' onchange="toggleManual()">' +
@@ -2279,15 +2378,20 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    </div>' +
 '    <div class="help" id="locationSearchStatus"></div>' +
 '    <label for="lat">Manual latitude (decimal degrees)</label>' +
-'    <input type="number" step="any" id="lat" ' + manualDisabled + ' placeholder="e.g. 40.7128" value="' + esc(current.lat) + '">' +
+'    <input type="number" step="any" id="lat" ' + manualDisabled + ' placeholder="e.g. 40.7128" value="' + esc(current.lat) + '" oninput="onManualCoordsInput()" onblur="onManualCoordsBlur()">' +
 '    <label for="lon">Manual longitude (decimal degrees)</label>' +
-'    <input type="number" step="any" id="lon" ' + manualDisabled + ' placeholder="e.g. -74.0060" value="' + esc(current.lon) + '">' +
+'    <input type="number" step="any" id="lon" ' + manualDisabled + ' placeholder="e.g. -74.0060" value="' + esc(current.lon) + '" oninput="onManualCoordsInput()" onblur="onManualCoordsBlur()">' +
 '    <div class="help">Only used when GPS is turned off above.</div>' +
+// Cached resolved display name for the coordinates above -- see the
+// Location sub-header's own compute function and
+// reverseGeocodeAndCacheLocationName() further down for how this gets
+// filled in and kept from being re-looked-up on every page load.
+'    <input type="hidden" id="locationName" value="' + esc(current.locationName || '') + '">' +
 '    </div>' +
 '  </fieldset>' +
 
 '  <fieldset>' +
-'    <div class="section-legend" onclick="toggleSection(\'updates\')">Updates <span class="chevron" id="chev-updates">&#9656;</span></div>' +
+    sectionLegendHtml('updates', 'Updates') +
 '    <div class="section-body" id="section-updates" style="display:none;">' +
 '    <div class="checkbox-row">' +
 '      <input type="checkbox" id="batterySaverEnabled" ' + (current.batterySaverEnabled ? 'checked' : '') + '>' +
@@ -2313,7 +2417,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  </fieldset>' +
 
 '  <fieldset>' +
-'    <div class="section-legend" onclick="toggleSection(\'testing\')">Debug <span class="chevron" id="chev-testing">&#9656;</span></div>' +
+    sectionLegendHtml('testing', 'Debug') +
 '    <div class="section-body" id="section-testing" style="display:none;">' +
 '    <div class="checkbox-row">' +
 '      <input type="checkbox" id="testMode" ' + testModeChecked + ' onchange="toggleTestMode()">' +
@@ -2460,6 +2564,59 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  var payload = { CONFIG_SEND_FULL_KEYSET: true, CONFIG_FULL_KEYSET_DATA: text };' +
 '  document.location = returnTo + encodeURIComponent(JSON.stringify(payload));' +
 '}' +
+// Boils a Nominatim `address` object (city/town/village/... + country)
+// down to the short "City, Country" form the Location sub-header shows
+// (see computeLocationSubheader() below) -- falls back gracefully to
+// whichever half is actually present rather than requiring both.
+'function shortNameFromAddress(addr) {' +
+'  if (!addr) return "";' +
+'  var place = addr.city || addr.town || addr.village || addr.municipality || addr.county || addr.state || "";' +
+'  var country = addr.country || "";' +
+'  if (place && country) return place + ", " + country;' +
+'  return place || country;' +
+'}' +
+// Coordinates just changed by hand -- the cached name (if any) no
+// longer necessarily matches them, so clear it rather than let a
+// now-stale "Use Innsbruck, Austria" linger over different
+// coordinates; onManualCoordsBlur() below re-resolves it once typing
+// stops, same "don\'t look it up on every keystroke" reasoning as not
+// re-fetching on every settings page load.
+'function onManualCoordsInput() {' +
+'  var el = document.getElementById("locationName");' +
+'  if (el) el.value = "";' +
+'}' +
+'function onManualCoordsBlur() {' +
+'  if (!document.getElementById("autoLoc").checked && !document.getElementById("locationName").value) {' +
+'    reverseGeocodeAndCacheLocationName();' +
+'  }' +
+'}' +
+// One-shot reverse geocode of whatever\'s currently in #lat/#lon into
+// #locationName (see that hidden field\'s own comment) -- called once
+// at page init if a name isn\'t already cached (see the bottom of this
+// script) and again from onManualCoordsBlur() above after a manual
+// coordinate edit. Silently does nothing on failure/no results,
+// leaving the Location sub-header to fall back to raw coordinates --
+// this is a "nice to have" label, not something worth surfacing an
+// error for.
+'function reverseGeocodeAndCacheLocationName() {' +
+'  var lat = document.getElementById("lat").value;' +
+'  var lon = document.getElementById("lon").value;' +
+'  if (!lat || !lon) return;' +
+'  var xhr = new XMLHttpRequest();' +
+'  xhr.open("GET", "https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=" + encodeURIComponent(lat) + "&lon=" + encodeURIComponent(lon) + "&zoom=10&addressdetails=1", true);' +
+'  xhr.timeout = 8000;' +
+'  xhr.onload = function () {' +
+'    try {' +
+'      var data = JSON.parse(xhr.responseText);' +
+'      var name = shortNameFromAddress(data && data.address);' +
+'      if (name) {' +
+'        document.getElementById("locationName").value = name;' +
+'        refreshAllSectionSubheaders();' +
+'      }' +
+'    } catch (e) {}' +
+'  };' +
+'  xhr.send();' +
+'}' +
 'function searchLocation() {' +
 '  var query = document.getElementById("locationSearch").value;' +
 '  query = query ? query.trim() : "";' +
@@ -2467,7 +2624,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  var statusEl = document.getElementById("locationSearchStatus");' +
 '  statusEl.textContent = "Searching...";' +
 '  var xhr = new XMLHttpRequest();' +
-'  xhr.open("GET", "https://nominatim.openstreetmap.org/search?format=json&limit=1&q=" + encodeURIComponent(query), true);' +
+'  xhr.open("GET", "https://nominatim.openstreetmap.org/search?format=json&limit=1&addressdetails=1&q=" + encodeURIComponent(query), true);' +
 '  xhr.timeout = 8000;' +
 '  xhr.onload = function () {' +
 '    try {' +
@@ -2475,7 +2632,9 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      if (results && results.length > 0) {' +
 '        document.getElementById("lat").value = parseFloat(results[0].lat).toFixed(5);' +
 '        document.getElementById("lon").value = parseFloat(results[0].lon).toFixed(5);' +
+'        document.getElementById("locationName").value = shortNameFromAddress(results[0].address) || query;' +
 '        statusEl.textContent = "Found: " + (results[0].display_name || query);' +
+'        refreshAllSectionSubheaders();' +
 '      } else {' +
 '        statusEl.textContent = "No results found.";' +
 '      }' +
@@ -2557,6 +2716,13 @@ handEditorModalHtml('sec', 'Edit second hand') +
 // so the two can never drift apart the way two independently-typed
 // copies could.
 'var FONT_LOOKUP = ' + JSON.stringify(FONT_LOOKUP) + ';' +
+// Runtime copy of the constant controlling how many "Example styles"
+// tiles exist -- used only by the Example styles section's own
+// sub-header (computeExamplesSubheader() below); that count never
+// changes at runtime, so this is just a plain baked-in number, same
+// spirit as every other "generator-side data, copied once for the
+// browser" constant on this page.
+'var EXAMPLE_STYLE_COUNT = ' + EXAMPLE_STYLE_COUNT + ';' +
 // Same reasoning as FONT_LOOKUP just above -- serialized straight from
 // the generator-side FONT_PREVIEW_IMAGES (itself just require()'d from
 // the generated src/pkjs/font-preview-images.js) rather than
@@ -3816,10 +3982,17 @@ handEditorModalHtml('sec', 'Edit second hand') +
 'function toggleSection(id) {' +
 '  var body = document.getElementById("section-" + id);' +
 '  var chev = document.getElementById("chev-" + id);' +
+'  var sub = document.getElementById("subhead-" + id);' +
 '  if (!body) return;' +
 '  var isOpen = body.style.display !== "none";' +
 '  body.style.display = isOpen ? "none" : "";' +
 '  if (chev) chev.className = isOpen ? "chevron" : "chevron open";' +
+// The sub-header is only useful while collapsed (a quick summary of
+// what\'s inside); once the section\'s own full controls are visible
+// it\'s redundant, so it disappears on expansion per the request --
+// its text stays computed underneath (refreshAllSectionSubheaders()
+// keeps updating it even while hidden), just not shown.
+'  if (sub) sub.style.display = isOpen ? "" : "none";' +
 '}' +
 'function stepSlider(id, delta) {' +
 '  var el = document.getElementById(id);' +
@@ -5160,6 +5333,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    CONFIG_AUTO_LOC: document.getElementById("autoLoc").checked,' +
 '    CONFIG_LAT: document.getElementById("lat").value,' +
 '    CONFIG_LON: document.getElementById("lon").value,' +
+'    CONFIG_LOCATION_NAME: document.getElementById("locationName").value,' +
 '    CONFIG_OWM_KEY: document.getElementById("owmKey").value,' +
 '    CONFIG_UPDATE_MINS: mins,' +
 '    CONFIG_CLOCK_FONT: document.getElementById("clockFont").value,' +
@@ -5324,6 +5498,215 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  return defaultValue;' +
 '}' +
 
+// ---- section sub-headers -------------------------------------------
+// One compute*Subheader() function per collapsible section, each
+// returning the one-line summary text (or, for Colors, an HTML
+// fragment with its own 3 color dots) shown under that section's
+// title while it's collapsed -- see sectionLegendHtml() near the top
+// of this file for the markup itself and toggleSection() above for
+// why it disappears on expansion. setSubheaderText()/Html() below
+// just push a function's return value into that section's own
+// #subhead-<id> span; refreshAllSectionSubheaders() calls the whole
+// set together. None of these mutate anything -- purely read the same
+// DOM fields every other part of this page already treats as the
+// source of truth (hidden inputs, checkboxes, selects), so a
+// sub-header can never show something Save wouldn\'t actually send.
+'function setSubheaderText(id, text) {' +
+'  var el = document.getElementById("subhead-" + id);' +
+'  if (el) el.textContent = text;' +
+'}' +
+'function setSubheaderHtml(id, html) {' +
+'  var el = document.getElementById("subhead-" + id);' +
+'  if (el) el.innerHTML = html;' +
+'}' +
+'function computeStyleSubheader() {' +
+'  var bottomStyleVal = document.getElementById("bottomStyleValue").value;' +
+'  var clockPart;' +
+'  if (bottomStyleVal === "analog") {' +
+'    clockPart = "analog clock";' +
+'  } else {' +
+'    var fontId = parseInt(document.getElementById("clockFont").value, 10);' +
+'    clockPart = fontLookupEntry(fontId).label + " digital clock";' +
+'  }' +
+'  var skyVal = document.getElementById("skyMode").value || "0";' +
+'  var skyPart = skyVal === "1" ? "clear sky" : skyVal === "2" ? "space sky" : "weather sky";' +
+'  var outlineVal = document.getElementById("outlineStyle").value || "1";' +
+'  var outlinePart = outlineVal === "0" ? "no outline" : outlineVal === "2" ? "thick outline" : "thin outline";' +
+'  return clockPart + " + " + skyPart + " + " + outlinePart;' +
+'}' +
+// The only sub-header rendered as HTML rather than plain text -- the
+// 3 small color dots (see .subhead-dot) need real background-color
+// styling, not just words. dayColors()/nightColors()/isNightNowApprox()
+// are all existing helpers this page already uses for the color-role
+// swatches and the "Active now" badge above.
+'function computeColorsSubheaderHtml() {' +
+'  var nightEnabled = document.getElementById("nightEnabled").checked;' +
+'  var label, colors;' +
+'  if (!nightEnabled) {' +
+'    label = "one set: ";' +
+'    colors = dayColors();' +
+'  } else if (isNightNowApprox()) {' +
+'    label = "night mode: ";' +
+'    colors = nightColors();' +
+'  } else {' +
+'    label = "day mode: ";' +
+'    colors = dayColors();' +
+'  }' +
+'  function dot(hex) { return \'<span class="subhead-dot" style="background:\' + hex + \';"></span>\'; }' +
+'  return esc(label) + dot(colors.text) + dot(colors.accent) + dot(colors.bg);' +
+'}' +
+// Mirrors save()\'s own edgeVal()/avail logic exactly (same
+// computeSlotAvailability() call, same per-slot usable checks) so the
+// count here can never disagree with what actually reaches the watch.
+'function countActiveFeatures() {' +
+'  var avail = computeSlotAvailability();' +
+'  var isAnalogNow = document.getElementById("bottomStyleValue").value === "analog";' +
+'  function val(id) { return parseInt(document.getElementById(id).value, 10) || 0; }' +
+'  function edgeActive(id, analogFlag, digitalFlag) {' +
+'    var usable = isAnalogNow ? analogFlag : digitalFlag;' +
+'    return usable && val(id) !== 0;' +
+'  }' +
+'  var count = 0;' +
+'  if (!avail.cornersGrayed) {' +
+'    ["cornerTL", "cornerTR", "cornerBL", "cornerBR"].forEach(function (id) { if (val(id) !== 0) count++; });' +
+'  }' +
+'  if (edgeActive("upperMiddleLine1Content", avail.upper, avail.digitalLeft)) count++;' +
+'  if (edgeActive("upperMiddleLine2Content", avail.upper, avail.digitalRight)) count++;' +
+'  if (edgeActive("bottomMiddleLine1Content", avail.bottom, true)) count++;' +
+'  if (edgeActive("bottomMiddleLine2Content", avail.bottom, false)) count++;' +
+'  if (edgeActive("middleLeftLine1Content", avail.left, avail.digitalLeft)) count++;' +
+'  if (edgeActive("middleLeftLine2Content", avail.left, avail.digitalLeft)) count++;' +
+'  if (edgeActive("middleRightLine1Content", avail.right, avail.digitalRight)) count++;' +
+'  if (edgeActive("middleRightLine2Content", avail.right, avail.digitalRight)) count++;' +
+'  return count;' +
+'}' +
+'function computeFeaturesSubheader() {' +
+'  var count = countActiveFeatures();' +
+'  if (count === 0) return "No features active";' +
+'  var fontId = parseInt(document.getElementById("cornerFont").value, 10);' +
+'  var fontName = fontLookupEntry(fontId).label;' +
+'  return count + " feature" + (count === 1 ? "" : "s") + " active in " + fontName;' +
+'}' +
+// "Planets"/"second hand" here refer to the ON-SHAKE animations
+// (Planet seek/Smooth second hand -- see the "On shake animation"
+// picker\'s own options), not the separate "Animate background on
+// start" picker, per the request\'s own example.
+'function computeAnimationSubheader() {' +
+'  var parts = [];' +
+'  if (document.getElementById("startupClockAnimationEnabled").checked) parts.push("animated clock on start");' +
+'  var bg = document.getElementById("bgAnimMode").value;' +
+'  if (bg === "1") parts.push("planets on start");' +
+'  else if (bg === "2") parts.push("indices on start");' +
+'  var shake = document.getElementById("shakeAnimMode").value;' +
+'  var shakeParts = [];' +
+'  if (shake === "2" || shake === "3") shakeParts.push("planets");' +
+'  if (shake === "1" || shake === "3") shakeParts.push("second hand");' +
+'  if (shakeParts.length) parts.push(shakeParts.join(" and ") + " on shake");' +
+'  if (!parts.length) return "No animations active";' +
+'  var s = parts.join(", ");' +
+'  return s.charAt(0).toUpperCase() + s.slice(1);' +
+'}' +
+'function computePresetsSubheader() {' +
+'  var used = 0;' +
+'  for (var n = 1; n <= 6; n++) {' +
+'    var el = document.getElementById("presetSlot" + n + "Json");' +
+'    if (el && el.value) used++;' +
+'  }' +
+'  return used + " out of 6 presets used";' +
+'}' +
+'function computeWeatherSubheader() {' +
+'  var tempUnit = document.getElementById("tempUnit").value;' +
+'  var tempLabel = tempUnit === "F" ? "Fahrenheit" : tempUnit === "K" ? "Kelvin" : "Celsius";' +
+'  var wind = document.getElementById("windSpeedUnit").value;' +
+'  var windLabel = wind === "mph" ? "imperial" : wind === "kn" ? "nautical" : "metric";' +
+'  var aqi = document.getElementById("aqiUnit").value;' +
+'  var aqiLabel = aqi === "1" ? "European" : "US";' +
+'  return tempLabel + " temp. units with " + windLabel + " and " + aqiLabel + " air quality";' +
+'}' +
+'function computeAstronomySubheader() {' +
+'  var sizeVal = document.getElementById("sunMoonSize").value;' +
+'  var sizeLabel = sizeVal === "100" ? "Large" : sizeVal === "50" ? "Small" : sizeVal === "25" ? "X-small" : "Medium";' +
+'  var parts = [sizeLabel + " sun&moon"];' +
+'  parts.push("ISS " + (document.getElementById("showIss").checked ? "on" : "off"));' +
+'  parts.push("auroras " + (document.getElementById("auroraEnabled").checked ? "on" : "off"));' +
+'  if (document.getElementById("vibrateOnPhaseChange").checked) parts.push("vibrate on eclipse phases");' +
+'  return parts.join(", ");' +
+'}' +
+'function computeLocationSubheader() {' +
+'  if (document.getElementById("autoLoc").checked) return "Use phone location";' +
+'  var nameEl = document.getElementById("locationName");' +
+'  var name = nameEl ? nameEl.value : "";' +
+'  if (name) return "Use " + name;' +
+'  var lat = document.getElementById("lat").value;' +
+'  var lon = document.getElementById("lon").value;' +
+'  if (!lat && !lon) return "Use phone location";' +
+'  return "Use lat: " + lat + ", long: " + lon;' +
+'}' +
+'function computeUpdatesSubheader() {' +
+'  var mins = document.getElementById("updateMins").value;' +
+'  var saver = document.getElementById("batterySaverEnabled").checked;' +
+'  return mins + " minute interval, battery preserver " + (saver ? "on" : "off");' +
+'}' +
+'function formatTestDateTime(val) {' +
+'  if (!val) return null;' +
+'  var parts = val.split("T");' +
+'  if (parts.length < 2) return val;' +
+'  var dateParts = parts[0].split("-");' +
+'  if (dateParts.length !== 3) return val;' +
+'  var months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];' +
+'  var y = dateParts[0], m = parseInt(dateParts[1], 10) - 1, d = parseInt(dateParts[2], 10);' +
+'  return d + " " + (months[m] || "") + " " + y + " " + parts[1];' +
+'}' +
+'function computeDebugSubheader() {' +
+'  var testOn = document.getElementById("testMode").checked;' +
+'  var overridePart = testOn ? ("Override: " + (formatTestDateTime(document.getElementById("testDateTime").value) || "not set")) : "Override: off";' +
+'  var lastPart = "last: none yet";' +
+'  try {' +
+'    var log = JSON.parse(document.getElementById("rawMessageLogJson").value || "[]");' +
+'    if (log.length) {' +
+'      var last = log[log.length - 1];' +
+'      var d = new Date(last.t);' +
+'      function pad(n, len) { var s = String(n); while (s.length < (len || 2)) s = "0" + s; return s; }' +
+'      lastPart = "last " + pad(d.getHours()) + ":" + pad(d.getMinutes()) + ":" + pad(d.getSeconds()) + "." + pad(d.getMilliseconds(), 3);' +
+'    }' +
+'  } catch (e) {}' +
+'  return overridePart + ", " + lastPart;' +
+'}' +
+// Called on init, after every click/change/input anywhere on the page
+// (see the delegated listeners below -- cheaper and far less fragile
+// than hunting down every individual onclick/onchange handler that
+// could affect one of these), and once a second alongside the
+// existing preview/scheme-highlight timer (for the Colors day/night
+// split and the Debug section\'s own last-message clock, both of which
+// can go stale purely from time passing, not from any click).
+// Each section wrapped in its own try/catch so one section\'s bug
+// (or a not-yet-rendered field, e.g. during the very first call before
+// every element exists) can\'t blank out every other section\'s
+// sub-header.
+'function refreshAllSectionSubheaders() {' +
+'  try { setSubheaderText("examples", EXAMPLE_STYLE_COUNT + " styles available"); } catch (e) {}' +
+'  try { setSubheaderText("style", computeStyleSubheader()); } catch (e) {}' +
+'  try { setSubheaderHtml("colors", computeColorsSubheaderHtml()); } catch (e) {}' +
+'  try { setSubheaderText("corners", computeFeaturesSubheader()); } catch (e) {}' +
+'  try { setSubheaderText("animation", computeAnimationSubheader()); } catch (e) {}' +
+'  try { setSubheaderText("presets", computePresetsSubheader()); } catch (e) {}' +
+'  try { setSubheaderText("weather", computeWeatherSubheader()); } catch (e) {}' +
+'  try { setSubheaderText("astronomy", computeAstronomySubheader()); } catch (e) {}' +
+'  try { setSubheaderText("location", computeLocationSubheader()); } catch (e) {}' +
+'  try { setSubheaderText("updates", computeUpdatesSubheader()); } catch (e) {}' +
+'  try { setSubheaderText("testing", computeDebugSubheader()); } catch (e) {}' +
+'}' +
+// A single delegated hook per event type instead of threading
+// refreshAllSectionSubheaders() into every existing onclick/onchange/
+// oninput handler on the page (mode-btn taps, slider drags, modal
+// confirms, preset apply, example-style apply, etc. -- there are
+// dozens). Bubbling means each of these fires AFTER whatever inline
+// handler the actual target element already has, so the DOM is
+// already up to date by the time this runs.
+'document.addEventListener("click", refreshAllSectionSubheaders);' +
+'document.addEventListener("change", refreshAllSectionSubheaders);' +
+'document.addEventListener("input", refreshAllSectionSubheaders);' +
+
 'updateColorRoleButtons("day");' +
 'updateColorRoleButtons("night");' +
 'onBottomStyleChange();' +
@@ -5338,7 +5721,17 @@ handEditorModalHtml('sec', 'Edit second hand') +
 'adjustTopBarSpacing();' +
 'if (document.fonts && document.fonts.ready) { document.fonts.ready.then(updatePreview); }' +
 'updateSchemeActiveHighlight();' +
-'setInterval(function () { updatePreview(); updateSchemeActiveHighlight(); }, 1000);' +
+'refreshAllSectionSubheaders();' +
+// One-shot only -- if manual location is already on and coordinates
+// are present but nothing's cached yet (e.g. an existing install
+// updating into this feature for the first time, or lat/lon set some
+// other way than the Search box/blur handler above), resolve a name
+// once now rather than leaving the Location sub-header stuck showing
+// raw coordinates forever.
+'if (!document.getElementById("autoLoc").checked && document.getElementById("lat").value && document.getElementById("lon").value && !document.getElementById("locationName").value) {' +
+'  reverseGeocodeAndCacheLocationName();' +
+'}' +
+'setInterval(function () { updatePreview(); updateSchemeActiveHighlight(); refreshAllSectionSubheaders(); }, 1000);' +
 '</script>' +
 '</body></html>';
 }
