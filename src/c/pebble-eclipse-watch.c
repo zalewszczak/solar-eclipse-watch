@@ -743,19 +743,24 @@ static void hands_layer_update_proc(Layer *layer, GContext *ctx) {
   uint16_t hour_length_scale_1000 = 1000, min_length_scale_1000 = 1000, sec_length_scale_1000 = 1000;
   if (s_startup_clock_anim_active) {
     int32_t target_hour_angle = hour_angle, target_min_angle = min_angle, target_sec_angle = sec_angle;
-    // If the "Planets" background sweep (bg_anim_mode 2) is ALSO
-    // running right now, the hands chase the SAME swept time the sky
-    // itself is sweeping through (see canvas_update_proc's own sky_now
-    // substitution in background_layer.c) instead of the real, fixed
-    // current time -- so the hands visibly advance through the same
-    // ~2 hours the planets are moving through in the background,
-    // rather than the sky alone appearing to animate while the hands
-    // just swing into their already-correct resting position. Shares
-    // BG_ANIM_MS as its own total duration (both are 1400ms) and
-    // ease_out_cubic_1000 (identical curve to background_layer.c's own
+    // Only when the user explicitly picked "planet sweep time shift"
+    // (startup_clock_anim_mode 2) AND the Planets background sweep
+    // (bg_anim_mode 1) is ALSO actually running right now do the hands
+    // chase the SAME swept time the sky itself is sweeping through
+    // (see canvas_update_proc's own sky_now substitution in
+    // background_layer.c) instead of the real, fixed current time --
+    // so the hands visibly advance through the same ~2 hours the
+    // planets are moving through in the background, rather than the
+    // sky alone appearing to animate while the hands just swing into
+    // their already-correct resting position. Falls back to chasing
+    // the real current time (same as mode 1, "animate clock") whenever
+    // Planets isn't the active background animation, since there's no
+    // time shift to chase in that case. Shares BG_ANIM_MS as its own
+    // total duration (both are 1400ms) and ease_out_cubic_1000
+    // (identical curve to background_layer.c's own
     // bg_anim_ease_out_1000 -- see that function's own comment) so the
     // two sweeps advance in step with each other.
-    if (s_bg_anim_active && s_data.bg_anim_mode == 1) {
+    if (s_data.startup_clock_anim_mode == 2 && s_bg_anim_active && s_data.bg_anim_mode == 1) {
       int32_t progress = ((int32_t)s_bg_anim_elapsed_ms * 1000) / BG_ANIM_MS;
       if (progress > 1000) progress = 1000;
       int32_t eased = ease_out_cubic_1000(progress);
@@ -1084,7 +1089,7 @@ static void startup_anim_timer_callback(void *data) {
 // false) if the setting is off, or if this app session already played
 // it once -- a settings save or a fresh data push shouldn't replay it.
 static void maybe_start_startup_clock_animation(void) {
-  if (s_startup_clock_anim_played || !s_data.startup_clock_animation_enabled) return;
+  if (s_startup_clock_anim_played || s_data.startup_clock_anim_mode == 0) return;
   s_startup_clock_anim_played = true;
   s_startup_clock_anim_active = true;
   s_startup_anim_elapsed_ms = 0;
@@ -1262,7 +1267,7 @@ static const SimpleFieldMapping SIMPLE_FIELD_MAP[SIMPLE_FIELD_MAP_COUNT] = {
   { MK_WIND_SPEED_UNIT, F_U8, offsetof(EclipseData, wind_speed_unit) },
   { MK_SHAKE_LABEL_SECONDS, F_U8, offsetof(EclipseData, shake_label_seconds) },
   { MK_VIBRATE_ON_PHASE_CHANGE, F_BOOL, offsetof(EclipseData, vibrate_on_phase_change) },
-  { MK_STARTUP_CLOCK_ANIMATION_ENABLED, F_BOOL, offsetof(EclipseData, startup_clock_animation_enabled) },
+  { MK_STARTUP_CLOCK_ANIM_MODE, F_U8, offsetof(EclipseData, startup_clock_anim_mode) },
   { MK_OUTLINE_ENABLED, F_U8, offsetof(EclipseData, outline_style) },
   { MK_BATTERY_SAVER_ENABLED, F_BOOL, offsetof(EclipseData, battery_saver_enabled) },
   { MK_CORNER_FONT, F_U8, offsetof(EclipseData, corner_font) },

@@ -137,7 +137,7 @@ var KEY_TYPE_MAP = (function () {
     'BOTTOM_STYLE', 'SUN_MOON_SIZE_PCT',
     'SKY_MODE', 'WEATHER_ICON_STYLE', 'AQI_UNIT', 'ALTITUDE_UNIT',
     'SHAKE_LABEL_SECONDS', 'LABEL_STYLE',
-    'VIBRATE_ON_PHASE_CHANGE', 'STARTUP_CLOCK_ANIMATION_ENABLED',
+    'VIBRATE_ON_PHASE_CHANGE', 'STARTUP_CLOCK_ANIM_MODE',
     'BG_ANIM_MODE', 'SHAKE_ANIM_MODE', 'OUTLINE_ENABLED',
     'SHADOW_TRANSLUCENT', 'SHADOW_ANGLE',
     'BIG_ANALOG_MARKER_STYLE', 'BITMAP_MARKER_TRANSPARENT', 'DRAW_FEATURES_BENEATH_HANDS',
@@ -788,8 +788,14 @@ function showSunTimeCode() { return getSetting('CONFIG_SHOW_SUN_TIME', 'false') 
 function showIssCode() { return getSetting('CONFIG_SHOW_ISS', 'false') === 'true' ? 1 : 0; }
 function auroraEnabledCode() { return getSetting('CONFIG_AURORA_ENABLED', 'false') === 'true' ? 1 : 0; }
 function vibrateOnPhaseChangeCode() { return getSetting('CONFIG_VIBRATE_ON_PHASE_CHANGE', 'false') === 'true' ? 1 : 0; }
-// Default true -- matches the C struct comment; the other two default false.
-function startupClockAnimationEnabledCode() { return getSetting('CONFIG_STARTUP_CLOCK_ANIMATION_ENABLED', 'true') === 'true' ? 1 : 0; }
+// Radio-style, exactly one of 0=off, 1=animate clock, 2=planet sweep
+// time shift -- see startup_clock_anim_mode's own comment in
+// eclipse_data.h. Default 1 (animate clock), matching the old
+// boolean's own default-true.
+function startupClockAnimModeCode() {
+  var v = parseInt(getSetting('CONFIG_STARTUP_CLOCK_ANIM_MODE', '1'), 10);
+  return [0, 1, 2].indexOf(v) === -1 ? 0 : v;
+}
 // Radio-style, exactly one of 0=off, 1=planets, 2=markers -- see bg_anim_mode's own comment in eclipse_data.h.
 function bgAnimModeCode() {
   var v = parseInt(getSetting('CONFIG_BG_ANIM_MODE', '0'), 10);
@@ -1004,7 +1010,7 @@ function populateSettingsFields(dict) {
   dict['SHOW_ISS'] = showIssCode();
   dict['AURORA_ENABLED'] = auroraEnabledCode();
   dict['VIBRATE_ON_PHASE_CHANGE'] = vibrateOnPhaseChangeCode();
-  dict['STARTUP_CLOCK_ANIMATION_ENABLED'] = startupClockAnimationEnabledCode();
+  dict['STARTUP_CLOCK_ANIM_MODE'] = startupClockAnimModeCode();
   dict['BG_ANIM_MODE'] = bgAnimModeCode();
   dict['SHAKE_ANIM_MODE'] = shakeAnimModeCode();
   dict['OUTLINE_ENABLED'] = outlineEnabledCode();
@@ -1934,7 +1940,7 @@ Pebble.addEventListener('showConfiguration', function () {
     showIss: getSetting('CONFIG_SHOW_ISS', 'false') === 'true',
     auroraEnabled: getSetting('CONFIG_AURORA_ENABLED', 'false') === 'true',
     vibrateOnPhaseChange: getSetting('CONFIG_VIBRATE_ON_PHASE_CHANGE', 'false') === 'true',
-    startupClockAnimationEnabled: getSetting('CONFIG_STARTUP_CLOCK_ANIMATION_ENABLED', 'true') === 'true',
+    startupClockAnimMode: getSetting('CONFIG_STARTUP_CLOCK_ANIM_MODE', '1'),
     bgAnimMode: getSetting('CONFIG_BG_ANIM_MODE', '0'),
     shakeAnimMode: getSetting('CONFIG_SHAKE_ANIM_MODE', '0'),
     outlineStyle: String(outlineEnabledCode()),
@@ -2164,7 +2170,7 @@ Pebble.addEventListener('webviewclosed', function (e) {
   setSetting('CONFIG_SHOW_ISS', settings.CONFIG_SHOW_ISS ? 'true' : 'false');
   setSetting('CONFIG_AURORA_ENABLED', settings.CONFIG_AURORA_ENABLED ? 'true' : 'false');
   setSetting('CONFIG_VIBRATE_ON_PHASE_CHANGE', settings.CONFIG_VIBRATE_ON_PHASE_CHANGE ? 'true' : 'false');
-  setSetting('CONFIG_STARTUP_CLOCK_ANIMATION_ENABLED', settings.CONFIG_STARTUP_CLOCK_ANIMATION_ENABLED ? 'true' : 'false');
+  setSetting('CONFIG_STARTUP_CLOCK_ANIM_MODE', settings.CONFIG_STARTUP_CLOCK_ANIM_MODE || '1');
   setSetting('CONFIG_BG_ANIM_MODE', settings.CONFIG_BG_ANIM_MODE || '0');
   setSetting('CONFIG_SHAKE_ANIM_MODE', settings.CONFIG_SHAKE_ANIM_MODE || '0');
   setSetting('CONFIG_OUTLINE_ENABLED', settings.CONFIG_OUTLINE_ENABLED || '1');

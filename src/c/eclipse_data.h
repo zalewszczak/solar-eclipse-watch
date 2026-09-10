@@ -303,13 +303,22 @@ typedef struct {
   bool vibrate_on_phase_change; // user setting: brief double vibration when the eclipse crosses
                                   // into its next phase (C1/C2/C3/C4) -- not on the "there's an
                                   // eclipse today, waiting" transition, only real contact events
-  bool startup_clock_animation_enabled; // user setting ("Style" section, default true): the clock
-                                          // hands/digits animate in from a "cold start" position (00:00,
-                                          // or hands at 12) up to the real current time on app launch,
-                                          // rather than just appearing already showing it. See
-                                          // s_startup_clock_anim_* in pebble-eclipse-watch.c and
-                                          // hand_layer.c's HandConfig-level sweep-in support. Under 1.5s.
-  uint8_t bg_anim_mode; // user setting ("Style" section, default 0=off): radio-style, exactly one
+  uint8_t startup_clock_anim_mode; // user setting ("Animation" section, default 1): radio-style,
+                                     // exactly one of 0=off, 1=animate clock (hands/digits sweep in
+                                     // from a "cold start" position -- 00:00, or hands at 12 -- up to
+                                     // the real current time on app launch, rather than just appearing
+                                     // already showing it; under 1.5s), 2=planet sweep time shift
+                                     // (same sweep-in, but chasing the SAME swept-past time the
+                                     // Planets background animation (bg_anim_mode 1) is itself
+                                     // sweeping through instead of the real fixed current time -- see
+                                     // hands_layer_update_proc()'s own s_data.bg_anim_mode == 1 check
+                                     // right below where this field is read, which is what makes mode
+                                     // 2 fall back to behaving like mode 1 whenever Planets isn't
+                                     // ALSO the active background animation, since there's no time
+                                     // shift to chase otherwise). See s_startup_clock_anim_* in
+                                     // pebble-eclipse-watch.c and hand_layer.c's HandConfig-level
+                                     // sweep-in support.
+  uint8_t bg_anim_mode; // user setting ("Animation" section, default 0=off): radio-style, exactly one
                          // of 0=off, 1=planets (Sun/Moon/planets + the sky gradient sweep in from
                          // their position a couple hours ago), 2=markers (big-analog HOUR markers
                          // only -- second markers are excluded and always drawn normally --

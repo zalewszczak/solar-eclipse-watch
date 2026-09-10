@@ -26,6 +26,18 @@
  */
 
 var servicelog = require('./servicelog.js');
+// See presets-lookups.js's own header comment for what lives there and
+// why (font metadata, color scheme presets, the corner/edge feature
+// content catalogue, hand-style presets) -- required once up top since
+// several of these tables (FONT_LOOKUP/CORNER_CATEGORIES especially)
+// are used well before HAND_PRESETS' own spot further down.
+var PRESETS_LOOKUPS = require('./presets-lookups');
+var FONT_LOOKUP = PRESETS_LOOKUPS.FONT_LOOKUP;
+var COLOR_SCHEMES = PRESETS_LOOKUPS.COLOR_SCHEMES;
+var CORNER_COLOR_MODE_LABELS = PRESETS_LOOKUPS.CORNER_COLOR_MODE_LABELS;
+var ROMAN_INCOMPATIBLE_FONTS = PRESETS_LOOKUPS.ROMAN_INCOMPATIBLE_FONTS;
+var CORNER_CATEGORIES = PRESETS_LOOKUPS.CORNER_CATEGORIES;
+var HAND_PRESETS = PRESETS_LOOKUPS.HAND_PRESETS;
 
 function esc(str) {
   return String(str == null ? '' : str)
@@ -220,18 +232,23 @@ var MODE_BTN_ICONS = {
 // header text). Keyed by the same short id toggleSection()/the
 // section-legend's own onclick already use (examples/style/colors/
 // corners/.../testing), not the longer human label, so a header's
-// three pieces (legend markup, CATEGORY_ICONS-style glyph, sub-header
+// three pieces (legend markup, category-icon-style glyph, sub-header
 // updater) never drift out of sync with each other. `weather` and
-// `astronomy` deliberately reuse the EXACT same glyph paths as
-// CATEGORY_ICONS.weather/.astro below (the Features section's own
-// per-category icons) rather than new art, so a person already
-// recognizes them by the time they reach this section -- CATEGORY_ICONS
-// itself lives inside the runtime <script> string (browser-only), so
-// there's no way to reference it directly from here; the two literal
-// copies need to be kept in sync by hand if either glyph ever changes.
+// `astronomy` deliberately reuse the EXACT same glyph CORNER_CATEGORIES
+// (presets-lookups.js) already has for its own "weather"/"astro"
+// category buttons (the Features section's own per-category icons)
+// rather than new art, so a person already recognizes them by the
+// time they reach this section -- read directly off that array below
+// instead of a second hand-typed copy, so the two can\'t drift apart.
 // `animated: true` (Animation's own entry) spins its glyph forever via
 // the .section-icon-animation svg CSS rule -- the one icon here that's
 // actually in motion, fittingly.
+function sectionCategoryIcon(categoryId) {
+  for (var i = 0; i < CORNER_CATEGORIES.length; i++) {
+    if (CORNER_CATEGORIES[i].id === categoryId) return CORNER_CATEGORIES[i].icon;
+  }
+  return '';
+}
 var SECTION_META = {
   examples:  { color: '#af52de', icon:
     '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2c.4 3.2 1 4.8 2.2 6S17 9.6 20 10c-3.2.4-4.8 1-6 2.2S12.4 14.8 12 18c-.4-3.2-1-4.8-2.2-6S6.8 10.4 4 10c3.2-.4 4.8-1 6-2.2S11.6 5.2 12 2z"/><path d="M18.5 14.5c.2 1.1.4 1.6.8 2 .4.4.9.6 2 .8-1.1.2-1.6.4-2 .8-.4.4-.6.9-.8 2-.2-1.1-.4-1.6-.8-2-.4-.4-.9-.6-2-.8 1.1-.2 1.6-.4 2-.8.4-.4.6-.9.8-2z"/></svg>' },
@@ -245,14 +262,8 @@ var SECTION_META = {
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 3a9 9 0 1 1 -6.36 2.64"/></svg>' },
   presets:   { color: '#b8860b', icon:
     '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M6.5 2h11a1 1 0 0 1 1 1v18.2c0 .8-.9 1.3-1.6.9L12 18.3l-4.9 3.8c-.7.4-1.6-.1-1.6-.9V3a1 1 0 0 1 1-1z"/></svg>' },
-  // Identical glyph to CATEGORY_ICONS.weather -- see this constant's
-  // own comment above.
-  weather:   { color: '#0a84ff', icon:
-    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="8" cy="7.5" r="3.2" fill="currentColor" stroke="none"/><line x1="8" y1="1" x2="8" y2="2.5"/><line x1="1.5" y1="7.5" x2="3" y2="7.5"/><line x1="3.3" y1="2.8" x2="4.4" y2="3.9"/><path d="M6 20h11a4 4 0 0 0 .6-7.95A5.5 5.5 0 0 0 7.2 10.8 3.8 3.8 0 0 0 6 20z" fill="currentColor" stroke="none"/></svg>' },
-  // Identical glyph to CATEGORY_ICONS.astro -- see this constant's own
-  // comment above.
-  astronomy: { color: '#1c1c3a', icon:
-    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="12" cy="12" r="2.3" fill="currentColor" stroke="none"/><ellipse cx="12" cy="12" rx="10" ry="4"/><ellipse cx="12" cy="12" rx="6.5" ry="9" transform="rotate(60 12 12)"/><circle cx="21.3" cy="12" r="1.3" fill="currentColor" stroke="none"/><circle cx="9.6" cy="4.1" r="1.1" fill="currentColor" stroke="none"/></svg>' },
+  weather:   { color: '#0a84ff', icon: sectionCategoryIcon('weather') },
+  astronomy: { color: '#1c1c3a', icon: sectionCategoryIcon('astro') },
   location:  { color: '#ff3b30', icon:
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M12 21s7-7.7 7-13a7 7 0 1 0-14 0c0 5.3 7 13 7 13z"/><circle cx="12" cy="8" r="2.6"/></svg>' },
   updates:   { color: '#00c7be', icon:
@@ -347,148 +358,10 @@ var EXAMPLE_STYLE_PRESETS = require('./example-style-presets');
 // button.
 var FONT_PREVIEW_IMAGES = require('./font-preview-images');
 
-// One canonical font table, id-for-id identical to font_lookup.c's
-// FONT_TABLE on the watch -- every font this app uses anywhere,
-// custom-resource or system, all four font pickers (main clock,
-// clock's small companion readout, marker text, corner/edge content)
-// draw their <option>s from this SAME list now, so picking (for
-// example) "Bebas" in any of them always means the same id, the same
-// resource, everywhere -- see font_lookup.c's own top comment for the
-// three separate, uncoordinated numbering schemes this replaced.
-//
-// `mainClock: true` marks the subset offered in the Clock font picker
-// specifically (the "big", ~48px-scale fonts a full clock display
-// actually reads well in) -- the smaller companion variants (Digital
-// Dream Small, Minecrafter Small, etc.) exist for marker text/corner
-// content, not as a serious main-clock choice, so they're left out of
-// that one dropdown. Every id is still selectable in the other two
-// pickers regardless.
-// `small: true` marks a font compact enough to read well at the
-// small sizes the corner/edge Font picker uses it at (height <= 30px)
-// -- that picker hides `small: false` fonts by default (its own "Show
-// incompatible fonts" checkbox reveals them), since most of the
-// ~48px-scale mainClock fonts read poorly or clip at that small
-// size. Doesn't affect the marker text font picker (all fonts always
-// shown there) or the main Clock font picker (mainClock already
-// filters that one to just the big fonts).
-// `wide: true` marks a font that runs too wide for a full HH:MM:SS
-// digital readout (or for a digital-mode side feature column sharing
-// the bar with it) at its normal size -- blocks BOTH Show Seconds and
-// the digital "side features" toggle for this font, forced/grayed out
-// in the UI exactly like before. save() also re-checks this at save
-// time and overrides CONFIG_SHOW_SECONDS to false regardless of the
-// checkbox's own state if it's true, so a stale/already-saved
-// seconds-on selection can never reach the watch paired with a font
-// that can't support it.
-// `allowInlineSeconds: false` marks a font that blocks ONLY Show
-// Seconds -- unlike `wide`, side features stay available, since the
-// problem here isn't running out of horizontal room but the font's
-// own numerals not reading well with a running seconds counter
-// squeezed in next to the minutes (clipping, badly-kerned digits,
-// etc.). Defaults to true (seconds allowed) wherever omitted; every
-// entry below is being marked by hand over time, so most still default
-// true even where a future check might find otherwise. EmblemaOne is
-// the first confirmed case: not wide enough to need blocking outright,
-// but its numerals clip once a seconds counter is added.
-// `sizePx` is the REAL on-watch bake size -- copied straight from each
-// custom font's own package.json resource name (the trailing _NN is
-// the actual point size Pebble's font tool renders that .ttf/.otf at,
-// not just a naming convention -- see package.json's "media" list).
-// System fonts (ids 0-15) aren't custom resources at all (no
-// package.json entry -- they're built into the firmware, referenced
-// via FONT_KEY_* constants), so there's nothing to copy for those;
-// `sizePx` falls back to `height`'s own already-approximate estimate.
-//
-// `google`/`weight`/`italic` identify the actual Google Font used for
-// this page's live font-picker previews (see googleFontsHref() and
-// the font-picker popup below) -- verified against fonts.google.com,
-// not guessed. `approx: true` marks a substitute rather than the real
-// face: the on-watch font itself isn't (and, as far as could be
-// verified, has never been) published on Google Fonts, so the picker
-// shows the closest visual analogue instead of the exact glyphs --
-// each one says why in its own comment. Every non-approx entry below
-// is the literal same family as what's baked into the watch resource.
-var FONT_LOOKUP = [
-  { id: 0,  label: 'Gothic X-Small',        height: 14, preview: "font-family: Arial, sans-serif;", small: true,
-    google: null, sizePx: 14, approx: true }, // Pebble's built-in "Gothic" system font -- no Google Fonts equivalent by name; Arial/Helvetica is the closest common grotesque.
-  { id: 1,  label: 'Gothic Small',       height: 18, preview: "font-family: Arial, sans-serif; font-weight: 700;", small: true,
-    google: null, sizePx: 18, approx: true }, // see id 0
-  { id: 2,  label: 'Gothic Medium',        height: 24, preview: "font-family: Arial, sans-serif; font-weight: 700;", small: true,
-    google: null, sizePx: 24, approx: true }, // see id 0
-  { id: 3,  label: 'Gothic Large',           height: 32, preview: "font-family: Arial, sans-serif; font-weight: 700;", small: true,
-    google: null, sizePx: 32, approx: true }, // see id 0
-  { id: 4,  label: 'Gothic X-Large',          height: 36, preview: "font-family: Arial, sans-serif; font-weight: 700;", small: true,
-    google: null, sizePx: 36, approx: true }, // see id 0
-  { id: 5,  label: 'Leco Small',          height: 17, preview: "font-family: Arial, sans-serif; font-weight: 300;", small: false, mainClock: true, google: null, sizePx: 17, approx: true }, // Pebble's built-in rounded numerals font -- no Google Fonts equivalent; no substitute attempted beyond a plain sans, since Leco's own rounded-digit character is hard to approximate with a generic family.
-  { id: 6,  label: 'Leco Medium',         height: 20, preview: "font-family: Arial, sans-serif; font-weight: 700;", small: false, mainClock: true, google: null, sizePx: 20, approx: true }, // see id 5
-  { id: 7,  label: 'Leco Large',          height: 23, preview: "font-family: Arial, sans-serif; font-weight: 700;", small: false, mainClock: true, google: null, sizePx: 23, approx: true }, // see id 5
-  { id: 8,  label: 'Leco XL',             height: 26, preview: "font-family: Arial, sans-serif; font-weight: 700;", small: false, mainClock: true, google: null, sizePx: 26, approx: true }, // see id 5
-  { id: 9,  label: 'Droid Serif',         height: 17, preview: "font-family: 'Droid Serif', Georgia, serif; font-weight: 700;", small: true,
-    google: 'Droid Serif', weight: 700, sizePx: 17 }, // still genuinely on Google Fonts (legacy listing, but live)
-  { id: 10, label: 'Roboto Condensed',    height: 15, preview: "font-family: 'Roboto Condensed', Arial, sans-serif;", small: true,
-    google: 'Roboto Condensed', weight: 400, sizePx: 15 },
-  { id: 11, label: 'Roboto Bold',         height: 30, preview: "font-family: 'Roboto', Arial, sans-serif; font-weight: 700;", small: false, mainClock: true, google: 'Roboto', weight: 700, sizePx: 30 },
-  { id: 12, label: 'Bitham Bold 30',      height: 19, preview: "font-family: 'Futura', 'Century Gothic', sans-serif; font-weight: 700;", small: false, mainClock: true, google: null, sizePx: 19, approx: true }, // Pebble's built-in Bitham -- no Google Fonts equivalent; Futura/Century Gothic (neither actually Google Fonts either) are the closest geometric-sans stand-ins available without downloading anything.
-  { id: 13, label: 'Bitham Medium 34',    height: 21, preview: "font-family: 'Futura', 'Century Gothic', sans-serif; font-weight: 500;", small: false, mainClock: true, google: null, sizePx: 21, approx: true }, // see id 12
-  { id: 14, label: 'Bitham Light',        height: 26, preview: "font-family: 'Futura', 'Century Gothic', sans-serif; font-weight: 300; letter-spacing: 1px;", small: false, mainClock: true, google: null, sizePx: 26, approx: true }, // see id 12
-  { id: 15, label: 'Bitham Bold',         height: 26, preview: "font-family: 'Futura', 'Century Gothic', sans-serif; font-weight: 700; letter-spacing: 1px;", small: true, mainClock: true, google: null, sizePx: 26, approx: true }, // see id 12
-  { id: 16, label: 'Digital Dream Small', height: 12, preview: "font-family: 'VT323', 'Courier New', monospace; letter-spacing: 1px;", small: true,
-    google: 'VT323', weight: 400, sizePx: 12, approx: true }, // Digital Dream (Pizzadude, dafont-only) isn't on Google Fonts -- VT323's CRT/LCD terminal look is the closest digital-clock-style match Google Fonts has.
-  { id: 17, label: 'Digital Dream',       height: 40, preview: "font-family: 'VT323', 'Courier New', monospace; letter-spacing: 2px;", small: false, mainClock: true, google: 'VT323', weight: 400, sizePx: 48, approx: true }, // see id 16
-  { id: 18, label: 'Minecrafter Small',   height: 12, preview: "font-family: 'Press Start 2P', 'Courier New', monospace;", small: true,
-    google: 'Press Start 2P', weight: 400, sizePx: 12, approx: true }, // Minecrafter (dafont-only) isn't on Google Fonts -- Press Start 2P's blocky 8-bit game look is the closest match.
-  { id: 19, label: 'Minecrafter',         height: 40, preview: "font-family: 'Press Start 2P', 'Courier New', monospace;", small: false, mainClock: true, wide: true,
-    google: 'Press Start 2P', weight: 400, sizePx: 48, approx: true }, // see id 18
-  { id: 20, label: 'SF Pixelate',         height: 40, preview: "font-family: 'DotGothic16', 'Courier New', monospace;", small: false, mainClock: true, wide: true, secondsDisabled: true,
-    google: 'DotGothic16', weight: 400, sizePx: 48, approx: true }, // see id 20
-  { id: 21, label: 'Alagard Small',       height: 19, preview: "font-family: 'Pixelify Sans', 'Century Gothic', sans-serif; font-weight: 600;", small: true,
-    google: 'Pixelify Sans', weight: 600, sizePx: 19, approx: true }, // Alagard (dafont-only, Hewett Tsoi's 16px fantasy bitmap face) isn't on Google Fonts -- Pixelify Sans's blocky pixel-game look is the closest available match.
-  { id: 22, label: 'Alagard',             height: 40, preview: "font-family: 'Pixelify Sans', 'Century Gothic', sans-serif; font-weight: 600;", small: false, mainClock: true, google: 'Pixelify Sans', weight: 600, sizePx: 48, approx: true }, // see id 22
-  { id: 23, label: 'Bebas Small',         height: 20, preview: "font-family: 'Bebas Neue', 'Century Gothic', sans-serif; letter-spacing: 1px;", small: true,
-    google: 'Bebas Neue', weight: 400, sizePx: 20 },
-  { id: 24, label: 'Bebas',               height: 40, preview: "font-family: 'Bebas Neue', 'Century Gothic', sans-serif; letter-spacing: 1px;", small: false, mainClock: true, google: 'Bebas Neue', weight: 400, sizePx: 48 },
-  { id: 25, label: 'Amita',               height: 40, preview: "font-family: 'Amita', Impact, sans-serif; font-weight: 700;", small: false, mainClock: true, google: 'Amita', weight: 700, sizePx: 48 },
-  { id: 26, label: 'AveriaSerifLibre',    height: 40, preview: "font-family: 'Averia Serif Libre', 'Courier New', serif; font-weight: 700; font-style: italic;", small: false, mainClock: true, wide: true, secondsDisabled: true,
-    google: 'Averia Serif Libre', weight: 700, italic: true, sizePx: 48 },
-  { id: 27, label: 'Bagel',               height: 40, preview: "font-family: 'Bagel Fat One', 'Courier New', monospace;", small: false, mainClock: true, wide: true, secondsDisabled: true,
-    google: 'Bagel Fat One', weight: 400, sizePx: 48 },
-  { id: 28, label: 'Bricolage Grotesque', height: 40, preview: "font-family: 'Bricolage Grotesque', Impact, 'Arial Narrow', sans-serif; font-weight: 700;", small: false, mainClock: true, wide: true, secondsDisabled: true,
-    google: 'Bricolage Grotesque', weight: 700, sizePx: 48 },
-  { id: 29, label: 'Chango',              height: 40, preview: "font-family: 'Chango', 'Courier New', monospace;", small: false, mainClock: true, google: 'Chango', weight: 400, sizePx: 48 },
-  { id: 30, label: 'EmblemaOne',          height: 40, preview: "font-family: 'Emblema One', 'Arial Narrow', sans-serif; letter-spacing: 1px;", small: false, mainClock: true, google: 'Emblema One', weight: 400, sizePx: 48 },
-  { id: 31, label: 'Fraunces',            height: 40, preview: "font-family: 'Fraunces', Georgia, serif; font-weight: 700;", small: false, mainClock: true, google: 'Fraunces', weight: 700, sizePx: 48 },
-  { id: 32, label: 'Geostar Fill',        height: 40, preview: "font-family: 'Geostar Fill', Impact, sans-serif;", small: false, mainClock: true, google: 'Geostar Fill', weight: 400, sizePx: 48 },
-  { id: 33, label: 'Michroma',            height: 40, preview: "font-family: 'Michroma', 'Arial Black', sans-serif; letter-spacing: 1px;", small: false, mainClock: true, wide: true, secondsDisabled: true,
-    google: 'Michroma', weight: 400, sizePx: 48 },
-  { id: 34, label: 'National Park',       height: 40, preview: "font-family: 'National Park', Verdana, sans-serif; font-weight: 700;", small: false, mainClock: true, google: 'National Park', weight: 700, sizePx: 48 },
-  { id: 35, label: 'Komika',              height: 40, preview: "font-family: 'Bangers', 'Comic Sans MS', cursive;", small: false, mainClock: true, wide: true, secondsDisabled: true,
-    google: 'Bangers', weight: 400, sizePx: 48, approx: true }, // Komika Hand (Apostrophic Labs, dafont-only) isn't on Google Fonts -- Bangers is the closest bold comic-lettering face Google Fonts actually has.
-  { id: 36, label: 'Quantico',            height: 40, preview: "font-family: 'Quantico', Impact, 'Arial Narrow', sans-serif; font-weight: 700; font-style: italic;", small: false, mainClock: true, google: 'Quantico', weight: 700, italic: true, sizePx: 48 },
-  { id: 37, label: 'Silkscreen',          height: 40, preview: "font-family: 'Silkscreen', Impact, 'Arial Narrow', sans-serif;", small: false, mainClock: true, google: 'Silkscreen', weight: 400, sizePx: 48 },
-  { id: 38, label: 'StackSansHeadline',   height: 40, preview: "font-family: 'Anton', 'Arial Narrow', sans-serif;", small: false, mainClock: true, google: 'Anton', weight: 400, sizePx: 48, approx: true }, // Stack Sans Headline isn't on Google Fonts (independent foundry release) -- Anton's ultra-bold condensed headline shape is the closest match.
-  { id: 39, label: 'Unbounded',           height: 40, preview: "font-family: 'Unbounded', Impact, 'Arial Narrow', sans-serif; font-weight: 500;", small: false, mainClock: true, google: 'Unbounded', weight: 500, sizePx: 48 },
-  { id: 40, label: 'Wallpoet',            height: 40, preview: "font-family: 'Wallpoet', Impact, 'Arial Narrow', sans-serif;", small: false, mainClock: true, google: 'Wallpoet', weight: 400, sizePx: 48 },
-  { id: 41, label: 'ZalandoSans',         height: 40, preview: "font-family: 'Zalando Sans Expanded', Impact, 'Arial Narrow', sans-serif; font-weight: 500;", small: false, mainClock: true, google: 'Zalando Sans Expanded', weight: 500, sizePx: 48 },
- 
-  { id: 42, label: 'Bytesized',           height: 16, preview: "font-family: 'Bytesized', Impact, 'Arial Narrow', sans-serif; font-weight: 400;", small: true, mainClock: false, google: 'Bytesized', weight: 400, sizePx: 16 },
-  { id: 43, label: 'M Plus 1C',           height: 16, preview: "font-family: 'M PLUS 1 Code', Impact, 'Arial Narrow', sans-serif; font-weight: 700;", small: true, mainClock: false, google: 'M PLUS 1 Code', weight: 700, sizePx: 16 },
-  { id: 44, label: 'Noto Serif',          height: 18, preview: "font-family: 'Noto Serif', Impact, 'Arial Narrow', sans-serif; font-weight: 500; font-style: italic;", small: true, mainClock: false, google: 'Noto Serif', weight: 500, italic: true, sizePx: 18 },
-
-  { id: 45, label: 'M Plus 1C',           height: 40, preview: "font-family: 'M PLUS 1 Code', Impact, 'Arial Narrow', sans-serif; font-weight: 700;", small: false, mainClock: true, google: 'M PLUS 1 Code', weight: 700, sizePx: 48 },
-  { id: 46, label: 'Reddit Sans',         height: 40, preview: "font-family: 'Reddit Sans', Impact, 'Arial Narrow', sans-serif; font-weight: 700;", small: false, mainClock: true, google: 'Reddit Sans', weight: 700, sizePx: 48 },
-  
-  { id: 47, label: 'Arcade',              height: 18, preview: "font-family: 'Press Start 2P', 'Courier New', monospace;", small: true, mainClock: false, google: 'Press Start 2P', weight: 400, sizePx: 18 }, //TODO: add another sources with these fonts since google fonts doesnt have them...
-  { id: 48, label: 'DS Digital Bold',     height: 20, preview: "font-family: 'Press Start 2P', 'Courier New', monospace;", small: true, mainClock: false, google: 'Press Start 2P', weight: 400, sizePx: 20 },
-  { id: 49, label: 'DS Digital Bold Italic',height: 20, preview: "font-family: 'Press Start 2P', 'Courier New', monospace;", small: true, mainClock: false, google: 'Press Start 2P', weight: 400, sizePx: 20 },
-  { id: 50, label: 'LCD',                 height: 18, preview: "font-family: 'Press Start 2P', 'Courier New', monospace;", small: true, mainClock: false, google: 'Press Start 2P', weight: 400, sizePx: 18 },
-  { id: 51, label: 'Radioland',           height: 16, preview: "font-family: 'Press Start 2P', 'Courier New', monospace;", small: true, mainClock: false, google: 'Press Start 2P', weight: 400, sizePx: 16 },
-
-  { id: 52, label: 'DS Digital Bold',     height: 48, preview: "font-family: 'Press Start 2P', 'Courier New', monospace;", small: false, mainClock: true, google: 'Press Start 2P', weight: 400, sizePx: 48 },
-  { id: 53, label: 'DS Digital Bold Italic',height: 48, preview: "font-family: 'Press Start 2P', 'Courier New', monospace;", small: false, mainClock: true, google: 'Press Start 2P', weight: 400, sizePx: 48 },
-  { id: 54, label: 'LCD',                 height: 48, preview: "font-family: 'Press Start 2P', 'Courier New', monospace;", small: false, mainClock: true, google: 'Press Start 2P', weight: 400, sizePx: 48 },
-  { id: 55, label: 'Rebel Redux',         height: 48, preview: "font-family: 'Arial Narrow', 'Impact', sans-serif; font-weight: 500;", small: false, mainClock: true }
-
-]; // remember to bump FONT_MAX_CONTENT_ID in index.js!!!
+// FONT_LOOKUP (required up top, alongside PRESETS_LOOKUPS itself) --
+// see presets-lookups.js's own header/FONT_LOOKUP comment for what
+// every field means. (Still need to bump FONT_MAX_CONTENT_ID in
+// index.js when adding an entry there.)
 
 // Builds one combined Google Fonts stylesheet URL covering every
 // `google` family (at its own specific weight/italic) FONT_LOOKUP
@@ -550,13 +423,24 @@ function fontOptionsHtml(selectedId, onlyMainClock) {
 // it" pattern selectBottomStyle()/selectSunTimeMode() already use)
 // rather than actual radio inputs, so save() and applyStyleCornersJson()
 // read it the same simple way as every other hidden-input field.
+// Falls back to the first option (Off, for every current caller) when
+// currentValue doesn't match any of them -- e.g. a preset saved by an
+// older version of this page whose value set has since changed, or
+// hand-edited/corrupted persisted settings. Without this, a stray
+// value used to leave every button unhighlighted (looking like
+// nothing at all was selected) rather than falling back to a sane,
+// visibly-selected default. selectVerticalOption() below applies the
+// same fallback client-side, for values that arrive after the initial
+// render (preset apply, popup pre-fill).
 function verticalButtonGroupHtml(groupId, hiddenId, options, currentValue) {
+  var validValue = options.some(function (opt) { return String(opt.value) === String(currentValue); })
+    ? currentValue : options[0].value;
   var buttons = options.map(function (opt) {
-    var active = String(currentValue) === String(opt.value);
+    var active = String(validValue) === String(opt.value);
     return '<button type="button" class="mode-btn-vertical' + (active ? ' active' : '') + '" data-value="' + esc(opt.value) + '" onclick="selectVerticalOption(\'' + groupId + '\', \'' + hiddenId + '\', \'' + esc(opt.value) + '\')">' + esc(opt.label) + '</button>';
   }).join('');
   return '<div class="mode-btn-group-vertical" id="' + groupId + '">' + buttons + '</div>' +
-    '<input type="hidden" id="' + hiddenId + '" value="' + esc(currentValue) + '">';
+    '<input type="hidden" id="' + hiddenId + '" value="' + esc(validValue) + '">';
 }
 
 // Same idea as verticalButtonGroupHtml() above, but for a short (2-4
@@ -598,143 +482,19 @@ function colorRoleButtonGroupHtml(groupId, hiddenId, currentValue, includeNone) 
   return modeButtonGroupHtml(groupId, hiddenId, options, currentValue || '0');
 }
 
-// Must match get_color_scheme() in pebble-eclipse-watch.c exactly --
-// same order, same id, same colors.
-var COLOR_SCHEMES = [
-  { id: 0, label: 'Black on White', bg: '#ffffff', text: '#000000', accent: '#000000' },
-  { id: 1, label: 'White on Black', bg: '#000000', text: '#ffffff', accent: '#ffffff' },
-  { id: 2, label: 'Red on Black', bg: '#000000', text: '#ff0000', accent: '#ff0000' },
-  { id: 3, label: 'White on Dark Blue', bg: '#00003c', text: '#ffffff', accent: '#ffffff' },
-  { id: 4, label: 'Yellow on Dark Blue', bg: '#00003c', text: '#ffff00', accent: '#ffff00' },
-  { id: 5, label: 'White on Black, Red accent', bg: '#000000', text: '#ffffff', accent: '#ff0000' },
-  { id: 6, label: 'Black on White, Dark Red accent', bg: '#ffffff', text: '#000000', accent: '#8b0000' },
-  { id: 7, label: 'Black on White, Dark Blue accent', bg: '#ffffff', text: '#000000', accent: '#00008b' },
-  { id: 8, label: 'Red on Black, White accent', bg: '#000000', text: '#ff0000', accent: '#ffffff' },
-  { id: 9, label: 'Red on White, Orange accent', bg: '#ffffff', text: '#ff0000', accent: '#ff8c00' },
-  { id: 11, label: 'Brown on Green, Orange accent', bg: '#228b22', text: '#8b4513', accent: '#ff8c00' }
-];
-
-// Must match corner_content's switch in pebble-eclipse-watch.c exactly.
-var CORNER_CONTENT_OPTIONS = [
-  { id: 0, label: 'None' },
-  { id: 1, label: 'Heart rate' },
-  { id: 2, label: 'Steps today' },
-  { id: 3, label: 'Step goal %' },
-  { id: 4, label: 'High / low temperature' },
-  { id: 5, label: 'Current conditions' },
-  { id: 6, label: 'UV index' },
-  { id: 7, label: 'Rain chance today' },
-  { id: 8, label: 'Humidity' },
-  { id: 9, label: 'Wind' },
-  { id: 10, label: 'Battery' },
-  { id: 11, label: 'Moon phase' },
-  { id: 12, label: 'Short date' },
-  { id: 13, label: 'Location' },
-  { id: 14, label: 'Visibility' },
-  { id: 15, label: 'Cloud cover' },
-  { id: 16, label: 'Sunrise / sunset' },
-  { id: 17, label: 'Pebble logo /w battery bar' },
-  { id: 18, label: 'Time' },
-  { id: 19, label: 'Week number' },
-  { id: 20, label: 'Bluetooth connection' },
-  { id: 21, label: 'Month Day (SEP 11)' },
-  { id: 22, label: 'Day of month (11)' },
-  { id: 23, label: 'Weekday short (MON)' },
-  { id: 24, label: 'Weekday long (Monday)' },
-  { id: 25, label: 'Month short (SEP)' },
-  { id: 26, label: 'Month long (September)' },
-  { id: 27, label: 'Day/Month (11/9)' },
-  { id: 28, label: 'Month/Day (9/11)' },
-  { id: 29, label: 'Full date (24/9/2026)' },
-  { id: 30, label: 'Full date, imperial (9/24/26)' },
-  { id: 31, label: 'Weather icon' },
-  { id: 32, label: 'Temp + weather icon' },
-  { id: 34, label: 'Pressure' },
-  { id: 35, label: 'Wind direction' },
-  { id: 36, label: 'Air quality' },
-  { id: 37, label: 'Dew point' },
-  { id: 38, label: 'Altitude' },
-  { id: 39, label: 'Sleep duration' },
-  { id: 40, label: 'Restful sleep duration' },
-  { id: 41, label: 'Sleep quality %' },
-  { id: 42, label: 'Bed time' },
-  { id: 43, label: 'Wake time' },
-  // Each city is its own content id (see the id=44-62 case block in
-  // draw_corner_item() in pebble-eclipse-watch.c) rather than one
-  // "Timezone" id plus a separate shared setting -- that's what makes
-  // this genuinely independent per slot: pick "London" in one slot and
-  // "Tokyo" in another and both show at once, each on its own actual
-  // clock, rather than every "Timezone" slot being forced to share
-  // whichever single city a global setting pointed at. The city's
-  // abbreviation (LON, TOK, ...) only appears on the watch, per the
-  // brief -- these labels show the GMT offset (standard time, not
-  // DST-adjusted) and the city's full name instead, matching the
-  // format the case block's own comment describes. Order/offsets must
-  // match TIMEZONES[] in pebble-eclipse-watch.c exactly.
-  { id: 44, label: 'GMT+0 London' },
-  { id: 45, label: 'GMT+1 Paris / Berlin / Madrid' },
-  { id: 46, label: 'GMT+2 Cairo' },
-  { id: 47, label: 'GMT+3 Moscow' },
-  { id: 48, label: 'GMT+4 Dubai' },
-  { id: 49, label: 'GMT+5:30 Delhi / Mumbai' },
-  { id: 50, label: 'GMT+6 Dhaka' },
-  { id: 51, label: 'GMT+7 Bangkok / Jakarta' },
-  { id: 52, label: 'GMT+8 Beijing / Shanghai / Singapore' },
-  { id: 53, label: 'GMT+9 Tokyo' },
-  { id: 54, label: 'GMT+10 Sydney' },
-  { id: 55, label: 'GMT+12 Auckland' },
-  { id: 56, label: 'GMT-5 New York' },
-  { id: 57, label: 'GMT-6 Chicago' },
-  { id: 58, label: 'GMT-7 Denver' },
-  { id: 59, label: 'GMT-8 Los Angeles' },
-  { id: 60, label: 'GMT-9 Anchorage' },
-  { id: 61, label: 'GMT-10 Honolulu' },
-  { id: 62, label: 'GMT-3 Sao Paulo' },
-  { id: 63, label: 'Time full (H:M:S)' },
-  { id: 64, label: 'Hour, 24h leading zero (07)' },
-  { id: 65, label: 'Hour, 24h (7)' },
-  { id: 66, label: 'Hour, 12h (7)' },
-  { id: 67, label: 'Minute (5)' },
-  { id: 68, label: 'Minute, leading zero (05)' },
-  { id: 69, label: 'Seconds (8)' },
-  { id: 70, label: 'Second, leading zero (08)' },
-  { id: 71, label: 'Seconds, tens digit' },
-  { id: 72, label: 'Seconds, ones digit' },
-  { id: 73, label: 'Current temp' },
-  { id: 74, label: 'High temp' },
-  { id: 75, label: 'Low temp' },
-  { id: 76, label: 'Weather icon + all temps' },
-  { id: 77, label: 'Feels like temp' },
-  { id: 78, label: 'Bluetooth status (icon only)' },
-  { id: 79, label: 'Planets visible now' },
-  { id: 80, label: 'Meteor shower' },
-  { id: 81, label: 'Saturn ring angle' },
-  { id: 82, label: 'Next planet rise' },
-  { id: 83, label: 'Next ISS pass' },
-  { id: 84, label: 'Aurora Kp index' },
-  { id: 85, label: 'Compass' },
-  { id: 86, label: 'AM/PM' },
-  { id: 87, label: 'Weather in 1 hour' },
-  { id: 88, label: 'Weather in 2 hours' },
-  { id: 89, label: 'Weather in 3 hours' },
-  { id: 90, label: 'Weather in 4 hours' },
-  { id: 91, label: 'Weather in 5 hours' },
-  { id: 92, label: 'Weather in 6 hours' },
-  { id: 93, label: 'Last weather update, long' },
-  { id: 94, label: 'Last weather update, short' },
-  { id: 95, label: 'Weekday + Day/Month (MON 24/9)' },
-  { id: 96, label: 'Weekday + Month/Day (MON 9/24)' },
-  { id: 97, label: 'Heart rate + steps' },
-  { id: 98, label: 'Bed time + wake time' },
-  { id: 99, label: 'Battery + Bluetooth (icons only)' },
-  { id: 100, label: 'Battery % + Bluetooth' },
-  { id: 101, label: 'Sleep times' },
-  { id: 102, label: 'Long date + sunrise/sunset' },
-  { id: 103, label: 'Long date + week number' },
-  { id: 104, label: 'Current UV index' }
-];
-// Must match draw_corner_item()'s color_mode switch exactly.
-var CORNER_COLOR_MODE_LABELS = ['MONO', 'ACC', 'PILL', 'COLOR'];
+// Flattened, id-ascending view of CORNER_CATEGORIES (see
+// presets-lookups.js's own header comment for why that\'s the single
+// source of truth now) -- used to build the flat <option> lists the
+// hidden per-slot <select>s need. Category grouping/curated item order
+// only matters to the categorized picker itself (see
+// categoryItemOptionsHtml() below), not to these hidden stores.
+var CORNER_CONTENT_OPTIONS = [];
+CORNER_CATEGORIES.forEach(function (cat) {
+  cat.items.forEach(function (item) {
+    CORNER_CONTENT_OPTIONS.push({ id: item.id, label: item.label });
+  });
+});
+CORNER_CONTENT_OPTIONS.sort(function (a, b) { return a.id - b.id; });
 // auroraEnabled omits id 84 entirely (not just hides it) when auroras
 // are turned off in the Astronomy section -- see onAuroraEnabledChange()
 // for the live version of this same filtering, run client-side when
@@ -755,7 +515,6 @@ function cornerContentOptionsHtml(selected, auroraEnabled) {
 // Medium 34 in FONT_LOOKUP's own ids) -- add more here as they're
 // checked -- see int_to_roman() in background_layer.c for what it
 // actually needs (I, V, X, L, C, D, M).
-var ROMAN_INCOMPATIBLE_FONTS = { 6: true, 7: true, 13: true };
 
 // A 12-button grid for picking which hour numerals (kind='hour', labels
 // 12,1..11) or which every-5-second slots (kind='sec', labels 0,5..55)
@@ -1269,6 +1028,16 @@ function buildConfigHtml(current) {
   var digitalRightOn = digitalSidesVal === 'right' || digitalSidesVal === 'both';
   var cornerFontId = parseInt(current.cornerFont || '1', 10);
 
+  // Client-side copy of CORNER_CATEGORIES (see presets-lookups.js's
+  // own header comment), filtered the same way the old hand-typed
+  // version was: id 84 ("Aurora Kp index") only present when auroras
+  // are actually on -- onAuroraEnabledChange() handles adding/removing
+  // it live client-side if that checkbox changes without a reload.
+  var cornerCategoriesForClient = CORNER_CATEGORIES.map(function (cat) {
+    if (cat.id !== 'astro' || current.auroraEnabled) return cat;
+    return { id: cat.id, label: cat.label, icon: cat.icon, items: cat.items.filter(function (it) { return it.id !== 84; }) };
+  });
+
   // One <button> per example-style slot (see EXAMPLE_STYLE_COUNT's own
   // comment above) -- a screenshot if one's been generated for that
   // slot, otherwise just its number as an empty placeholder tile;
@@ -1529,15 +1298,20 @@ function buildConfigHtml(current) {
 '  .top-bar-preview { flex: 0 1 33%; display: flex; justify-content: center; align-items: center; min-width: 0; height: 100%; max-height: calc(25vh - 20px); padding: 1%; box-sizing: border-box; }' +
 '  #previewCanvas { height: 50%; max-height: 50%; width: auto; max-width: 98%; border-radius: 4px; }' +
 '  .subsection { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border-light); }' +
-// Dims (not disables) whichever of the day/night color sets isn't the
-// one actually in effect right now, per the request -- the controls
-// underneath stay fully clickable (no pointer-events/disabled changes)
-// since editing the inactive set is a completely legitimate thing to
-// do (e.g. setting up night colors in the middle of the day); this is
-// purely a visual hint so a change that appears to do nothing is
-// immediately explained rather than confusing.
-'  .scheme-inactive { opacity: 0.45; }' +
+// Flags whichever of the day/night color sets isn't the one actually
+// in effect right now, per the request -- the controls underneath
+// stay fully clickable either way (editing the inactive set is a
+// completely legitimate thing to do, e.g. setting up night colors in
+// the middle of the day); this is purely a visual hint so a change
+// that appears to do nothing is immediately explained rather than
+// confusing. Both badges are always shown together once night colors
+// are on (see updateSchemeActiveHighlight()) -- green "Active now" on
+// whichever set is actually in effect, red "Not active now" (the
+// .inactive modifier below) on the other -- rather than graying the
+// inactive section out, so it stays exactly as legible as the active
+// one while still being unambiguous about which is which.
 '  .scheme-active-badge { font-size: 11px; font-weight: 700; color: #2e8b3d; background: rgba(46,139,61,0.15); border-radius: 4px; padding: 2px 6px; margin-left: 8px; vertical-align: middle; }' +
+'  .scheme-active-badge.inactive { color: #c0392b; background: rgba(192,57,43,0.15); }' +
 '  .color-role-buttons { display: flex; gap: 8px; margin-top: 6px; }' +
 '  .color-role-btn { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 8px 4px; border: 1px solid var(--border); border-radius: 8px; background: var(--btn-bg); }' +
 '  .color-role-btn:active { background: var(--border-light); }' +
@@ -1632,7 +1406,14 @@ function buildConfigHtml(current) {
 // Roughly half the title's own font-size, per the request -- hidden
 // entirely once the section is expanded (see toggleSection() below)
 // since the full controls underneath make it redundant at that point.
-'  .section-legend-sub { font-size: 8px; line-height: 1.25; color: var(--text-faint); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }' +
+// min-width: 0 is needed here (not just on the .section-legend-text
+// column flex container above) because flex items default to
+// min-width: auto, not 0 -- without overriding that on THIS element
+// too, a long sub-header string's own natural nowrap width becomes an
+// unshrinkable floor, silently defeating text-overflow: ellipsis and
+// forcing the whole header row (and the section toggle "button" it's
+// inside) wider than it should be instead of actually clipping.
+'  .section-legend-sub { font-size: 8px; line-height: 1.25; color: var(--text-faint); margin-top: 1px; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }' +
 // Colors section sub-header's own "3 dots" (current main/accent/
 // background) -- see computeColorsSubheaderHtml() further down.
 '  .subhead-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-left: 3px; border: 1px solid rgba(0,0,0,0.25); vertical-align: middle; }' +
@@ -1652,12 +1433,12 @@ function buildConfigHtml(current) {
 '  .slot-corner-bl { left: 6px; bottom: 6px; }' +
 '  .slot-corner-br { right: 6px; bottom: 6px; }' +
 // In digital mode the bottom-left/-right corners need to sit above
-// #slotDiagramClockBar (bottom 25% of the diagram) instead of at the
+// #slotDiagramClockBar (bottom third of the diagram) instead of at the
 // diagram's own bottom edge -- they represent the two corner features,
 // which stay in the sky area on the real watch, same reasoning as
 // DIGITAL_PANEL_H in features_layer.c. Toggled by the same
 // renderSlotPicker() call that shows/hides the clock bar itself.
-'  .slot-corner-bl.slot-corner-above-bar, .slot-corner-br.slot-corner-above-bar { bottom: calc(25% + 6px); }' +
+'  .slot-corner-bl.slot-corner-above-bar, .slot-corner-br.slot-corner-above-bar { bottom: calc(33.33% + 6px); }' +
 '  .slot-upper-l1 { left: 50%; top: 34px; transform: translateX(-50%); }' +
 '  .slot-upper-l2 { left: 50%; top: 62px; transform: translateX(-50%); }' +
 '  .slot-bottom-l1 { left: 50%; bottom: 62px; transform: translateX(-50%); }' +
@@ -1669,11 +1450,14 @@ function buildConfigHtml(current) {
 // The digital clock's own bottom bar -- matches digital_clock_area()/
 // the bottom-third panel on the actual watch (see
 // unobstructed_change_handler's full_top=152 on a 228px-tall screen,
-// i.e. roughly the bottom quarter) -- shown only in digital mode (see
-// updateSlotDiagramMode()) so this diagram actually represents what
-// bottom_style==1 looks like instead of reusing the analog sky
-// backdrop for slots that don't live there at all.
-'  #slotDiagramClockBar { position: absolute; left: 0; right: 0; bottom: 0; height: 25%; background: #000; border-radius: 0 0 8px 8px; display: none; }' +
+// i.e. (228-152)/228 = a bit over a third) -- shown only in digital
+// mode (see updateSlotDiagramMode()) so this diagram actually
+// represents what bottom_style==1 looks like instead of reusing the
+// analog sky backdrop for slots that don't live there at all. Sized
+// at 33.33% rather than the true ~33.3% recurring fraction purely so
+// it lines up with the row of feature buttons stacked inside it
+// without any of them crowding its top edge.
+'  #slotDiagramClockBar { position: absolute; left: 0; right: 0; bottom: 0; height: 33.33%; background: #000; border-radius: 0 0 8px 8px; display: none; }' +
 '  #slotDiagramClockText { position: absolute; left: 50%; top: 8px; transform: translateX(-50%); color: #fff; font-family: "Courier New", monospace; font-size: 22px; font-weight: 700; letter-spacing: 1px; pointer-events: none; }' +
 // 3 rows per side, bottom-anchored within the clock bar (row 1 nearest
 // the clock/top of the bar, row 3 nearest the screen's bottom edge --
@@ -2010,100 +1794,6 @@ handEditorModalHtml('sec', 'Edit second hand') +
 
 '  </fieldset>' +
 
-'  <fieldset>' +
-    sectionLegendHtml('colors', 'Colors') +
-'    <div class="section-body" id="section-colors" style="display:none;">' +
-
-'    <div class="subsection" id="daySchemeSubsection">' +
-'      <label>Colors<span class="scheme-active-badge" id="daySchemeActiveBadge" style="display:none;">Active now</span></label>' +
-'      <div class="color-role-buttons">' +
-'        <button type="button" class="color-role-btn" onclick="openColorPicker(\'text\')">' +
-'          <span class="color-role-swatch" id="swatchMain" style="background:' + esc(initialColors.text) + ';"></span>' +
-'          <span class="color-role-label">Main</span>' +
-'        </button>' +
-'        <button type="button" class="color-role-btn" onclick="openColorPicker(\'accent\')">' +
-'          <span class="color-role-swatch" id="swatchAccent" style="background:' + esc(initialColors.accent) + ';"></span>' +
-'          <span class="color-role-label">Accent</span>' +
-'        </button>' +
-'        <button type="button" class="color-role-btn" onclick="openColorPicker(\'bg\')">' +
-'          <span class="color-role-swatch" id="swatchBg" style="background:' + esc(initialColors.bg) + ';"></span>' +
-'          <span class="color-role-label">Background</span>' +
-'        </button>' +
-'      </div>' +
-'      <label style="margin-top:12px;">Or pick a preset</label>' +
-'      <button type="button" class="color-preset-btn color-preset-trigger" id="colorSchemePresetTrigger" onclick="openColorPresetPicker(\'day\')">' +
-'        <span class="color-preset-trigger-text">' +
-'          <span class="color-preset-main-line"></span>' +
-'          <span class="color-preset-accent-line"></span>' +
-'        </span>' +
-'        <span class="color-preset-chevron">&rsaquo;</span>' +
-'      </button>' +
-'      <div class="help">Applies that preset\'s three colors immediately -- picking one is the same as tapping each swatch above and choosing that exact color.</div>' +
-'      <input type="hidden" id="customBgValue" value="' + esc(current.customBg || '255') + '">' +
-'      <input type="hidden" id="customTextValue" value="' + esc(current.customText || '192') + '">' +
-'      <input type="hidden" id="customAccentValue" value="' + esc(current.customAccent || '192') + '">' +
-'    </div>' +
-
-'    <div class="modal-overlay" id="colorPickerModal">' +
-'      <div class="modal-box">' +
-'        <div class="modal-title" id="colorPickerTitle">Pick a color</div>' +
-'        <div class="hex-grid" id="hexColorGrid"></div>' +
-'        <button type="button" class="modal-cancel-btn" onclick="closeColorPicker()">Cancel</button>' +
-'      </div>' +
-'    </div>' +
-
-// Shared by both the day and night "Or pick a preset" triggers --
-// which one is currently open lives in CURRENT_PRESET_SCHEME (see
-// openColorPresetPicker() below), same "one popup, not two near-
-// identical copies" shape the font picker uses for its own 4 roles.
-// "Custom" is just the last button in the same list (see
-// renderColorPresetGrid()'s own comment) rather than a separate
-// footer action -- tapping it, same as tapping outside the popup,
-// closes without changing anything.
-'    <div class="modal-overlay" id="colorPresetPickerModal" onclick="if (event.target === this) closeColorPresetPicker();">' +
-'      <div class="modal-box">' +
-'        <div class="modal-title" id="colorPresetPickerTitle">Color preset</div>' +
-'        <div class="modal-scroll-body" id="colorPresetPickerGrid"></div>' +
-'      </div>' +
-'    </div>' +
-
-'    <div class="checkbox-row subsection">' +
-'      <input type="checkbox" id="nightEnabled" ' + (current.nightEnabled ? 'checked' : '') + ' onchange="onNightToggle()">' +
-'      <label for="nightEnabled" style="margin:0;">Use different colors at night</label>' +
-'    </div>' +
-'    <div id="nightSchemeSettings" style="' + (current.nightEnabled ? '' : 'display:none;') + '">' +
-'      <label>Night colors<span class="scheme-active-badge" id="nightSchemeActiveBadge" style="display:none;">Active now</span></label>' +
-'      <div class="color-role-buttons">' +
-'        <button type="button" class="color-role-btn" onclick="openColorPicker(\'text\', \'night\')">' +
-'          <span class="color-role-swatch" id="swatchNightMain" style="background:' + esc(initialNightColors.text) + ';"></span>' +
-'          <span class="color-role-label">Main</span>' +
-'        </button>' +
-'        <button type="button" class="color-role-btn" onclick="openColorPicker(\'accent\', \'night\')">' +
-'          <span class="color-role-swatch" id="swatchNightAccent" style="background:' + esc(initialNightColors.accent) + ';"></span>' +
-'          <span class="color-role-label">Accent</span>' +
-'        </button>' +
-'        <button type="button" class="color-role-btn" onclick="openColorPicker(\'bg\', \'night\')">' +
-'          <span class="color-role-swatch" id="swatchNightBg" style="background:' + esc(initialNightColors.bg) + ';"></span>' +
-'          <span class="color-role-label">Background</span>' +
-'        </button>' +
-'      </div>' +
-'      <label style="margin-top:12px;">Or pick a preset</label>' +
-'      <button type="button" class="color-preset-btn color-preset-trigger" id="nightSchemePresetTrigger" onclick="openColorPresetPicker(\'night\')">' +
-'        <span class="color-preset-trigger-text">' +
-'          <span class="color-preset-main-line"></span>' +
-'          <span class="color-preset-accent-line"></span>' +
-'        </span>' +
-'        <span class="color-preset-chevron">&rsaquo;</span>' +
-'      </button>' +
-'      <div class="help">Applies that preset\'s three colors immediately -- picking one is the same as tapping each swatch above and choosing that exact color.</div>' +
-'      <input type="hidden" id="nightCustomBgValue" value="' + esc(current.nightCustomBg || '192') + '">' +
-'      <input type="hidden" id="nightCustomTextValue" value="' + esc(current.nightCustomText || '255') + '">' +
-'      <input type="hidden" id="nightCustomAccentValue" value="' + esc(current.nightCustomAccent || '255') + '">' +
-'    </div>' +
-'    <div class="help">Battery and Moon phase are now pickable as Features content below, with their own color style.</div>' +
-'    </div>' +
-'  </fieldset>' +
-
 '  <fieldset id="cornersFieldset">' +
     sectionLegendHtml('corners', 'Features') +
 '    <div class="section-body" id="section-corners" style="display:none;">' +
@@ -2213,15 +1903,112 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    <div class="help">Big-analog mode only -- corners/edges info here normally draws on top of the hands; enable this to tuck it underneath instead.</div>' +
 '    </div>' +
 '  </fieldset>' +
+'  <fieldset>' +
+    sectionLegendHtml('colors', 'Colors') +
+'    <div class="section-body" id="section-colors" style="display:none;">' +
+
+'    <div class="subsection" id="daySchemeSubsection">' +
+'      <label>Colors<span class="scheme-active-badge" id="daySchemeActiveBadge" style="display:none;">Active now</span></label>' +
+'      <div class="color-role-buttons">' +
+'        <button type="button" class="color-role-btn" onclick="openColorPicker(\'text\')">' +
+'          <span class="color-role-swatch" id="swatchMain" style="background:' + esc(initialColors.text) + ';"></span>' +
+'          <span class="color-role-label">Main</span>' +
+'        </button>' +
+'        <button type="button" class="color-role-btn" onclick="openColorPicker(\'accent\')">' +
+'          <span class="color-role-swatch" id="swatchAccent" style="background:' + esc(initialColors.accent) + ';"></span>' +
+'          <span class="color-role-label">Accent</span>' +
+'        </button>' +
+'        <button type="button" class="color-role-btn" onclick="openColorPicker(\'bg\')">' +
+'          <span class="color-role-swatch" id="swatchBg" style="background:' + esc(initialColors.bg) + ';"></span>' +
+'          <span class="color-role-label">Background</span>' +
+'        </button>' +
+'      </div>' +
+'      <label style="margin-top:12px;">Or pick a preset</label>' +
+'      <button type="button" class="color-preset-btn color-preset-trigger" id="colorSchemePresetTrigger" onclick="openColorPresetPicker(\'day\')">' +
+'        <span class="color-preset-trigger-text">' +
+'          <span class="color-preset-main-line"></span>' +
+'          <span class="color-preset-accent-line"></span>' +
+'        </span>' +
+'        <span class="color-preset-chevron">&rsaquo;</span>' +
+'      </button>' +
+'      <div class="help">Applies that preset\'s three colors immediately -- picking one is the same as tapping each swatch above and choosing that exact color.</div>' +
+'      <input type="hidden" id="customBgValue" value="' + esc(current.customBg || '255') + '">' +
+'      <input type="hidden" id="customTextValue" value="' + esc(current.customText || '192') + '">' +
+'      <input type="hidden" id="customAccentValue" value="' + esc(current.customAccent || '192') + '">' +
+'    </div>' +
+
+'    <div class="modal-overlay" id="colorPickerModal">' +
+'      <div class="modal-box">' +
+'        <div class="modal-title" id="colorPickerTitle">Pick a color</div>' +
+'        <div class="hex-grid" id="hexColorGrid"></div>' +
+'        <button type="button" class="modal-cancel-btn" onclick="closeColorPicker()">Cancel</button>' +
+'      </div>' +
+'    </div>' +
+
+// Shared by both the day and night "Or pick a preset" triggers --
+// which one is currently open lives in CURRENT_PRESET_SCHEME (see
+// openColorPresetPicker() below), same "one popup, not two near-
+// identical copies" shape the font picker uses for its own 4 roles.
+// "Custom" is just the last button in the same list (see
+// renderColorPresetGrid()'s own comment) rather than a separate
+// footer action -- tapping it, same as tapping outside the popup,
+// closes without changing anything.
+'    <div class="modal-overlay" id="colorPresetPickerModal" onclick="if (event.target === this) closeColorPresetPicker();">' +
+'      <div class="modal-box">' +
+'        <div class="modal-title" id="colorPresetPickerTitle">Color preset</div>' +
+'        <div class="modal-scroll-body" id="colorPresetPickerGrid"></div>' +
+'      </div>' +
+'    </div>' +
+
+'    <div class="checkbox-row subsection">' +
+'      <input type="checkbox" id="nightEnabled" ' + (current.nightEnabled ? 'checked' : '') + ' onchange="onNightToggle()">' +
+'      <label for="nightEnabled" style="margin:0;">Use different colors at night</label>' +
+'    </div>' +
+'    <div id="nightSchemeSettings" style="' + (current.nightEnabled ? '' : 'display:none;') + '">' +
+'      <label>Night colors<span class="scheme-active-badge" id="nightSchemeActiveBadge" style="display:none;">Active now</span></label>' +
+'      <div class="color-role-buttons">' +
+'        <button type="button" class="color-role-btn" onclick="openColorPicker(\'text\', \'night\')">' +
+'          <span class="color-role-swatch" id="swatchNightMain" style="background:' + esc(initialNightColors.text) + ';"></span>' +
+'          <span class="color-role-label">Main</span>' +
+'        </button>' +
+'        <button type="button" class="color-role-btn" onclick="openColorPicker(\'accent\', \'night\')">' +
+'          <span class="color-role-swatch" id="swatchNightAccent" style="background:' + esc(initialNightColors.accent) + ';"></span>' +
+'          <span class="color-role-label">Accent</span>' +
+'        </button>' +
+'        <button type="button" class="color-role-btn" onclick="openColorPicker(\'bg\', \'night\')">' +
+'          <span class="color-role-swatch" id="swatchNightBg" style="background:' + esc(initialNightColors.bg) + ';"></span>' +
+'          <span class="color-role-label">Background</span>' +
+'        </button>' +
+'      </div>' +
+'      <label style="margin-top:12px;">Or pick a preset</label>' +
+'      <button type="button" class="color-preset-btn color-preset-trigger" id="nightSchemePresetTrigger" onclick="openColorPresetPicker(\'night\')">' +
+'        <span class="color-preset-trigger-text">' +
+'          <span class="color-preset-main-line"></span>' +
+'          <span class="color-preset-accent-line"></span>' +
+'        </span>' +
+'        <span class="color-preset-chevron">&rsaquo;</span>' +
+'      </button>' +
+'      <div class="help">Applies that preset\'s three colors immediately -- picking one is the same as tapping each swatch above and choosing that exact color.</div>' +
+'      <input type="hidden" id="nightCustomBgValue" value="' + esc(current.nightCustomBg || '192') + '">' +
+'      <input type="hidden" id="nightCustomTextValue" value="' + esc(current.nightCustomText || '255') + '">' +
+'      <input type="hidden" id="nightCustomAccentValue" value="' + esc(current.nightCustomAccent || '255') + '">' +
+'    </div>' +
+'    <div class="help">Battery and Moon phase are now pickable as Features content below, with their own color style.</div>' +
+'    </div>' +
+'  </fieldset>' +
 
 '  <fieldset>' +
     sectionLegendHtml('animation', 'Animation') +
 '    <div class="section-body" id="section-animation" style="display:none;">' +
-'    <div class="checkbox-row subsection">' +
-'      <input type="checkbox" id="startupClockAnimationEnabled" ' + (current.startupClockAnimationEnabled !== false ? 'checked' : '') + '>' +
-'      <label for="startupClockAnimationEnabled" style="margin:0;">Animate clock on start</label>' +
+'    <div class="subsection">' +
+'      <label>Startup clock animation</label>' +
+      verticalButtonGroupHtml('startupClockAnimModeGroup', 'startupClockAnimMode', [
+        { value: '0', label: 'Off' },
+        { value: '1', label: 'Animate clock' },
+        { value: '2', label: 'Planet sweep time shift' }
+      ], current.startupClockAnimMode || '1') +
 '    </div>' +
-'    <div class="help">On for launch: the hands/digits sweep in from a cold-start position up to the real time, under 1.5s, instead of just appearing already showing it.</div>' +
+'    <div class="help">On launch, the hands/digits sweep in from a cold-start position up to the current time, under 1.5s, instead of just appearing already showing it. "Planet sweep time shift" plays the same sweep but chases the same couple-hours-ago starting point the "Planets" background animation below is itself sweeping through, so the hands and the sky advance together -- if that background animation isn\'t also set to Planets, this behaves the same as "Animate clock" since there\'s no time shift to follow.</div>' +
 
 '    <div class="subsection">' +
 '      <label>Animate background on start</label>' +
@@ -2246,7 +2033,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 
 '    <div class="subsection">' +
 '      <div class="slider-row">' +
-'        <label for="shakeLabelSeconds">Shake-to-reveal labels stay on screen for <span class="val" id="shakeLabelSecondsVal">' + esc(current.shakeLabelSeconds || '3') + 's</span></label>' +
+'        <label for="shakeLabelSeconds">Shake animations duration <span class="val" id="shakeLabelSecondsVal">' + esc(current.shakeLabelSeconds || '3') + 's</span></label>' +
 '        <div class="slider-with-buttons">' +
 '        <button type="button" class="slider-step-btn" onclick="stepSlider(\'shakeLabelSeconds\', -1)">&minus;</button>' +
 '          <input type="range" id="shakeLabelSeconds" min="0" max="30" step="1" value="' + esc(current.shakeLabelSeconds || '3') + '" oninput="document.getElementById(\'shakeLabelSecondsVal\').textContent = this.value + \'s\';">' +
@@ -2254,14 +2041,14 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '        </div>' +
 '      </div>' +
 '    </div>' +
-'    <div class="help">Also controls how long "Smooth second hand"/"Planet seek" above run for, since both are tied to the same shake-triggered window.</div>' +
+'    <div class="help">How long a shake keeps "Smooth second hand"/"Planet seek" above running, and how long shake-revealed star name labels stay on screen -- both share this one window.</div>' +
 '    </div>' +
 
 '    </div>' +
 '  </fieldset>' +
 
 '  <fieldset>' +
-    sectionLegendHtml('presets', 'Style Presets') +
+    sectionLegendHtml('presets', 'My Style Presets') +
 '    <div class="section-body" id="section-presets" style="display:none;">' +
 '    <div class="help">Save up to 6 quick-recall snapshots of your whole Style + Colors + Features design below, or export/import it as JSON to back it up or share it.</div>' +
 
@@ -2680,16 +2467,18 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  return colorsFor("nightCustomBgValue", "nightCustomTextValue", "nightCustomAccentValue");' +
 '}' +
 // The color every font-picker preview (both the masked system-font
-// images and the live Google-Fonts CSS text) paints itself in --
-// the current DAY color scheme's own text color, same source
-// updatePreview()'s main canvas preview already reads (dayColors()).
-// Font choice isn't itself a day-vs-night-specific setting, so there's
-// no separate "which scheme is this preview for" question the way the
-// Colors section's own day/night tabs have -- day's color is simply
-// "the current scheme" here, matching how the rest of this page
-// already treats it.
+// images and the live Google-Fonts CSS text) paints itself in. This is
+// deliberately NOT derived from the watch's own color scheme -- doing
+// that used to make preview text/images render in whatever hue the
+// day scheme's text role happened to be, which could turn barely
+// legible against the picker's own background. It's the same neutral
+// --text-strong the rest of this settings page's UI text already
+// uses (see .font-picker-preview/-name's own CSS), so previews stay
+// readable and consistent with the page's own light/dark theme
+// (prefers-color-scheme) regardless of what the WATCH's day/night
+// color scheme happens to be.
 'function fontPreviewColor() {' +
-'  return dayColors().text;' +
+'  return "var(--text-strong)";' +
 '}' +
 
 'function canvasFontFor(previewCss, px) {' +
@@ -2874,27 +2663,11 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  puff(x + w * 0.42, cy, w * 0.07);' +
 '}' +
 
-// Rough sample values matching what each corner content type would
-// actually show on the watch, purely for preview purposes -- these
-// aren't live health/weather data, just illustrative placeholders.
-'var CORNER_PREVIEW_LABELS = {' +
-'  1: "72", 2: "5234", 3: "68%", 4: "H72 L58", 5: "68F Clear",' +
-'  6: "UV5", 7: "R20%", 8: "H45%", 9: "W12", 10: "82%", 11: "Full", 12: "Mon 15",' +
-'  13: "Innsbruck", 14: "80%", 15: "45%", 16: "19:42", 17: "LOGO", 18: "12:34", 19: "WK 34", 20: "Connected",' +
-'  21: "SEP 11", 22: "11", 23: "MON", 24: "Monday", 25: "SEP", 26: "September", 27: "11/9", 28: "9/11", 29: "24/9/2026", 30: "9/24/26",' +
-'  31: "(cloud)", 32: "20C", 34: "1013 hPa", 35: "NW", 36: "AQI 42", 37: "12C", 38: "380m",' +
-'  39: "7h 32m", 40: "2h 15m", 41: "42%", 42: "23:45", 43: "07:20",' +
-'  44: "LON 12:34", 45: "PAR 13:34", 46: "CAI 14:34", 47: "MOW 15:34", 48: "DXB 16:34", 49: "DEL 18:04",' +
-'  50: "DAC 18:34", 51: "BKK 19:34", 52: "BJS 20:34", 53: "TOK 21:34", 54: "SYD 22:34", 55: "AKL 00:34",' +
-'  56: "NYC 07:34", 57: "CHI 06:34", 58: "DEN 05:34", 59: "LAX 04:34", 60: "ANC 03:34", 61: "HNL 02:34", 62: "SAO 09:34",' +
-'  63: "14:32:07", 64: "07", 65: "7", 66: "7", 67: "5", 68: "05", 69: "8", 70: "08", 71: "3", 72: "8",' +
-'  73: "22C", 74: "H 28C", 75: "L 11C", 76: "22 H28 L11C", 77: "FL 20C", 78: "(bt)",' +
-'  79: "3 planets", 80: "Perseids", 81: "Rings 12%", 82: "VEN 18:32", 83: "22:47", 84: "Kp 4.3", 85: "NNW",' +
-'  86: "PM", 93: "Last updated 12:34", 94: "12:34", 95: "MON 24/9", 96: "MON 9/24",' +
-'  87: "+1h 24C", 88: "+2h 23C", 89: "+3h 22C", 90: "+4h 21C", 91: "+5h 20C", 92: "+6h 19C",' +
-'  97: "72 5234", 98: "23:45 /07:20", 99: "(batt)(bt)", 100: "68% (bt)", 101: "7h32m (2h15m) 42%",' +
-'  102: "Mon 23 Sep 19:42", 103: "Mon 23 Sep WK34"' +
-'};' +
+// CORNER_PREVIEW_LABELS is now derived client-side from the same
+// CORNER_CATEGORIES injection categoryForContentId()/findCategory()
+// use, right after that injection below -- see presets-lookups.js's
+// own header comment for why one shared array replaced this and 2
+// other independently hand-maintained lists.
 
 'function hasPreviewContent(contentId) {' +
 '  var el = document.getElementById(contentId);' +
@@ -3641,113 +3414,27 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  renderSlotPicker();' +
 '  updatePreview();' +
 '}' +
-// Runtime copy of the category groupings + full item labels (the
-// generator-side CORNER_CONTENT_OPTIONS/CORNER_CATEGORIES data can\'t
-// be reused here -- this needs to run in the browser, re-populating
-// the item dropdown live whenever the category changes, same reason
-// CORNER_PREVIEW_LABELS below is its own separate runtime copy rather
-// than reusing the generator-side labels). Keep in sync with
-// CORNER_CONTENT_OPTIONS/CORNER_CATEGORIES above by hand -- every
-// content id features_layer.c actually implements (0-103, minus the
-// retired id 33) must appear in exactly one category\'s items list.
+// Runtime copy of presets-lookups.js's own CORNER_CATEGORIES --
+// serialized straight from that same canonical array (already
+// filtered for the current auroraEnabled state -- see
+// cornerCategoriesForClient above) rather than hand-duplicated, same
+// pattern as FONT_LOOKUP/COLOR_SCHEMES above. CORNER_PREVIEW_LABELS
+// (used by hasPreviewContent()/drawCornerSlot() below) is derived from
+// it too, right after, instead of being its own separately-maintained
+// list -- see presets-lookups.js's own header comment for why one
+// shared array now covers what used to be 3 independently hand-typed
+// ones (a flat id+label list, a category-grouped id+label copy, and a
+// separate id->preview-text map) that could, and did, drift apart.
 'var CONTENT_SELECT_IDS = ["cornerTL", "cornerTR", "cornerBL", "cornerBR", ' +
 '  "upperMiddleLine1Content", "upperMiddleLine2Content", "bottomMiddleLine1Content", "bottomMiddleLine2Content", ' +
 '  "middleLeftLine1Content", "middleLeftLine2Content", "middleRightLine1Content", "middleRightLine2Content"];' +
-// One small (24x24 viewBox) icon per CORNER_CATEGORIES entry below,
-// for the category picker's icon-only buttons (see slotEditCategoryGroup
-// in the slot editor popup) -- all currentColor so CSS alone (see
-// .category-btn/.category-btn.active) handles both light/dark mode and
-// the active/inactive button state, same as every other icon button on
-// this page.
-'var CATEGORY_ICONS = {' +
-  // Off/power symbol -- the universal "this does nothing" glyph.
-'  none: \'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3 L12 11"/><path d="M7 6.5 A8 8 0 1 0 17 6.5"/></svg>\',' +
-  // Wrench -- reads clearly as "tools/utilities" rather than the old
-  // ring-of-spokes gear, which ended up looking like a sun/settings
-  // icon at this size instead.
-'  utilities: \'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.7 3.3a4.5 4.5 0 0 0-6 5.7L4 16.7a1.8 1.8 0 0 0 2.5 2.5L14.2 12a4.5 4.5 0 0 0 5.7-6l-2.8 2.8-2.1-2.1 2.7-2.7z"/></svg>\',' +
-  // Proper symmetric heart (was a hand-authored path that ended up
-  // lopsided/clipped at this size) -- same left/right symmetry around
-  // x=12 an actual heart emoji has, just as a plain currentColor fill
-  // so it still follows this button set's own active/inactive styling.
-'  health: \'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 20.8c-.3 0-.6-.1-.8-.3C6.5 16.6 3 13.3 3 9.6 3 6.9 5.1 5 7.7 5c1.6 0 3.1.8 4.3 2.2C13.2 5.8 14.7 5 16.3 5 18.9 5 21 6.9 21 9.6c0 3.7-3.5 7-8.2 10.9-.2.2-.5.3-.8.3z"/></svg>\',' +
-'  date: \'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/><rect x="7" y="13" width="3" height="3" fill="currentColor" stroke="none"/></svg>\',' +
-'  time: \'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><line x1="12" y1="12" x2="12" y2="6.5"/><line x1="12" y1="12" x2="16" y2="14"/></svg>\',' +
-  // Globe (world map stand-in): outer circle + one vertical meridian
-  // ellipse + equator + two curved latitude lines.
-'  timezone: \'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><ellipse cx="12" cy="12" rx="4" ry="9"/><line x1="3" y1="12" x2="21" y2="12"/><path d="M4.5 7 C8 8.5, 16 8.5, 19.5 7"/><path d="M4.5 17 C8 15.5, 16 15.5, 19.5 17"/></svg>\',' +
-  // Partly cloudy: small sun peeking above a cloud.
-'  weather: \'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="8" cy="7.5" r="3.2" fill="currentColor" stroke="none"/><line x1="8" y1="1" x2="8" y2="2.5"/><line x1="1.5" y1="7.5" x2="3" y2="7.5"/><line x1="3.3" y1="2.8" x2="4.4" y2="3.9"/><path d="M6 20h11a4 4 0 0 0 .6-7.95A5.5 5.5 0 0 0 7.2 10.8 3.8 3.8 0 0 0 6 20z" fill="currentColor" stroke="none"/></svg>\',' +
-  // Solar system: central star + two tilted orbit ellipses + a couple of planet dots.
-'  astro: \'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="12" cy="12" r="2.3" fill="currentColor" stroke="none"/><ellipse cx="12" cy="12" rx="10" ry="4"/><ellipse cx="12" cy="12" rx="6.5" ry="9" transform="rotate(60 12 12)"/><circle cx="21.3" cy="12" r="1.3" fill="currentColor" stroke="none"/><circle cx="9.6" cy="4.1" r="1.1" fill="currentColor" stroke="none"/></svg>\',' +
-  // Horizontal double-headed arrow, like Unicode's own long left-right arrow.
-'  wide: \'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><polyline points="8,7 3,12 8,17"/><polyline points="16,7 21,12 16,17"/></svg>\'' +
-'};' +
-'var CORNER_CATEGORIES = [' +
-'  { id: "none", label: "None", items: [{ id: 0, label: "None" }] },' +
-'  { id: "utilities", label: "Utilities", items: [' +
-'    { id: 10, label: "Battery" }, { id: 13, label: "Location" }, { id: 17, label: "Pebble logo /w battery bar" },' +
-'    { id: 20, label: "Bluetooth connection" }, { id: 78, label: "Bluetooth status (icon only)" }, { id: 38, label: "Altitude" },' +
-'    { id: 85, label: "Compass" }, { id: 99, label: "Battery + Bluetooth (icons only)" }, { id: 100, label: "Battery % + Bluetooth" }' +
-'  ] },' +
-'  { id: "health", label: "Health", items: [' +
-'    { id: 1, label: "Heart rate" }, { id: 2, label: "Steps today" }, { id: 3, label: "Step goal %" },' +
-'    { id: 39, label: "Sleep duration" }, { id: 40, label: "Restful sleep duration" }, { id: 41, label: "Sleep quality %" },' +
-'    { id: 42, label: "Bed time" }, { id: 43, label: "Wake time" }' +
-'  ] },' +
-'  { id: "date", label: "Date", items: [' +
-'    { id: 12, label: "Short date" }, { id: 19, label: "Week number" },' +
-'    { id: 21, label: "Month Day (SEP 11)" }, { id: 22, label: "Day of month (11)" },' +
-'    { id: 23, label: "Weekday, short (MON)" }, { id: 24, label: "Weekday, long (Monday)" },' +
-'    { id: 25, label: "Month, short (SEP)" }, { id: 26, label: "Month, long (September)" },' +
-'    { id: 27, label: "Day/Month (11/9)" }, { id: 28, label: "Month/Day (9/11)" },' +
-'    { id: 29, label: "Full date (24/9/2026)" }, { id: 30, label: "Full date, imperial (9/24/26)" },' +
-'    { id: 95, label: "Weekday + Day/Month (MON 24/9)" }, { id: 96, label: "Weekday + Month/Day (MON 9/24)" }' +
-'  ] },' +
-'  { id: "time", label: "Time", items: [' +
-'    { id: 18, label: "Time" },' +
-'    { id: 63, label: "Full time (H:M:S)" }, { id: 64, label: "Hour, 24h leading zero (07)" },' +
-'    { id: 65, label: "Hour, 24h (7)" }, { id: 66, label: "Hour, 12h (7)" },' +
-'    { id: 67, label: "Minute (5)" }, { id: 68, label: "Tinute, leading zero (05)" },' +
-'    { id: 69, label: "Second (8)" }, { id: 70, label: "Second, leading zero (08)" },' +
-'    { id: 71, label: "Seconds, tens digit" }, { id: 72, label: "Seconds, ones digit" },' +
-'    { id: 86, label: "AM/PM" }' +
-'  ] },' +
-'  { id: "timezone", label: "Timezone", items: [' +
-'    { id: 44, label: "GMT+0 London" }, { id: 45, label: "GMT+1 Paris / Berlin / Madrid" }, { id: 46, label: "GMT+2 Cairo" },' +
-'    { id: 47, label: "GMT+3 Moscow" }, { id: 48, label: "GMT+4 Dubai" }, { id: 49, label: "GMT+5:30 Delhi / Mumbai" },' +
-'    { id: 50, label: "GMT+6 Dhaka" }, { id: 51, label: "GMT+7 Bangkok / Jakarta" }, { id: 52, label: "GMT+8 Beijing / Shanghai / Singapore" },' +
-'    { id: 53, label: "GMT+9 Tokyo" }, { id: 54, label: "GMT+10 Sydney" }, { id: 55, label: "GMT+12 Auckland" },' +
-'    { id: 56, label: "GMT-5 New York" }, { id: 57, label: "GMT-6 Chicago" }, { id: 58, label: "GMT-7 Denver" },' +
-'    { id: 59, label: "GMT-8 Los Angeles" }, { id: 60, label: "GMT-9 Anchorage" }, { id: 61, label: "GMT-10 Honolulu" },' +
-'    { id: 62, label: "GMT-3 Sao Paulo" }' +
-'  ] },' +
-'  { id: "weather", label: "Weather", items: [' +
-'    { id: 4, label: "High / low temperature" }, { id: 5, label: "Current conditions" }, { id: 6, label: "UV index" },' +
-'    { id: 104, label: "Current UV index" },' +
-'    { id: 7, label: "Rain chance today" }, { id: 8, label: "Humidity" }, { id: 9, label: "Wind" },' +
-'    { id: 14, label: "Visibility" }, { id: 15, label: "Cloud cover" }, { id: 31, label: "Weather icon" },' +
-'    { id: 32, label: "Temp + weather icon" }, { id: 34, label: "Pressure" }, { id: 35, label: "Wind direction" },' +
-'    { id: 36, label: "Air quality" }, { id: 37, label: "Dew point" }, { id: 73, label: "Current temp" },' +
-'    { id: 74, label: "High temp" }, { id: 75, label: "Low temp" }, { id: 76, label: "Weather icon + all temps" },' +
-'    { id: 77, label: "Feels like temp" },' +
-'    { id: 87, label: "Weather in 1 hour" }, { id: 88, label: "Weather in 2 hours" },' +
-'    { id: 89, label: "Weather in 3 hours" }, { id: 90, label: "Weather in 4 hours" },' +
-'    { id: 91, label: "Weather in 5 hours" }, { id: 92, label: "Weather in 6 hours" }' +
-'  ] },' +
-'  { id: "astro", label: "Astronomy", items: [' +
-'    { id: 11, label: "Moon phase" }, { id: 16, label: "Sunrise / sunset" },' +
-'    { id: 79, label: "Planets visible now" }, { id: 80, label: "Meteor shower" },' +
-'    { id: 81, label: "Saturn ring angle" }, { id: 82, label: "Next planet rise" },' +
-'    { id: 83, label: "Next ISS pass" }' + (current.auroraEnabled ? ', { id: 84, label: "Aurora Kp index" }' : '') +
-'  ] },' +
-'  { id: "wide", label: "Wide", items: [' +
-'    { id: 97, label: "Heart rate + steps" }, { id: 98, label: "Bed time + wake time" },' +
-'    { id: 101, label: "Sleep times" }, { id: 102, label: "Long date + sunrise/sunset" },' +
-'    { id: 103, label: "Long date + week number" },' +
-'    { id: 93, label: "Last weather update, long" }, { id: 94, label: "Last weather update, short" }' +
-'  ] }' +
-'];' +
+'var CORNER_CATEGORIES = ' + JSON.stringify(cornerCategoriesForClient) + ';' +
+'var CORNER_PREVIEW_LABELS = {};' +
+'CORNER_CATEGORIES.forEach(function (cat) {' +
+'  cat.items.forEach(function (it) {' +
+'    if (it.preview) CORNER_PREVIEW_LABELS[it.id] = it.preview;' +
+'  });' +
+'});' +
 'function categoryForContentId(contentId) {' +
 '  var idNum = parseInt(contentId, 10);' +
 '  for (var i = 0; i < CORNER_CATEGORIES.length; i++) {' +
@@ -3901,7 +3588,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 'function renderCategoryButtons() {' +
 '  var group = document.getElementById("slotEditCategoryGroup");' +
 '  group.innerHTML = CORNER_CATEGORIES.map(function (c) {' +
-'    return \'<button type="button" class="category-btn" data-category="\' + c.id + \'" onclick="selectSlotEditCategory(\\\'\' + c.id + \'\\\')" title="\' + c.label + \'">\' + CATEGORY_ICONS[c.id] + \'</button>\';' +
+'    return \'<button type="button" class="category-btn" data-category="\' + c.id + \'" onclick="selectSlotEditCategory(\\\'\' + c.id + \'\\\')" title="\' + c.label + \'">\' + c.icon + \'</button>\';' +
 '  }).join("");' +
 '}' +
 'function updateCategoryButtonActive(categoryId) {' +
@@ -4269,11 +3956,13 @@ handEditorModalHtml('sec', 'Edit second hand') +
 'var HAND_COPY_SOURCE = { hour: "min", min: "hour", sec: "min" };' +
 'function heHiddenPrefix(kind) { return kind === "hour" ? "handHour" : (kind === "min" ? "handMin" : "handSec"); }' +
 'function hePopupPrefix(kind) { return "he" + kind.charAt(0).toUpperCase() + kind.slice(1); }' +
-// Rough per-hand field sets for the 9 hand style picker buttons (see
-// resources/infographics/hands<n>.png, embedded via
-// scripts/generate-infographics.js as HAND_STYLE_IMAGES) -- keyed
-// "1".."9" to match those filenames, each with a display title plus
-// hour/min/sec field sets in the same shape applyHandPresetToKind()
+// Runtime copy of presets-lookups.js's own HAND_PRESETS -- serialized
+// straight from that same canonical object (see resources/infographics/
+// hands<n>.png, embedded via scripts/generate-infographics.js as
+// HAND_STYLE_IMAGES, for the matching preview images) rather than
+// hand-duplicated, same pattern as FONT_LOOKUP/COLOR_SCHEMES above.
+// Keyed "1".."9" to match those filenames, each with a display title
+// plus hour/min/sec field sets in the same shape applyHandPresetToKind()
 // below writes into the hidden custom-hand inputs, PLUS a centerCircle
 // and shadow field set applied the same way to the standalone Center
 // circle/Shadow style settings (see applyHandPresetExtras() below) --
@@ -4285,20 +3974,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 // remembered as a distinct "preset" afterward, on this page or on the
 // watch (see hand_layer.h's own comment for why the watch doesn't need
 // to know).
-// These 9 are placeholders pairing the existing style shapes with
-// generic starter numbers -- replace the images and retune the field
-// sets here once real example styles are worked out.
-'var HAND_PRESETS = {' +
-'  "1": { title: "Pebble", hour: {Style:"0",Width:"10",Length:"51",BackOffset:"0",Color:"1"}, min: {Style:"0",Width:"10",Length:"78",BackOffset:"0",Color:"0"}, sec: {Style:"0",Width:"2",Length:"85",BackOffset:"0",Color:"0"}, centerCircle: {Radius:"5",Color:"1"}, shadow: {Translucent:"true",Angle:"120"} },' +
-'  "2": { title: "Fruit", hour: {Style:"5",Width:"8",Length:"63",BackOffset:"0",MiddleOffset:"20",SecondaryWidth:"2",Color:"1"}, min: {Style:"5",Width:"8",Length:"81",BackOffset:"0",MiddleOffset:"20",SecondaryWidth:"2",Color:"0"}, sec: {Style:"2",Width:"2",Length:"85",BackOffset:"0",Color:"0"}, centerCircle: {Radius:"2",Color:"0"}, shadow: {Translucent:"true",Angle:"120"} },' +
-'  "3": { title: "Modern", hour: {Style:"2",Width:"6",Length:"51",BackOffset:"10",Color:"0"}, min: {Style:"2",Width:"6",Length:"78",BackOffset:"10",Color:"0"}, sec: {Style:"2",Width:"2",Length:"85",BackOffset:"10",Color:"1"}, centerCircle: {Radius:"4",Color:"1"}, shadow: {Translucent:"true",Angle:"120"} },' +
-'  "4": { title: "Swiss", hour: {Style:"2",Width:"10",Length:"51",BackOffset:"10",Color:"0"}, min: {Style:"2",Width:"10",Length:"78",BackOffset:"10",Color:"0"}, sec: {Style:"6",Width:"2",Length:"85",BackOffset:"15",MiddleOffset:"5",SecondaryWidth:"17",Color:"1"}, centerCircle: {Radius:"3",Color:"1"}, shadow: {Translucent:"true",Angle:"120"} },' +
-'  "5": { title: "Pointy", hour: {Style:"1",Width:"12",Length:"51",BackOffset:"0",Color:"0"}, min: {Style:"1",Width:"12",Length:"78",BackOffset:"0",Color:"0"}, sec: {Style:"0",Width:"2",Length:"85",BackOffset:"0",Color:"1"}, centerCircle: {Radius:"4",Color:"0"}, shadow: {Translucent:"true",Angle:"120"} },' +
-'  "6": { title: "Classy", hour: {Style:"3",Width:"10",Length:"51",BackOffset:"4",MiddleOffset:"10",Color:"0"}, min: {Style:"3",Width:"8",Length:"78",BackOffset:"4",MiddleOffset:"14",Color:"0"}, sec: {Style:"1",Width:"2",Length:"85",BackOffset:"6",Color:"1"}, centerCircle: {Radius:"5",Color:"0"}, shadow: {Translucent:"true",Angle:"135"} },' +
-'  "7": { title: "Bell", hour: {Style:"4",Width:"10",Length:"61",BackOffset:"-20",MiddleOffset:"40",SecondaryWidth:"14",Color:"0"}, min: {Style:"4",Width:"8",Length:"78",BackOffset:"-21",MiddleOffset:"40",SecondaryWidth:"8",Color:"0"}, sec: {Style:"7",Width:"7",Length:"85",BackOffset:"0",Color:"1"}, centerCircle: {Radius:"5",Color:"1"}, shadow: {Translucent:"true",Angle:"135"} },' +
-'  "8": { title: "Leafs", hour: {Style:"8",Width:"10",Length:"51",BackOffset:"0",MiddleOffset:"5",Color:"0"}, min: {Style:"8",Width:"8",Length:"78",BackOffset:"0",MiddleOffset:"8",Color:"0"}, sec: {Style:"1",Width:"2",Length:"85",BackOffset:"6",Color:"1"}, centerCircle: {Radius:"4",Color:"0"}, shadow: {Translucent:"true",Angle:"120"} },' +
-'  "9": { title: "Funky", hour: {Style:"10",Width:"4",Length:"51",BackOffset:"0",MiddleOffset:"8",SecondaryWidth:"12",Color:"0"}, min: {Style:"10",Width:"3",Length:"78",BackOffset:"0",MiddleOffset:"10",SecondaryWidth:"10",Color:"0"}, sec: {Style:"10",Width:"2",Length:"85",BackOffset:"6",MiddleOffset:"8",SecondaryWidth:"17",Color:"1"}, centerCircle: {Radius:"4",Color:"1"}, shadow: {Translucent:"true",Angle:"150"} }' +
-'};' +
+'var HAND_PRESETS = ' + JSON.stringify(HAND_PRESETS) + ';' +
 'function applyHandPresetToKind(kind, preset) {' +
 '  var hp = heHiddenPrefix(kind);' +
 '  for (var f in preset) {' +
@@ -4981,11 +4657,25 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  }' +
 '  onBottomStyleChange();' +
 '}' +
+// Falls back to the group's first button (Off, for every current
+// caller) when val doesn't match any button's own data-value -- same
+// reasoning as verticalButtonGroupHtml()'s own comment, but for
+// values arriving after the initial render (a preset being applied
+// via applyStyleCornersJson(), which sets the hidden field\'s value
+// straight from possibly-stale saved JSON before calling this). Also
+// corrects the hidden field itself to the fallback value, not just
+// the highlighted button, so a subsequent Save persists the sane
+// fallback rather than the original invalid string.
 'function selectVerticalOption(groupId, hiddenId, val) {' +
-'  document.getElementById(hiddenId).value = val;' +
 '  var buttons = document.getElementById(groupId).getElementsByClassName("mode-btn-vertical");' +
+'  var matched = false;' +
 '  for (var i = 0; i < buttons.length; i++) {' +
-'    buttons[i].className = "mode-btn-vertical" + (buttons[i].getAttribute("data-value") === val ? " active" : "");' +
+'    if (buttons[i].getAttribute("data-value") === val) { matched = true; break; }' +
+'  }' +
+'  if (!matched && buttons.length) val = buttons[0].getAttribute("data-value");' +
+'  document.getElementById(hiddenId).value = val;' +
+'  for (var j = 0; j < buttons.length; j++) {' +
+'    buttons[j].className = "mode-btn-vertical" + (buttons[j].getAttribute("data-value") === val ? " active" : "");' +
 '  }' +
 '  updatePreview();' +
 '}' +
@@ -5273,28 +4963,28 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  var h = new Date().getHours();' +
 '  return h < 6 || h >= 20;' +
 '}' +
-// Dims whichever of the day/night subsections isn\'t currently active
-// (see .scheme-inactive\'s own comment -- purely visual, nothing here
-// is disabled) and shows an "Active now" badge next to the other one.
-// Only meaningful once night colors are actually turned on -- with
-// only one set of colors there\'s nothing to disambiguate.
+// Marks both day and night color subsections with which one is
+// actually in effect right now (see .scheme-active-badge\'s own
+// comment -- purely informational, nothing here is disabled): green
+// "Active now" on the one in effect, red "Not active now" on the
+// other. Only meaningful once night colors are actually turned on --
+// with only one set of colors there\'s nothing to disambiguate, so
+// both badges stay hidden.
 'function updateSchemeActiveHighlight() {' +
-'  var dayEl = document.getElementById("daySchemeSubsection");' +
-'  var nightEl = document.getElementById("nightSchemeSettings");' +
 '  var dayBadge = document.getElementById("daySchemeActiveBadge");' +
 '  var nightBadge = document.getElementById("nightSchemeActiveBadge");' +
 '  if (!document.getElementById("nightEnabled").checked) {' +
-'    dayEl.classList.remove("scheme-inactive");' +
-'    nightEl.classList.remove("scheme-inactive");' +
 '    dayBadge.style.display = "none";' +
 '    nightBadge.style.display = "none";' +
 '    return;' +
 '  }' +
 '  var isNight = isNightNowApprox();' +
-'  dayEl.classList.toggle("scheme-inactive", isNight);' +
-'  nightEl.classList.toggle("scheme-inactive", !isNight);' +
-'  dayBadge.style.display = isNight ? "none" : "";' +
-'  nightBadge.style.display = isNight ? "" : "none";' +
+'  dayBadge.style.display = "";' +
+'  nightBadge.style.display = "";' +
+'  dayBadge.textContent = isNight ? "Not active now" : "Active now";' +
+'  dayBadge.classList.toggle("inactive", isNight);' +
+'  nightBadge.textContent = isNight ? "Active now" : "Not active now";' +
+'  nightBadge.classList.toggle("inactive", !isNight);' +
 '}' +
 
 'function save(forceRefresh) {' +
@@ -5378,7 +5068,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    CONFIG_SHOW_ISS: document.getElementById("showIss").checked,' +
 '    CONFIG_AURORA_ENABLED: document.getElementById("auroraEnabled").checked,' +
 '    CONFIG_VIBRATE_ON_PHASE_CHANGE: document.getElementById("vibrateOnPhaseChange").checked,' +
-'    CONFIG_STARTUP_CLOCK_ANIMATION_ENABLED: document.getElementById("startupClockAnimationEnabled").checked,' +
+'    CONFIG_STARTUP_CLOCK_ANIM_MODE: document.getElementById("startupClockAnimMode").value,' +
 '    CONFIG_BG_ANIM_MODE: document.getElementById("bgAnimMode").value,' +
 '    CONFIG_SHAKE_ANIM_MODE: document.getElementById("shakeAnimMode").value,' +
 '    CONFIG_OUTLINE_ENABLED: document.getElementById("outlineStyle").value,' +
@@ -5593,7 +5283,9 @@ handEditorModalHtml('sec', 'Edit second hand') +
 // start" picker, per the request\'s own example.
 'function computeAnimationSubheader() {' +
 '  var parts = [];' +
-'  if (document.getElementById("startupClockAnimationEnabled").checked) parts.push("animated clock on start");' +
+'  var startup = document.getElementById("startupClockAnimMode").value;' +
+'  if (startup === "2") parts.push("planet sweep time shift on start");' +
+'  else if (startup === "1") parts.push("animated clock on start");' +
 '  var bg = document.getElementById("bgAnimMode").value;' +
 '  if (bg === "1") parts.push("planets on start");' +
 '  else if (bg === "2") parts.push("indices on start");' +
