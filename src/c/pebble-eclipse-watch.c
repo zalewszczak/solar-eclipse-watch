@@ -876,13 +876,36 @@ static void bottom_canvas_update_proc(Layer *layer, GContext *ctx) {
   // this layer only ever draws the clock digits.
   int16_t clock_x, clock_w;
   digital_clock_area(s_data.bottom_style, bounds.size.w, &clock_x, &clock_w);
-  GRect clock_rect = GRect(bounds.origin.x + clock_x, bounds.origin.y, clock_w, bounds.size.h);
-
+  GRect clock_rect = GRect(bounds.origin.x + clock_x, bounds.origin.y + font_lookup_y_offset(s_data.clock_font), clock_w, 60);
+  GTextAlignment alignment = GTextAlignmentCenter;
+  
+  // Trick to avoid clipping of shifted clocks and not having text trimmed (...) or having clock outside of the screen in extreme cases
+  if (s_data.bottom_style == 2) { // right side only -- shift left
+    int16_t initial_allowed_area = clock_rect.size.w;
+    clock_rect.size.w += 30;
+    GSize calculated_size = graphics_text_layout_get_content_size(time_buf, clock_font, clock_rect, GTextOverflowModeTrailingEllipsis, alignment);
+    if (calculated_size.w >= initial_allowed_area) {
+      alignment = GTextAlignmentLeft;
+    } else {
+      // revert spacing coz we fit
+      clock_rect.size.w -= 30;
+    }
+  } else if (s_data.bottom_style == 3) { // left side only -- shift right
+    int16_t initial_allowed_area = clock_rect.size.w;
+    clock_rect.size.w += 30;
+    clock_rect.origin.x -= 30;
+    GSize calculated_size = graphics_text_layout_get_content_size(time_buf, clock_font, clock_rect, GTextOverflowModeTrailingEllipsis, alignment);
+    if (calculated_size.w >= initial_allowed_area) {
+      alignment = GTextAlignmentRight;
+    } else {
+      // revert spacing coz we fit
+      clock_rect.size.w -= 30;
+      clock_rect.origin.x += 30;
+    }
+  }
   // ---- big time ----
   graphics_context_set_text_color(ctx, text_color);
-  graphics_draw_text(ctx, time_buf, clock_font,
-                      GRect(clock_rect.origin.x, clock_rect.origin.y + font_lookup_y_offset(s_data.clock_font), clock_rect.size.w, 60),
-                      GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
+  graphics_draw_text(ctx, time_buf, clock_font, clock_rect, GTextOverflowModeTrailingEllipsis, alignment, NULL);
   // The date/week-or-sunrise row that used to sit directly below the
   // clock is now the features_layer overlay's own "digital bottom"
   // feature slot (content-selectable in settings, defaulting to
