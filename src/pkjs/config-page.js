@@ -1133,7 +1133,19 @@ function buildConfigHtml(current) {
                                                     // double-tap on a fast-repeating button (the settings
                                                     // and slider buttons below) shouldn't ever zoom the page.
 '  button, .mode-btn, .slot-btn, .slider-step-btn { touch-action: manipulation; -webkit-user-select: none; user-select: none; }' +
-'  fieldset { border: none; background: var(--card-bg); border-radius: 8px; padding: 14px 16px; margin-bottom: 16px; box-shadow: 0 1px 2px rgba(0,0,0,0.08); }' +
+// min-width: 0 overrides the browser's own default UA-stylesheet
+// min-width on <fieldset> (effectively "min-content" -- fieldsets
+// refuse to shrink narrower than their own content's natural width by
+// default, unlike a plain <div>). Without this, the section header's
+// long sub-header text (see .section-legend-sub's own min-width: 0
+// comment) still forced the WHOLE fieldset -- and so the whole
+// section "button" card -- wider to fit it, even though that span
+// itself already had nowrap/overflow/ellipsis set correctly; the
+// ellipsis was truncating relative to an already-too-wide box instead
+// of the page's actual width. This is the actual root cause; the
+// flex-item-level fix wasn\'t enough on its own because the fieldset
+// ancestor was the thing refusing to shrink in the first place.
+'  fieldset { border: none; background: var(--card-bg); border-radius: 8px; padding: 14px 16px; margin-bottom: 16px; box-shadow: 0 1px 2px rgba(0,0,0,0.08); min-width: 0; }' +
 '  legend { font-weight: 600; font-size: 14px; padding: 0; color: var(--text-strong); }' +
 '  label { display: block; font-size: 14px; margin: 10px 0 4px; color: var(--text-strong); }' +
 '  input[type=text], input[type=number], select { width: 100%; box-sizing: border-box; padding: 8px; font-size: 15px; border: 1px solid var(--border); border-radius: 5px; background: var(--card-bg); color: var(--text); }' +
