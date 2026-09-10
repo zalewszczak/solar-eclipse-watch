@@ -1898,7 +1898,16 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  <div class="save-bar"><button onclick="save()">Save</button></div>' +
 
 '<script>' +
-buildRuntime() +
+buildRuntime({
+      MARKER_PREVIEW_IMAGES: MARKER_PREVIEW_IMAGES,
+      HAND_STYLE_IMAGES: HAND_STYLE_IMAGES,
+      MARKER_PRESET_IMAGES: MARKER_PRESET_IMAGES,
+      HAND_STYLE_DIAGRAM_IMAGES: HAND_STYLE_DIAGRAM_IMAGES,
+      HAND_STYLE_ICON_IMAGES: HAND_STYLE_ICON_IMAGES,
+      WEATHER_ICON_STYLE_PREVIEWS: WEATHER_ICON_STYLE_PREVIEWS,
+      EXAMPLE_STYLE_PRESETS: EXAMPLE_STYLE_PRESETS,
+      EXAMPLE_STYLE_IMAGES: EXAMPLE_STYLE_IMAGES
+    }) +
 '</script>' +
 '</body></html>';
 }

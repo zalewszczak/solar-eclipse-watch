@@ -12,6 +12,8 @@ var fragments = [
   require('./debug')
 ];
 
-module.exports = function buildRuntime() {
-  return fragments.map(function (build) { return build(); }).join('');
+module.exports = function buildRuntime(context) {
+  return fragments.map(function (build) {
+    return build(context || {});
+  }).join('');
 };
