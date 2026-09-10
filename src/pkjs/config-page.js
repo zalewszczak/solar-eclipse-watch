@@ -1709,6 +1709,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  <fieldset>' +
     sectionLegendHtml('examples', 'Example styles') +
 '    <div class="section-body" id="section-examples" style="display:none;">' +
+'    <div class="subsection"></div>' +
 '    <div class="help">Tap a design below to preview it -- each one sets every Style, Colors, and Features setting to match once you confirm, the same as pasting its JSON into "Style Presets" further down.</div>' +
 '    <div class="example-style-grid">' + exampleStylesButtonsHtml + '</div>' +
 '    </div>' +
@@ -1717,7 +1718,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  <fieldset>' +
     sectionLegendHtml('style', 'Style') +
 '    <div class="section-body" id="section-style" style="display:none;">' +
-
+'    <div class="subsection"></div>' +
 '    <label>Layout</label>' +
 '    <div class="mode-btn-group" id="bottomStyleGroup">' +
 '      <button type="button" class="mode-btn' + (bottomStyleVal === 'digital' ? ' active' : '') + '" onclick="selectBottomStyle(\'digital\')">' + MODE_BTN_ICONS.digital + '<span>DIGITAL</span></button>' +
@@ -1809,6 +1810,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  <fieldset id="cornersFieldset">' +
     sectionLegendHtml('corners', 'Features') +
 '    <div class="section-body" id="section-corners" style="display:none;">' +
+'    <div class="subsection"></div>' +
 '    <div class="help">Features are small info readouts (weather, health, date/time, and more) placed around your watch face. Tap a slot on the diagram below to pick what it shows and how it\'s colored -- grayed-out slots aren\'t available for your current style.</div>' +
 
 '    <div id="slotPickerDiagram">' +
@@ -2062,6 +2064,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  <fieldset>' +
     sectionLegendHtml('presets', 'My Style Presets') +
 '    <div class="section-body" id="section-presets" style="display:none;">' +
+'    <div class="subsection"></div>' +
 '    <div class="help">Save up to 6 quick-recall snapshots of your whole Style + Colors + Features design below, or export/import it as JSON to back it up or share it.</div>' +
 
 '    ' + [1, 2, 3, 4, 5, 6].map(function (n) { return presetSlotHtml(current, n); }).join('') +
@@ -2083,6 +2086,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  <fieldset>' +
     sectionLegendHtml('weather', 'Weather') +
 '    <div class="section-body" id="section-weather" style="display:none;">' +
+'    <div class="subsection"></div>' +
 '    <div class="help">Cloud cover is always pulled from Open-Meteo (no signup needed). Optionally add an OpenWeatherMap API key to average in a second forecast.</div>' +
 '    <label for="owmKey">OpenWeatherMap API key (optional)</label>' +
 '    <input type="text" id="owmKey" placeholder="leave blank to skip" value="' + esc(current.owmKey) + '">' +
@@ -2124,7 +2128,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  <fieldset>' +
     sectionLegendHtml('astronomy', 'Astronomy') +
 '    <div class="section-body" id="section-astronomy" style="display:none;">' +
-
+'    <div class="subsection"></div>' +
 '    <label>Sun &amp; Moon size</label>' +
       modeButtonGroupHtml('sunMoonSizeGroup', 'sunMoonSize', [
         { value: '100', label: 'LARGE', icon: MODE_BTN_ICONS.sunMoon100 },
@@ -2166,6 +2170,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  <fieldset>' +
     sectionLegendHtml('location', 'Location') +
 '    <div class="section-body" id="section-location" style="display:none;">' +
+'    <div class="subsection"></div>' +
 '    <div class="checkbox-row">' +
 '      <input type="checkbox" id="autoLoc" ' + autoLocChecked + ' onchange="toggleManual()">' +
 '      <label for="autoLoc" style="margin:0;">Use phone GPS automatically</label>' +
@@ -2192,6 +2197,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  <fieldset>' +
     sectionLegendHtml('updates', 'Updates') +
 '    <div class="section-body" id="section-updates" style="display:none;">' +
+'    <div class="subsection"></div>' +
 '    <div class="checkbox-row">' +
 '      <input type="checkbox" id="batterySaverEnabled" ' + (current.batterySaverEnabled ? 'checked' : '') + '>' +
 '      <label for="batterySaverEnabled" style="margin:0;">Preserve battery when watch is not in use</label>' +
@@ -2218,6 +2224,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  <fieldset>' +
     sectionLegendHtml('testing', 'Debug') +
 '    <div class="section-body" id="section-testing" style="display:none;">' +
+'    <div class="subsection"></div>' +
 '    <div class="checkbox-row">' +
 '      <input type="checkbox" id="testMode" ' + testModeChecked + ' onchange="toggleTestMode()">' +
 '      <label for="testMode" style="margin:0;">Use a custom test date/time</label>' +
