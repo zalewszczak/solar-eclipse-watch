@@ -129,7 +129,7 @@ module.exports = function buildRuntimeFragment(context) {
 // drift apart" reasoning as FONT_LOOKUP's own runtime copy. Shared by
 // findPresetById() below and the color preset picker popup further
 // down (matchingPresetId()/renderColorPresetGrid()).
-'var COLOR_SCHEMES = ' + JSON.stringify(COLOR_SCHEMES) + ';' +
+'var COLOR_SCHEMES = ' + JSON.stringify(context.COLOR_SCHEMES) + ';' +
 
 'function esc(str) {' +
 '  return String(str == null ? "" : str).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");' +
@@ -140,21 +140,21 @@ module.exports = function buildRuntimeFragment(context) {
 // from that same array at page-generation time, not hand-duplicated,
 // so the two can never drift apart the way two independently-typed
 // copies could.
-'var FONT_LOOKUP = ' + JSON.stringify(FONT_LOOKUP) + ';' +
+'var FONT_LOOKUP = ' + JSON.stringify(context.FONT_LOOKUP) + ';' +
 // Runtime copy of the constant controlling how many "Example styles"
 // tiles exist -- used only by the Example styles section's own
 // sub-header (computeExamplesSubheader() below); that count never
 // changes at runtime, so this is just a plain baked-in number, same
 // spirit as every other "generator-side data, copied once for the
 // browser" constant on this page.
-'var EXAMPLE_STYLE_COUNT = ' + EXAMPLE_STYLE_COUNT + ';' +
+'var EXAMPLE_STYLE_COUNT = ' + context.EXAMPLE_STYLE_COUNT + ';' +
 // Same reasoning as FONT_LOOKUP just above -- serialized straight from
 // the generator-side FONT_PREVIEW_IMAGES (itself just require()'d from
 // the generated src/pkjs/font-preview-images.js) rather than
 // hand-duplicated. Empty ({}) whenever no font-preview PNGs have been
 // added yet -- every lookup against it below already handles that
 // gracefully.
-'var FONT_PREVIEW_IMAGES = ' + JSON.stringify(FONT_PREVIEW_IMAGES) + ';' +
+'var FONT_PREVIEW_IMAGES = ' + JSON.stringify(context.FONT_PREVIEW_IMAGES) + ';' +
 'function drawSkyLayer(ctx, x, y, w, h) {' +
 '  var grad = ctx.createLinearGradient(0, y, 0, y + h);' +
 '  grad.addColorStop(0, "#4a90d9");' +
@@ -426,7 +426,7 @@ module.exports = function buildRuntimeFragment(context) {
 'var CONTENT_SELECT_IDS = ["cornerTL", "cornerTR", "cornerBL", "cornerBR", ' +
 '  "upperMiddleLine1Content", "upperMiddleLine2Content", "bottomMiddleLine1Content", "bottomMiddleLine2Content", ' +
 '  "middleLeftLine1Content", "middleLeftLine2Content", "middleRightLine1Content", "middleRightLine2Content"];' +
-'var CORNER_CATEGORIES = ' + JSON.stringify(cornerCategoriesForClient) + ';' +
+'var CORNER_CATEGORIES = ' + JSON.stringify(context.cornerCategoriesForClient) + ';' +
 'var CORNER_PREVIEW_LABELS = {};' +
 'CORNER_CATEGORIES.forEach(function (cat) {' +
 '  cat.items.forEach(function (it) {' +
@@ -569,7 +569,7 @@ module.exports = function buildRuntimeFragment(context) {
 // remembered as a distinct "preset" afterward, on this page or on the
 // watch (see hand_layer.h's own comment for why the watch doesn't need
 // to know).
-'var HAND_PRESETS = ' + JSON.stringify(HAND_PRESETS) + ';' +
+'var HAND_PRESETS = ' + JSON.stringify(context.HAND_PRESETS) + ';' +
 'function onShadowAngleInput() {' +
 '  var el = document.getElementById("shadowAngle");' +
 '  var out = document.getElementById("shadowAngleVal");' +
