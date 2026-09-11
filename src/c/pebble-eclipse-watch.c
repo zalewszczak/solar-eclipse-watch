@@ -157,31 +157,12 @@ bool get_next_sun_event(time_t now, time_t sun_rise, time_t sun_set, time_t sun_
   return false;
 }
 
-// A compact "sunrise/sunset" glyph -- an arrow (up for rise, down for
-// set) next to a horizon-sun icon (a circle with its bottom half
-// covered by the background color, sitting on a short line), both
-// built from plain fill primitives rather than a font glyph that may
-// not exist in the built-in charset. Returns the total width drawn,
-// so the caller can place the time text right after it.
-int16_t draw_sun_time_icon(GContext *ctx, GPoint top_left, bool is_sunrise, GColor color, GColor bg) {
-  graphics_context_set_fill_color(ctx, color);
-  int16_t ax = top_left.x, ay = top_left.y;
-  for (int16_t row = 0; row < 5; row++) {
-    int16_t width = is_sunrise ? (row + 1) : (5 - row);
-    int16_t row_y = is_sunrise ? (ay + (4 - row)) : (ay + row);
-    graphics_fill_rect(ctx, GRect(ax + (5 - width) / 2, row_y, width, 1), 0, GCornerNone);
-  }
-
-  GPoint sun_center = GPoint(ax + 13, ay + 4);
-  graphics_context_set_fill_color(ctx, color);
-  graphics_fill_circle(ctx, sun_center, 4);
-  graphics_context_set_fill_color(ctx, bg);
-  graphics_fill_rect(ctx, GRect(sun_center.x - 5, sun_center.y, 10, 5), 0, GCornerNone);
-  graphics_context_set_fill_color(ctx, color);
-  graphics_fill_rect(ctx, GRect(sun_center.x - 6, sun_center.y, 12, 1), 0, GCornerNone);
-
-  return 20; // total icon width, arrow + horizon-sun glyph
-}
+// draw_sun_time_icon() (the sunrise/sunset corner-glyph renderer) used
+// to live here, hand-drawing an arrow + horizon-sun with fill
+// primitives every frame. It's now a plain image (resources/images/
+// icon_sun_time_rise.png / icon_sun_time_set.png), drawn by
+// features_layer.c's draw_render_icon() the same way every other
+// bitmap corner icon is -- see that file's case 11.
 
 // ---- big-analogue mode: fullscreen hands over the sky layer --------------
 
@@ -311,10 +292,10 @@ static void compute_startup_hand_anim(int32_t target_angle, uint16_t elapsed_ms,
 // single choice via shake_anim_mode: 0=off, 1=smooth second hand, 2=Planet
 // seek, 3=Both -- see its own eclipse_data.h comment): while the shake-to-
 // reveal labels are up, the second hand (if shown) switches from its normal
-// once-a-second jump to continuous sub-second motion (mode 1 ONLY -- see
-// hands_layer_update_proc()'s own comment for why mode 3 deliberately
-// excludes this despite also being "smooth second hand" + Planet seek
-// together), and/or the sky view repositions to face wherever the compass
+// once-a-second jump to continuous sub-second motion (modes 1 and 3 -- see
+// shake_anim_wants_smooth_second() below and hands_layer_update_proc()'s
+// own use of it; Planet seek running at the same time, mode 3, doesn't
+// suppress this), and/or the sky view repositions to face wherever the compass
 // currently points (mode 2 or 3, see maybe_start_compass_feature()). Every
 // site below that cares whether Planet seek specifically is wanted goes
 // through shake_anim_wants_planet_seek() rather than comparing
@@ -337,6 +318,11 @@ static uint32_t s_shake_anim_duration_ms = 3000;
 // True for shake_anim_mode 2 (Planet seek only) or 3 (Both).
 static bool shake_anim_wants_planet_seek(uint8_t mode) {
   return mode == 2 || mode == 3;
+}
+
+// True for shake_anim_mode 1 (Smooth second hand only) or 3 (Both).
+static bool shake_anim_wants_smooth_second(uint8_t mode) {
+  return mode == 1 || mode == 3;
 }
 
 // ---- shared ease-out lookup table -----------------------------------
@@ -613,13 +599,23 @@ static void maybe_start_compass_feature(void) {
 // state (blank/hidden, since there's no eclipse today) the instant
 // either the low-accuracy condition clears (the wearer finished
 // calibrating mid-animation) or the animation itself ends, rather
-// than leaving a stale warning up.
+// than leaving a stale warning up. While shown, it flashes on/off
+// once a second (visible on odd seconds, hidden on even ones) rather
+// than sitting on screen solid, so it reads as an active warning that
+// needs attention rather than a normal static label.
 static void update_planet_seek_accuracy_label(bool active) {
   if (!s_countdown_layer) return;
   if (active && planet_seek_compass_low_accuracy()) {
-    snprintf(s_countdown_buf, sizeof(s_countdown_buf), "Low compass accuracy");
-    s_countdown_text_color = eclipse_sky_is_bright(&s_data, time(NULL)) ? GColorBlack : GColorWhite;
-    layer_set_hidden(s_countdown_layer, false);
+    time_t now = time(NULL);
+    bool flash_visible = (now % 2) != 0; // on for odd seconds, off for even seconds
+    if (flash_visible) {
+      snprintf(s_countdown_buf, sizeof(s_countdown_buf), "Low compass accuracy");
+      s_countdown_text_color = eclipse_sky_is_bright(&s_data, now) ? GColorBlack : GColorWhite;
+      layer_set_hidden(s_countdown_layer, false);
+    } else {
+      s_countdown_buf[0] = '\0';
+      layer_set_hidden(s_countdown_layer, true);
+    }
   } else {
     // Same condition countdown_layer_update_proc/refresh_status_and_maybe_canvas
     // already use elsewhere: hidden whenever there's confirmed to be
@@ -713,16 +709,13 @@ static void hands_layer_update_proc(Layer *layer, GContext *ctx) {
   int32_t min_angle = ((t->tm_min * 60 + t->tm_sec) * TRIG_MAX_ANGLE) / (60 * 60);
 
   int32_t sec_angle;
-  // Smooth sub-second motion only for shake_anim_mode 1 (Smooth second
-  // hand alone) -- deliberately NOT mode 3 (Both), even though "Both"
-  // is nominally "smooth second hand AND Planet seek together". During
-  // Planet seek (2 or 3) the second hand instead just ticks normally,
-  // per the request: the smooth motion read as visually competing
-  // with the sky's own compass-driven sweep rather than complementing
-  // it, so "Both" now means "Planet seek runs, second hand behaves as
-  // if shake_anim_mode were plain Off" rather than layering both
-  // effects onto the second hand at once.
-  if (s_shake_anim_active && s_data.show_seconds && s_data.shake_anim_mode == 1) {
+  // Smooth sub-second motion for shake_anim_mode 1 (Smooth second hand
+  // alone) AND mode 3 (Both) -- see shake_anim_wants_smooth_second()'s
+  // own comment. Planet seek (mode 2 or 3) repositions the sky by
+  // compass and is otherwise independent of this; when both are
+  // requested together (mode 3) the second hand still gets the
+  // continuous sub-second motion Smooth second hand promises.
+  if (s_shake_anim_active && s_data.show_seconds && shake_anim_wants_smooth_second(s_data.shake_anim_mode)) {
     // Shake animation: continuous sub-second motion instead of the
     // normal once-a-second jump -- time_ms() gives a fresh timestamp
     // with its own within-the-second millisecond offset, read
@@ -769,7 +762,15 @@ static void hands_layer_update_proc(Layer *layer, GContext *ctx) {
       struct tm *st = localtime(&swept_now);
       target_hour_angle = (int32_t)(((int64_t)((st->tm_hour % 12) * 3600 + st->tm_min * 60 + st->tm_sec) * TRIG_MAX_ANGLE) / (12 * 3600));
       target_min_angle = ((st->tm_min * 60 + st->tm_sec) * TRIG_MAX_ANGLE) / (60 * 60);
-      target_sec_angle = (st->tm_sec * TRIG_MAX_ANGLE) / 60;
+      // Deliberately NOT substituting target_sec_angle here -- per
+      // request, the second hand doesn't chase the same ~2-hour swept
+      // past the hour/minute hands and the sky do (that would mean
+      // visibly spinning through hundreds of revolutions in under
+      // 1.5s). It's left as the real current second (already computed
+      // above, before this block, from the real `now`), so
+      // compute_startup_hand_anim() below gives it the same single
+      // ease-in move from 12 o'clock straight to the real current time
+      // that every hand gets in the plain "animate clock" case (mode 1).
     }
     compute_startup_hand_anim(target_hour_angle, s_startup_anim_elapsed_ms, &hour_angle, &hour_length_scale_1000);
     compute_startup_hand_anim(target_min_angle, s_startup_anim_elapsed_ms, &min_angle, &min_length_scale_1000);

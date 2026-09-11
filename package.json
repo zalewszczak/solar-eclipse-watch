@@ -523,6 +523,18 @@
         },
         {
           "type": "bitmap",
+          "name": "ICON_SUN_TIME_RISE",
+          "file": "images/icon_sun_time_rise.png",
+          "memoryFormat": "1BitPalette"
+        },
+        {
+          "type": "bitmap",
+          "name": "ICON_SUN_TIME_SET",
+          "file": "images/icon_sun_time_set.png",
+          "memoryFormat": "1BitPalette"
+        },
+        {
+          "type": "bitmap",
           "name": "ICON_WEATHER_SIMPLE_SUN",
           "file": "images/icon_simple_sun.png",
           "memoryFormat": "1BitPalette"

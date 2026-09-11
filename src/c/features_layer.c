@@ -142,6 +142,13 @@ void features_layer_unload_fonts(void) {
 // as before -- see draw_tiny_icon() below.
 static const uint8_t ICON_WIDTH = 16;
 static const uint8_t ICON_ROWS = 12;
+// The sunrise/sunset glyph (case 11 below) is wider/shorter than every
+// other corner icon -- an arrow next to a horizon-sun shape, not a
+// single square glyph -- so it's drawn at its own size via
+// draw_icon_resource_with_outline_sized() rather than the shared
+// ICON_WIDTH x ICON_ROWS every other corner icon uses.
+static const uint8_t SUN_TIME_ICON_WIDTH = 20;
+static const uint8_t SUN_TIME_ICON_ROWS = 10;
 
 static const uint8_t PEBBLE_ICON[62]     = { 0x00, 0x02, 0x04, 0x08, 0x00, 0x00, 0x02, 0x04, 0x08, 0x00, 0xFD, 0xFB,
   0xF7, 0xE9, 0xF8, 0x85, 0x0A, 0x14, 0x29, 0x08, 0x85, 0x0A, 0x14, 0x29,
@@ -230,7 +237,8 @@ static void draw_tiny_icon(GContext *ctx, GPoint top_left, const uint8_t *patter
 // palette state (transparent stays reliably GColorClear regardless of
 // what the ink entry was last recolored to), so the result is
 // identical to loading a fresh copy each time.
-static void draw_icon_bitmap_tinted(GContext *ctx, GBitmap *bmp, GPoint top_left, GColor color) {
+static void draw_icon_bitmap_tinted_sized(GContext *ctx, GBitmap *bmp, GPoint top_left, GColor color,
+                                           int16_t w, int16_t h) {
   GColor *palette = gbitmap_get_palette(bmp);
   if (palette) {
     bool transparent0 = (palette[0].argb & 0xC0) == 0;
@@ -247,7 +255,11 @@ static void draw_icon_bitmap_tinted(GContext *ctx, GBitmap *bmp, GPoint top_left
     palette[1 - ink] = GColorClear;
   }
   graphics_context_set_compositing_mode(ctx, GCompOpSet);
-  graphics_draw_bitmap_in_rect(ctx, bmp, GRect(top_left.x, top_left.y, ICON_WIDTH, ICON_ROWS));
+  graphics_draw_bitmap_in_rect(ctx, bmp, GRect(top_left.x, top_left.y, w, h));
+}
+
+static void draw_icon_bitmap_tinted(GContext *ctx, GBitmap *bmp, GPoint top_left, GColor color) {
+  draw_icon_bitmap_tinted_sized(ctx, bmp, top_left, color, ICON_WIDTH, ICON_ROWS);
 }
 
 static void draw_icon_resource(GContext *ctx, GPoint top_left, uint32_t resource_id, GColor color) {
@@ -263,8 +275,9 @@ static void draw_icon_resource(GContext *ctx, GPoint top_left, uint32_t resource
 // outline, instead of a dozen hand-repeated "4-shifted-copy outline,
 // then the real icon" blocks -- 5 independent resource loads/decodes
 // per icon instead of the 1 this version needs.
-static void draw_icon_resource_with_outline(GContext *ctx, GPoint pos, uint32_t resource_id,
-                                             uint8_t outline_style, GColor outline_color, GColor color) {
+static void draw_icon_resource_with_outline_sized(GContext *ctx, GPoint pos, uint32_t resource_id,
+                                                   uint8_t outline_style, GColor outline_color, GColor color,
+                                                   int16_t w, int16_t h) {
   GBitmap *bmp = gbitmap_create_with_resource(resource_id);
   if (!bmp) return;
   if (outline_style != 0) {
@@ -272,11 +285,22 @@ static void draw_icon_resource_with_outline(GContext *ctx, GPoint pos, uint32_t 
     get_outline_offsets(outline_style, &offs, &offs_n);
     for (int i = 0; i < offs_n; i++) {
       GPoint shifted = GPoint(pos.x + offs[i].x, pos.y + offs[i].y);
-      draw_icon_bitmap_tinted(ctx, bmp, shifted, outline_color);
+      draw_icon_bitmap_tinted_sized(ctx, bmp, shifted, outline_color, w, h);
     }
   }
-  draw_icon_bitmap_tinted(ctx, bmp, pos, color);
+  draw_icon_bitmap_tinted_sized(ctx, bmp, pos, color, w, h);
   gbitmap_destroy(bmp);
+}
+
+// Same as above at the standard ICON_WIDTH x ICON_ROWS corner-icon
+// size -- every caller except the wider sunrise/sunset glyph (see
+// draw_render_icon's own case 11, which calls the _sized version
+// above directly with its own, non-standard width) goes through this
+// plain wrapper.
+static void draw_icon_resource_with_outline(GContext *ctx, GPoint pos, uint32_t resource_id,
+                                             uint8_t outline_style, GColor outline_color, GColor color) {
+  draw_icon_resource_with_outline_sized(ctx, pos, resource_id, outline_style, outline_color, color,
+                                         ICON_WIDTH, ICON_ROWS);
 }
 
 // For the full-color weather icon set (style 2, "Full color") -- these
@@ -1007,12 +1031,6 @@ static int peek_current_bpm(void) {
   return (int)health_service_peek_current_value(HealthMetricHeartRateBPM);
 }
 
-static const char *temp_unit_suffix(uint8_t temp_unit) {
-  if (temp_unit == 1) return "F";
-  if (temp_unit == 2) return "K";
-  return "C";
-}
-
 // Simple apparent-temperature ("feels like") estimate, computed
 // entirely on-watch from data already being sent (temperature, wind,
 // humidity) rather than plumbing a whole new field through the
@@ -1471,7 +1489,7 @@ static void __attribute__((noinline)) compute_weather_value(FeatureSlot *slot, u
     }
     case 5: { // current conditions
       int16_t temp = convert_temp(data->weather_temp_c, data->temp_unit);
-      snprintf(buf, sizeof(buf), "%d%s %s", temp, temp_unit_suffix(data->temp_unit),
+      snprintf(buf, sizeof(buf), "%d %s", temp,
                short_condition_text(data->weather_condition, data->cloud_cover_pct));
       slot->segment_count = 1;
       set_text_seg(slot, 0, buf, resolve_flat_color(color_mode, cond_color, main_color, accent_color));
@@ -1533,7 +1551,7 @@ static void __attribute__((noinline)) compute_weather_value(FeatureSlot *slot, u
     }
     case 32: { // temp + weather icon -- condition-based color, same as 5/31
       int16_t temp = convert_temp(data->weather_temp_c, data->temp_unit);
-      snprintf(buf, sizeof(buf), "%d%s", temp, temp_unit_suffix(data->temp_unit));
+      snprintf(buf, sizeof(buf), "%d", temp);
       GColor c = resolve_flat_color(color_mode, cond_color, main_color, accent_color);
       slot->segment_count = 2;
       set_icon_seg(slot, 0, 14, c);
@@ -1573,7 +1591,7 @@ static void __attribute__((noinline)) compute_weather_value(FeatureSlot *slot, u
     }
     case 37: { // dew point -- reuses the humidity feature's droplet icon
       int16_t dew = convert_temp(data->dew_point_c, data->temp_unit);
-      snprintf(buf, sizeof(buf), "%d%s", dew, temp_unit_suffix(data->temp_unit));
+      snprintf(buf, sizeof(buf), "%d", dew);
       GColor c = resolve_flat_color(color_mode, main_color, main_color, accent_color);
       slot_set(slot, 6, buf, c);
       return;
@@ -1602,7 +1620,7 @@ static void __attribute__((noinline)) compute_weather_value(FeatureSlot *slot, u
       else if (content == 74) { temp_c = data->temp_high_c; shown = convert_temp(temp_c, data->temp_unit); prefix = "H "; }
       else if (content == 75) { temp_c = data->temp_low_c; shown = convert_temp(temp_c, data->temp_unit); prefix = "L "; }
       else { temp_c = apparent_temp_c(data->weather_temp_c, data->wind_speed_kmh, data->humidity_pct); shown = convert_temp(temp_c, data->temp_unit); prefix = "FL "; }
-      snprintf(buf, sizeof(buf), "%s%d%s", prefix, shown, temp_unit_suffix(data->temp_unit));
+      snprintf(buf, sizeof(buf), "%s%d", prefix, shown);
       GColor c = resolve_flat_color(color_mode, seven_stop_gradient(temp_c, -10, 40), main_color, accent_color);
       slot->segment_count = 1;
       set_text_seg(slot, 0, buf, c);
@@ -1612,7 +1630,7 @@ static void __attribute__((noinline)) compute_weather_value(FeatureSlot *slot, u
       int16_t cur = convert_temp(data->weather_temp_c, data->temp_unit);
       int16_t hi = convert_temp(data->temp_high_c, data->temp_unit);
       int16_t lo = convert_temp(data->temp_low_c, data->temp_unit);
-      snprintf(buf, sizeof(buf), "%d H%d L%d%s", cur, hi, lo, temp_unit_suffix(data->temp_unit));
+      snprintf(buf, sizeof(buf), "%d H%d L%d", cur, hi, lo);
       GColor c = resolve_flat_color(color_mode, cond_color, main_color, accent_color);
       slot->segment_count = 2;
       set_icon_seg(slot, 0, 14, c);
@@ -1632,7 +1650,7 @@ static void __attribute__((noinline)) compute_weather_value(FeatureSlot *slot, u
         return;
       }
       int16_t shown = convert_temp(data->forecast_temp_c[idx], data->temp_unit);
-      snprintf(buf, sizeof(buf), "+%dh %d%s", hrs_ahead, shown, temp_unit_suffix(data->temp_unit));
+      snprintf(buf, sizeof(buf), "+%dh %d", hrs_ahead, shown);
       // Same shape as "temp + weather icon" (32): plain 7-stop gradient,
       // not the condition-based color -- per the "Temperature readouts
       // (including temp+weather icon)" rule.
@@ -2234,7 +2252,7 @@ static void draw_debug_marker_point(GContext *ctx, bool draw_debug, GPoint pos, 
   }
 }
 
-static void draw_render_icon(GContext *ctx, const RenderSegment *seg, int16_t icon_x, int16_t box_y, uint8_t outline_style, uint8_t weather_icon_style, GColor bg_color, bool draw_debug) {
+static void draw_render_icon(GContext *ctx, const RenderSegment *seg, int16_t icon_x, int16_t box_y, uint8_t outline_style, uint8_t weather_icon_style, bool draw_debug) {
   GColor color = seg->color;
   GColor outline_color = contrasting_outline_color(color);
   bool do_outline = outline_style != 0;
@@ -2277,15 +2295,16 @@ static void draw_render_icon(GContext *ctx, const RenderSegment *seg, int16_t ic
       draw_moon_phase(ctx, clip, center, moon_r, (uint8_t)seg->icon_extra, seg->icon_flag, color);
       return;
     }
-    case 11: { // sunrise/sunset glyph
-      GPoint pos = GPoint(icon_x, box_y + (CORNER_ROW_H - 9) / 2);
-      if (do_outline) {
-        for (int i = 0; i < offs_n; i++) {
-          draw_sun_time_icon(ctx, GPoint(pos.x + offs[i].x, pos.y + offs[i].y), seg->icon_flag, outline_color, bg_color);
-        }
-      }
+    case 11: { // sunrise/sunset glyph -- now a plain image (see resources/images/
+               // icon_sun_time_rise.png / icon_sun_time_set.png), drawn the exact
+               // same way every other bitmap corner icon is (draw_icon_resource_
+               // with_outline, just at this glyph's own wider/shorter size)
+               // instead of being hand-drawn with fill primitives every frame.
+      GPoint pos = GPoint(icon_x, box_y + (CORNER_ROW_H - SUN_TIME_ICON_ROWS) / 2);
+      uint32_t sun_time_resource = seg->icon_flag ? RESOURCE_ID_ICON_SUN_TIME_RISE : RESOURCE_ID_ICON_SUN_TIME_SET;
       draw_debug_marker_point(ctx, draw_debug, pos, GColorMagenta);
-      draw_sun_time_icon(ctx, pos, seg->icon_flag, color, bg_color);
+      draw_icon_resource_with_outline_sized(ctx, pos, sun_time_resource, outline_style, outline_color, color,
+                                             SUN_TIME_ICON_WIDTH, SUN_TIME_ICON_ROWS);
       return;
     }
     case 12: { // Pebble battery logo
@@ -2411,7 +2430,7 @@ static void draw_render_icon(GContext *ctx, const RenderSegment *seg, int16_t ic
 // already-resolved x_offset.
 static void features_draw_slot(GContext *ctx, GRect bounds, const FeatureSlot *slot,
                                 GFont font, int16_t font_h, int16_t font_offset,
-                                uint8_t outline_style, uint8_t weather_icon_style, GColor bg_color, bool draw_debug) {
+                                uint8_t outline_style, uint8_t weather_icon_style, bool draw_debug) {
   if (!slot->active || slot->segment_count == 0) return;
 
   int16_t box_w = slot->custom_box ? slot->box_w : CORNER_BOX_W;
@@ -2437,7 +2456,7 @@ static void features_draw_slot(GContext *ctx, GRect bounds, const FeatureSlot *s
     const RenderSegment *seg = &slot->segments[i];
     int16_t seg_x = box_x + seg->x_offset;
     if (seg->is_icon) {
-      draw_render_icon(ctx, seg, seg_x, box_y, effective_outline_style, weather_icon_style, bg_color, draw_debug);
+      draw_render_icon(ctx, seg, seg_x, box_y, effective_outline_style, weather_icon_style, draw_debug);
     } else {
       draw_text_outlined(ctx, seg->text, font,
                           GRect(seg_x, box_y + (CORNER_ROW_H - font_h) / 2 + font_offset, seg->width + 2, font_h + 2),
@@ -2834,14 +2853,10 @@ static void features_layer_update_proc(Layer *layer, GContext *ctx) {
   GFont font = font_lookup_resolve(&s_corner_font_slot, state->data->corner_font);
   int16_t font_h = font_lookup_height(state->data->corner_font);
   int16_t font_offset = font_lookup_y_offset(state->data->corner_font);
-  // Only needed here for the sunrise/sunset glyph's halo -- everything
-  // else's color was already fully resolved back at recompute time.
-  GColor bg, main_color, accent_color;
-  get_active_color_scheme(state->data, time(NULL), &bg, &main_color, &accent_color);
 
   for (int i = 0; i < FEATURES_MAX_SLOTS; i++) {
     features_draw_slot(ctx, bounds, &state->slots[i], font, font_h, font_offset,
-                        state->data->outline_style, state->data->weather_icon_style, bg, state->data->draw_debug);
+                        state->data->outline_style, state->data->weather_icon_style, state->data->draw_debug);
   }
 }
 

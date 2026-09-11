@@ -741,7 +741,8 @@ bool compass_feature_is_asleep(void);
 bool get_next_sun_event(time_t now, time_t sun_rise, time_t sun_set, time_t sun_rise_tomorrow,
                          time_t *event_time, bool *is_sunrise);
 
-// A compact "sunrise/sunset" glyph (arrow + horizon-sun), built from plain
-// fill primitives. Returns the total width drawn, so the caller can place
-// the time text right after it.
-int16_t draw_sun_time_icon(GContext *ctx, GPoint top_left, bool is_sunrise, GColor color, GColor bg);
+// draw_sun_time_icon() used to be declared here -- the sunrise/sunset
+// glyph is now a plain image drawn straight from features_layer.c's
+// draw_render_icon() (icon_kind 11), via the shared draw_icon_resource_
+// with_outline_sized() helper every other bitmap corner icon uses, so
+// there's no separate cross-file drawing function left to declare.

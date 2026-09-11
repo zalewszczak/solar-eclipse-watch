@@ -2067,10 +2067,17 @@ static void draw_planet_seek_edge_label(GContext *ctx, GRect bounds, GPoint arro
   draw_label_in_box(ctx, GRect(x, y, w, h), text, label_style, main_color);
 }
 
+// is_moon/moon_phase_pct/moon_waxing: when is_moon is true, the on-screen
+// case below draws a correctly-shaded moon-phase disc (draw_moon_phase())
+// instead of a flat filled circle -- otherwise Planet seek's Moon reads as
+// a second plain white/yellow "sun", with no phase shading at all. Only
+// affects the on-screen circle; the off-screen edge label + arrow are the
+// same for every body regardless of is_moon.
 static void draw_planet_seek_body(GContext *ctx, GRect bounds, const char *name,
                                    uint16_t az_decideg, GPoint normal_center, int16_t radius,
                                    GColor fill_color, int32_t heading_deg, int32_t blend_t_1000,
-                                   uint8_t label_style, GColor main_color) {
+                                   uint8_t label_style, GColor main_color,
+                                   bool is_moon, uint8_t moon_phase_pct, bool moon_waxing) {
   int32_t offset_decideg = planet_seek_az_offset_decideg(az_decideg, heading_deg);
   // 90deg field of view across the full screen width -- +-45deg maps
   // to the left/right edges. Whether this body ends up drawn as an
@@ -2090,8 +2097,12 @@ static void draw_planet_seek_body(GContext *ctx, GRect bounds, const char *name,
     int16_t blended_x = (int16_t)(normal_center.x + (((int32_t)compass_x - normal_center.x) * blend_t_1000) / 1000);
     GPoint pos = GPoint(blended_x, normal_center.y);
     if (pos.x >= bounds.origin.x - radius && pos.x <= bounds.origin.x + bounds.size.w + radius) {
-      graphics_context_set_fill_color(ctx, fill_color);
-      graphics_fill_circle(ctx, pos, radius);
+      if (is_moon) {
+        draw_moon_phase(ctx, bounds, pos, radius, moon_phase_pct, moon_waxing, fill_color);
+      } else {
+        graphics_context_set_fill_color(ctx, fill_color);
+        graphics_fill_circle(ctx, pos, radius);
+      }
       draw_label(ctx, bounds, pos, name, label_style, main_color);
       return;
     }
@@ -2241,17 +2252,20 @@ static void draw_planet_seek_overlay(GContext *ctx, CanvasState *state, const Ec
       ? GColorFromRGB(SUN_COLOR_SPACE_R, SUN_COLOR_SPACE_G, SUN_COLOR_SPACE_B)
       : state->cached_sun_fill_color;
     draw_planet_seek_body(ctx, bounds, "Sun", interp_sun_az_decideg(d, now), state->cached_sun_center, sun_r,
-                           sun_fill, heading_deg, eased_t_1000, d->label_style, main_color);
+                           sun_fill, heading_deg, eased_t_1000, d->label_style, main_color,
+                           false, 0, false);
   }
   if (state->cached_moon_visible) {
     draw_planet_seek_body(ctx, bounds, "Moon", interp_moon_az_decideg(d, now), state->cached_moon_center, moon_r,
-                           GColorWhite, heading_deg, eased_t_1000, d->label_style, main_color);
+                           GColorWhite, heading_deg, eased_t_1000, d->label_style, main_color,
+                           true, d->moon_phase_pct, d->moon_waxing);
   }
   for (int p = 0; p < PLANET_COUNT; p++) {
     if (!state->cached_planet_visible[p]) continue;
     draw_planet_seek_body(ctx, bounds, PLANET_NAMES[p], interp_planet_az_decideg(d, (PlanetId)p, now),
                            state->cached_planet_center[p], PLANET_R, planet_color((PlanetId)p),
-                           heading_deg, eased_t_1000, d->label_style, main_color);
+                           heading_deg, eased_t_1000, d->label_style, main_color,
+                           false, 0, false);
   }
   // Stars and ISS have no full-day sample grid to interpolate through
   // (see interp_sun_az_decideg's own comment for what that grid is
@@ -2265,12 +2279,14 @@ static void draw_planet_seek_overlay(GContext *ctx, CanvasState *state, const Ec
       int16_t s_y = alt_to_y(d->star_alt_decideg[s], d->sky_scale_max_alt_decideg, bounds.size.h, STAR_RADIUS[s]);
       int16_t s_x = (bounds.size.w * (int32_t)d->star_az_decideg[s]) / 3600;
       draw_planet_seek_body(ctx, bounds, STAR_NAMES[s], (uint16_t)d->star_az_decideg[s], GPoint(s_x, s_y),
-                             STAR_RADIUS[s], GColorWhite, heading_deg, eased_t_1000, d->label_style, main_color);
+                             STAR_RADIUS[s], GColorWhite, heading_deg, eased_t_1000, d->label_style, main_color,
+                             false, 0, false);
     }
   }
   if (state->cached_iss_visible) {
     draw_planet_seek_body(ctx, bounds, "ISS", (uint16_t)(d->iss_az_deg * 10), state->cached_iss_center,
-                           ISS_R, GColorWhite, heading_deg, eased_t_1000, d->label_style, main_color);
+                           ISS_R, GColorWhite, heading_deg, eased_t_1000, d->label_style, main_color,
+                           false, 0, false);
   }
 }
 
