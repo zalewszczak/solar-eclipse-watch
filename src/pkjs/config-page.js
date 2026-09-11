@@ -383,6 +383,27 @@ function googleFontsHref() {
   return 'https://fonts.googleapis.com/css2?' + params.join('&') + '&display=swap';
 }
 
+// Same idea as googleFontsHref() above, for the handful of fonts
+// (RebelRedux, Digital dream, Fizzy Soda as of this comment -- see
+// each entry's own `cdn` field and comment in presets-lookups.js)
+// that aren't on Google Fonts at all but ARE hosted as a free webfont
+// on cdnfonts.com. Unlike Google Fonts (one combined stylesheet
+// request covering every family), cdnfonts.com serves one stylesheet
+// per font family, so this returns one <link> per distinct `cdn` slug
+// instead of trying to combine them -- still just one request per
+// font actually used, not per FONT_LOOKUP entry (Digital Dream Small/
+// Digital Dream share the same slug and so the same single link).
+function cdnFontLinks() {
+  var seen = {};
+  var links = [];
+  FONT_LOOKUP.forEach(function (f) {
+    if (!f.cdn || seen[f.cdn]) return;
+    seen[f.cdn] = true;
+    links.push('<link rel="stylesheet" href="https://fonts.cdnfonts.com/css/' + encodeURIComponent(f.cdn) + '">');
+  });
+  return links.join('');
+}
+
 // Fastest way to go from an id to its entry -- every font picker
 // needs this (rendering the current selection, gating Show Seconds,
 // auto-pairing the small companion, etc.).
@@ -1119,6 +1140,7 @@ function buildConfigHtml(current) {
 '<link rel="preconnect" href="https://fonts.googleapis.com">' +
 '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>' +
 '<link rel="stylesheet" href="' + googleFontsHref() + '">' +
+cdnFontLinks() +
 '<style>' +
 '  :root { --page-bg: #f4f4f4; --card-bg: #fff; --text: #222; --text-strong: #333; --text-muted: #666; --text-faint: #888; --text-faint2: #555; --text-disabled: #999; --border: #ccc; --border-light: #eee; --border-lighter: #ddd; --btn-bg: #fafafa; }' +
 '  @media (prefers-color-scheme: dark) {' +

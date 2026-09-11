@@ -87,13 +87,18 @@
 // `google`/`weight`/`italic` identify the actual Google Font used for
 // config-page.js's own live font-picker previews (see its
 // googleFontsHref() and the font-picker popup) -- verified against
-// fonts.google.com, not guessed. `approx: true` marks a substitute
-// rather than the real face: the on-watch font itself isn't (and, as
-// far as could be verified, has never been) published on Google
-// Fonts, so the picker shows the closest visual analogue instead of
-// the exact glyphs -- each one says why in its own comment. Every
-// non-approx entry below is the literal same family as what's baked
-// into the watch resource.
+// fonts.google.com, not guessed. `cdn` is the same idea for a font
+// hosted on cdnfonts.com instead (its own value is that site's own
+// URL slug, e.g. cdnfonts.com/rebelredux.font -> cdn: 'rebelredux' --
+// see cdnFontLinks() in config-page.js for how these get loaded
+// alongside the one combined Google Fonts request). `approx: true`
+// marks a substitute rather than the real face: the on-watch font
+// itself isn't (and, as far as could be verified, has never been)
+// published on Google Fonts or cdnfonts under its own name, so the
+// picker shows the closest visual analogue instead of the exact
+// glyphs -- each one says why in its own comment. Every non-approx
+// entry below (whether `google` or `cdn`) is the literal same family
+// as what's baked into the watch resource.
 var FONT_LOOKUP = [
   { id: 0,  label: 'Gothic X-Small',        height: 14, preview: "font-family: Arial, sans-serif;", small: true,
     google: null, sizePx: 14, approx: true }, // Pebble's built-in "Gothic" system font -- no Google Fonts equivalent by name; Arial/Helvetica is the closest common grotesque.
@@ -118,13 +123,13 @@ var FONT_LOOKUP = [
   { id: 13, label: 'Bitham Medium 34',    height: 21, preview: "font-family: 'Futura', 'Century Gothic', sans-serif; font-weight: 500;", small: false, mainClock: true, google: null, sizePx: 21, approx: true }, // see id 12
   { id: 14, label: 'Bitham Light',        height: 26, preview: "font-family: 'Futura', 'Century Gothic', sans-serif; font-weight: 300; letter-spacing: 1px;", small: false, mainClock: true, google: null, sizePx: 26, approx: true }, // see id 12
   { id: 15, label: 'Bitham Bold',         height: 26, preview: "font-family: 'Futura', 'Century Gothic', sans-serif; font-weight: 700; letter-spacing: 1px;", small: true, mainClock: true, google: null, sizePx: 26, approx: true }, // see id 12
-  { id: 16, label: 'Digital Dream Small', height: 12, preview: "font-family: 'VT323', 'Courier New', monospace; letter-spacing: 1px;", small: true,
-    google: 'VT323', weight: 400, sizePx: 12, approx: true }, // Digital Dream (Pizzadude, dafont-only) isn't on Google Fonts -- VT323's CRT/LCD terminal look is the closest digital-clock-style match Google Fonts has.
-  { id: 17, label: 'Digital Dream',       height: 40, preview: "font-family: 'VT323', 'Courier New', monospace; letter-spacing: 2px;", small: false, mainClock: true, google: 'VT323', weight: 400, sizePx: 48, approx: true }, // see id 16
-  { id: 18, label: 'Minecrafter Small',   height: 12, preview: "font-family: 'Press Start 2P', 'Courier New', monospace;", small: true,
-    google: 'Press Start 2P', weight: 400, sizePx: 12, approx: true }, // Minecrafter (dafont-only) isn't on Google Fonts -- Press Start 2P's blocky 8-bit game look is the closest match.
-  { id: 19, label: 'Minecrafter',         height: 40, preview: "font-family: 'Press Start 2P', 'Courier New', monospace;", small: false, mainClock: true, wide: true,
-    google: 'Press Start 2P', weight: 400, sizePx: 48, approx: true }, // see id 18
+  { id: 16, label: 'Digital Dream Small', height: 12, preview: "font-family: 'Digital dream', 'Courier New', monospace; letter-spacing: 1px;", small: true,
+    cdn: 'digital-dream', sizePx: 12 }, // Digital Dream (Pizzadude, dafont-only) isn't on Google Fonts, but the exact same font is hosted on cdnfonts.com as a webfont -- see cdnFontLinks() in config-page.js for how the extra <link> gets added.
+  { id: 17, label: 'Digital Dream',       height: 40, preview: "font-family: 'Digital dream', 'Courier New', monospace; letter-spacing: 2px;", small: false, mainClock: true, cdn: 'digital-dream', sizePx: 48 }, // see id 16
+  { id: 18, label: 'Minecrafter Small',   height: 12, preview: "font-family: 'Fizzy Soda', 'Courier New', monospace;", small: true,
+    cdn: 'fizzy-soda', sizePx: 12, approx: true }, // Minecrafter (dafont-only) itself isn't on cdnfonts, but Fizzy Soda (also on cdnfonts) is an almost identical blocky pixel-game face -- much closer than Google Fonts' own Press Start 2P was.
+  { id: 19, label: 'Minecrafter',         height: 40, preview: "font-family: 'Fizzy Soda', 'Courier New', monospace;", small: false, mainClock: true, wide: true,
+    cdn: 'fizzy-soda', sizePx: 48, approx: true }, // see id 18
   { id: 20, label: 'SF Pixelate',         height: 40, preview: "font-family: 'DotGothic16', 'Courier New', monospace;", small: false, mainClock: true, wide: true, secondsDisabled: true,
     google: 'DotGothic16', weight: 400, sizePx: 48, approx: true }, // see id 20
   { id: 21, label: 'Alagard Small',       height: 19, preview: "font-family: 'Pixelify Sans', 'Century Gothic', sans-serif; font-weight: 600;", small: true,
@@ -163,16 +168,16 @@ var FONT_LOOKUP = [
   { id: 45, label: 'M Plus 1C',           height: 40, preview: "font-family: 'M PLUS 1 Code', Impact, 'Arial Narrow', sans-serif; font-weight: 700;", small: false, mainClock: true, google: 'M PLUS 1 Code', weight: 700, sizePx: 48 },
   { id: 46, label: 'Reddit Sans',         height: 40, preview: "font-family: 'Reddit Sans', Impact, 'Arial Narrow', sans-serif; font-weight: 700;", small: false, mainClock: true, google: 'Reddit Sans', weight: 700, sizePx: 48 },
   
-  { id: 47, label: 'Arcade',              height: 18, preview: "font-family: 'Press Start 2P', 'Courier New', monospace;", small: true, mainClock: false, google: 'Press Start 2P', weight: 400, sizePx: 18 }, //TODO: add another sources with these fonts since google fonts doesnt have them...
-  { id: 48, label: 'DS Digital Bold',     height: 20, preview: "font-family: 'Press Start 2P', 'Courier New', monospace;", small: true, mainClock: false, google: 'Press Start 2P', weight: 400, sizePx: 20 },
-  { id: 49, label: 'DS Digital Bold Italic',height: 20, preview: "font-family: 'Press Start 2P', 'Courier New', monospace;", small: true, mainClock: false, google: 'Press Start 2P', weight: 400, sizePx: 20 },
-  { id: 50, label: 'LCD',                 height: 18, preview: "font-family: 'Press Start 2P', 'Courier New', monospace;", small: true, mainClock: false, google: 'Press Start 2P', weight: 400, sizePx: 18 },
-  { id: 51, label: 'Radioland',           height: 16, preview: "font-family: 'Press Start 2P', 'Courier New', monospace;", small: true, mainClock: false, google: 'Press Start 2P', weight: 400, sizePx: 16 },
+  { id: 47, label: 'Arcade',              height: 18, preview: "font-family: 'ArcadeClassic', 'Courier New', monospace;", small: true, mainClock: false, cdn: 'arcadeclassic', sizePx: 18 }, // ArcadeClassic (Pizzadude, dafont-only) is hosted on cdnfonts.com as a webfont under its own name -- see cdnFontLinks() below.
+  { id: 48, label: 'DS Digital Bold',     height: 20, preview: "font-family: 'DS-Digital', 'Courier New', monospace; font-weight: 700;", small: true, mainClock: false, cdn: 'ds-digital', sizePx: 20 }, // DS-Digital is hosted on cdnfonts.com as a webfont -- see cdnFontLinks() below.
+  { id: 49, label: 'DS Digital Bold Italic',height: 20, preview: "font-family: 'DS-Digital', 'Courier New', monospace; font-weight: 700; font-style: italic;", small: true, mainClock: false, cdn: 'ds-digital', sizePx: 20 }, // see id 48
+  { id: 50, label: 'LCD',                 height: 18, preview: "font-family: 'Press Start 2P', 'Courier New', monospace;", small: true, mainClock: false, google: 'Press Start 2P', weight: 400, sizePx: 18, approx: true }, // LCD Solid (dafont-only) doesn't appear to be hosted on cdnfonts.com or Google Fonts under its own name -- Press Start 2P remains the closest available blocky-digital match found so far.
+  { id: 51, label: 'Radioland',           height: 16, preview: "font-family: 'Radioland', 'Courier New', monospace;", small: true, mainClock: false, cdn: 'radioland', sizePx: 16 }, // Radioland (Pizzadude, dafont-only) is hosted on cdnfonts.com as a webfont under its own name -- see cdnFontLinks() below.
 
-  { id: 52, label: 'DS Digital Bold',     height: 48, preview: "font-family: 'Press Start 2P', 'Courier New', monospace;", small: false, mainClock: true, google: 'Press Start 2P', weight: 400, sizePx: 48 },
-  { id: 53, label: 'DS Digital Bold Italic',height: 48, preview: "font-family: 'Press Start 2P', 'Courier New', monospace;", small: false, mainClock: true, google: 'Press Start 2P', weight: 400, sizePx: 48 },
-  { id: 54, label: 'LCD',                 height: 48, preview: "font-family: 'Press Start 2P', 'Courier New', monospace;", small: false, mainClock: true, google: 'Press Start 2P', weight: 400, sizePx: 48 },
-  { id: 55, label: 'Rebel Redux',         height: 48, preview: "font-family: 'Arial Narrow', 'Impact', sans-serif; font-weight: 500;", small: false, mainClock: true }
+  { id: 52, label: 'DS Digital Bold',     height: 48, preview: "font-family: 'DS-Digital', 'Courier New', monospace; font-weight: 700;", small: false, mainClock: true, cdn: 'ds-digital', sizePx: 48 }, // see id 48
+  { id: 53, label: 'DS Digital Bold Italic',height: 48, preview: "font-family: 'DS-Digital', 'Courier New', monospace; font-weight: 700; font-style: italic;", small: false, mainClock: true, cdn: 'ds-digital', sizePx: 48 }, // see id 48
+  { id: 54, label: 'LCD',                 height: 48, preview: "font-family: 'Press Start 2P', 'Courier New', monospace;", small: false, mainClock: true, google: 'Press Start 2P', weight: 400, sizePx: 48, approx: true }, // see id 50
+  { id: 55, label: 'Rebel Redux',         height: 48, preview: "font-family: 'RebelRedux', 'Arial Narrow', 'Impact', sans-serif; font-weight: 500;", small: false, mainClock: true, cdn: 'rebelredux', sizePx: 48 } // RebelRedux (dafont-only) is hosted on cdnfonts.com as a webfont -- see cdnFontLinks() in config-page.js.
 
 ]; // remember to bump FONT_MAX_CONTENT_ID in index.js!!!
 
