@@ -588,7 +588,7 @@ var CORNER_CATEGORIES = [
       },
       {
         "id": 6,
-        "label": "UV index",
+        "label": "UV Index today",
         "preview": "UV5"
       },
       {

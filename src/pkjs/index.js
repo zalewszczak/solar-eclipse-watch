@@ -142,7 +142,8 @@ var KEY_TYPE_MAP = (function () {
     'SHADOW_TRANSLUCENT', 'SHADOW_ANGLE',
     'BIG_ANALOG_MARKER_STYLE', 'BITMAP_MARKER_TRANSPARENT', 'DRAW_FEATURES_BENEATH_HANDS',
     'MARKER_RINGS', 'MARKER_TEXT', 'HANDS',
-    'CENTER_CIRCLE_RADIUS', 'CENTER_CIRCLE_COLOR', "DRAW_DEBUG"
+    'CENTER_CIRCLE_RADIUS', 'CENTER_CIRCLE_COLOR', "DRAW_DEBUG",
+    'CUSTOM_HOUR_INNER_THICKNESS', 'CUSTOM_SEC_INNER_THICKNESS'
   ]);
 
   return map;
@@ -581,11 +582,15 @@ function clampInt(v, lo, hi, fallback) {
   if (n > hi) return hi;
   return n;
 }
-function customMarkerStyleCode(key, fallback) { return clampInt(getSetting(key, fallback), 0, 2, fallback); }
+function customMarkerStyleCode(key, fallback) { return clampInt(getSetting(key, fallback), 0, 4, fallback); } // 3 is reserved/unused -- see MarkerRingConfig's own style comment
 function customMarkerBorderCode(key, fallback) { return clampInt(getSetting(key, fallback), MARKER_BORDER_MIN, MARKER_BORDER_MAX, fallback); }
 
 function customHourStyleCode() { return customMarkerStyleCode('CONFIG_CUSTOM_HOUR_STYLE', 0); }
 function customHourThicknessCode() { return clampInt(getSetting('CONFIG_CUSTOM_HOUR_THICKNESS', '3'), 1, 20, 3); }
+// Only meaningful for style 4 (tapered) -- sent as its own simple
+// field, not part of the MARKER_RINGS blob, see custom_hour_marker_
+// inner_thickness's own comment in eclipse_data.h for why.
+function customHourInnerThicknessCode() { return clampInt(getSetting('CONFIG_CUSTOM_HOUR_INNER_THICKNESS', '3'), 1, 20, 3); }
 function customHourInnerEccCode() { return clampInt(getSetting('CONFIG_CUSTOM_HOUR_INNER_ECC', '0'), 0, 100, 0); }
 function customHourOuterEccCode() { return clampInt(getSetting('CONFIG_CUSTOM_HOUR_OUTER_ECC', '0'), 0, 100, 0); }
 function customHourInnerBorderCode() { return customMarkerBorderCode('CONFIG_CUSTOM_HOUR_INNER_BORDER', 20); }
@@ -600,6 +605,7 @@ function customHourTranslucentCode() { return getSetting('CONFIG_CUSTOM_HOUR_TRA
 function customHourColorCode() { return clampInt(getSetting('CONFIG_CUSTOM_HOUR_COLOR', '0'), 0, 2, 0); }
 function customSecStyleCode() { return customMarkerStyleCode('CONFIG_CUSTOM_SEC_STYLE', 0); }
 function customSecThicknessCode() { return clampInt(getSetting('CONFIG_CUSTOM_SEC_THICKNESS', '1'), 1, 10, 1); }
+function customSecInnerThicknessCode() { return clampInt(getSetting('CONFIG_CUSTOM_SEC_INNER_THICKNESS', '1'), 1, 10, 1); } // see customHourInnerThicknessCode()
 function customSecInnerEccCode() { return clampInt(getSetting('CONFIG_CUSTOM_SEC_INNER_ECC', '0'), 0, 100, 0); }
 function customSecOuterEccCode() { return clampInt(getSetting('CONFIG_CUSTOM_SEC_OUTER_ECC', '0'), 0, 100, 0); }
 function customSecInnerBorderCode() { return customMarkerBorderCode('CONFIG_CUSTOM_SEC_INNER_BORDER', 70); }
@@ -1002,6 +1008,8 @@ function populateSettingsFields(dict) {
   dict['BITMAP_MARKER_TRANSPARENT'] = bitmapMarkerTransparentCode();
   dict['DRAW_FEATURES_BENEATH_HANDS'] = drawFeaturesBeneathHandsCode();
   dict['MARKER_RINGS'] = markerRingsBytes();
+  dict['CUSTOM_HOUR_INNER_THICKNESS'] = customHourInnerThicknessCode();
+  dict['CUSTOM_SEC_INNER_THICKNESS'] = customSecInnerThicknessCode();
   dict['MARKER_TEXT'] = markerTextBytes();
   dict['HANDS'] = handsBytes();
   dict['CENTER_CIRCLE_RADIUS'] = centerCircleRadiusCode();
@@ -1849,6 +1857,7 @@ Pebble.addEventListener('showConfiguration', function () {
     drawFeaturesBeneathHands: getSetting('CONFIG_DRAW_FEATURES_BENEATH_HANDS', 'false') === 'true',
     customHourStyle: getSetting('CONFIG_CUSTOM_HOUR_STYLE', '0'),
     customHourThickness: getSetting('CONFIG_CUSTOM_HOUR_THICKNESS', '3'),
+    customHourInnerThickness: getSetting('CONFIG_CUSTOM_HOUR_INNER_THICKNESS', '3'),
     customHourInnerEcc: getSetting('CONFIG_CUSTOM_HOUR_INNER_ECC', '0'),
     customHourOuterEcc: getSetting('CONFIG_CUSTOM_HOUR_OUTER_ECC', '0'),
     customHourInnerBorder: getSetting('CONFIG_CUSTOM_HOUR_INNER_BORDER', '20'),
@@ -1857,6 +1866,7 @@ Pebble.addEventListener('showConfiguration', function () {
     customHourColor: getSetting('CONFIG_CUSTOM_HOUR_COLOR', '0'),
     customSecStyle: getSetting('CONFIG_CUSTOM_SEC_STYLE', '0'),
     customSecThickness: getSetting('CONFIG_CUSTOM_SEC_THICKNESS', '1'),
+    customSecInnerThickness: getSetting('CONFIG_CUSTOM_SEC_INNER_THICKNESS', '1'),
     customSecInnerEcc: getSetting('CONFIG_CUSTOM_SEC_INNER_ECC', '0'),
     customSecOuterEcc: getSetting('CONFIG_CUSTOM_SEC_OUTER_ECC', '0'),
     customSecInnerBorder: getSetting('CONFIG_CUSTOM_SEC_INNER_BORDER', '70'),
@@ -2080,6 +2090,7 @@ Pebble.addEventListener('webviewclosed', function (e) {
   setSetting('CONFIG_DRAW_FEATURES_BENEATH_HANDS', settings.CONFIG_DRAW_FEATURES_BENEATH_HANDS ? 'true' : 'false');
   setSetting('CONFIG_CUSTOM_HOUR_STYLE', settings.CONFIG_CUSTOM_HOUR_STYLE || '0');
   setSetting('CONFIG_CUSTOM_HOUR_THICKNESS', settings.CONFIG_CUSTOM_HOUR_THICKNESS || '3');
+  setSetting('CONFIG_CUSTOM_HOUR_INNER_THICKNESS', settings.CONFIG_CUSTOM_HOUR_INNER_THICKNESS || '3');
   setSetting('CONFIG_CUSTOM_HOUR_INNER_ECC', settings.CONFIG_CUSTOM_HOUR_INNER_ECC || '0');
   setSetting('CONFIG_CUSTOM_HOUR_OUTER_ECC', settings.CONFIG_CUSTOM_HOUR_OUTER_ECC || '0');
   setSetting('CONFIG_CUSTOM_HOUR_INNER_BORDER', settings.CONFIG_CUSTOM_HOUR_INNER_BORDER || '20');
@@ -2088,6 +2099,7 @@ Pebble.addEventListener('webviewclosed', function (e) {
   setSetting('CONFIG_CUSTOM_HOUR_COLOR', settings.CONFIG_CUSTOM_HOUR_COLOR || '0');
   setSetting('CONFIG_CUSTOM_SEC_STYLE', settings.CONFIG_CUSTOM_SEC_STYLE || '0');
   setSetting('CONFIG_CUSTOM_SEC_THICKNESS', settings.CONFIG_CUSTOM_SEC_THICKNESS || '1');
+  setSetting('CONFIG_CUSTOM_SEC_INNER_THICKNESS', settings.CONFIG_CUSTOM_SEC_INNER_THICKNESS || '1');
   setSetting('CONFIG_CUSTOM_SEC_INNER_ECC', settings.CONFIG_CUSTOM_SEC_INNER_ECC || '0');
   setSetting('CONFIG_CUSTOM_SEC_OUTER_ECC', settings.CONFIG_CUSTOM_SEC_OUTER_ECC || '0');
   setSetting('CONFIG_CUSTOM_SEC_INNER_BORDER', settings.CONFIG_CUSTOM_SEC_INNER_BORDER || '70');

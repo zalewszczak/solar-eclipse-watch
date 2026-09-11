@@ -154,7 +154,9 @@
       "BATTERY_SAVER_ENABLED",
       "BATTERY_SAVER_PHASE",
       "UV_INDEX_CURRENT_X10",
-      "DRAW_DEBUG"
+      "DRAW_DEBUG",
+      "CUSTOM_HOUR_INNER_THICKNESS",
+      "CUSTOM_SEC_INNER_THICKNESS"
     ],
     "resources": {
       "media": [

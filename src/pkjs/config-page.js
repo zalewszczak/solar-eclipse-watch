@@ -572,10 +572,10 @@ var MARKER_BORDER_MAX = 100;
 
 function customMarkerHiddenInputsHtml(current) {
   var d = {
-    customHourStyle: '0', customHourThickness: '3',
+    customHourStyle: '0', customHourThickness: '3', customHourInnerThickness: '3',
     customHourInnerEcc: '0', customHourOuterEcc: '0', customHourInnerBorder: '20', customHourOuterBorder: '100',
     customHourTranslucent: 'false', customHourColor: '0',
-    customSecStyle: '0', customSecThickness: '1',
+    customSecStyle: '0', customSecThickness: '1', customSecInnerThickness: '1',
     customSecInnerEcc: '0', customSecOuterEcc: '0', customSecInnerBorder: '70', customSecOuterBorder: '100',
     customSecTranslucent: 'false', customSecColor: '0',
     markerTextHourMask: '4095', markerTextSecMask: '4095'
@@ -596,6 +596,7 @@ function customMarkerHiddenInputsHtml(current) {
 // settings until Save" pattern as the corner slot editor.
 function customMarkerModalHtml(kind, title, thicknessMax) {
   var p = kind === 'hour' ? 'cmHour' : 'cmSec';
+  var styleChangeFn = kind === 'hour' ? 'cmHourStyleChange' : 'cmSecStyleChange';
   return (
 '<div class="modal-overlay" id="customMarkerModal-' + kind + '" onclick="if (event.target === this) closeCustomMarkerEditor(\'' + kind + '\');">' +
 '  <div class="modal-box">' +
@@ -604,10 +605,15 @@ function customMarkerModalHtml(kind, title, thicknessMax) {
 
 '    <label>Shape</label>' +
       modeButtonGroupHtml(p + 'StyleGroup', p + 'Style', [
+        { value: 'none', label: 'None' },
         { value: '0', label: 'Dot' },
         { value: '1', label: 'Line' },
-        { value: '2', label: 'Square' }
-      ], '0') +
+        { value: '2', label: 'Square' },
+        { value: '4', label: 'Tapered' }
+      ], '0', styleChangeFn) +
+'    <div class="help" id="' + p + 'NoneHelp" style="display:none;">This ring is turned off -- pick any other shape to bring it back with its last settings.</div>' +
+
+'    <div id="' + p + 'GeometryWrap">' +
 
 '    <div class="slider-row">' +
 '      <label for="' + p + 'Thickness">Thickness <span class="val" id="' + p + 'ThicknessVal"></span></label>' +
@@ -617,7 +623,17 @@ function customMarkerModalHtml(kind, title, thicknessMax) {
 '      <button type="button" class="slider-step-btn" onclick="stepSlider(\'' + p + 'Thickness\', 1)">+</button>' +
 '      </div>' +
 '    </div>' +
-'    <div class="help">Each mark is drawn directly between its inner and outer border points below -- no separate length setting.</div>' +
+'    <div class="help" id="' + p + 'ThicknessHelp">Each mark is drawn directly between its inner and outer border points below -- no separate length setting.</div>' +
+
+'    <div class="slider-row" id="' + p + 'InnerThicknessRow" style="display:none;">' +
+'      <label for="' + p + 'InnerThickness">Inner thickness <span class="val" id="' + p + 'InnerThicknessVal"></span></label>' +
+'      <div class="slider-with-buttons">' +
+'      <button type="button" class="slider-step-btn" onclick="stepSlider(\'' + p + 'InnerThickness\', -1)">&minus;</button>' +
+'      <input type="range" id="' + p + 'InnerThickness" min="1" max="' + thicknessMax + '" step="1" oninput="onCustomMarkerSliderInput(\'' + kind + '\')">' +
+'      <button type="button" class="slider-step-btn" onclick="stepSlider(\'' + p + 'InnerThickness\', 1)">+</button>' +
+'      </div>' +
+'    </div>' +
+'    <div class="help" id="' + p + 'InnerThicknessHelp" style="display:none;">Tapered only: this is the width at the ring\'s inner (base) edge -- "Thickness" above becomes the outer (end) edge\'s width instead. Set one of the two to 1 and the other higher for a sharp triangle; equal values look the same as Square.</div>' +
 
 '    <div class="slider-row">' +
 '      <label for="' + p + 'InnerEcc">Inner eccentricity <span class="val" id="' + p + 'InnerEccVal"></span></label>' +
@@ -672,6 +688,8 @@ function customMarkerModalHtml(kind, title, thicknessMax) {
 '      <button type="button" onclick="applyMarkerPreset(\'' + kind + '\', \'big\')">Big</button>' +
 '    </div>' +
 '    <button type="button" class="marker-edit-btn" style="margin-top:8px;" onclick="copyMarkerConfig(\'' + kind + '\')">Copy from ' + (kind === 'hour' ? 'seconds' : 'hour') + ' indices</button>' +
+
+'    </div>' +
 
 '    </div>' +
 '    <div class="modal-footer">' +
@@ -935,7 +953,9 @@ function handEditorModalHtml(kind, title) {
  *     showSunTime, showIss, sunMoonSize: '25'|'50'|'75'|'100', shakeLabelSeconds, vibrateOnPhaseChange,
  *     tempUnit: 'C'|'F',
  *     cornerTL, cornerTR, cornerBL, cornerBR: '0'-'9', cornerTLColor, cornerTRColor, cornerBLColor, cornerBRColor: '0'-'3', stepGoal,
- *     customHourStyle/customSecStyle: '0'-'2' (dot/line/square), customHourThickness (1-20)/
+ *     customHourStyle/customSecStyle: '0'-'2' (dot/line/square), '4' (tapered -- 3 reserved/unused;
+ *     also drives customHourInnerThickness (1-20)/customSecInnerThickness (1-10) below, only
+ *     meaningful for style 4), customHourThickness (1-20)/
  *     customSecThickness (1-10), customHourInnerEcc/customHourOuterEcc/customSecInnerEcc/
  *     customSecOuterEcc: '0'-'100', customHourInnerBorder/customHourOuterBorder/
  *     customSecInnerBorder/customSecOuterBorder: '0'-'100' (% reach, see marker_reach_px()
@@ -1325,7 +1345,8 @@ cdnFontLinks() +
 '  .top-bar-actions { display: flex; gap: 6px; align-items: center; }' +
 '  .back-btn { padding: 6px 10px; font-size: 13px; font-weight: 600; color: var(--text-strong); background: var(--card-bg); border: 1px solid var(--border); border-radius: 6px; }' +
 '  .back-btn:active { background: var(--border-light); }' +
-'  .donate-btn { padding: 6px 10px; font-size: 13px; font-weight: 700; color: #fff; background: linear-gradient(135deg, #ffb347, #ff8c00); border: none; border-radius: 6px; box-shadow: 0 1px 3px rgba(255,140,0,0.5); }' +
+'  .donate-btn { padding: 6px 10px; font-size: 13px; font-weight: 700; color: #fff; background: linear-gradient(135deg, #ffb347, #ff8c00, #ffb347); background-size: 200% 200%; animation: donateGradientShift 4s ease-in-out infinite; border: none; border-radius: 6px; box-shadow: 0 1px 3px rgba(255,140,0,0.5); }' +
+'  @keyframes donateGradientShift { 0%, 100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }' +
 '  .donate-btn:active { filter: brightness(0.92); }' +
 '  .top-bar-title { font-size: 15px; font-weight: 700; margin-top: 6px; color: var(--text); white-space: nowrap; }' +
 '  .top-bar-desc { font-size: 10px; line-height: 1.3; color: var(--text-muted); margin-top: 3px; }' +
@@ -1447,7 +1468,18 @@ cdnFontLinks() +
 // unshrinkable floor, silently defeating text-overflow: ellipsis and
 // forcing the whole header row (and the section toggle "button" it's
 // inside) wider than it should be instead of actually clipping.
-'  .section-legend-sub { font-size: 8px; line-height: 1.25; color: var(--text-faint); margin-top: 1px; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }' +
+'  .section-legend-sub { font-size: 11.2px; line-height: 1.25; color: var(--text-faint); margin-top: 1px; min-width: 0; white-space: nowrap; overflow: hidden; position: relative; }' +
+// Sliding-overflow inner span for .section-legend-sub -- see
+// applySubheadSlide()/setSubheaderText()/setSubheaderHtml() further
+// down for when subhead-sliding actually gets added (only once the
+// text is measured as genuinely too wide for the collapsed row, not
+// unconditionally). Ease in/out and a long-ish pause at each end
+// (15% and 65%) rather than a constant scroll, so it reads as
+// "pausing to let you read, then sliding to reveal the rest" instead
+// of a distracting nonstop marquee.
+'  .subhead-sub-inner { display: inline-block; white-space: nowrap; }' +
+'  .subhead-sub-inner.subhead-sliding { animation: subheadSlide 6s ease-in-out infinite; }' +
+'  @keyframes subheadSlide { 0%, 15% { transform: translateX(0); } 50%, 65% { transform: translateX(var(--slide-dist, 0)); } 100% { transform: translateX(0); } }' +
 // Colors section sub-header's own "3 dots" (current main/accent/
 // background) -- see computeColorsSubheaderHtml() further down.
 '  .subhead-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-left: 3px; border: 1px solid rgba(0,0,0,0.25); vertical-align: middle; }' +
@@ -1499,12 +1531,20 @@ cdnFontLinks() +
 // features_layer.c), plus the single always-on feature centered
 // beneath the clock at the very bottom edge, the same width band the
 // clock text itself occupies on the watch (digital_clock_area()).
-'  .slot-digital-left1 { left: 4px; bottom: 42px; }' +
-'  .slot-digital-left2 { left: 4px; bottom: 21px; }' +
-'  .slot-digital-left3 { left: 4px; bottom: 2px; }' +
-'  .slot-digital-right1 { right: 4px; bottom: 42px; }' +
-'  .slot-digital-right2 { right: 4px; bottom: 21px; }' +
-'  .slot-digital-right3 { right: 4px; bottom: 2px; }' +
+// Spread across the bar's own ~91px height (274px diagram * 33.33%)
+// with a real gap between rows -- a .slot-btn is itself about 25px
+// tall (11px font + 10px padding + 2px border), so the previous
+// 21px-apart anchors left adjacent rows overlapping by several px
+// instead of reading as 3 distinct rows. These sit clear of the
+// centered clock digits regardless of how close to the bar's top
+// edge they get, since the buttons are pinned to the far left/right
+// (left/right: 4px) while the digits sit centered.
+'  .slot-digital-left1 { left: 4px; bottom: 60px; }' +
+'  .slot-digital-left2 { left: 4px; bottom: 32px; }' +
+'  .slot-digital-left3 { left: 4px; bottom: 4px; }' +
+'  .slot-digital-right1 { right: 4px; bottom: 60px; }' +
+'  .slot-digital-right2 { right: 4px; bottom: 32px; }' +
+'  .slot-digital-right3 { right: 4px; bottom: 4px; }' +
 '  .slot-digital-bottom { left: 50%; bottom: 2px; transform: translateX(-50%); min-width: 90px; }' +
 '</style></head>' +
 '<body>' +
@@ -3393,51 +3433,58 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  };' +
 '}' +
 // Direct port of draw_ring_mark_fp(): a straight quad from inner to
-// outer, halfThick wide, with the requested cap style -- 0=dot (round,
-// via circles at both ends), 1=line (flush ends), 2=square (ends
-// extended outward by halfThick, like stroke-linecap:square).
-'function drawRingMark(ctx, inner, outer, angle, halfThick, style, color, translucent) {' +
+// outer, with the requested cap style -- 0=dot (round, via circles at
+// both ends), 1=line (flush ends), 2=square (ends extended outward by
+// their own half-thickness, like stroke-linecap:square), 4=tapered
+// (same square-style extension as 2, but innerHalfThick/outerHalfThick
+// can differ, turning the quad into a trapezoid -- see
+// draw_ring_mark_fp()\'s own comment in background_layer.c for why
+// each style besides 4 always passes the same value for both).
+'function drawRingMark(ctx, inner, outer, angle, innerHalfThick, outerHalfThick, style, color, translucent) {' +
 '  ctx.globalAlpha = translucent ? 0.5 : 1;' +
 '  ctx.fillStyle = color;' +
 '  var sinV = Math.sin(angle), cosV = Math.cos(angle);' +
 '  if (inner.x === outer.x && inner.y === outer.y) {' +
-'    ctx.beginPath(); ctx.arc(inner.x, inner.y, halfThick, 0, 2 * Math.PI); ctx.fill();' +
+'    ctx.beginPath(); ctx.arc(inner.x, inner.y, outerHalfThick, 0, 2 * Math.PI); ctx.fill();' +
 '    ctx.globalAlpha = 1; return;' +
 '  }' +
-'  var dxW = halfThick * cosV, dyW = halfThick * sinV;' +
+'  var innerDxW = innerHalfThick * cosV, innerDyW = innerHalfThick * sinV;' +
+'  var outerDxW = outerHalfThick * cosV, outerDyW = outerHalfThick * sinV;' +
 '  var a = inner, b = outer;' +
-'  if (style === 2) {' +
-'    var ex = halfThick * sinV, ey = halfThick * cosV;' +
-'    a = { x: inner.x - ex, y: inner.y + ey }; b = { x: outer.x + ex, y: outer.y - ey };' +
+'  if (style === 2 || style === 4) {' +
+'    var innerEx = innerHalfThick * sinV, innerEy = innerHalfThick * cosV;' +
+'    var outerEx = outerHalfThick * sinV, outerEy = outerHalfThick * cosV;' +
+'    a = { x: inner.x - innerEx, y: inner.y + innerEy }; b = { x: outer.x + outerEx, y: outer.y - outerEy };' +
 '  }' +
 '  ctx.beginPath();' +
-'  ctx.moveTo(a.x - dxW, a.y - dyW); ctx.lineTo(a.x + dxW, a.y + dyW);' +
-'  ctx.lineTo(b.x + dxW, b.y + dyW); ctx.lineTo(b.x - dxW, b.y - dyW); ctx.closePath();' +
+'  ctx.moveTo(a.x - innerDxW, a.y - innerDyW); ctx.lineTo(a.x + innerDxW, a.y + innerDyW);' +
+'  ctx.lineTo(b.x + outerDxW, b.y + outerDyW); ctx.lineTo(b.x - outerDxW, b.y - outerDyW); ctx.closePath();' +
 '  ctx.fill();' +
 '  if (style === 0) {' +
-'    ctx.beginPath(); ctx.arc(inner.x, inner.y, halfThick, 0, 2 * Math.PI); ctx.fill();' +
-'    ctx.beginPath(); ctx.arc(outer.x, outer.y, halfThick, 0, 2 * Math.PI); ctx.fill();' +
+'    ctx.beginPath(); ctx.arc(inner.x, inner.y, innerHalfThick, 0, 2 * Math.PI); ctx.fill();' +
+'    ctx.beginPath(); ctx.arc(outer.x, outer.y, outerHalfThick, 0, 2 * Math.PI); ctx.fill();' +
 '  }' +
 '  ctx.globalAlpha = 1;' +
 '}' +
 // Direct port of draw_marker_ring() (no startup-animation handling --
 // nothing here to preview, the watch\'s own marks always settle at
 // their final positions almost immediately). cfg: {style, thickness,
-// innerEccentricity, outerEccentricity, innerBorderPct, outerBorderPct,
-// translucent, color}. skipStep mirrors the C call\'s own use (5, for
-// the 60-mark second ring, to skip the marks that coincide with hour
-// positions) -- 0 means "skip none".
+// innerThickness, innerEccentricity, outerEccentricity, innerBorderPct,
+// outerBorderPct, translucent, color}. skipStep mirrors the C call\'s
+// own use (5, for the 60-mark second ring, to skip the marks that
+// coincide with hour positions) -- 0 means "skip none".
 'function drawMarkerRing(ctx, cx, cy, w, h, cfg, marks, skipStep, colors) {' +
 '  if (!cfg || !cfg.thickness) return;' +
 '  var color = resolveHandPreviewColor(String(cfg.color), colors) || colors.text;' +
 '  var innerPct = cfg.innerBorderPct, outerPct = Math.max(cfg.innerBorderPct, cfg.outerBorderPct);' +
-'  var halfThick = Math.max(0.5, cfg.thickness / 2);' +
+'  var outerHalfThick = Math.max(0.5, cfg.thickness / 2);' +
+'  var innerHalfThick = cfg.style === 4 ? Math.max(0.5, (cfg.innerThickness || 0) / 2) : outerHalfThick;' +
 '  for (var i = 0; i < marks; i++) {' +
 '    if (skipStep > 0 && i % skipStep === 0) continue;' +
 '    var angle = i * 2 * Math.PI / marks;' +
 '    var outer = pointOnRing(cx, cy, w, h, angle, outerPct, cfg.outerEccentricity);' +
 '    var inner = pointOnRing(cx, cy, w, h, angle, innerPct, cfg.innerEccentricity);' +
-'    drawRingMark(ctx, inner, outer, angle, halfThick, cfg.style, color, cfg.translucent);' +
+'    drawRingMark(ctx, inner, outer, angle, innerHalfThick, outerHalfThick, cfg.style, color, cfg.translucent);' +
 '  }' +
 '}' +
 // Matches MARKER_STYLE_HOUR_PRESETS/MARKER_STYLE_SECOND_PRESETS in
@@ -3462,6 +3509,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  return {' +
 '    style: parseInt(v("Style"), 10) || 0,' +
 '    thickness: parseFloat(v("Thickness")) || 0,' +
+'    innerThickness: parseFloat(v("InnerThickness")) || 0,' +
 '    innerEccentricity: parseFloat(v("InnerEcc")) || 0,' +
 '    outerEccentricity: parseFloat(v("OuterEcc")) || 0,' +
 '    innerBorderPct: parseFloat(v("InnerBorder")) || 0,' +
@@ -4116,7 +4164,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '}' +
 
 // ---- custom hour/seconds indices popups --------------------------------
-'var CM_FIELDS = ["Style", "Thickness", "InnerEcc", "OuterEcc", "InnerBorder", "OuterBorder", "Translucent", "Color"];' +
+'var CM_FIELDS = ["Style", "Thickness", "InnerThickness", "InnerEcc", "OuterEcc", "InnerBorder", "OuterBorder", "Translucent", "Color"];' +
 'var CM_CHECKBOX_FIELDS = ["Translucent"];' +
 'function cmHiddenPrefix(kind) { return kind === "hour" ? "customHour" : "customSec"; }' +
 'function cmPopupPrefix(kind) { return kind === "hour" ? "cmHour" : "cmSec"; }' +
@@ -4141,11 +4189,44 @@ handEditorModalHtml('sec', 'Edit second hand') +
 // so its "minimal" preset is just a short stub near the outer edge.
 'function updateCustomMarkerValLabels(kind) {' +
 '  var p = cmPopupPrefix(kind);' +
-'  ["Thickness", "InnerEcc", "OuterEcc", "InnerBorder", "OuterBorder"].forEach(function (f) {' +
+'  ["Thickness", "InnerThickness", "InnerEcc", "OuterEcc", "InnerBorder", "OuterBorder"].forEach(function (f) {' +
 '    var el = document.getElementById(p + f);' +
 '    var out = document.getElementById(p + f + "Val");' +
-'    if (el && out) out.textContent = el.value + (f === "Thickness" ? "px" : "%");' +
+'    if (el && out) out.textContent = el.value + ((f === "Thickness" || f === "InnerThickness") ? "px" : "%");' +
 '  });' +
+'}' +
+// Shows/hides the popup rows that only make sense for a particular
+// Shape choice: the whole geometry section (everything below Shape)
+// when "None" is picked -- there\'s nothing left to configure for a
+// ring that draws nothing at all -- and the Inner thickness row,
+// which only Tapered (style 4) actually reads (see MarkerRingConfig\'s
+// own style/thickness comments in eclipse_data.h). Called from every
+// place that can change Style out from under the popup: a direct tap,
+// re-opening the popup, applying a preset, or copying the other
+// ring\'s config.
+'function updateCustomMarkerRowVisibility(kind) {' +
+'  var p = cmPopupPrefix(kind);' +
+'  var styleEl = document.getElementById(p + "Style");' +
+'  if (!styleEl) return;' +
+'  var isNone = styleEl.value === "none";' +
+'  var isTapered = styleEl.value === "4";' +
+'  var geomWrap = document.getElementById(p + "GeometryWrap");' +
+'  var noneHelp = document.getElementById(p + "NoneHelp");' +
+'  var innerRow = document.getElementById(p + "InnerThicknessRow");' +
+'  var innerHelp = document.getElementById(p + "InnerThicknessHelp");' +
+'  var thicknessHelp = document.getElementById(p + "ThicknessHelp");' +
+'  if (geomWrap) geomWrap.style.display = isNone ? "none" : "";' +
+'  if (noneHelp) noneHelp.style.display = isNone ? "" : "none";' +
+'  if (innerRow) innerRow.style.display = isTapered ? "" : "none";' +
+'  if (innerHelp) innerHelp.style.display = isTapered ? "" : "none";' +
+'  if (thicknessHelp) thicknessHelp.style.display = isTapered ? "none" : "";' +
+'}' +
+'function cmHourStyleChange(val) { onCustomMarkerStyleChange("hour", val); }' +
+'function cmSecStyleChange(val) { onCustomMarkerStyleChange("sec", val); }' +
+'function onCustomMarkerStyleChange(kind, val) {' +
+'  var p = cmPopupPrefix(kind);' +
+'  selectModeButton(p + "StyleGroup", p + "Style", val);' +
+'  updateCustomMarkerRowVisibility(kind);' +
 '}' +
 'function onCustomMarkerSliderInput(kind) {' +
 '  updateCustomMarkerValLabels(kind);' +
@@ -4169,21 +4250,40 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    if (!hidden || !popupEl) return;' +
 '    if (CM_CHECKBOX_FIELDS.indexOf(f) !== -1) { popupEl.checked = hidden.value === "true"; } else { popupEl.value = hidden.value; }' +
 '  });' +
+// A committed thickness of 0 is how "None" is actually represented on
+// the wire (see saveCustomMarkerEditor()\'s own comment) -- the
+// committed Style value alongside it is meaningless in that case, so
+// the draft picker shows None regardless of whatever it happens to be.
+'  if (document.getElementById(hp + "Thickness").value === "0") {' +
+'    document.getElementById(p + "Style").value = "none";' +
+'  }' +
 '  refreshModeButtonGroup(p + "StyleGroup", p + "Style");' +
 '  refreshModeButtonGroup(p + "ColorGroup", p + "Color");' +
 '  document.getElementById(p + "OuterBorder").min = document.getElementById(p + "InnerBorder").value;' +
 '  updateCustomMarkerValLabels(kind);' +
+'  updateCustomMarkerRowVisibility(kind);' +
 '  document.getElementById("customMarkerModal-" + kind).className = "modal-overlay open";' +
 '}' +
 'function closeCustomMarkerEditor(kind) {' +
 '  document.getElementById("customMarkerModal-" + kind).className = "modal-overlay";' +
 '}' +
+// "None" isn\'t a real MarkerRingConfig.style value the watch knows
+// about -- draw_marker_ring() already treats thickness == 0 as "this
+// ring draws nothing at all" (see its own comment in background_layer.c),
+// so that\'s the actual wire representation: Style commits as plain "0"
+// (Dot -- never read once thickness is 0) and Thickness commits as "0",
+// regardless of whatever the sliders were last left at, so re-picking
+// any real shape later starts from a sensible Dot rather than a
+// leftover 0px line.
 'function saveCustomMarkerEditor(kind) {' +
 '  var hp = cmHiddenPrefix(kind), p = cmPopupPrefix(kind);' +
+'  var isNone = document.getElementById(p + "Style").value === "none";' +
 '  CM_FIELDS.forEach(function (f) {' +
 '    var hidden = document.getElementById(hp + f);' +
 '    var popupEl = document.getElementById(p + f);' +
 '    if (!hidden || !popupEl) return;' +
+'    if (isNone && f === "Style") { hidden.value = "0"; return; }' +
+'    if (isNone && f === "Thickness") { hidden.value = "0"; return; }' +
 '    hidden.value = (CM_CHECKBOX_FIELDS.indexOf(f) !== -1) ? String(popupEl.checked) : popupEl.value;' +
 '  });' +
 '  closeCustomMarkerEditor(kind);' +
@@ -4203,6 +4303,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  refreshModeButtonGroup(p + "ColorGroup", p + "Color");' +
 '  document.getElementById(p + "OuterBorder").min = document.getElementById(p + "InnerBorder").value;' +
 '  updateCustomMarkerValLabels(kind);' +
+'  updateCustomMarkerRowVisibility(kind);' +
 '}' +
 // Copies the OTHER ring\'s last-saved (not currently-open-popup-draft)
 // config into this popup\'s controls -- text-marker settings are never
@@ -4216,8 +4317,13 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    if (!src || !dst) return;' +
 '    if (CM_CHECKBOX_FIELDS.indexOf(f) !== -1) { dst.checked = src.value === "true"; } else { dst.value = src.value; }' +
 '  });' +
+'  if (document.getElementById(otherHiddenPrefix + "Thickness").value === "0") {' +
+'    document.getElementById(p + "Style").value = "none";' +
+'  }' +
+'  refreshModeButtonGroup(p + "StyleGroup", p + "Style");' +
 '  document.getElementById(p + "OuterBorder").min = document.getElementById(p + "InnerBorder").value;' +
 '  updateCustomMarkerValLabels(kind);' +
+'  updateCustomMarkerRowVisibility(kind);' +
 '}' +
 'function selectMarkerTextTarget(val) {' +
 '  selectModeButton("markerTextTargetGroup", "markerTextTarget", val);' +
@@ -4772,7 +4878,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 // one call site strictly needs, but safer than trying to track exactly
 // which of the 7 a given change could touch.
 'function customMarkerStyleLabel(val) {' +
-'  return ["Dot", "Line", "Square"][parseInt(val, 10)] || "Dot";' +
+'  return ["Dot", "Line", "Square", "", "Tapered"][parseInt(val, 10)] || "Dot";' +
 '}' +
 'function markerTextTargetLabel(val) {' +
 '  if (val === "1") return "On hours";' +
@@ -4803,7 +4909,8 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  ["Hour", "Sec"].forEach(function (kindCap) {' +
 '    var span = document.getElementById("cm" + kindCap + "StatusLabel");' +
 '    var el = document.getElementById("custom" + kindCap + "Style");' +
-'    if (el && span) span.textContent = customMarkerStyleLabel(el.value);' +
+'    var thickEl = document.getElementById("custom" + kindCap + "Thickness");' +
+'    if (el && span) span.textContent = (thickEl && thickEl.value === "0") ? "Off" : customMarkerStyleLabel(el.value);' +
 '  });' +
 '  var numSpan = document.getElementById("numeralsStatusLabel");' +
 '  var numEl = document.getElementById("markerTextTarget");' +
@@ -5420,6 +5527,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    CONFIG_DEBUG_OVERRIDE_ENABLED: document.getElementById("debugOverrideEnabled").checked,' +
 '    CONFIG_CUSTOM_HOUR_STYLE: document.getElementById("customHourStyle").value,' +
 '    CONFIG_CUSTOM_HOUR_THICKNESS: document.getElementById("customHourThickness").value,' +
+'    CONFIG_CUSTOM_HOUR_INNER_THICKNESS: document.getElementById("customHourInnerThickness").value,' +
 '    CONFIG_CUSTOM_HOUR_INNER_ECC: document.getElementById("customHourInnerEcc").value,' +
 '    CONFIG_CUSTOM_HOUR_OUTER_ECC: document.getElementById("customHourOuterEcc").value,' +
 '    CONFIG_CUSTOM_HOUR_INNER_BORDER: document.getElementById("customHourInnerBorder").value,' +
@@ -5428,6 +5536,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    CONFIG_CUSTOM_HOUR_COLOR: document.getElementById("customHourColor").value,' +
 '    CONFIG_CUSTOM_SEC_STYLE: document.getElementById("customSecStyle").value,' +
 '    CONFIG_CUSTOM_SEC_THICKNESS: document.getElementById("customSecThickness").value,' +
+'    CONFIG_CUSTOM_SEC_INNER_THICKNESS: document.getElementById("customSecInnerThickness").value,' +
 '    CONFIG_CUSTOM_SEC_INNER_ECC: document.getElementById("customSecInnerEcc").value,' +
 '    CONFIG_CUSTOM_SEC_OUTER_ECC: document.getElementById("customSecOuterEcc").value,' +
 '    CONFIG_CUSTOM_SEC_INNER_BORDER: document.getElementById("customSecInnerBorder").value,' +
@@ -5531,13 +5640,32 @@ handEditorModalHtml('sec', 'Edit second hand') +
 // DOM fields every other part of this page already treats as the
 // source of truth (hidden inputs, checkboxes, selects), so a
 // sub-header can never show something Save wouldn\'t actually send.
+'function applySubheadSlide(outerEl) {' +
+'  var inner = outerEl.firstElementChild;' +
+'  if (!inner) return;' +
+'  inner.classList.remove("subhead-sliding");' +
+'  inner.style.removeProperty("--slide-dist");' +
+'  var overflow = inner.scrollWidth - outerEl.clientWidth;' +
+'  if (overflow > 2) {' +
+'    inner.style.setProperty("--slide-dist", (-overflow - 6) + "px");' +
+'    inner.classList.add("subhead-sliding");' +
+'  }' +
+'}' +
 'function setSubheaderText(id, text) {' +
 '  var el = document.getElementById("subhead-" + id);' +
-'  if (el) el.textContent = text;' +
+'  if (!el) return;' +
+'  el.innerHTML = "";' +
+'  var inner = document.createElement("span");' +
+'  inner.className = "subhead-sub-inner";' +
+'  inner.textContent = text;' +
+'  el.appendChild(inner);' +
+'  applySubheadSlide(el);' +
 '}' +
 'function setSubheaderHtml(id, html) {' +
 '  var el = document.getElementById("subhead-" + id);' +
-'  if (el) el.innerHTML = html;' +
+'  if (!el) return;' +
+'  el.innerHTML = \'<span class="subhead-sub-inner">\' + html + "</span>";' +
+'  applySubheadSlide(el);' +
 '}' +
 'function computeStyleSubheader() {' +
 '  var bottomStyleVal = document.getElementById("bottomStyleValue").value;' +

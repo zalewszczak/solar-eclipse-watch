@@ -468,16 +468,16 @@ typedef struct {
   // size is load-bearing for the MARKER_RINGS wire blob (see
   // pebble-eclipse-watch.c's own _Static_assert(sizeof(MarkerRingConfig)
   // == 8, ...) and apply_consolidated_fields()'s memcpy of exactly
-  // 2 * sizeof(MarkerRingConfig) bytes) -- growing it here would need
-  // a matching phone-side change to actually fill the extra bytes,
-  // which is explicitly out of scope for now (watch-side rendering
-  // support only). These two live as their own plain fields instead,
-  // so MarkerRingConfig and the existing wire format stay untouched.
-  // Not sent by the phone yet, so they default to 0 -- draw_marker_ring()
-  // in background_layer.c floors that the exact same way it already
-  // floors `thickness` (never below a ~1px-equivalent minimum), so an
-  // unset 0 here quietly behaves like 1 (the sharpest possible taper)
-  // rather than needing its own special-cased default.
+  // 2 * sizeof(MarkerRingConfig) bytes) -- growing it here would have
+  // needed a matching phone-side wire format change, so these two are
+  // sent as their own separate simple fields instead (MK_CUSTOM_HOUR_
+  // INNER_THICKNESS/MK_CUSTOM_SEC_INNER_THICKNESS in SIMPLE_FIELD_MAP),
+  // leaving MarkerRingConfig and the packed blob's format untouched.
+  // A phone that hasn't sent these yet leaves them at their power-on
+  // 0, which draw_marker_ring() in background_layer.c floors the exact
+  // same way it already floors `thickness` (never below a ~1px-
+  // equivalent minimum), so an unset 0 quietly behaves like 1 (the
+  // sharpest possible taper) rather than needing its own special case.
   uint8_t custom_hour_marker_inner_thickness;
   uint8_t custom_second_marker_inner_thickness;
 

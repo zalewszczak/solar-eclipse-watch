@@ -1331,7 +1331,7 @@ typedef struct {
 // own comment for why MK_* (an array index) is a compile-time constant where
 // MESSAGE_KEY_* (the real, link-time-assigned key) isn't. This table lives in
 // .rodata instead of being populated into .bss by a runtime init function.
-#define SIMPLE_FIELD_MAP_COUNT 65
+#define SIMPLE_FIELD_MAP_COUNT 67
 static const SimpleFieldMapping SIMPLE_FIELD_MAP[SIMPLE_FIELD_MAP_COUNT] = {
   { MK_ERROR_CODE, F_U8, offsetof(EclipseData, error_code) },
   { MK_TEMP_UNIT, F_U8, offsetof(EclipseData, temp_unit) },
@@ -1398,6 +1398,13 @@ static const SimpleFieldMapping SIMPLE_FIELD_MAP[SIMPLE_FIELD_MAP_COUNT] = {
   { MK_ISS_ERROR_CODE, F_U8, offsetof(EclipseData, iss_error_code) },
   { MK_WEATHER_LAST_UPDATE, F_TIME, offsetof(EclipseData, weather_last_update) },
   { MK_DRAW_DEBUG, F_BOOL, offsetof(EclipseData, draw_debug) },
+  // Deliberately separate simple fields, NOT part of the MARKER_RINGS
+  // blob -- see custom_hour_marker_inner_thickness's own comment in
+  // eclipse_data.h for why (MarkerRingConfig's size is wire-load-
+  // bearing; these two exist for the "tapered" ring style, added well
+  // after that blob's format was fixed).
+  { MK_CUSTOM_HOUR_INNER_THICKNESS, F_U8, offsetof(EclipseData, custom_hour_marker_inner_thickness) },
+  { MK_CUSTOM_SEC_INNER_THICKNESS, F_U8, offsetof(EclipseData, custom_second_marker_inner_thickness) },
 };
 
 static void apply_simple_fields(DictionaryIterator *iter) {
