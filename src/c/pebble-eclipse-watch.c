@@ -1331,7 +1331,7 @@ typedef struct {
 // own comment for why MK_* (an array index) is a compile-time constant where
 // MESSAGE_KEY_* (the real, link-time-assigned key) isn't. This table lives in
 // .rodata instead of being populated into .bss by a runtime init function.
-#define SIMPLE_FIELD_MAP_COUNT 67
+#define SIMPLE_FIELD_MAP_COUNT 74
 static const SimpleFieldMapping SIMPLE_FIELD_MAP[SIMPLE_FIELD_MAP_COUNT] = {
   { MK_ERROR_CODE, F_U8, offsetof(EclipseData, error_code) },
   { MK_TEMP_UNIT, F_U8, offsetof(EclipseData, temp_unit) },
@@ -1405,6 +1405,13 @@ static const SimpleFieldMapping SIMPLE_FIELD_MAP[SIMPLE_FIELD_MAP_COUNT] = {
   // after that blob's format was fixed).
   { MK_CUSTOM_HOUR_INNER_THICKNESS, F_U8, offsetof(EclipseData, custom_hour_marker_inner_thickness) },
   { MK_CUSTOM_SEC_INNER_THICKNESS, F_U8, offsetof(EclipseData, custom_second_marker_inner_thickness) },
+  { MK_HOURLY_VIBE_MODE, F_U8, offsetof(EclipseData, hourly_vibe_mode) },
+  { MK_HOURLY_VIBE_INTERVAL_MIN, F_U8, offsetof(EclipseData, hourly_vibe_interval_min) },
+  { MK_HOURLY_VIBE_PATTERN, F_U8, offsetof(EclipseData, hourly_vibe_pattern) },
+  { MK_HOURLY_VIBE_START_MIN, F_U16, offsetof(EclipseData, hourly_vibe_start_min) },
+  { MK_HOURLY_VIBE_END_MIN, F_U16, offsetof(EclipseData, hourly_vibe_end_min) },
+  { MK_HOURLY_VIBE_DAYS_MASK, F_U8, offsetof(EclipseData, hourly_vibe_days_mask) },
+  { MK_HOURLY_VIBE_OVERRIDE_QUIET, F_BOOL, offsetof(EclipseData, hourly_vibe_override_quiet) },
 };
 
 static void apply_simple_fields(DictionaryIterator *iter) {
@@ -1857,7 +1864,56 @@ static void inbox_dropped_handler(AppMessageResult reason, void *context) {
 
 // ---- tick + click ---------------------------------------------------------
 
+// ---- hourly vibrations ------------------------------------------------
+// A periodic reminder buzz, entirely independent of vibrate_on_phase_change
+// above (which is about the eclipse itself) -- see hourly_vibe_mode's own
+// comment in eclipse_data.h for the full field layout.
+
+// hourly_vibe_start_min == hourly_vibe_end_min (including the 0==0
+// default) means "all 24 hours", not a single-minute window -- see
+// that field's own comment in eclipse_data.h. Otherwise start > end
+// wraps past midnight (e.g. 22:00-6:00 covers 22:00 through 23:59 AND
+// 00:00 through 6:00), same as a normal "quiet hours" range would.
+static bool hourly_vibe_time_in_range(int minute_of_day) {
+  int start = s_data.hourly_vibe_start_min, end = s_data.hourly_vibe_end_min;
+  if (start == end) return true;
+  if (start < end) return minute_of_day >= start && minute_of_day <= end;
+  return minute_of_day >= start || minute_of_day <= end;
+}
+
+static void do_hourly_vibe(void) {
+  switch (s_data.hourly_vibe_pattern) {
+    case 1: vibes_double_pulse(); break;
+    case 2: vibes_long_pulse(); break;
+    default: vibes_short_pulse(); break; // 0, and any unrecognized value
+  }
+}
+
+// Called once a minute regardless of the tick subscription's own
+// granularity or battery-saver phase (see tick_handler()'s own
+// `units_changed & MINUTE_UNIT` gate) -- a reminder buzz shouldn't
+// miss its minute just because the display isn't redrawing that often
+// right now, the way corner-content refreshes are allowed to.
+static void maybe_do_hourly_vibe(struct tm *tick_time) {
+  if (s_data.hourly_vibe_mode == 0) return;
+  if (!((s_data.hourly_vibe_days_mask >> tick_time->tm_wday) & 1)) return; // tm_wday: 0=Sunday..6=Saturday, matches the mask's own bit order
+  int minute_of_day = tick_time->tm_hour * 60 + tick_time->tm_min;
+  if (!hourly_vibe_time_in_range(minute_of_day)) return;
+  bool should_fire;
+  if (s_data.hourly_vibe_mode == 1) { // on full hours
+    should_fire = (tick_time->tm_min == 0);
+  } else { // every N minutes, anchored to midnight (not to the start-of-range time)
+    int interval = s_data.hourly_vibe_interval_min > 0 ? s_data.hourly_vibe_interval_min : 30;
+    should_fire = (minute_of_day % interval) == 0;
+  }
+  if (!should_fire) return;
+  if (!s_data.hourly_vibe_override_quiet && quiet_time_is_active()) return;
+  do_hourly_vibe();
+}
+
 static void tick_handler(struct tm *tick_time, TimeUnits units_changed) {
+  if (units_changed & MINUTE_UNIT) maybe_do_hourly_vibe(tick_time);
+
   BatterySaverPhase new_phase = battery_saver_compute_phase(time(NULL));
   if (new_phase != s_battery_saver_phase) battery_saver_apply_phase_change(new_phase);
   battery_saver_send_phase_to_phone(s_battery_saver_phase); // cheap no-op once the phone's already caught up -- see that function's own comment

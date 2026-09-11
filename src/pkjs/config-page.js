@@ -268,6 +268,8 @@ var SECTION_META = {
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M12 21s7-7.7 7-13a7 7 0 1 0-14 0c0 5.3 7 13 7 13z"/><circle cx="12" cy="8" r="2.6"/></svg>' },
   updates:   { color: '#00c7be', icon:
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 12a7.5 7.5 0 0 1 13-5.1M19.5 12a7.5 7.5 0 0 1-13 5.1"/><path d="M17.3 3.8v3.4h-3.4M6.7 20.2v-3.4h3.4"/></svg>' },
+  other:     { color: '#5856d6', icon:
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 16v-5a6 6 0 1 0-12 0v5l-1.8 2.4A1 1 0 0 0 5 20h14a1 1 0 0 0 .8-1.6L18 16z"/><path d="M10 20a2 2 0 0 0 4 0"/></svg>' },
   testing:   { color: '#8e8e93', icon:
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="14" rx="5" ry="6" fill="currentColor" stroke="none"/><line x1="12" y1="8" x2="12" y2="20"/><line x1="4.5" y1="11" x2="7.5" y2="10"/><line x1="4.5" y1="14" x2="7.5" y2="14"/><line x1="4.5" y1="18" x2="7.5" y2="17.3"/><line x1="19.5" y1="11" x2="16.5" y2="10"/><line x1="19.5" y1="14" x2="16.5" y2="14"/><line x1="19.5" y1="18" x2="16.5" y2="17.3"/><path d="M9 5.5L10.5 8M15 5.5L13.5 8"/><circle cx="12" cy="5.5" r="1.2" fill="currentColor" stroke="none"/></svg>' }
 };
@@ -291,6 +293,31 @@ function sectionLegendHtml(sectionId, title) {
 '        <span class="section-legend-sub" id="subhead-' + sectionId + '"></span>' +
 '      </span>' +
 '      <span class="chevron" id="chev-' + sectionId + '">&#9656;</span>' +
+'    </div>'
+  );
+}
+
+// Nested, one-level-down variant of sectionLegendHtml() above -- see
+// .subsection-legend's own comment for why this exists separately
+// rather than just registering these in SECTION_META. `id` gets
+// wired to subsec-<id>/subsecchev-<id>/subsubhead-<id>/subsecpreview-<id>
+// (toggleSubsection() below), all independent of the outer Style
+// section's own toggleSection('style'); collapsing/expanding one
+// doesn't touch the other. previewHtml is whatever the caller wants
+// shown in the small thumbnail slot at render time (a static "?" is
+// fine here -- refreshHandsIndicesPreviews() below fills in the real
+// current-preset thumbnail live, the same "computed after render,
+// kept live by the same delegated listeners every other sub-header
+// already uses" pattern as refreshAllSectionSubheaders()).
+function subsectionLegendHtml(id, title, previewHtml) {
+  return (
+'    <div class="subsection-legend" onclick="toggleSubsection(\'' + id + '\')">' +
+'      <span class="subsection-legend-preview" id="subsecpreview-' + id + '">' + (previewHtml || '') + '</span>' +
+'      <span class="subsection-legend-text">' +
+'        <span class="subsection-legend-title">' + esc(title) + '</span>' +
+'        <span class="subsection-legend-sub" id="subsubhead-' + id + '"></span>' +
+'      </span>' +
+'      <span class="chevron" id="subsecchev-' + id + '">&#9656;</span>' +
 '    </div>'
   );
 }
@@ -345,6 +372,21 @@ var WEATHER_ICON_STYLE_PREVIEWS = require('./weather-icon-style-previews');
 var EXAMPLE_STYLE_COUNT = 9;
 var EXAMPLE_STYLE_IMAGES = require('./example-style-images');
 var EXAMPLE_STYLE_PRESETS = require('./example-style-presets');
+
+// Sun..Sat, matching struct tm's own tm_wday (0=Sunday) so the watch
+// can test "is today's bit set" directly against the mask byte with
+// no reindexing -- see hourly_vibe_days_mask's own comment in
+// eclipse_data.h. Rendered as a flush 7-button row (renderMarkerStyleGrid()'s
+// neighbors aside, this is the one other place a whole button row is
+// built at HTML-generation time here rather than client-side).
+var HOURLY_VIBE_DAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+// quiet_time_is_active() is a real, standard Pebble SDK function
+// (pebble.h, present on every platform this app targets) -- gates
+// whether the "Override quiet time" checkbox is offered at all, so
+// this whole feature degrades gracefully (silently always-on, no
+// dead checkbox) if that ever stops being true for some future
+// platform this app gets ported to.
+var QUIET_TIME_API_AVAILABLE = true;
 
 // Base64 data: URIs for the font picker popup's real on-watch
 // renderings of its own sample text -- resources/font-previews/
@@ -453,12 +495,15 @@ function fontOptionsHtml(selectedId, onlyMainClock) {
 // visibly-selected default. selectVerticalOption() below applies the
 // same fallback client-side, for values that arrive after the initial
 // render (preset apply, popup pre-fill).
-function verticalButtonGroupHtml(groupId, hiddenId, options, currentValue) {
+function verticalButtonGroupHtml(groupId, hiddenId, options, currentValue, onclickFn) {
   var validValue = options.some(function (opt) { return String(opt.value) === String(currentValue); })
     ? currentValue : options[0].value;
   var buttons = options.map(function (opt) {
     var active = String(validValue) === String(opt.value);
-    return '<button type="button" class="mode-btn-vertical' + (active ? ' active' : '') + '" data-value="' + esc(opt.value) + '" onclick="selectVerticalOption(\'' + groupId + '\', \'' + hiddenId + '\', \'' + esc(opt.value) + '\')">' + esc(opt.label) + '</button>';
+    var call = onclickFn ?
+      onclickFn + '(\'' + esc(opt.value) + '\')' :
+      'selectVerticalOption(\'' + groupId + '\', \'' + hiddenId + '\', \'' + esc(opt.value) + '\')';
+    return '<button type="button" class="mode-btn-vertical' + (active ? ' active' : '') + '" data-value="' + esc(opt.value) + '" onclick="' + call + '">' + esc(opt.label) + '</button>';
   }).join('');
   return '<div class="mode-btn-group-vertical" id="' + groupId + '">' + buttons + '</div>' +
     '<input type="hidden" id="' + hiddenId + '" value="' + esc(validValue) + '">';
@@ -962,6 +1007,10 @@ function handEditorModalHtml(kind, title) {
  *     in marker_layer.c -- each mark spans directly between its inner/outer border points),
  *     markerTextTarget: '0'(off)|'1'(hour)|'2'(second), markerTextFont: '0'-'35', markerTextOffset: '-50'-'50',
  *     markerTextHourMask/markerTextSecMask: 0-4095 (12-bit),
+ *     hourlyVibeMode: '0'(off)|'1'(on full hours)|'2'(every X minutes), hourlyVibeIntervalMin: '1'-'180',
+ *     hourlyVibePattern: '0'(short)|'1'(double)|'2'(long), hourlyVibeStartTime/hourlyVibeEndTime: 'HH:MM'
+ *     (inclusive; start==end, including the '00:00'/'00:00' default, means all 24 hours),
+ *     hourlyVibeDaysMask: 0-127 (bit i = HOURLY_VIBE_DAY_LABELS[i], Sun=bit 0), hourlyVibeOverrideQuiet: boolean,
  *     testMode, testDateTime, fullKeysetJson: pretty-printed JSON string, every current
  *     AppMessage key/value pre-filled for the debug "Full keyset" window (see buildFullKeysetDict() in index.js) }
  */
@@ -1165,8 +1214,6 @@ cdnFontLinks() +
 '  :root { --page-bg: #f4f4f4; --card-bg: #fff; --text: #222; --text-strong: #333; --text-muted: #666; --text-faint: #888; --text-faint2: #555; --text-disabled: #999; --border: #ccc; --border-light: #eee; --border-lighter: #ddd; --btn-bg: #fafafa; }' +
 '  @media (prefers-color-scheme: dark) {' +
 '    :root { --page-bg: #1c1c1e; --card-bg: #2c2c2e; --text: #f2f2f2; --text-strong: #e5e5e5; --text-muted: #aaa; --text-faint: #999; --text-faint2: #bbb; --text-disabled: #777; --border: #48484a; --border-light: #3a3a3c; --border-lighter: #545456; --btn-bg: #3a3a3c; }' +
-'    .bitmap-marker-img { filter: none; }' +
-'    .hand-style-icon-preview img { filter: invert(1); }' + // opposite polarity from the other two -- these are black-ink, not white-ink; see that rule's own comment
 '  }' +
 '  body { font-family: -apple-system, Helvetica, Arial, sans-serif; margin: 0; padding: 16px 20px 90px; background: var(--page-bg); color: var(--text); }' +
 '  html, body { touch-action: manipulation; }' + // belt-and-suspenders alongside the viewport meta tag --
@@ -1287,6 +1334,23 @@ cdnFontLinks() +
 // the dark-mode override further up for the other half of this.
 '  .hand-style-icon-preview { flex: 0 0 25%; }' +
 '  .hand-style-icon-preview img { max-width: 100%; max-height: 100%; display: block; filter: none; }' +
+// Dark-mode overrides for the two rules just above and .bitmap-marker-img
+// further up -- deliberately placed here, AFTER both of those base
+// rules, rather than up in the earlier @media (prefers-color-scheme:
+// dark) block alongside the --page-bg/etc. custom-property overrides.
+// CSS cascade breaks ties between equal-specificity rules by SOURCE
+// ORDER regardless of which one sits in a matching @media block --
+// so a dark-mode override declared before a later unconditional rule
+// for the very same selector loses to it whenever dark mode is
+// actually active, which is exactly what silently made both of these
+// dead code (bitmap marker previews stayed inverted/dark instead of
+// turning white, hand-style icons stayed plain black instead of
+// turning white) until this block was moved down here, past both
+// selectors\' own base declarations.
+'  @media (prefers-color-scheme: dark) {' +
+'    .bitmap-marker-img { filter: none; }' +
+'    .hand-style-icon-preview img { filter: invert(1); }' +
+'  }' +
 // Weather icon style previews -- unlike the plain black-on-transparent
 // hand-style icons just above, these are actual on-watch artwork (a
 // real image with its own colors/background, per features_layer.c's
@@ -1421,6 +1485,14 @@ cdnFontLinks() +
 '  .mode-btn-vertical { display: block; width: 100%; text-align: left; padding: 10px 12px; font-size: 13px; font-weight: 700; color: var(--text-strong); background: var(--btn-bg); border: none; border-bottom: 1px solid var(--border); box-sizing: border-box; }' +
 '  .mode-btn-vertical:last-child { border-bottom: none; }' +
 '  .mode-btn-vertical.active { background: #ff9200; color: #fff; box-shadow: inset 0 2px 4px rgba(0,0,0,0.35); }' +
+// Day-of-week toggle row for Hourly vibrations -- like .mode-btn-group
+// but each button toggles independently (any subset can be active at
+// once) instead of exactly one, since this picks a SET of days rather
+// than a single mode.
+'  .day-toggle-group { display: flex; width: 100%; margin-top: 6px; border-radius: 6px; overflow: hidden; border: 1px solid var(--border); box-sizing: border-box; }' +
+'  .day-toggle-btn { flex: 1; padding: 10px 0; font-size: 13px; font-weight: 700; color: var(--text-strong); background: var(--btn-bg); border: none; border-right: 1px solid var(--border); }' +
+'  .day-toggle-btn:last-child { border-right: none; }' +
+'  .day-toggle-btn.active { background: #ff9200; color: #fff; box-shadow: inset 0 2px 4px rgba(0,0,0,0.35); }' +
 '  .slider-row { margin-top: 12px; }' +
 '  .slider-row label { display: flex; justify-content: space-between; font-size: 13px; color: var(--text-faint2); margin-bottom: 2px; }' +
 '  .slider-row label .val { font-weight: 700; color: var(--text-strong); }' +
@@ -1469,6 +1541,19 @@ cdnFontLinks() +
 // forcing the whole header row (and the section toggle "button" it's
 // inside) wider than it should be instead of actually clipping.
 '  .section-legend-sub { font-size: 11.2px; line-height: 1.25; color: var(--text-faint); margin-top: 1px; min-width: 0; white-space: nowrap; overflow: hidden; position: relative; }' +
+// A lighter, nested variant of .section-legend/.section-icon above --
+// used for Hands style/Indices style, one level down inside the Style
+// section rather than a full top-level section of their own (no
+// SECTION_META color-coded icon; a small thumbnail of the actual
+// currently-selected preset instead -- see subsectionLegendHtml()
+// further down for how that gets filled in).
+'  .subsection-legend { cursor: pointer; display: flex; align-items: center; gap: 10px; width: 100%; box-sizing: border-box; margin: 12px 0 0; padding: 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--btn-bg); user-select: none; color: var(--text-strong); }' +
+'  .subsection-legend-preview { width: 34px; height: 34px; border-radius: 6px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; overflow: hidden; background: var(--card-bg); border: 1px solid var(--border-light); }' +
+'  .subsection-legend-preview img { max-width: 100%; max-height: 100%; display: block; }' +
+'  .subsection-legend-text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; justify-content: center; }' +
+'  .subsection-legend-title { font-size: 14px; font-weight: 700; line-height: 1.15; }' +
+'  .subsection-legend-sub { font-size: 11px; line-height: 1.25; color: var(--text-faint); margin-top: 1px; min-width: 0; white-space: nowrap; overflow: hidden; position: relative; }' +
+'  .subsection-body { border: 1px solid var(--border); border-top: none; border-radius: 0 0 8px 8px; padding: 10px 8px 4px; margin-top: -1px; margin-bottom: 4px; }' +
 // Sliding-overflow inner span for .section-legend-sub -- see
 // applySubheadSlide()/setSubheaderText()/setSubheaderHtml() further
 // down for when subhead-sliding actually gets added (only once the
@@ -1789,13 +1874,6 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    <input type="hidden" id="bottomStyleValue" value="' + esc(bottomStyleVal) + '">' +
 '    <div class="help">Analog fills the whole screen with fullscreen hands over the sky/eclipse view -- no bottom bar.</div>' +
 
-'    <div class="checkbox-row subsection">' +
-'      <input type="checkbox" id="showSeconds" ' + secondsChecked + ' ' + secondsDisabled + ' onchange="onShowSecondsChange()">' +
-'      <label for="showSeconds" style="margin:0;">Show seconds</label>' +
-'    </div>' +
-'    <div class="help" id="secondsHelp" style="' + (secondsUnsupported ? '' : 'display:none;') + '">This font doesn\'t support showing seconds.</div>' +
-'    <div class="help">Used by both layouts -- the digital clock\'s own seconds digits, and whether analog draws a second hand at all (gates the Custom style\'s "Edit second hand" below, too).</div>' +
-
 '    <div id="digitalOnlySettings" class="subsection" style="' + (bottomStyleVal === 'digital' ? '' : 'display:none;') + '">' +
 '      <label for="clockFont">Clock font</label>' +
 '      <select id="clockFont" onchange="onFontChange()" style="display:none;">' + fontOptions + '</select>' +
@@ -1805,7 +1883,25 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      </button>' +
 '    </div>' +
 
+'    <div class="checkbox-row subsection">' +
+'      <input type="checkbox" id="showSeconds" ' + secondsChecked + ' ' + secondsDisabled + ' onchange="onShowSecondsChange()">' +
+'      <label for="showSeconds" style="margin:0;">Show seconds</label>' +
+'    </div>' +
+'    <div class="help" id="secondsHelp" style="' + (secondsUnsupported ? '' : 'display:none;') + '">This font doesn\'t support showing seconds.</div>' +
+'    <div class="help">Used by both layouts -- the digital clock\'s own seconds digits, and whether analog draws a second hand at all (gates the Custom style\'s "Edit second hand" below, too).</div>' +
+
+'    <label style="margin-top:12px;">Label style</label>' +
+      modeButtonGroupHtml('labelStyleGroup', 'labelStyle', [
+        { value: '0', label: 'BOXED', icon: MODE_BTN_ICONS.labelBoxed },
+        { value: '1', label: 'OUTLINED', icon: MODE_BTN_ICONS.labelOutlined },
+        { value: '2', label: 'SOFT', icon: MODE_BTN_ICONS.labelSoft }
+      ], current.labelStyle || '0') +
+'    <div class="help">Boxed is an opaque rounded box with white text (the original look). Outlined uses your main color with a contrasting outline. Soft is plain light-gray text with no background or outline. Used for the shake-to-reveal Sun/Moon/ISS/Aurora name labels, in both layouts.</div>' +
+
 '    <div id="bigAnalogSettings" class="subsection" style="' + (isAnalog ? '' : 'display:none;') + '">' +
+
+      subsectionLegendHtml('hands', 'Hands style') +
+'      <div class="subsection-body" id="subsec-hands" style="display:none;">' +
 '      <label>Hand style</label>' +
 '      <button type="button" class="marker-edit-btn" id="handStyleTriggerBtn" style="margin-top:8px;" onclick="openHandStyleModal()">Hand style: <span id="handStyleTriggerLabel"></span> &rsaquo;</button>' +
 '      <div class="help">To show the date behind the hands, pick "Short date" as a line in the Features section below (bottom-middle line 1 does this by default).</div>' +
@@ -1818,8 +1914,11 @@ handEditorModalHtml('sec', 'Edit second hand') +
           handHiddenInputsHtml(current) +
 '      </div>' +
 '      <button type="button" class="marker-edit-btn" id="shadowStyleTriggerBtn" onclick="openShadowStyleEditor()">Edit shadow style: <span id="shadowStyleStatusLabel"></span> &rsaquo;</button>' +
+'      </div>' +
 
-'      <label style="margin-top:12px;">Hour/seconds indices style</label>' +
+      subsectionLegendHtml('indices', 'Indices style') +
+'      <div class="subsection-body" id="subsec-indices" style="display:none;">' +
+'      <label>Hour/seconds indices style</label>' +
 '      <button type="button" class="marker-edit-btn" id="markerStyleTriggerBtn" style="margin-top:8px;" onclick="openMarkerStyleModal()">Indices style: <span id="markerStyleTriggerLabel"></span> &rsaquo;</button>' +
 '      <select id="bigAnalogMarkerStyle" style="display:none;" onchange="onMarkerStyleChange()">' +
 '        <option value="9"' + (current.bigAnalogMarkerStyle === '9' ? ' selected' : '') + '>None</option>' +
@@ -1845,6 +1944,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '        <button type="button" class="marker-edit-btn" onclick="openCustomMarkerEditor(\'sec\')">Edit seconds indices: <span id="cmSecStatusLabel"></span> &rsaquo;</button>' +
 '        <button type="button" class="marker-edit-btn" onclick="openTextMarkerEditor()">Numerals: <span id="numeralsStatusLabel"></span> &rsaquo;</button>' +
           customMarkerHiddenInputsHtml(current) +
+'      </div>' +
 '      </div>' +
 '    </div>' +
 
@@ -2200,14 +2300,6 @@ handEditorModalHtml('sec', 'Edit second hand') +
       ], current.sunMoonSize || '75') +
 '    <div class="help">Ignored during an actual eclipse, which sizes the Sun and Moon by their real geometry instead.</div>' +
 
-'    <label>Label style</label>' +
-      modeButtonGroupHtml('labelStyleGroup', 'labelStyle', [
-        { value: '0', label: 'BOXED', icon: MODE_BTN_ICONS.labelBoxed },
-        { value: '1', label: 'OUTLINED', icon: MODE_BTN_ICONS.labelOutlined },
-        { value: '2', label: 'SOFT', icon: MODE_BTN_ICONS.labelSoft }
-      ], current.labelStyle || '0') +
-'    <div class="help">Boxed is an opaque rounded box with white text (the original look). Outlined uses your main color with a contrasting outline. Soft is plain light-gray text with no background or outline.</div>' +
-
 '    <div class="checkbox-row subsection">' +
 '      <input type="checkbox" id="showIss" ' + (current.showIss ? 'checked' : '') + '>' +
 '      <label for="showIss" style="margin:0;">Show the ISS when overhead (experimental)</label>' +
@@ -2280,6 +2372,63 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    <div class="help" style="margin-top:14px;">Service status, as of when this page was opened -- gray: never used yet; green: last fetch worked; yellow: last fetch failed but some of the last 10 worked; red: last 10 all failed. Tap the (i) on yellow/red for details.</div>' +
       serviceStatusRowsHtml(current) +
 '    <input type="hidden" id="serviceLogsJson" value="' + esc(JSON.stringify(current.serviceLogs || {})) + '">' +
+'    </div>' +
+'  </fieldset>' +
+
+'  <fieldset>' +
+    sectionLegendHtml('other', 'Other') +
+'    <div class="section-body" id="section-other" style="display:none;">' +
+'    <div class="subsection"></div>' +
+
+'    <label>Hourly vibrations</label>' +
+      verticalButtonGroupHtml('hourlyVibeModeGroup', 'hourlyVibeMode', [
+        { value: '0', label: 'Off' },
+        { value: '1', label: 'On full hours' },
+        { value: '2', label: 'Every X minutes' }
+      ], current.hourlyVibeMode || '0', 'onHourlyVibeModeChange') +
+
+'    <div id="hourlyVibeSubOptions" class="' + ((current.hourlyVibeMode || '0') === '0' ? 'grayed-out' : '') + '">' +
+
+'    <div class="slider-row" id="hourlyVibeIntervalRow" style="' + ((current.hourlyVibeMode || '0') === '2' ? '' : 'display:none;') + '">' +
+'      <label for="hourlyVibeIntervalMin">Minutes interval <span class="val" id="hourlyVibeIntervalMinVal">' + esc(current.hourlyVibeIntervalMin || '30') + '</span></label>' +
+'      <div class="slider-with-buttons">' +
+'      <button type="button" class="slider-step-btn" onclick="stepSlider(\'hourlyVibeIntervalMin\', -1)">&minus;</button>' +
+'      <input type="range" id="hourlyVibeIntervalMin" min="1" max="180" step="1" value="' + esc(current.hourlyVibeIntervalMin || '30') + '" oninput="document.getElementById(\'hourlyVibeIntervalMinVal\').textContent = this.value;">' +
+'      <button type="button" class="slider-step-btn" onclick="stepSlider(\'hourlyVibeIntervalMin\', 1)">+</button>' +
+'      </div>' +
+'    </div>' +
+
+'    <label style="margin-top:12px;">Vibration</label>' +
+      verticalButtonGroupHtml('hourlyVibePatternGroup', 'hourlyVibePattern', [
+        { value: '0', label: 'Short' },
+        { value: '1', label: 'Double' },
+        { value: '2', label: 'Long' }
+      ], current.hourlyVibePattern || '0') +
+
+'    <label style="margin-top:12px;" for="hourlyVibeStartTime">Start time</label>' +
+'    <input type="time" id="hourlyVibeStartTime" value="' + esc(current.hourlyVibeStartTime || '00:00') + '" onchange="onHourlyVibeTimeChange(\'hourlyVibeStartTime\')">' +
+'    <label for="hourlyVibeEndTime">End time</label>' +
+'    <input type="time" id="hourlyVibeEndTime" value="' + esc(current.hourlyVibeEndTime || '00:00') + '" onchange="onHourlyVibeTimeChange(\'hourlyVibeEndTime\')">' +
+'    <div class="help">Both ends included -- e.g. 8:00 to 22:00 vibrates at 8:00 and at 22:00, not just in between. Leave both at 00:00 (the default) for all 24 hours. "On full hours" mode rounds these to the nearest whole hour automatically.</div>' +
+
+'    <label style="margin-top:12px;">Active days</label>' +
+'    <div class="day-toggle-group" id="hourlyVibeDaysGroup">' +
+      HOURLY_VIBE_DAY_LABELS.map(function (label, i) {
+        return '<button type="button" class="day-toggle-btn active" data-bit="' + i + '" onclick="toggleHourlyVibeDay(' + i + ')">' + esc(label) + '</button>';
+      }).join('') +
+'    </div>' +
+'    <input type="hidden" id="hourlyVibeDaysMask" value="' + esc(current.hourlyVibeDaysMask == null ? '127' : current.hourlyVibeDaysMask) + '">' +
+
+'    </div>' + // #hourlyVibeSubOptions
+
+(QUIET_TIME_API_AVAILABLE ? (
+'    <div class="checkbox-row' + ((current.hourlyVibeMode || '0') === '0' ? ' grayed-out' : '') + '" style="margin-top:12px;" id="hourlyVibeOverrideQuietRow">' +
+'      <input type="checkbox" id="hourlyVibeOverrideQuiet" ' + (current.hourlyVibeOverrideQuiet === false ? '' : 'checked') + '>' +
+'      <label for="hourlyVibeOverrideQuiet" style="margin:0;">Override quiet time</label>' +
+'    </div>' +
+'    <div class="help">On (default): hourly vibrations still happen even while your watch\'s Quiet Time is active. Turn off to let Quiet Time suppress them like any other notification.</div>'
+    ) : '') +
+
 '    </div>' +
 '  </fieldset>' +
 
@@ -3909,8 +4058,6 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  var avail = computeSlotAvailability();' +
 '  var isAnalogMode = document.getElementById("bottomStyleValue").value === "analog";' +
 '  document.getElementById("slotDiagramClockBar").style.display = isAnalogMode ? "none" : "block";' +
-'  document.getElementById("slotBtn-cornerBL").classList.toggle("slot-corner-above-bar", !isAnalogMode);' +
-'  document.getElementById("slotBtn-cornerBR").classList.toggle("slot-corner-above-bar", !isAnalogMode);' +
 '  for (var key in SLOT_DEFS) {' +
 '    var def = SLOT_DEFS[key];' +
 '    var btn = document.getElementById(def.btnId);' +
@@ -3942,6 +4089,21 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      btn.className = baseClass;' +
 '    }' +
 '  }' +
+// Applied AFTER the loop above, not before it -- these two buttons'
+// className just got fully overwritten (baseClass + a mode-dependent
+// suffix) by that loop, same as every other slot button's, so toggling
+// this class BEFORE the loop (the way an earlier version of this
+// function did) meant the loop's own className assignment silently
+// wiped it straight back off again on every call after the very first
+// -- .slot-corner-above-bar (and so which mode's position CSS,
+// .slot-corner-bl vs the "above the digital bar" variant, actually
+// applied) would only ever reflect whichever mode the page happened
+// to load in, never a mode switched into afterward, until a full page
+// reload re-derived everything from scratch. This is exactly why the
+// bug this fixes only ever showed up after switching modes, not on a
+// fresh load.
+'  document.getElementById("slotBtn-cornerBL").classList.toggle("slot-corner-above-bar", !isAnalogMode);' +
+'  document.getElementById("slotBtn-cornerBR").classList.toggle("slot-corner-above-bar", !isAnalogMode);' +
 '}' +
 'function setSlotEditorColorGroupVisibility(contentVal) {' +
 '  document.getElementById("slotEditColorGroup").style.display = (contentVal === "0") ? "none" : "flex";' +
@@ -4056,6 +4218,19 @@ handEditorModalHtml('sec', 'Edit second hand') +
 // it\'s redundant, so it disappears on expansion per the request --
 // its text stays computed underneath (refreshAllSectionSubheaders()
 // keeps updating it even while hidden), just not shown.
+'  if (sub) sub.style.display = isOpen ? "" : "none";' +
+'}' +
+// Same idea as toggleSection() above, one level down -- see
+// subsectionLegendHtml()\'s own comment for why Hands style/Indices
+// style get this instead of a full top-level section registration.
+'function toggleSubsection(id) {' +
+'  var body = document.getElementById("subsec-" + id);' +
+'  var chev = document.getElementById("subsecchev-" + id);' +
+'  var sub = document.getElementById("subsubhead-" + id);' +
+'  if (!body) return;' +
+'  var isOpen = body.style.display !== "none";' +
+'  body.style.display = isOpen ? "none" : "";' +
+'  if (chev) chev.className = isOpen ? "chevron" : "chevron open";' +
 '  if (sub) sub.style.display = isOpen ? "" : "none";' +
 '}' +
 'function stepSlider(id, delta) {' +
@@ -4509,20 +4684,72 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  }' +
 '  return true;' +
 '}' +
-'function computeHandStyleLabel() {' +
+'function computeHandStylePresetNumber() {' +
 '  for (var n = 1; n <= 9; n++) {' +
 '    var entry = HAND_PRESETS[String(n)];' +
 '    if (!entry) continue;' +
 '    if (handKindMatchesPresetFields("hour", entry.hour) && handKindMatchesPresetFields("min", entry.min) &&' +
 '        handKindMatchesPresetFields("sec", entry.sec)) {' +
-'      return entry.title;' +
+'      return n;' +
 '    }' +
 '  }' +
-'  return "Custom";' +
+'  return null;' +
+'}' +
+'function computeHandStyleLabel() {' +
+'  var n = computeHandStylePresetNumber();' +
+'  return n ? HAND_PRESETS[String(n)].title : "Custom";' +
 '}' +
 'function updateHandStyleButtonLabel() {' +
 '  var span = document.getElementById("handStyleTriggerLabel");' +
 '  if (span) span.textContent = computeHandStyleLabel();' +
+'}' +
+// Only touches the DOM when the actual HTML differs (same "don't
+// restart CSS state that doesn't need restarting" reasoning as
+// setSubheaderTextById() -- an <img> has nothing to animate, but
+// there's no reason to force a decode/repaint of the same image once
+// a second either).
+'function setPreviewThumbnail(elId, html) {' +
+'  var el = document.getElementById(elId);' +
+'  if (!el || el.innerHTML === html) return;' +
+'  el.innerHTML = html;' +
+'}' +
+// Hands style subsection\'s own collapsed-state thumbnail + sub-header
+// -- the thumbnail is whichever HAND_STYLE_IMAGES preset picture
+// currently matches (the same "derived from the live field values,
+// not a remembered flag" source computeHandStyleLabel() already
+// uses), blank for Custom (no single static picture could represent
+// an arbitrary custom combination). The sub-header adds whether any
+// hand currently has its shadow on, since that's real information the
+// bare style name alone wouldn\'t show.
+'function refreshHandsSubsectionPreview() {' +
+'  var n = computeHandStylePresetNumber();' +
+'  var img = n ? HAND_STYLE_IMAGES[String(n)] : null;' +
+'  setPreviewThumbnail("subsecpreview-hands", img ? (\'<img src="\' + img + \'" alt="">\') : "");' +
+'  var title = n ? HAND_PRESETS[String(n)].title : "Custom";' +
+'  var anyShadow = ["hour", "min", "sec"].some(function (kind) {' +
+'    var el = document.getElementById(heHiddenPrefix(kind) + "ShadowEnabled");' +
+'    return el && el.value === "true";' +
+'  });' +
+'  setSubsubheaderText("hands", title + " hands" + (anyShadow ? ", shadow on" : ""));' +
+'}' +
+// Same idea for Indices style -- the thumbnail is whichever bitmap or
+// procedural-preset picture MARKER_STYLE_TITLES/updateMarkerStyleButtonLabel()
+// already resolve bigAnalogMarkerStyle\'s current value to, blank for
+// Custom (8) and None (9) alike (neither has one static picture to
+// show -- Custom is user-defined per-ring geometry, None draws
+// nothing at all).
+'function refreshIndicesSubsectionPreview() {' +
+'  var val = document.getElementById("bigAnalogMarkerStyle").value;' +
+'  var bmp = MARKER_BITMAP_STYLES.filter(function (s) { return s.value === val; })[0];' +
+'  var img = null, isBitmap = false;' +
+'  if (bmp) { img = MARKER_PREVIEW_IMAGES[val]; isBitmap = true; }' +
+'  else {' +
+'    var preset = MARKER_PRESET_STYLES.filter(function (s) { return s.value === val; })[0];' +
+'    if (preset) img = MARKER_PRESET_IMAGES[preset.image];' +
+'  }' +
+'  setPreviewThumbnail("subsecpreview-indices", img ? (\'<img class="\' + (isBitmap ? "bitmap-marker-img" : "") + \'" src="\' + img + \'" alt="">\') : "");' +
+'  var title = MARKER_STYLE_TITLES.hasOwnProperty(val) ? MARKER_STYLE_TITLES[val] : "Custom";' +
+'  setSubsubheaderText("indices", title + " indices");' +
 '}' +
 
 // ---- marker style picker popup -----------------------------------------
@@ -5152,6 +5379,63 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  selectModeButton("outlineStyleGroup", "outlineStyle", val);' +
 '  updatePreview();' +
 '}' +
+// Rounds an <input type="time"> element\'s "HH:MM" value to the
+// nearest whole hour (23:xx rounds up to 00:00 the same as any other
+// hour, matching a plain clock-face reading of "closer to midnight
+// than to 11pm"). Used both right when "On full hours" is picked
+// (so a previously-set 8:15 becomes 8:00 immediately) and on every
+// live edit of either time field while that mode stays selected --
+// see onHourlyVibeTimeChange() below.
+'function roundTimeInputToHour(el) {' +
+'  if (!el || !el.value) return;' +
+'  var parts = el.value.split(":");' +
+'  var h = parseInt(parts[0], 10) || 0, m = parseInt(parts[1], 10) || 0;' +
+'  if (m >= 30) h = (h + 1) % 24;' +
+'  el.value = (h < 10 ? "0" : "") + h + ":00";' +
+'}' +
+// Shows the Minutes interval slider only for "Every X minutes",
+// grays out (and, via pointer-events:none from .grayed-out, disables)
+// every sub-option -- pattern, time range, days, override-quiet --
+// when Hourly vibrations is "Off" outright, since none of them mean
+// anything without vibrations happening at all, and snaps both time
+// fields to a whole hour the instant "On full hours" is chosen.
+'function updateHourlyVibeVisibility() {' +
+'  var mode = document.getElementById("hourlyVibeMode").value;' +
+'  var intervalRow = document.getElementById("hourlyVibeIntervalRow");' +
+'  var subOptions = document.getElementById("hourlyVibeSubOptions");' +
+'  var quietRow = document.getElementById("hourlyVibeOverrideQuietRow");' +
+'  if (intervalRow) intervalRow.style.display = (mode === "2") ? "" : "none";' +
+'  if (subOptions) subOptions.className = (mode === "0") ? "grayed-out" : "";' +
+'  if (quietRow) quietRow.className = "checkbox-row" + (mode === "0" ? " grayed-out" : "");' +
+'  if (mode === "1") {' +
+'    roundTimeInputToHour(document.getElementById("hourlyVibeStartTime"));' +
+'    roundTimeInputToHour(document.getElementById("hourlyVibeEndTime"));' +
+'  }' +
+'}' +
+'function onHourlyVibeModeChange(val) {' +
+'  selectVerticalOption("hourlyVibeModeGroup", "hourlyVibeMode", val);' +
+'  updateHourlyVibeVisibility();' +
+'}' +
+'function onHourlyVibeTimeChange(id) {' +
+'  if (document.getElementById("hourlyVibeMode").value === "1") {' +
+'    roundTimeInputToHour(document.getElementById(id));' +
+'  }' +
+'  updatePreview();' +
+'}' +
+// hourlyVibeDaysMask: one bit per day, bit i = HOURLY_VIBE_DAY_LABELS[i]
+// (Sun=bit 0 .. Sat=bit 6), matching struct tm\'s own tm_wday directly
+// -- see that array\'s own comment. Independent toggle, not a "pick
+// one" group, so this flips a single bit rather than calling
+// selectModeButton()/selectVerticalOption().
+'function toggleHourlyVibeDay(bit) {' +
+'  var hidden = document.getElementById("hourlyVibeDaysMask");' +
+'  var mask = parseInt(hidden.value, 10) || 0;' +
+'  mask ^= (1 << bit);' +
+'  hidden.value = String(mask);' +
+'  var btn = document.querySelector(\'.day-toggle-btn[data-bit="\' + bit + \'"]\');' +
+'  if (btn) btn.className = "day-toggle-btn" + ((mask & (1 << bit)) ? " active" : "");' +
+'  updatePreview();' +
+'}' +
 'function selectShadowTranslucent(val) {' +
 '  selectModeButton("shadowTranslucentGroup", "shadowTranslucent", val);' +
 '  refreshEditButtonLabels();' +
@@ -5606,7 +5890,14 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    CONFIG_PRESET_5_JSON: document.getElementById("presetSlot5Json").value,' +
 '    CONFIG_PRESET_6_NAME: document.getElementById("presetSlot6Name").value,' +
 '    CONFIG_PRESET_6_JSON: document.getElementById("presetSlot6Json").value,' +
-'    CONFIG_DRAW_DEBUG: document.getElementById("drawDebug").checked' +
+'    CONFIG_DRAW_DEBUG: document.getElementById("drawDebug").checked,' +
+'    CONFIG_HOURLY_VIBE_MODE: document.getElementById("hourlyVibeMode").value,' +
+'    CONFIG_HOURLY_VIBE_INTERVAL_MIN: document.getElementById("hourlyVibeIntervalMin").value,' +
+'    CONFIG_HOURLY_VIBE_PATTERN: document.getElementById("hourlyVibePattern").value,' +
+'    CONFIG_HOURLY_VIBE_START_TIME: document.getElementById("hourlyVibeStartTime").value,' +
+'    CONFIG_HOURLY_VIBE_END_TIME: document.getElementById("hourlyVibeEndTime").value,' +
+'    CONFIG_HOURLY_VIBE_DAYS_MASK: document.getElementById("hourlyVibeDaysMask").value,' +
+'    CONFIG_HOURLY_VIBE_OVERRIDE_QUIET: (function () { var el = document.getElementById("hourlyVibeOverrideQuiet"); return el ? el.checked : true; })()' +
 '  };' +
 // Transient, one-shot -- read once by index.js's webviewclosed
 // handler to decide whether this save should force an immediate
@@ -5651,22 +5942,44 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    inner.classList.add("subhead-sliding");' +
 '  }' +
 '}' +
-'function setSubheaderText(id, text) {' +
-'  var el = document.getElementById("subhead-" + id);' +
+// elId-based core, shared by setSubheaderText()/setSubheaderHtml()
+// (section sub-headers, id="subhead-<x>") and setSubsubheaderText()
+// (Hands style/Indices style\'s own nested sub-headers, id="subsubhead-<x>")
+// below -- same element shape/behavior either way, just a different
+// id prefix depending which one\'s calling in.
+'function setSubheaderTextById(elId, text) {' +
+'  var el = document.getElementById(elId);' +
 '  if (!el) return;' +
+'  var inner = el.firstElementChild;' +
+// Unchanged from last time -- leave the DOM (and any already-running
+// slide animation) alone. refreshAllSectionSubheaders() recomputes
+// every section's text once a second regardless of whether anything
+// actually changed; without this check, applySubheadSlide() below
+// would strip and re-add .subhead-sliding on every single call, which
+// restarts a CSS animation from its 0% keyframe the same as recreating
+// the element would -- with a 6s animation and a 1s refresh interval,
+// that reset was firing 6x faster than the animation could ever
+// progress, so it only ever showed the first ~1px of its own slide
+// before jumping back to the start again.
+'  if (inner && inner.textContent === text) return;' +
 '  el.innerHTML = "";' +
-'  var inner = document.createElement("span");' +
+'  inner = document.createElement("span");' +
 '  inner.className = "subhead-sub-inner";' +
 '  inner.textContent = text;' +
 '  el.appendChild(inner);' +
 '  applySubheadSlide(el);' +
 '}' +
-'function setSubheaderHtml(id, html) {' +
-'  var el = document.getElementById("subhead-" + id);' +
+'function setSubheaderHtmlById(elId, html) {' +
+'  var el = document.getElementById(elId);' +
 '  if (!el) return;' +
+'  var inner = el.firstElementChild;' +
+'  if (inner && inner.innerHTML === html) return;' + // see setSubheaderTextById()'s own comment on why this guard exists
 '  el.innerHTML = \'<span class="subhead-sub-inner">\' + html + "</span>";' +
 '  applySubheadSlide(el);' +
 '}' +
+'function setSubheaderText(id, text) { setSubheaderTextById("subhead-" + id, text); }' +
+'function setSubheaderHtml(id, html) { setSubheaderHtmlById("subhead-" + id, html); }' +
+'function setSubsubheaderText(id, text) { setSubheaderTextById("subsubhead-" + id, text); }' +
 'function computeStyleSubheader() {' +
 '  var bottomStyleVal = document.getElementById("bottomStyleValue").value;' +
 '  var clockPart;' +
@@ -5792,6 +6105,12 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  if (!lat && !lon) return "Use phone location";' +
 '  return "Use lat: " + lat + ", long: " + lon;' +
 '}' +
+'function computeOtherSubheader() {' +
+'  var mode = document.getElementById("hourlyVibeMode").value;' +
+'  if (mode === "0") return "Hourly vibrations off";' +
+'  var when = mode === "1" ? "on full hours" : (document.getElementById("hourlyVibeIntervalMin").value + " min interval");' +
+'  return "Hourly vibrations: " + when;' +
+'}' +
 'function computeUpdatesSubheader() {' +
 '  var mins = document.getElementById("updateMins").value;' +
 '  var saver = document.getElementById("batterySaverEnabled").checked;' +
@@ -5836,6 +6155,8 @@ handEditorModalHtml('sec', 'Edit second hand') +
 'function refreshAllSectionSubheaders() {' +
 '  try { setSubheaderText("examples", EXAMPLE_STYLE_COUNT + " styles available"); } catch (e) {}' +
 '  try { setSubheaderText("style", computeStyleSubheader()); } catch (e) {}' +
+'  try { refreshHandsSubsectionPreview(); } catch (e) {}' +
+'  try { refreshIndicesSubsectionPreview(); } catch (e) {}' +
 '  try { setSubheaderHtml("colors", computeColorsSubheaderHtml()); } catch (e) {}' +
 '  try { setSubheaderText("corners", computeFeaturesSubheader()); } catch (e) {}' +
 '  try { setSubheaderText("animation", computeAnimationSubheader()); } catch (e) {}' +
@@ -5844,6 +6165,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  try { setSubheaderText("astronomy", computeAstronomySubheader()); } catch (e) {}' +
 '  try { setSubheaderText("location", computeLocationSubheader()); } catch (e) {}' +
 '  try { setSubheaderText("updates", computeUpdatesSubheader()); } catch (e) {}' +
+'  try { setSubheaderText("other", computeOtherSubheader()); } catch (e) {}' +
 '  try { setSubheaderText("testing", computeDebugSubheader()); } catch (e) {}' +
 '}' +
 // A single delegated hook per event type instead of threading
@@ -5861,6 +6183,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 'updateColorRoleButtons("night");' +
 'onBottomStyleChange();' +
 'onMarkerStyleChange();' +
+'updateHourlyVibeVisibility();' +
 'updateHandStyleButtonLabel();' +
 'refreshAllFontTriggerLabels();' +
 'refreshEditButtonLabels();' +

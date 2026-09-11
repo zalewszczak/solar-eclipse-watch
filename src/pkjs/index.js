@@ -143,7 +143,10 @@ var KEY_TYPE_MAP = (function () {
     'BIG_ANALOG_MARKER_STYLE', 'BITMAP_MARKER_TRANSPARENT', 'DRAW_FEATURES_BENEATH_HANDS',
     'MARKER_RINGS', 'MARKER_TEXT', 'HANDS',
     'CENTER_CIRCLE_RADIUS', 'CENTER_CIRCLE_COLOR', "DRAW_DEBUG",
-    'CUSTOM_HOUR_INNER_THICKNESS', 'CUSTOM_SEC_INNER_THICKNESS'
+    'CUSTOM_HOUR_INNER_THICKNESS', 'CUSTOM_SEC_INNER_THICKNESS',
+    'HOURLY_VIBE_MODE', 'HOURLY_VIBE_INTERVAL_MIN', 'HOURLY_VIBE_PATTERN',
+    'HOURLY_VIBE_START_MIN', 'HOURLY_VIBE_END_MIN', 'HOURLY_VIBE_DAYS_MASK',
+    'HOURLY_VIBE_OVERRIDE_QUIET'
   ]);
 
   return map;
@@ -586,7 +589,7 @@ function customMarkerStyleCode(key, fallback) { return clampInt(getSetting(key, 
 function customMarkerBorderCode(key, fallback) { return clampInt(getSetting(key, fallback), MARKER_BORDER_MIN, MARKER_BORDER_MAX, fallback); }
 
 function customHourStyleCode() { return customMarkerStyleCode('CONFIG_CUSTOM_HOUR_STYLE', 0); }
-function customHourThicknessCode() { return clampInt(getSetting('CONFIG_CUSTOM_HOUR_THICKNESS', '3'), 1, 20, 3); }
+function customHourThicknessCode() { return clampInt(getSetting('CONFIG_CUSTOM_HOUR_THICKNESS', '3'), 0, 20, 3); } // 0 is a real value here -- see draw_marker_ring()'s own "thickness 0 means this ring draws nothing at all" comment; the config page's "None" shape commits exactly that
 // Only meaningful for style 4 (tapered) -- sent as its own simple
 // field, not part of the MARKER_RINGS blob, see custom_hour_marker_
 // inner_thickness's own comment in eclipse_data.h for why.
@@ -604,7 +607,7 @@ function customHourTranslucentCode() { return getSetting('CONFIG_CUSTOM_HOUR_TRA
 // comment in eclipse_data.h.
 function customHourColorCode() { return clampInt(getSetting('CONFIG_CUSTOM_HOUR_COLOR', '0'), 0, 2, 0); }
 function customSecStyleCode() { return customMarkerStyleCode('CONFIG_CUSTOM_SEC_STYLE', 0); }
-function customSecThicknessCode() { return clampInt(getSetting('CONFIG_CUSTOM_SEC_THICKNESS', '1'), 1, 10, 1); }
+function customSecThicknessCode() { return clampInt(getSetting('CONFIG_CUSTOM_SEC_THICKNESS', '1'), 0, 10, 1); } // see customHourThicknessCode()
 function customSecInnerThicknessCode() { return clampInt(getSetting('CONFIG_CUSTOM_SEC_INNER_THICKNESS', '1'), 1, 10, 1); } // see customHourInnerThicknessCode()
 function customSecInnerEccCode() { return clampInt(getSetting('CONFIG_CUSTOM_SEC_INNER_ECC', '0'), 0, 100, 0); }
 function customSecOuterEccCode() { return clampInt(getSetting('CONFIG_CUSTOM_SEC_OUTER_ECC', '0'), 0, 100, 0); }
@@ -795,6 +798,24 @@ function showIssCode() { return getSetting('CONFIG_SHOW_ISS', 'false') === 'true
 function auroraEnabledCode() { return getSetting('CONFIG_AURORA_ENABLED', 'false') === 'true' ? 1 : 0; }
 function vibrateOnPhaseChangeCode() { return getSetting('CONFIG_VIBRATE_ON_PHASE_CHANGE', 'false') === 'true' ? 1 : 0; }
 function drawDebugCode() { return getSetting('CONFIG_DRAW_DEBUG', 'false') === 'true' ? 1 : 0; }
+// Hourly vibrations -- see hourly_vibe_mode's own comment in
+// eclipse_data.h for the full field layout this maps onto.
+function hourlyVibeModeCode() { return clampInt(getSetting('CONFIG_HOURLY_VIBE_MODE', '0'), 0, 2, 0); }
+function hourlyVibeIntervalMinCode() { return clampInt(getSetting('CONFIG_HOURLY_VIBE_INTERVAL_MIN', '30'), 1, 180, 30); }
+function hourlyVibePatternCode() { return clampInt(getSetting('CONFIG_HOURLY_VIBE_PATTERN', '0'), 0, 2, 0); }
+// "HH:MM" (the config page's own <input type="time"> value) -> minutes
+// since midnight (0-1439), same units hourly_vibe_start_min/
+// hourly_vibe_end_min store on the watch. Falls back to '00:00' (all
+// day, per that field's own comment) on anything unparseable.
+function minutesSinceMidnight(hhmm) {
+  var parts = String(hhmm || '00:00').split(':');
+  var h = clampInt(parts[0], 0, 23, 0), m = clampInt(parts[1], 0, 59, 0);
+  return h * 60 + m;
+}
+function hourlyVibeStartMinCode() { return minutesSinceMidnight(getSetting('CONFIG_HOURLY_VIBE_START_TIME', '00:00')); }
+function hourlyVibeEndMinCode() { return minutesSinceMidnight(getSetting('CONFIG_HOURLY_VIBE_END_TIME', '00:00')); }
+function hourlyVibeDaysMaskCode() { return clampInt(getSetting('CONFIG_HOURLY_VIBE_DAYS_MASK', '127'), 0, 127, 127); }
+function hourlyVibeOverrideQuietCode() { return getSetting('CONFIG_HOURLY_VIBE_OVERRIDE_QUIET', 'true') === 'true' ? 1 : 0; }
 // Radio-style, exactly one of 0=off, 1=animate clock, 2=planet sweep
 // time shift -- see startup_clock_anim_mode's own comment in
 // eclipse_data.h. Default 1 (animate clock), matching the old
@@ -1028,6 +1049,13 @@ function populateSettingsFields(dict) {
   dict['CORNER_CONTENT'] = cornerContentBytes();
   dict['CORNER_COLOR_MODE'] = cornerColorModeBytes();
   dict['DAILY_STEP_GOAL'] = dailyStepGoalValue();
+  dict['HOURLY_VIBE_MODE'] = hourlyVibeModeCode();
+  dict['HOURLY_VIBE_INTERVAL_MIN'] = hourlyVibeIntervalMinCode();
+  dict['HOURLY_VIBE_PATTERN'] = hourlyVibePatternCode();
+  dict['HOURLY_VIBE_START_MIN'] = hourlyVibeStartMinCode();
+  dict['HOURLY_VIBE_END_MIN'] = hourlyVibeEndMinCode();
+  dict['HOURLY_VIBE_DAYS_MASK'] = hourlyVibeDaysMaskCode();
+  dict['HOURLY_VIBE_OVERRIDE_QUIET'] = hourlyVibeOverrideQuietCode();
   dict['DRAW_DEBUG'] = drawDebugCode();
 }
 
@@ -1961,6 +1989,13 @@ Pebble.addEventListener('showConfiguration', function () {
     testMode: getSetting('CONFIG_TEST_MODE', 'false') === 'true',
     testDateTime: getSetting('CONFIG_TEST_DATETIME', ''),
     drawDebug: getSetting('CONFIG_DRAW_DEBUG', 'false') === 'true',
+    hourlyVibeMode: getSetting('CONFIG_HOURLY_VIBE_MODE', '0'),
+    hourlyVibeIntervalMin: getSetting('CONFIG_HOURLY_VIBE_INTERVAL_MIN', '30'),
+    hourlyVibePattern: getSetting('CONFIG_HOURLY_VIBE_PATTERN', '0'),
+    hourlyVibeStartTime: getSetting('CONFIG_HOURLY_VIBE_START_TIME', '00:00'),
+    hourlyVibeEndTime: getSetting('CONFIG_HOURLY_VIBE_END_TIME', '00:00'),
+    hourlyVibeDaysMask: getSetting('CONFIG_HOURLY_VIBE_DAYS_MASK', '127'),
+    hourlyVibeOverrideQuiet: getSetting('CONFIG_HOURLY_VIBE_OVERRIDE_QUIET', 'true') === 'true',
     // Last RAW_MESSAGE_LOG_MAX individual chunks actually sent -- see
     // recordRawMessage() near the top of this file. Newest last (the
     // order they were recorded in); the settings page itself is what
@@ -2208,6 +2243,13 @@ Pebble.addEventListener('webviewclosed', function (e) {
   setSetting('CONFIG_PRESET_6_NAME', settings.CONFIG_PRESET_6_NAME || '');
   setSetting('CONFIG_PRESET_6_JSON', settings.CONFIG_PRESET_6_JSON || '');
   setSetting('CONFIG_DRAW_DEBUG', settings.CONFIG_DRAW_DEBUG ? 'true' : 'false');
+  setSetting('CONFIG_HOURLY_VIBE_MODE', settings.CONFIG_HOURLY_VIBE_MODE || '0');
+  setSetting('CONFIG_HOURLY_VIBE_INTERVAL_MIN', settings.CONFIG_HOURLY_VIBE_INTERVAL_MIN || '30');
+  setSetting('CONFIG_HOURLY_VIBE_PATTERN', settings.CONFIG_HOURLY_VIBE_PATTERN || '0');
+  setSetting('CONFIG_HOURLY_VIBE_START_TIME', settings.CONFIG_HOURLY_VIBE_START_TIME || '00:00');
+  setSetting('CONFIG_HOURLY_VIBE_END_TIME', settings.CONFIG_HOURLY_VIBE_END_TIME || '00:00');
+  setSetting('CONFIG_HOURLY_VIBE_DAYS_MASK', settings.CONFIG_HOURLY_VIBE_DAYS_MASK || '127');
+  setSetting('CONFIG_HOURLY_VIBE_OVERRIDE_QUIET', settings.CONFIG_HOURLY_VIBE_OVERRIDE_QUIET === false ? 'false' : 'true');
 
   // The clock font / weather-readout toggle / colors are purely
   // cosmetic and phone-local -- send them immediately rather than

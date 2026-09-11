@@ -712,6 +712,24 @@ typedef struct {
                                   // is informative on its own even when the estimate says "not from here".
   uint8_t aurora_error_code;    // 0 = this refresh's aurora fetch was fine (or aurora_enabled is off).
                                   // Same meaning/source as weather_error_code and iss_error_code above.
+
+  // Hourly vibrations -- a periodic reminder buzz, independent of
+  // everything else in this struct. See maybe_do_hourly_vibe() in
+  // pebble-eclipse-watch.c for the actual scheduling logic.
+  uint8_t hourly_vibe_mode;      // 0=off, 1=on full hours, 2=every hourly_vibe_interval_min minutes
+  uint8_t hourly_vibe_interval_min; // 1-180, only meaningful for mode 2
+  uint8_t hourly_vibe_pattern;   // 0=short, 1=double, 2=long -- see vibe_for_pattern()
+  uint16_t hourly_vibe_start_min; // minutes since midnight (0-1439), inclusive
+  uint16_t hourly_vibe_end_min;   // minutes since midnight (0-1439), inclusive. start==end (including
+                                    // the 0==0 default) means "all 24 hours", not a single-minute window --
+                                    // see hourly_vibe_time_in_range() -- and start > end wraps past midnight
+                                    // (e.g. 22:00-6:00 covers the overnight span) rather than being empty.
+  uint8_t hourly_vibe_days_mask; // bit i set = active on the day struct tm's own tm_wday == i would report
+                                    // (bit 0 = Sunday .. bit 6 = Saturday) -- matches config-page.js's
+                                    // HOURLY_VIBE_DAY_LABELS ordering exactly, so no reindexing either side.
+  bool hourly_vibe_override_quiet; // true (the default): vibrate even while Quiet Time is active. false:
+                                    // skip vibrating whenever quiet_time_is_active() says Quiet Time is on.
+
   bool draw_debug;                // drawing the bounding boxes of certain elements for debug purposes
 } EclipseData;
 

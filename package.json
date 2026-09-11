@@ -156,7 +156,14 @@
       "UV_INDEX_CURRENT_X10",
       "DRAW_DEBUG",
       "CUSTOM_HOUR_INNER_THICKNESS",
-      "CUSTOM_SEC_INNER_THICKNESS"
+      "CUSTOM_SEC_INNER_THICKNESS",
+      "HOURLY_VIBE_MODE",
+      "HOURLY_VIBE_INTERVAL_MIN",
+      "HOURLY_VIBE_PATTERN",
+      "HOURLY_VIBE_START_MIN",
+      "HOURLY_VIBE_END_MIN",
+      "HOURLY_VIBE_DAYS_MASK",
+      "HOURLY_VIBE_OVERRIDE_QUIET"
     ],
     "resources": {
       "media": [
@@ -196,13 +203,13 @@
           "file": "fonts/NotoSerif-MediumItalic.ttf"
         },
         {
-          "characterRegex": "[:0-9]",
+          "characterRegex": "[:0-9XVI]",
           "type": "font",
           "name": "MPLUSBLACK_FONT_48",
           "file": "fonts/MPLUSRounded1c-Black.ttf"
         },
         {
-          "characterRegex": "[:0-9]",
+          "characterRegex": "[:0-9XVI]",
           "type": "font",
           "name": "REDITBOLD_FONT_48",
           "file": "fonts/RedditSans-Bold.ttf"
@@ -259,133 +266,133 @@
           "file": "images/icon.png"
         },
         {
-          "characterRegex": "[:0-9]",
+          "characterRegex": "[:0-9XVI]",
           "type": "font",
           "name": "ALAGARD_FONT_48",
           "file": "fonts/alagard.ttf"
         },
         {
-          "characterRegex": "[:0-9]",
+          "characterRegex": "[:0-9XVI]",
           "type": "font",
           "name": "AMITA_FONT_48",
           "file": "fonts/Amita-Bold.ttf"
         },
         {
-          "characterRegex": "[:0-9]",
+          "characterRegex": "[:0-9XVI]",
           "type": "font",
           "name": "AVERIA_FONT_48",
           "file": "fonts/AveriaSerifLibre-BoldItalic.ttf"
         },
         {
-          "characterRegex": "[:0-9]",
+          "characterRegex": "[:0-9XVI]",
           "type": "font",
           "name": "BAGEL_FONT_48",
           "file": "fonts/BagelFatOne-Regular.ttf"
         },
         {
-          "characterRegex": "[:0-9]",
+          "characterRegex": "[:0-9XVI]",
           "type": "font",
           "name": "BEBAS_FONT_48",
           "file": "fonts/BebasNeueBold.otf"
         },
         {
-          "characterRegex": "[:0-9]",
+          "characterRegex": "[:0-9XVI]",
           "type": "font",
           "name": "BRICOLAGE_FONT_48",
           "file": "fonts/BricolageGrotesque.ttf"
         },
         {
-          "characterRegex": "[:0-9]",
+          "characterRegex": "[:0-9XVI]",
           "type": "font",
           "name": "CHANGO_FONT_48",
           "file": "fonts/Chango-Regular.ttf"
         },
         {
-          "characterRegex": "[:0-9]",
+          "characterRegex": "[:0-9XVI]",
           "type": "font",
           "name": "DIGITALDREAM_FONT_48",
           "file": "fonts/DIGITALDREAM.ttf"
         },
         {
-          "characterRegex": "[:0-9]",
+          "characterRegex": "[:0-9XVI]",
           "type": "font",
           "name": "EMBLEMA_FONT_48",
           "file": "fonts/EmblemaOne-Regular.ttf"
         },
         {
-          "characterRegex": "[:0-9]",
+          "characterRegex": "[:0-9XVI]",
           "type": "font",
           "name": "FRAUNCES_FONT_48",
           "file": "fonts/Fraunces.ttf"
         },
         {
-          "characterRegex": "[:0-9]",
+          "characterRegex": "[:0-9XVI]",
           "type": "font",
           "name": "GEOSTAR_FONT_48",
           "file": "fonts/GeostarFill-Regular.ttf"
         },
         {
-          "characterRegex": "[:0-9]",
+          "characterRegex": "[:0-9XVI]",
           "type": "font",
           "name": "KOMIKAHB_FONT_48",
           "file": "fonts/KOMIKAHB.ttf"
         },
         {
-          "characterRegex": "[:0-9]",
+          "characterRegex": "[:0-9XVI]",
           "type": "font",
           "name": "MICHROMA_FONT_48",
           "file": "fonts/Michroma-Regular.ttf"
         },
         {
-          "characterRegex": "[:0-9]",
+          "characterRegex": "[:0-9XVI]",
           "type": "font",
           "name": "MINECRAFTER_FONT_48",
           "file": "fonts/Minecrafter.ttf"
         },
         {
-          "characterRegex": "[:0-9]",
+          "characterRegex": "[:0-9XVI]",
           "type": "font",
           "name": "NATIONALPARK_FONT_48",
           "file": "fonts/NationalPark-VariableFont_wght.ttf"
         },
         {
-          "characterRegex": "[:0-9]",
+          "characterRegex": "[:0-9XVI]",
           "type": "font",
           "name": "QUANTICO_FONT_48",
           "file": "fonts/Quantico-BoldItalic.ttf"
         },
         {
-          "characterRegex": "[:0-9]",
+          "characterRegex": "[:0-9XVI]",
           "type": "font",
           "name": "SFPIXELATE_FONT_48",
           "file": "fonts/SFPixelate.ttf"
         },
         {
-          "characterRegex": "[:0-9]",
+          "characterRegex": "[:0-9XVI]",
           "type": "font",
           "name": "SILKSCREEN_FONT_48",
           "file": "fonts/Silkscreen-Regular.ttf"
         },
         {
-          "characterRegex": "[:0-9]",
+          "characterRegex": "[:0-9XVI]",
           "type": "font",
           "name": "STACKSANSHEADLINE_FONT_48",
           "file": "fonts/StackSansHeadline.ttf"
         },
         {
-          "characterRegex": "[:0-9]",
+          "characterRegex": "[:0-9XVI]",
           "type": "font",
           "name": "UNBOUNDED_FONT_48",
           "file": "fonts/Unbounded-Medium.ttf"
         },
         {
-          "characterRegex": "[:0-9]",
+          "characterRegex": "[:0-9XVI]",
           "type": "font",
           "name": "WALLPOET_FONT_48",
           "file": "fonts/Wallpoet-Regular.ttf"
         },
         {
-          "characterRegex": "[:0-9]",
+          "characterRegex": "[:0-9XVI]",
           "type": "font",
           "name": "ZALANDOSANS_FONT_48",
           "file": "fonts/ZalandoSansExpanded-Medium.ttf"
