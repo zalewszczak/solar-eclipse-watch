@@ -77,6 +77,15 @@ static BatterySaverPhase battery_saver_compute_phase(time_t now);
 static void battery_saver_apply_phase_change(BatterySaverPhase new_phase);
 static void battery_saver_send_phase_to_phone(BatterySaverPhase phase);
 
+// Whether the screen is (or should be) ticking every second right
+// now -- show_seconds/a seconds-precision corner content OR an active
+// eclipse in progress, unless battery saver is overriding that back
+// down to once a minute. Defined near need_second_precision() further
+// down; forward-declared here since update_planet_seek_accuracy_label()
+// and eclipse_get_status_text()'s call sites both need it well before
+// that point in the file.
+static bool live_seconds_now(time_t now);
+
 // ---- color schemes ------------------------------------------------------
 
 // Built at runtime via GColorFromRGB rather than named palette
@@ -623,7 +632,7 @@ static void update_planet_seek_accuracy_label(bool active) {
     // day, so this always resolves to "hidden" in practice here, but
     // spelling it out the same way keeps this in sync if that ever
     // changes.
-    eclipse_get_status_text(&s_data, time(NULL), s_countdown_buf, sizeof(s_countdown_buf));
+    eclipse_get_status_text(&s_data, time(NULL), s_countdown_buf, sizeof(s_countdown_buf), live_seconds_now(time(NULL)));
     layer_set_hidden(s_countdown_layer, s_data.valid && !s_data.has_eclipse);
   }
 }
@@ -655,6 +664,7 @@ static void shake_anim_timer_callback(void *data) {
 // the gradient/hand-smoothing window rather than just extending it.
 static void maybe_start_shake_animation(void) {
   if (s_data.shake_anim_mode == 0) return;
+  if (eclipse_is_active(&s_data, time(NULL))) return; // no shake animations (smooth second OR Planet seek) while the eclipse itself is actively in progress, per request
   if (shake_anim_wants_planet_seek(s_data.shake_anim_mode) && s_data.has_eclipse) return; // Planet seek (modes 2 and 3) never runs on an eclipse day, per request
   s_shake_anim_active = true;
   s_shake_anim_elapsed_ms = 0;
@@ -959,7 +969,7 @@ static void countdown_layer_update_proc(Layer *layer, GContext *ctx) {
 
 static void refresh_status_and_maybe_canvas(bool force_canvas) {
   time_t now = time(NULL);
-  eclipse_get_status_text(&s_data, now, s_countdown_buf, sizeof(s_countdown_buf));
+  EclipsePhase phase = eclipse_get_status_text(&s_data, now, s_countdown_buf, sizeof(s_countdown_buf), live_seconds_now(now));
   // The countdown label overlays the sky canvas transparently, so its
   // own contrast needs to track the sky brightness underneath it --
   // this check is cheap (no drawing), so it's fine to do every second.
@@ -970,6 +980,18 @@ static void refresh_status_and_maybe_canvas(bool force_canvas) {
   // show in that case. Error/loading states still display normally,
   // since those aren't "no eclipse," they're "don't know yet."
   bool hide_label = s_data.valid && !s_data.has_eclipse;
+
+  // Totality flashes the countdown label on/off once a second -- the
+  // same attention-grabbing treatment update_planet_seek_accuracy_label()
+  // gives the compass-accuracy warning -- rather than sitting on
+  // screen solid for the whole totality window. eclipse_is_active()
+  // being true for this entire phase is exactly what already forces
+  // live_seconds_now() (and so the SECOND_UNIT tick rate this actually
+  // needs to look like flashing rather than a slow blink) above.
+  if (phase == PHASE_TOTAL && (now % 2) == 0) { // hidden on even seconds, shown on odd ones
+    s_countdown_buf[0] = '\0';
+    hide_label = true;
+  }
 
   // Battery saver's sleep/deep-sleep indicator takes over this same
   // top-of-screen label -- same free-real-estate reasoning
@@ -1119,8 +1141,13 @@ static void startup_anim_timer_callback(void *data) {
 // dirty already exist. A no-op (and leaves s_startup_clock_anim_active
 // false) if the setting is off, or if this app session already played
 // it once -- a settings save or a fresh data push shouldn't replay it.
+// Also a no-op (without marking it "played" -- window_load only ever
+// runs once per session anyway, so there's no later chance for it to
+// replay) if the eclipse is actively in progress right at launch: per
+// request, no startup animation while an active eclipse is on screen.
 static void maybe_start_startup_clock_animation(void) {
   if (s_startup_clock_anim_played || s_data.startup_clock_anim_mode == 0) return;
+  if (eclipse_is_active(&s_data, time(NULL))) return;
   s_startup_clock_anim_played = true;
   s_startup_clock_anim_active = true;
   s_startup_anim_elapsed_ms = 0;
@@ -1161,6 +1188,7 @@ static void bg_anim_timer_callback(void *data) {
 
 static void maybe_start_startup_background_animation(void) {
   if (s_bg_anim_played || s_data.bg_anim_mode == 0) return;
+  if (eclipse_is_active(&s_data, time(NULL))) return; // no startup background animation while an active eclipse is on screen, per request
   // Marker animation (bg_anim_mode 2) has no actual visual effect for
   // bitmap marker styles (Modern/Shadow/Tally/Bell/Fancy -- the PNG-
   // backed marker backgrounds, big_analog_marker_style 3-7):
@@ -1204,9 +1232,10 @@ static void apply_clock_font(void) {
 
 // Battery-saving tick granularity: SECOND_UNIT only when something on
 // screen actually needs live seconds -- the second hand / digital
-// clock's own seconds (show_seconds), OR a corner/edge slot showing a
+// clock's own seconds (show_seconds), a corner/edge slot showing a
 // seconds-precision content type (Time: second, Time: full H:M:S, and
-// the tens/ones-digit variants) -- MINUTE_UNIT otherwise.
+// the tens/ones-digit variants), OR an eclipse actively in progress
+// (see eclipse_is_active()) -- MINUTE_UNIT otherwise.
 // tick_handler() itself has no per-second-specific behavior beyond
 // what's gated on s_tick_unit_is_seconds below, so firing once a
 // minute instead of once a second when nothing needs live seconds is
@@ -1228,15 +1257,26 @@ static bool need_second_precision(void) {
   return false;
 }
 
+// See this function's own forward declaration further up for why it
+// exists as a separate helper: eclipse_get_status_text() (called from
+// two spots well before this point in the file) needs the exact same
+// "is the screen actually ticking every second right now" answer that
+// update_tick_subscription() below uses to pick SECOND_UNIT/MINUTE_UNIT,
+// so there's exactly one definition of it rather than two that could
+// silently drift apart.
+static bool live_seconds_now(time_t now) {
+  // Battery saver overrides both need_second_precision() and an active
+  // eclipse outright while resting -- see the "battery saver" block
+  // below for the full state machine. A live seconds hand/digit (or an
+  // eclipse in progress) is exactly the kind of per-second wakeup this
+  // feature exists to stop once nobody's actually looking at the
+  // watch; tap_handler() already snaps this straight back the instant
+  // a shake wakes it back up.
+  return (need_second_precision() || eclipse_is_active(&s_data, now)) && s_battery_saver_phase == BATTERY_SAVER_AWAKE;
+}
+
 static void update_tick_subscription(void) {
-  // Battery saver overrides need_second_precision() outright while
-  // resting -- see the "battery saver" block below for the full
-  // state machine. A live seconds hand/digit is exactly the kind of
-  // per-second wakeup this feature exists to stop once nobody's
-  // actually looking at the watch; tap_handler() already snaps this
-  // straight back to a normal SECOND_UNIT subscription (if one's
-  // still wanted) the instant a shake wakes it back up.
-  bool need_seconds = need_second_precision() && s_battery_saver_phase == BATTERY_SAVER_AWAKE;
+  bool need_seconds = live_seconds_now(time(NULL));
   if (s_tick_subscribed && need_seconds == s_tick_unit_is_seconds) return; // already at the right granularity
   s_tick_subscribed = true;
   s_tick_unit_is_seconds = need_seconds;
@@ -1839,6 +1879,15 @@ static void tick_handler(struct tm *tick_time, TimeUnits units_changed) {
   // Never fires when this subscription is at MINUTE_UNIT, since
   // s_tick_unit_is_seconds is false in that case.
   if (s_tick_unit_is_seconds && s_features_layer) features_layer_refresh_second_slots(s_features_layer);
+
+  // Re-checks whether live seconds are needed on every tick (cheap:
+  // an early-return once the granularity already matches -- see its
+  // own comment), not just on a settings save/data refresh -- an
+  // eclipse crossing into (or out of) its active C1..C4 window is a
+  // real-time event with nothing else to notify this of, so this is
+  // what actually catches that transition and flips SECOND_UNIT/
+  // MINUTE_UNIT for it, within at most one MINUTE_UNIT tick.
+  update_tick_subscription();
 }
 
 // ---- shake-to-reveal labels ------------------------------------------------

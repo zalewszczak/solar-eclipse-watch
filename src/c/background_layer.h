@@ -53,15 +53,27 @@ void eclipse_canvas_tick(Layer *layer);
 // times in `data`, writes a short human label + countdown (e.g.
 // "Totality in 12:34" / "Partial ends in 0:47") into buf, and
 // returns the phase so the caller can decide how urgently to
-// refresh the canvas.
+// refresh the canvas. live_seconds should be whatever the caller is
+// actually driving its own redraw cadence off of right now (see
+// pebble-eclipse-watch.c's update_tick_subscription()) -- only used
+// to decide the pre-eclipse "Starts in" countdown's own precision:
+// full M:SS when the screen is already updating every second for
+// some other reason, a plain whole-minutes(+hours) readout otherwise,
+// so the displayed countdown never implies more precision than the
+// redraw rate can actually keep up with.
 EclipsePhase eclipse_get_status_text(const EclipseData *data, time_t now,
-                                      char *buf, size_t buf_len);
+                                      char *buf, size_t buf_len, bool live_seconds);
 
 // True if the sky is currently bright enough (day through civil
 // twilight) that dark text reads better than light text on top of
 // it. Cheap -- just interpolates the transmitted altitude samples,
 // no drawing -- so it's safe to call every second.
 bool eclipse_sky_is_bright(const EclipseData *data, time_t now);
+
+// True from first contact up to (not including) last contact -- see
+// the .c file's own comment for why every "is the eclipse happening
+// right now" check in the app goes through this one function.
+bool eclipse_is_active(const EclipseData *data, time_t now);
 
 // A short word ("Sunny", "Overcast", "Rain", ...) summarizing current
 // conditions from weather_condition + cloud_cover_pct -- shared with
