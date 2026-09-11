@@ -1831,13 +1831,14 @@ static void draw_text_markers(GContext *ctx, GPoint center, GRect screen, Canvas
     if (!(mask & (1 << i))) continue;
     
     int32_t angle = (((int32_t)i * TRIG_MAX_ANGLE) / 12) & 0xFFFF;
-    int offset_text_pct = ring->inner_border_pct + text_cfg->offset_px;
+    int offset_text_pct = ring->thickness == 0 ? 100 + text_cfg->offset_px : ring->inner_border_pct + text_cfg->offset_px;
     if(offset_text_pct>100) {
       offset_text_pct = 100;
     } else if (offset_text_pct < 0) {
       offset_text_pct = 0;
     }
-    GPoint pos = point_on_ring(center, screen, angle, offset_text_pct, ring->inner_eccentricity);
+    GPoint pos = point_on_ring(center, screen, angle, offset_text_pct, ring->thickness == 0 ? 100 : ring->inner_eccentricity);
+   
 //    int32_t sin_v = sin_lookup(angle), cos_v = cos_lookup(angle);
 //    GPoint pos = GPoint(
 //      base.x + div_round((int32_t)text_cfg->offset_px * sin_v, TRIG_MAX_RATIO),

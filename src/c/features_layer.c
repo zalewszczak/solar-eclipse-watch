@@ -14,10 +14,8 @@
 
 #define CORNER_BOX_W 68
 
-// How far a corner slot's box sits from the screen edge. Was 2px;
-// bumped to 4 per request so corners get a bit more breathing room
-// from the bezel.
-#define CORNER_INSET_PX 4
+// How far a corner slot's box sits from the screen edge.
+#define CORNER_INSET_PX 2
 
 // The digital mode's bottom (clock) panel's own fixed height -- screen
 // height (228) minus the sky canvas's fixed top-of-panel value (152,
@@ -1212,6 +1210,7 @@ typedef struct {
   bool is_top;
   bool is_left;
   bool is_middle;
+  bool is_side; // flag for digital clock side features alignment
   int16_t top_offset;
   int16_t bottom_shift;
   int16_t middle_inset;
@@ -2149,7 +2148,17 @@ static void resolve_segment_offsets(FeatureSlot *slot, GFont font, int16_t font_
     }
     total_w += advance[i];
   }
-  if (total_w > box_w) total_w = box_w;
+  if (total_w > box_w) {
+    if (slot->is_middle) {
+      if (slot->is_left) { // this is middle aligned feature, move it to the right
+        total_w = box_w;
+      } else {
+//        total_w -= box_w;
+      }
+    } else if (!slot->is_left && !slot->is_side) { // this is right aligned feature - move it further to the left
+      total_w -= total_w - box_w;
+    }
+  }
 
   // A custom-box slot (currently just the digital-mode bottom feature)
   // is always centered within its own box_w -- it has no left/right
@@ -2453,8 +2462,8 @@ static void features_draw_slot(GContext *ctx, GRect bounds, const FeatureSlot *s
        : (slot->is_left ? bounds.origin.x + CORNER_INSET_PX : bounds.origin.x + bounds.size.w - CORNER_INSET_PX - CORNER_BOX_W));
   int16_t box_y = slot->center_vertical
     ? bounds.origin.y + (bounds.size.h - CORNER_ROW_H) / 2 + slot->top_offset
-    : (slot->is_top ? bounds.origin.y + slot->top_offset
-                     : bounds.origin.y + bounds.size.h - CORNER_ROW_H - CORNER_INSET_PX - slot->bottom_shift);
+    : (slot->is_top ? bounds.origin.y + slot->top_offset - 2
+                     : bounds.origin.y + bounds.size.h - CORNER_ROW_H - CORNER_INSET_PX - slot->bottom_shift + 2);
   if (slot->is_middle) {
     if (slot->is_left) box_x += slot->middle_inset; else box_x -= slot->middle_inset;
   }
@@ -2471,14 +2480,14 @@ static void features_draw_slot(GContext *ctx, GRect bounds, const FeatureSlot *s
     if (seg->is_icon) {
       draw_render_icon(ctx, seg, seg_x, box_y, effective_outline_style, weather_icon_style, draw_debug);
     } else {
-      draw_text_outlined(ctx, seg->text, font,
-                          GRect(seg_x, box_y + (CORNER_ROW_H - font_h) / 2 + font_offset, seg->width + 2, font_h + 2),
-                          GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft, seg->color, effective_outline_style);
+      int16_t box_h = font_h + font_offset + 2;
+      GRect bounding_box = GRect(seg_x, box_y + (CORNER_ROW_H - box_h) / 2 - 1, seg->width + 2, box_h);
+      draw_text_outlined(ctx, seg->text, font, bounding_box, GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft, seg->color, effective_outline_style);
       
       if (draw_debug){
         graphics_context_set_stroke_width(ctx, 1);
         graphics_context_set_stroke_color(ctx, GColorGreen);
-        graphics_draw_rect(ctx, GRect(seg_x, box_y + (CORNER_ROW_H - font_h) / 2 + font_offset, seg->width + 2, font_h + 2));
+        graphics_draw_rect(ctx, bounding_box);
       }
     }
   }
@@ -2550,26 +2559,53 @@ static void features_recompute_layout(FeaturesState *state) {
   // they use a fixed per-style table instead, each side independent.
   typedef struct { int16_t top, bottom, left, right; } EdgeMargins;
   static const EdgeMargins BITMAP_STYLE_MARGINS[5] = {
-    { 34, 30, 35, 30 }, // 3: Modern
-    { 34, 30, 35, 30 }, // 4: Shadow
+    { 34, 30, 40, 35 }, // 3: Modern
+    { 37, 33, 38, 33 }, // 4: Shadow
     { 44, 40, 25, 15 }, // 5: Tally
-    { 44, 40, 40, 40 }, // 6: Bell
+    { 46, 42, 45, 45 }, // 6: Bell
     { 44, 40, 30, 20 }, // 7: Fancy
   };
-  int16_t dyn_upper_offset = 44, dyn_bottom_shift = 40, dyn_left_inset = 30, dyn_right_inset = 30;
+  int16_t dyn_upper_offset = 24, dyn_bottom_shift = 20, dyn_left_inset = 0, dyn_right_inset = 0;
   if (is_bitmap_style && marker_style >= 3 && marker_style <= 7) {
     const EdgeMargins *m = &BITMAP_STYLE_MARGINS[marker_style - 3];
     dyn_upper_offset = m->top; dyn_bottom_shift = m->bottom; dyn_left_inset = m->left; dyn_right_inset = m->right;
   } else if (marker_style == 8) {
     GRect screen = GRect(0, 0, 200, 228);
     GPoint center = GPoint(screen.size.w / 2, screen.size.h / 2);
-    uint8_t pct = d->custom_hour_marker.inner_border_pct;
-    uint8_t ecc = d->custom_hour_marker.inner_eccentricity;
+    uint8_t pct = d->custom_hour_marker.thickness != 0 ? d->custom_hour_marker.inner_border_pct : 100;
+    uint8_t ecc = d->custom_hour_marker.thickness != 0 ? d->custom_hour_marker.inner_eccentricity : 100;
+    uint8_t h_offset = 0;
+    if (d->marker_text.target != 0) {
+      if (d->marker_text.target == 1) { // hours
+        int16_t marker_pct = d->custom_hour_marker.thickness == 0 ? 100 + d->marker_text.offset_px : d->custom_hour_marker.inner_border_pct + d->marker_text.offset_px;
+        if(marker_pct>100) {
+          marker_pct = 100;
+        } else if (marker_pct < 0) {
+          marker_pct = 0;
+        }
+        pct = marker_pct;
+        ecc = d->custom_hour_marker.thickness == 0 ? 100 : d->custom_hour_marker.inner_eccentricity;
+      } else { // seconds
+        int16_t marker_pct = d->custom_second_marker.thickness == 0 ? 100 + d->marker_text.offset_px : d->custom_second_marker.inner_border_pct + d->marker_text.offset_px;
+        if(marker_pct>100) {
+          marker_pct = 100;
+        } else if (marker_pct < 0) {
+          marker_pct = 0;
+        }
+        pct = marker_pct;
+        ecc = d->custom_second_marker.thickness == 0 ? 100 : d->custom_second_marker.inner_eccentricity;
+      }
+      h_offset = (font_lookup_height(d->marker_text.font_choice) + font_lookup_y_offset(d->marker_text.font_choice)) / 2;
+    }
     GPoint top_pt = point_on_ring(center, screen, 0, pct, ecc);
     GPoint right_pt = point_on_ring(center, screen, TRIG_MAX_ANGLE / 4, pct, ecc);
     GPoint bottom_pt = point_on_ring(center, screen, TRIG_MAX_ANGLE / 2, pct, ecc);
     GPoint left_pt = point_on_ring(center, screen, (TRIG_MAX_ANGLE * 3) / 4, pct, ecc);
-    int16_t margin = 4;
+    top_pt.y += h_offset;
+    right_pt.x -= h_offset; // close enough
+    bottom_pt.y -= h_offset;
+    left_pt.x += h_offset;
+    int16_t margin = 2;
     if (top_pt.y + margin > dyn_upper_offset) dyn_upper_offset = top_pt.y + margin;
     if (screen.size.h - bottom_pt.y + margin > dyn_bottom_shift) dyn_bottom_shift = screen.size.h - bottom_pt.y + margin;
     int16_t left_reach = left_pt.x + margin, right_reach = screen.size.w - right_pt.x + margin;
@@ -2597,7 +2633,7 @@ static void features_recompute_layout(FeaturesState *state) {
     int16_t line1_offset = has_line2 ? dyn_upper_offset : dyn_upper_offset + CORNER_ROW_H / 2;
     state->slots[SLOT_UPPER_L1] = (FeatureSlot){
       .active = true, .content = d->upper_middle_line1_content, .color_mode = d->upper_middle_line1_color_mode,
-      .is_top = true, .is_left = true, .is_middle = false,
+      .is_top = true, .is_left = true, .is_middle = false, .is_side = false,
       .top_offset = line1_offset, .bottom_shift = 0, .middle_inset = 0,
       .center_horizontal = true, .center_vertical = false, .allow_outline = true,
       .needs_second_refresh = content_needs_second_refresh(d->upper_middle_line1_content),
@@ -2605,7 +2641,7 @@ static void features_recompute_layout(FeaturesState *state) {
     if (has_line2) {
       state->slots[SLOT_UPPER_L2] = (FeatureSlot){
         .active = true, .content = d->upper_middle_line2_content, .color_mode = d->upper_middle_line2_color_mode,
-        .is_top = true, .is_left = true, .is_middle = false,
+        .is_top = true, .is_left = true, .is_middle = false, .is_side = false,
         .top_offset = dyn_upper_offset + CORNER_ROW_H, .bottom_shift = 0, .middle_inset = 0,
         .center_horizontal = true, .center_vertical = false, .allow_outline = true,
         .needs_second_refresh = content_needs_second_refresh(d->upper_middle_line2_content),
@@ -2616,7 +2652,7 @@ static void features_recompute_layout(FeaturesState *state) {
     int16_t line1_shift = has_line2 ? dyn_bottom_shift + CORNER_ROW_H : dyn_bottom_shift + CORNER_ROW_H / 2;
     state->slots[SLOT_BOTTOM_L1] = (FeatureSlot){
       .active = true, .content = d->bottom_middle_line1_content, .color_mode = d->bottom_middle_line1_color_mode,
-      .is_top = false, .is_left = true, .is_middle = false,
+      .is_top = false, .is_left = true, .is_middle = false, .is_side = false,
       .top_offset = 0, .bottom_shift = line1_shift, .middle_inset = 0,
       .center_horizontal = true, .center_vertical = false, .allow_outline = true,
       .needs_second_refresh = content_needs_second_refresh(d->bottom_middle_line1_content),
@@ -2624,7 +2660,7 @@ static void features_recompute_layout(FeaturesState *state) {
     if (has_line2) {
       state->slots[SLOT_BOTTOM_L2] = (FeatureSlot){
         .active = true, .content = d->bottom_middle_line2_content, .color_mode = d->bottom_middle_line2_color_mode,
-        .is_top = false, .is_left = true, .is_middle = false,
+        .is_top = false, .is_left = true, .is_middle = false, .is_side = false,
         .top_offset = 0, .bottom_shift = dyn_bottom_shift, .middle_inset = 0,
         .center_horizontal = true, .center_vertical = false, .allow_outline = true,
         .needs_second_refresh = content_needs_second_refresh(d->bottom_middle_line2_content),
@@ -2635,7 +2671,7 @@ static void features_recompute_layout(FeaturesState *state) {
     line1_offset = has_line2 ? -(CORNER_ROW_H / 2) : 0;
     state->slots[SLOT_LEFT_L1] = (FeatureSlot){
       .active = true, .content = d->middle_left_line1_content, .color_mode = d->middle_left_line1_color_mode,
-      .is_top = false, .is_left = true, .is_middle = true,
+      .is_top = false, .is_left = true, .is_middle = true, .is_side = false,
       .top_offset = line1_offset, .bottom_shift = 0, .middle_inset = dyn_left_inset,
       .center_horizontal = false, .center_vertical = true, .allow_outline = true,
       .needs_second_refresh = content_needs_second_refresh(d->middle_left_line1_content),
@@ -2643,7 +2679,7 @@ static void features_recompute_layout(FeaturesState *state) {
     if (has_line2) {
       state->slots[SLOT_LEFT_L2] = (FeatureSlot){
         .active = true, .content = d->middle_left_line2_content, .color_mode = d->middle_left_line2_color_mode,
-        .is_top = false, .is_left = true, .is_middle = true,
+        .is_top = false, .is_left = true, .is_middle = true, .is_side = false,
         .top_offset = CORNER_ROW_H / 2, .bottom_shift = 0, .middle_inset = dyn_left_inset,
         .center_horizontal = false, .center_vertical = true, .allow_outline = true,
         .needs_second_refresh = content_needs_second_refresh(d->middle_left_line2_content),
@@ -2654,7 +2690,7 @@ static void features_recompute_layout(FeaturesState *state) {
     line1_offset = has_line2 ? -(CORNER_ROW_H / 2) : 0;
     state->slots[SLOT_RIGHT_L1] = (FeatureSlot){
       .active = true, .content = d->middle_right_line1_content, .color_mode = d->middle_right_line1_color_mode,
-      .is_top = false, .is_left = false, .is_middle = true,
+      .is_top = false, .is_left = false, .is_middle = true, .is_side = false,
       .top_offset = line1_offset, .bottom_shift = 0, .middle_inset = dyn_right_inset,
       .center_horizontal = false, .center_vertical = true, .allow_outline = true,
       .needs_second_refresh = content_needs_second_refresh(d->middle_right_line1_content),
@@ -2662,7 +2698,7 @@ static void features_recompute_layout(FeaturesState *state) {
     if (has_line2) {
       state->slots[SLOT_RIGHT_L2] = (FeatureSlot){
         .active = true, .content = d->middle_right_line2_content, .color_mode = d->middle_right_line2_color_mode,
-        .is_top = false, .is_left = false, .is_middle = true,
+        .is_top = false, .is_left = false, .is_middle = true, .is_side = false,
         .top_offset = CORNER_ROW_H / 2, .bottom_shift = 0, .middle_inset = dyn_right_inset,
         .center_horizontal = false, .center_vertical = true, .allow_outline = true,
         .needs_second_refresh = content_needs_second_refresh(d->middle_right_line2_content),
@@ -2699,21 +2735,21 @@ static void features_recompute_layout(FeaturesState *state) {
     // the panel it's meant to sit inside.
     state->slots[SLOT_LEFT_L1] = (FeatureSlot){
       .active = true, .content = d->middle_left_line1_content, .color_mode = d->middle_left_line1_color_mode,
-      .is_top = false, .is_left = true, .is_middle = false,
+      .is_top = false, .is_left = true, .is_middle = false, .is_side = true,
       .top_offset = 0, .bottom_shift = CORNER_ROW_H * 2, .middle_inset = 0,
       .center_horizontal = false, .center_vertical = false, .allow_outline = true,
       .needs_second_refresh = content_needs_second_refresh(d->middle_left_line1_content),
     };
     state->slots[SLOT_LEFT_L2] = (FeatureSlot){
       .active = true, .content = d->middle_left_line2_content, .color_mode = d->middle_left_line2_color_mode,
-      .is_top = false, .is_left = true, .is_middle = false,
+      .is_top = false, .is_left = true, .is_middle = false, .is_side = true,
       .top_offset = 0, .bottom_shift = CORNER_ROW_H, .middle_inset = 0,
       .center_horizontal = false, .center_vertical = false, .allow_outline = true,
       .needs_second_refresh = content_needs_second_refresh(d->middle_left_line2_content),
     };
     state->slots[SLOT_UPPER_L1] = (FeatureSlot){ // reused: digital left column, row 3 -- reads upper_middle_line1
       .active = true, .content = d->upper_middle_line1_content, .color_mode = d->upper_middle_line1_color_mode,
-      .is_top = false, .is_left = true, .is_middle = false,
+      .is_top = false, .is_left = true, .is_middle = false, .is_side = true,
       .top_offset = 0, .bottom_shift = 0, .middle_inset = 0,
       .center_horizontal = false, .center_vertical = false, .allow_outline = true,
       .needs_second_refresh = content_needs_second_refresh(d->upper_middle_line1_content),
@@ -2721,21 +2757,21 @@ static void features_recompute_layout(FeaturesState *state) {
 
     state->slots[SLOT_RIGHT_L1] = (FeatureSlot){
       .active = true, .content = d->middle_right_line1_content, .color_mode = d->middle_right_line1_color_mode,
-      .is_top = false, .is_left = false, .is_middle = false,
+      .is_top = false, .is_left = false, .is_middle = false, .is_side = true,
       .top_offset = 0, .bottom_shift = CORNER_ROW_H * 2, .middle_inset = 0,
       .center_horizontal = false, .center_vertical = false, .allow_outline = true,
       .needs_second_refresh = content_needs_second_refresh(d->middle_right_line1_content),
     };
     state->slots[SLOT_RIGHT_L2] = (FeatureSlot){
       .active = true, .content = d->middle_right_line2_content, .color_mode = d->middle_right_line2_color_mode,
-      .is_top = false, .is_left = false, .is_middle = false,
+      .is_top = false, .is_left = false, .is_middle = false, .is_side = true,
       .top_offset = 0, .bottom_shift = CORNER_ROW_H, .middle_inset = 0,
       .center_horizontal = false, .center_vertical = false, .allow_outline = true,
       .needs_second_refresh = content_needs_second_refresh(d->middle_right_line2_content),
     };
     state->slots[SLOT_UPPER_L2] = (FeatureSlot){ // reused: digital right column, row 3 -- reads upper_middle_line2
       .active = true, .content = d->upper_middle_line2_content, .color_mode = d->upper_middle_line2_color_mode,
-      .is_top = false, .is_left = false, .is_middle = false,
+      .is_top = false, .is_left = false, .is_middle = false, .is_side = true,
       .top_offset = 0, .bottom_shift = 0, .middle_inset = 0,
       .center_horizontal = false, .center_vertical = false, .allow_outline = true,
       .needs_second_refresh = content_needs_second_refresh(d->upper_middle_line2_content),
@@ -2750,7 +2786,7 @@ static void features_recompute_layout(FeaturesState *state) {
     // that band, anchored to the screen's own bottom edge.
     state->slots[SLOT_BOTTOM_L1] = (FeatureSlot){
       .active = true, .content = d->bottom_middle_line1_content, .color_mode = d->bottom_middle_line1_color_mode,
-      .is_top = false, .is_left = true, .is_middle = false,
+      .is_top = false, .is_left = true, .is_middle = false, .is_side = false,
       .top_offset = 0, .bottom_shift = 0, .middle_inset = 0,
       .center_horizontal = false, .center_vertical = false, .allow_outline = true,
       .custom_box = true, .box_x = clock_x, .box_w = clock_w,
@@ -2764,14 +2800,14 @@ static void features_recompute_layout(FeaturesState *state) {
   // override) is the settings page's job, not this file's.
   state->slots[SLOT_CORNER_TL] = (FeatureSlot){
     .active = true, .content = d->corner_content[0], .color_mode = d->corner_color_mode[0],
-    .is_top = true, .is_left = true, .is_middle = false,
+    .is_top = true, .is_left = true, .is_middle = false, .is_side = false,
     .top_offset = CORNER_INSET_PX, .bottom_shift = 0,
     .center_horizontal = false, .center_vertical = false, .allow_outline = true,
     .needs_second_refresh = content_needs_second_refresh(d->corner_content[0]),
   };
   state->slots[SLOT_CORNER_TR] = (FeatureSlot){
     .active = true, .content = d->corner_content[1], .color_mode = d->corner_color_mode[1],
-    .is_top = true, .is_left = false, .is_middle = false,
+    .is_top = true, .is_left = false, .is_middle = false, .is_side = false,
     .top_offset = CORNER_INSET_PX, .bottom_shift = 0,
     .center_horizontal = false, .center_vertical = false, .allow_outline = true,
     .needs_second_refresh = content_needs_second_refresh(d->corner_content[1]),
@@ -2790,14 +2826,14 @@ static void features_recompute_layout(FeaturesState *state) {
   int16_t bottom_corner_shift = is_analog ? 0 : DIGITAL_PANEL_H;
   state->slots[SLOT_CORNER_BL] = (FeatureSlot){
     .active = true, .content = d->corner_content[2], .color_mode = d->corner_color_mode[2],
-    .is_top = false, .is_left = true, .is_middle = false,
+    .is_top = false, .is_left = true, .is_middle = false, .is_side = false,
     .top_offset = 0, .bottom_shift = bottom_corner_shift,
     .center_horizontal = false, .center_vertical = false, .allow_outline = true,
     .needs_second_refresh = content_needs_second_refresh(d->corner_content[2]),
   };
   state->slots[SLOT_CORNER_BR] = (FeatureSlot){
     .active = true, .content = d->corner_content[3], .color_mode = d->corner_color_mode[3],
-    .is_top = false, .is_left = false, .is_middle = false,
+    .is_top = false, .is_left = false, .is_middle = false, .is_side = false,
     .top_offset = 0, .bottom_shift = bottom_corner_shift,
     .center_horizontal = false, .center_vertical = false, .allow_outline = true,
     .needs_second_refresh = content_needs_second_refresh(d->corner_content[3]),

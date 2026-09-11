@@ -69,7 +69,7 @@ static const FontLookupEntry FONT_TABLE[] = {
   [15] = { .sys_idx = 15, .height = 42, .y_offset = 6 }, // Bitham Bold (big)
 
   [16] = { .resource_id = RESOURCE_ID_DIGITALDREAM_FONT_12,  .height = 12, .y_offset = -2 }, // Digital Dream Small
-  [17] = { .resource_id = RESOURCE_ID_DIGITALDREAM_FONT_48,  .height = 48, .y_offset = 6 }, // Digital Dream Big
+  [17] = { .resource_id = RESOURCE_ID_DIGITALDREAM_FONT_48,  .height = 48, .y_offset = 10 }, // Digital Dream Big
   [18] = { .resource_id = RESOURCE_ID_MINECRAFTER_FONT_12,   .height = 12, .y_offset = -2}, // Minecrafter Small
   [19] = { .resource_id = RESOURCE_ID_MINECRAFTER_FONT_48,   .height = 48, .y_offset = -5 }, // Minecrafter Big
   [20] = { .resource_id = RESOURCE_ID_SFPIXELATE_FONT_48,    .height = 48, .y_offset = 8 }, // SF Pixelate Big

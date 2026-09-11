@@ -887,7 +887,9 @@ static void bottom_canvas_update_proc(Layer *layer, GContext *ctx) {
   // this layer only ever draws the clock digits.
   int16_t clock_x, clock_w;
   digital_clock_area(s_data.bottom_style, bounds.size.w, &clock_x, &clock_w);
-  GRect clock_rect = GRect(bounds.origin.x + clock_x, bounds.origin.y + font_lookup_y_offset(s_data.clock_font) - 12, clock_w, 60);
+  int16_t font_h = font_lookup_height(s_data.clock_font) + font_lookup_y_offset(s_data.clock_font);
+  int16_t clock_y = 24 - font_h / 2;
+  GRect clock_rect = GRect(bounds.origin.x + clock_x, bounds.origin.y + clock_y, clock_w, font_h);
   GTextAlignment alignment = GTextAlignmentCenter;
   
   // Trick to avoid clipping of shifted clocks and not having text trimmed (...) or having clock outside of the screen in extreme cases
