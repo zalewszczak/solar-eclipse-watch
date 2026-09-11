@@ -1801,7 +1801,6 @@ static void draw_text_markers(GContext *ctx, GPoint center, GRect screen, Canvas
       offset_text_pct = 0;
     }
     GPoint pos = point_on_ring(center, screen, angle, offset_text_pct, ring->inner_eccentricity);
-
 //    int32_t sin_v = sin_lookup(angle), cos_v = cos_lookup(angle);
 //    GPoint pos = GPoint(
 //      base.x + div_round((int32_t)text_cfg->offset_px * sin_v, TRIG_MAX_RATIO),
@@ -1832,6 +1831,16 @@ static void draw_text_markers(GContext *ctx, GPoint center, GRect screen, Canvas
 
     GRect box = GRect(pos.x - box_w / 2, pos.y - box_h / 2, box_w, box_h);
     graphics_draw_text(ctx, buf, font, box, GTextOverflowModeFill, GTextAlignmentCenter, NULL);
+    
+    if (state->data->draw_debug){
+      graphics_context_set_stroke_width(ctx, 1);
+      graphics_context_set_stroke_color(ctx, GColorYellow);
+      
+      graphics_draw_rect(ctx, box);
+      graphics_context_set_stroke_color(ctx, GColorOrange);
+      graphics_draw_rect(ctx, GRect(pos.x-15, pos.y, 30, 1));
+      graphics_draw_rect(ctx, GRect(pos.x, pos.y-15, 1, 30));
+    }
   }
 }
 

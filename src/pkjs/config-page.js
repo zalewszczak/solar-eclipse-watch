@@ -2232,7 +2232,10 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    <label for="testDateTime">Test date &amp; time</label>' +
 '    <input type="datetime-local" id="testDateTime" ' + testDisabled + ' value="' + esc(current.testDateTime) + '">' +
 '    <div class="help">Overrides "now" for the eclipse calculation only (e.g. a known historical/future eclipse date), so you can preview the watchface without waiting for one. Set your watch\'s own clock to this same date/time too, so the countdown on-screen lines up with the data sent over.</div>' +
-
+'    <div class="checkbox-row subsection">' +
+'      <input type="checkbox" id="drawDebug" ' + (current.drawDebug ? 'checked' : '') + '>' +
+'      <label for="drawDebug" style="margin:0;">Draw debug bounding boxes</label>' +
+'    </div>' +
 '    <div class="subsection">' +
 '      <label>Last 10 raw messages sent to watch</label>' +
 '      <div class="help">Chunking (see AppMessage chunking) means one refresh/save now sends several small messages instead of one big one -- these are the individual chunks, most recent first. Tap one to load it below.</div>' +
@@ -5186,7 +5189,8 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    CONFIG_PRESET_5_NAME: document.getElementById("presetSlot5Name").value,' +
 '    CONFIG_PRESET_5_JSON: document.getElementById("presetSlot5Json").value,' +
 '    CONFIG_PRESET_6_NAME: document.getElementById("presetSlot6Name").value,' +
-'    CONFIG_PRESET_6_JSON: document.getElementById("presetSlot6Json").value' +
+'    CONFIG_PRESET_6_JSON: document.getElementById("presetSlot6Json").value,' +
+'    CONFIG_DRAW_DEBUG: document.getElementById("drawDebug").checked' +
 '  };' +
 // Transient, one-shot -- read once by index.js's webviewclosed
 // handler to decide whether this save should force an immediate

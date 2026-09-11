@@ -153,7 +153,8 @@
       "COLORS",
       "BATTERY_SAVER_ENABLED",
       "BATTERY_SAVER_PHASE",
-      "UV_INDEX_CURRENT_X10"
+      "UV_INDEX_CURRENT_X10",
+      "DRAW_DEBUG"
     ],
     "resources": {
       "media": [

@@ -677,6 +677,7 @@ typedef struct {
                                   // is informative on its own even when the estimate says "not from here".
   uint8_t aurora_error_code;    // 0 = this refresh's aurora fetch was fine (or aurora_enabled is off).
                                   // Same meaning/source as weather_error_code and iss_error_code above.
+  bool draw_debug;                // drawing the bounding boxes of certain elements for debug purposes
 } EclipseData;
 
 // Defined in pebble-eclipse-watch.c, declared here (rather than a new

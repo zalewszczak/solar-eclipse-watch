@@ -876,7 +876,7 @@ static void bottom_canvas_update_proc(Layer *layer, GContext *ctx) {
   // this layer only ever draws the clock digits.
   int16_t clock_x, clock_w;
   digital_clock_area(s_data.bottom_style, bounds.size.w, &clock_x, &clock_w);
-  GRect clock_rect = GRect(bounds.origin.x + clock_x, bounds.origin.y + font_lookup_y_offset(s_data.clock_font), clock_w, 60);
+  GRect clock_rect = GRect(bounds.origin.x + clock_x, bounds.origin.y + font_lookup_y_offset(s_data.clock_font) - 12, clock_w, 60);
   GTextAlignment alignment = GTextAlignmentCenter;
   
   // Trick to avoid clipping of shifted clocks and not having text trimmed (...) or having clock outside of the screen in extreme cases
@@ -903,6 +903,13 @@ static void bottom_canvas_update_proc(Layer *layer, GContext *ctx) {
       clock_rect.origin.x += 30;
     }
   }
+  
+  if (s_data.draw_debug){
+    graphics_context_set_stroke_width(ctx, 1);
+    graphics_context_set_stroke_color(ctx, GColorCyan);
+    graphics_draw_rect(ctx, clock_rect);
+  }
+  
   // ---- big time ----
   graphics_context_set_text_color(ctx, text_color);
   graphics_draw_text(ctx, time_buf, clock_font, clock_rect, GTextOverflowModeTrailingEllipsis, alignment, NULL);
@@ -1283,7 +1290,7 @@ typedef struct {
 // own comment for why MK_* (an array index) is a compile-time constant where
 // MESSAGE_KEY_* (the real, link-time-assigned key) isn't. This table lives in
 // .rodata instead of being populated into .bss by a runtime init function.
-#define SIMPLE_FIELD_MAP_COUNT 64
+#define SIMPLE_FIELD_MAP_COUNT 65
 static const SimpleFieldMapping SIMPLE_FIELD_MAP[SIMPLE_FIELD_MAP_COUNT] = {
   { MK_ERROR_CODE, F_U8, offsetof(EclipseData, error_code) },
   { MK_TEMP_UNIT, F_U8, offsetof(EclipseData, temp_unit) },
@@ -1349,6 +1356,7 @@ static const SimpleFieldMapping SIMPLE_FIELD_MAP[SIMPLE_FIELD_MAP_COUNT] = {
   { MK_ISS_NEXT_PASS, F_TIME, offsetof(EclipseData, iss_next_pass) },
   { MK_ISS_ERROR_CODE, F_U8, offsetof(EclipseData, iss_error_code) },
   { MK_WEATHER_LAST_UPDATE, F_TIME, offsetof(EclipseData, weather_last_update) },
+  { MK_DRAW_DEBUG, F_BOOL, offsetof(EclipseData, draw_debug) },
 };
 
 static void apply_simple_fields(DictionaryIterator *iter) {

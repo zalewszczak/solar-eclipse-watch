@@ -2225,16 +2225,26 @@ static const struct { uint8_t kind; uint32_t resource_id; int16_t x_nudge; } SIM
   { 26, RESOURCE_ID_ICON_AURORA,           6 },
 };
 
-static void draw_render_icon(GContext *ctx, const RenderSegment *seg, int16_t icon_x, int16_t box_y, uint8_t outline_style, uint8_t weather_icon_style, GColor bg_color) {
+static void draw_debug_marker_point(GContext *ctx, bool draw_debug, GPoint pos, GColor color) {
+  if (draw_debug) {
+    graphics_context_set_stroke_width(ctx, 1);
+    graphics_context_set_stroke_color(ctx, color);
+    graphics_draw_rect(ctx, GRect(pos.x, pos.y-15, 1, 30));
+    graphics_draw_rect(ctx, GRect(pos.x-15, pos.y, 30, 1));
+  }
+}
+
+static void draw_render_icon(GContext *ctx, const RenderSegment *seg, int16_t icon_x, int16_t box_y, uint8_t outline_style, uint8_t weather_icon_style, GColor bg_color, bool draw_debug) {
   GColor color = seg->color;
   GColor outline_color = contrasting_outline_color(color);
   bool do_outline = outline_style != 0;
   const GPoint *offs = NULL; int offs_n = 0;
   if (do_outline) get_outline_offsets(outline_style, &offs, &offs_n);
-
+  draw_debug_marker_point(ctx, draw_debug, GPoint(icon_x, box_y), GColorRed);
   for (size_t i = 0; i < sizeof(SIMPLE_ICONS) / sizeof(SIMPLE_ICONS[0]); i++) {
     if (SIMPLE_ICONS[i].kind != seg->icon_kind) continue;
     GPoint pos = GPoint(icon_x - ICON_WIDTH + SIMPLE_ICONS[i].x_nudge, box_y + (CORNER_ROW_H - ICON_ROWS) / 2);
+    draw_debug_marker_point(ctx, draw_debug, pos, GColorMagenta);
     draw_icon_resource_with_outline(ctx, pos, SIMPLE_ICONS[i].resource_id, outline_style, outline_color, color);
     return;
   }
@@ -2249,6 +2259,7 @@ static void draw_render_icon(GContext *ctx, const RenderSegment *seg, int16_t ic
           draw_corner_battery_icon(ctx, GPoint(pos.x + offs[i].x, pos.y + offs[i].y), oc, 0);
         }
       }
+      draw_debug_marker_point(ctx, draw_debug, pos, GColorMagenta);
       draw_corner_battery_icon(ctx, pos, c, seg->icon_extra);
       return;
     }
@@ -2262,6 +2273,7 @@ static void draw_render_icon(GContext *ctx, const RenderSegment *seg, int16_t ic
           graphics_fill_circle(ctx, GPoint(center.x + offs[i].x, center.y + offs[i].y), moon_r);
         }
       }
+      draw_debug_marker_point(ctx, draw_debug, center, GColorMagenta);
       draw_moon_phase(ctx, clip, center, moon_r, (uint8_t)seg->icon_extra, seg->icon_flag, color);
       return;
     }
@@ -2272,6 +2284,7 @@ static void draw_render_icon(GContext *ctx, const RenderSegment *seg, int16_t ic
           draw_sun_time_icon(ctx, GPoint(pos.x + offs[i].x, pos.y + offs[i].y), seg->icon_flag, outline_color, bg_color);
         }
       }
+      draw_debug_marker_point(ctx, draw_debug, pos, GColorMagenta);
       draw_sun_time_icon(ctx, pos, seg->icon_flag, color, bg_color);
       return;
     }
@@ -2290,6 +2303,7 @@ static void draw_render_icon(GContext *ctx, const RenderSegment *seg, int16_t ic
         graphics_draw_line(ctx, GPoint(p1.x - 1, p1.y), GPoint(p2.x + 1, p2.y));
         graphics_draw_line(ctx, GPoint(p1.x, p1.y - 1), GPoint(p2.x, p2.y - 1));
       }
+      draw_debug_marker_point(ctx, draw_debug, pos, GColorMagenta);
       draw_tiny_icon(ctx, pos, PEBBLE_ICON, 10, 40, c);
       graphics_context_set_stroke_color(ctx, c);
       graphics_draw_line(ctx, p1, p2);
@@ -2312,6 +2326,7 @@ static void draw_render_icon(GContext *ctx, const RenderSegment *seg, int16_t ic
           draw_weather_icon(ctx, GPoint(pos.x + offs[i].x, pos.y + offs[i].y), category, outline_icon_style, outline_color);
         }
       }
+      draw_debug_marker_point(ctx, draw_debug, pos, GColorMagenta);
       draw_weather_icon(ctx, pos, category, weather_icon_style, color);
       return;
     }
@@ -2322,6 +2337,7 @@ static void draw_render_icon(GContext *ctx, const RenderSegment *seg, int16_t ic
           draw_pressure_trend_icon(ctx, GPoint(pos.x + offs[i].x, pos.y + offs[i].y), (uint8_t)seg->icon_extra, outline_color);
         }
       }
+      draw_debug_marker_point(ctx, draw_debug, pos, GColorMagenta);
       draw_pressure_trend_icon(ctx, pos, (uint8_t)seg->icon_extra, color);
       return;
     }
@@ -2332,6 +2348,7 @@ static void draw_render_icon(GContext *ctx, const RenderSegment *seg, int16_t ic
           draw_wind_direction_icon(ctx, GPoint(pos.x + offs[i].x, pos.y + offs[i].y), seg->icon_extra, outline_color);
         }
       }
+      draw_debug_marker_point(ctx, draw_debug, pos, GColorMagenta);
       draw_wind_direction_icon(ctx, pos, seg->icon_extra, color);
       return;
     }
@@ -2342,6 +2359,7 @@ static void draw_render_icon(GContext *ctx, const RenderSegment *seg, int16_t ic
           draw_mountain_icon(ctx, GPoint(pos.x + offs[i].x, pos.y + offs[i].y), outline_color);
         }
       }
+      draw_debug_marker_point(ctx, draw_debug, pos, GColorMagenta);
       draw_mountain_icon(ctx, pos, color);
       return;
     }
@@ -2370,6 +2388,7 @@ static void draw_render_icon(GContext *ctx, const RenderSegment *seg, int16_t ic
           else draw_compass_icon(ctx, shifted, seg->icon_extra, outline_color, outline_color);
         }
       }
+      draw_debug_marker_point(ctx, draw_debug, pos, GColorMagenta);
       if (seg->icon_flag) draw_compass_sleep_icon(ctx, pos, color);
       else draw_compass_icon(ctx, pos, seg->icon_extra, seg->color, seg->color2);
       return;
@@ -2392,7 +2411,7 @@ static void draw_render_icon(GContext *ctx, const RenderSegment *seg, int16_t ic
 // already-resolved x_offset.
 static void features_draw_slot(GContext *ctx, GRect bounds, const FeatureSlot *slot,
                                 GFont font, int16_t font_h, int16_t font_offset,
-                                uint8_t outline_style, uint8_t weather_icon_style, GColor bg_color) {
+                                uint8_t outline_style, uint8_t weather_icon_style, GColor bg_color, bool draw_debug) {
   if (!slot->active || slot->segment_count == 0) return;
 
   int16_t box_w = slot->custom_box ? slot->box_w : CORNER_BOX_W;
@@ -2418,11 +2437,17 @@ static void features_draw_slot(GContext *ctx, GRect bounds, const FeatureSlot *s
     const RenderSegment *seg = &slot->segments[i];
     int16_t seg_x = box_x + seg->x_offset;
     if (seg->is_icon) {
-      draw_render_icon(ctx, seg, seg_x, box_y, effective_outline_style, weather_icon_style, bg_color);
+      draw_render_icon(ctx, seg, seg_x, box_y, effective_outline_style, weather_icon_style, bg_color, draw_debug);
     } else {
       draw_text_outlined(ctx, seg->text, font,
                           GRect(seg_x, box_y + (CORNER_ROW_H - font_h) / 2 + font_offset, seg->width + 2, font_h + 2),
                           GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft, seg->color, effective_outline_style);
+      
+      if (draw_debug){
+        graphics_context_set_stroke_width(ctx, 1);
+        graphics_context_set_stroke_color(ctx, GColorGreen);
+        graphics_draw_rect(ctx, GRect(seg_x, box_y + (CORNER_ROW_H - font_h) / 2 + font_offset, seg->width + 2, font_h + 2));
+      }
     }
   }
 }
@@ -2808,7 +2833,7 @@ static void features_layer_update_proc(Layer *layer, GContext *ctx) {
   GRect bounds = layer_get_unobstructed_bounds(layer);
   GFont font = font_lookup_resolve(&s_corner_font_slot, state->data->corner_font);
   int16_t font_h = font_lookup_height(state->data->corner_font);
-  int16_t font_offset = font_lookup_y_offset(state->data->corner_font) / 2;
+  int16_t font_offset = font_lookup_y_offset(state->data->corner_font);
   // Only needed here for the sunrise/sunset glyph's halo -- everything
   // else's color was already fully resolved back at recompute time.
   GColor bg, main_color, accent_color;
@@ -2816,7 +2841,7 @@ static void features_layer_update_proc(Layer *layer, GContext *ctx) {
 
   for (int i = 0; i < FEATURES_MAX_SLOTS; i++) {
     features_draw_slot(ctx, bounds, &state->slots[i], font, font_h, font_offset,
-                        state->data->outline_style, state->data->weather_icon_style, bg);
+                        state->data->outline_style, state->data->weather_icon_style, bg, state->data->draw_debug);
   }
 }
 

@@ -142,7 +142,7 @@ var KEY_TYPE_MAP = (function () {
     'SHADOW_TRANSLUCENT', 'SHADOW_ANGLE',
     'BIG_ANALOG_MARKER_STYLE', 'BITMAP_MARKER_TRANSPARENT', 'DRAW_FEATURES_BENEATH_HANDS',
     'MARKER_RINGS', 'MARKER_TEXT', 'HANDS',
-    'CENTER_CIRCLE_RADIUS', 'CENTER_CIRCLE_COLOR'
+    'CENTER_CIRCLE_RADIUS', 'CENTER_CIRCLE_COLOR', "DRAW_DEBUG"
   ]);
 
   return map;
@@ -788,6 +788,7 @@ function showSunTimeCode() { return getSetting('CONFIG_SHOW_SUN_TIME', 'false') 
 function showIssCode() { return getSetting('CONFIG_SHOW_ISS', 'false') === 'true' ? 1 : 0; }
 function auroraEnabledCode() { return getSetting('CONFIG_AURORA_ENABLED', 'false') === 'true' ? 1 : 0; }
 function vibrateOnPhaseChangeCode() { return getSetting('CONFIG_VIBRATE_ON_PHASE_CHANGE', 'false') === 'true' ? 1 : 0; }
+function drawDebugCode() { return getSetting('CONFIG_DRAW_DEBUG', 'false') === 'true' ? 1 : 0; }
 // Radio-style, exactly one of 0=off, 1=animate clock, 2=planet sweep
 // time shift -- see startup_clock_anim_mode's own comment in
 // eclipse_data.h. Default 1 (animate clock), matching the old
@@ -1019,6 +1020,7 @@ function populateSettingsFields(dict) {
   dict['CORNER_CONTENT'] = cornerContentBytes();
   dict['CORNER_COLOR_MODE'] = cornerColorModeBytes();
   dict['DAILY_STEP_GOAL'] = dailyStepGoalValue();
+  dict['DRAW_DEBUG'] = drawDebugCode();
 }
 
 // For the settings page's own debug "full keyset" window (see
@@ -1948,6 +1950,7 @@ Pebble.addEventListener('showConfiguration', function () {
     cornerFont: getSetting('CONFIG_CORNER_FONT', '1'),
     testMode: getSetting('CONFIG_TEST_MODE', 'false') === 'true',
     testDateTime: getSetting('CONFIG_TEST_DATETIME', ''),
+    drawDebug: getSetting('CONFIG_DRAW_DEBUG', 'false') === 'true',
     // Last RAW_MESSAGE_LOG_MAX individual chunks actually sent -- see
     // recordRawMessage() near the top of this file. Newest last (the
     // order they were recorded in); the settings page itself is what
@@ -2192,6 +2195,7 @@ Pebble.addEventListener('webviewclosed', function (e) {
   setSetting('CONFIG_PRESET_5_JSON', settings.CONFIG_PRESET_5_JSON || '');
   setSetting('CONFIG_PRESET_6_NAME', settings.CONFIG_PRESET_6_NAME || '');
   setSetting('CONFIG_PRESET_6_JSON', settings.CONFIG_PRESET_6_JSON || '');
+  setSetting('CONFIG_DRAW_DEBUG', settings.CONFIG_DRAW_DEBUG ? 'true' : 'false');
 
   // The clock font / weather-readout toggle / colors are purely
   // cosmetic and phone-local -- send them immediately rather than
