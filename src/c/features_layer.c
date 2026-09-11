@@ -1072,7 +1072,7 @@ static int16_t convert_wind(int16_t kmh, uint8_t wind_speed_unit) {
 static int16_t icon_plus_gap_width(int icon_kind) { // TODO: This might not be neccessary anymore
   switch (icon_kind) {
     case 1: case 2: case 5: case 6: case 7: case 8: case 9: case 10:
-    case 18: case 19: case 20: case 21: case 22: case 23: case 24: case 25: case 26:
+    case 18: case 19: case 20: case 21: case 22: case 23: case 24: case 25: case 26: case 28:
       return 15; // bitmap icons (7-wide at 140% scale, ~10px) + 5px gap
     case 3: return 13; // battery (8px wide outlined body) + 5px gap
     case 4: return 21; // moon (radius 9, so 2*9+2 diameter box) + gap
@@ -1674,8 +1674,20 @@ static void __attribute__((noinline)) compute_weather_value(FeatureSlot *slot, u
         snprintf(buf, sizeof(buf), "N/A");
       }
       dyn = weather_staleness_gradient(now, data->weather_last_update);
-      slot->segment_count = 1;
-      set_text_seg(slot, 0, buf, resolve_flat_color(color_mode, dyn, main_color, accent_color));
+      GColor c = resolve_flat_color(color_mode, dyn, main_color, accent_color);
+      if (content == 94) {
+        // Short version only -- the long version's own "Last updated"
+        // text already says what this is, so the icon would be
+        // redundant there; the short version is just a bare time, so
+        // a small two-arrows-chasing "refresh" glyph (icon_kind 28) is
+        // what tells you what that time actually means at a glance.
+        slot->segment_count = 2;
+        set_icon_seg(slot, 0, 28, c);
+        set_text_seg(slot, 1, buf, c);
+      } else {
+        slot->segment_count = 1;
+        set_text_seg(slot, 0, buf, c);
+      }
       return;
     }
     default:
@@ -2189,7 +2201,7 @@ static void features_recompute_slot_value(FeatureSlot *slot, const EclipseData *
       break;
     case 4: case 5: case 6: case 7: case 8: case 9: case 14: case 15: case 31: case 32: case 34:
     case 35: case 36: case 37: case 38: case 73: case 74: case 75: case 76: case 77: case 87: case 88:
-    case 89: case 90: case 91: case 92: case 93: case 94:
+    case 89: case 90: case 91: case 92: case 93: case 94: case 104:
       compute_weather_value(slot, content, data, color_mode, main_color, accent_color, bg_color);
       break;
     default: // every date/time format variant (12, 18-19, 21-30, 63-72, 86, 95-96, 103)
@@ -2241,6 +2253,7 @@ static const struct { uint8_t kind; uint32_t resource_id; int16_t x_nudge; } SIM
   { 24, RESOURCE_ID_ICON_SATURN_RING,      6 },
   { 25, RESOURCE_ID_ICON_ISS,              6 },
   { 26, RESOURCE_ID_ICON_AURORA,           6 },
+  { 28, RESOURCE_ID_ICON_REFRESH,          6 },
 };
 
 static void draw_debug_marker_point(GContext *ctx, bool draw_debug, GPoint pos, GColor color) {

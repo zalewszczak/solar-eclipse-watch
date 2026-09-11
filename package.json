@@ -493,6 +493,12 @@
         },
         {
           "type": "bitmap",
+          "name": "ICON_REFRESH",
+          "file": "images/icon_refresh.png",
+          "memoryFormat": "1BitPalette"
+        },
+        {
+          "type": "bitmap",
           "name": "ICON_BED_ARROW_IN",
           "file": "images/icon_bed_arrow_in.png",
           "memoryFormat": "1BitPalette"
