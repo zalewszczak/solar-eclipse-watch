@@ -2667,22 +2667,212 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  refreshAllFontTriggerLabels();' +
 '}' +
 
-'function drawSkyLayer(ctx, x, y, w, h) {' +
+'function drawSkyLayer(ctx, x, y, w, h, skyMode, phase) {' +
+'  if (skyMode === "2") {' +
+'    ctx.fillStyle = "#000000";' +
+'    ctx.fillRect(x, y, w, h);' +
+'    drawStarsPreview(ctx, x, y, w, h);' +
+'    return;' +
+'  }' +
+'  var g = SKY_PHASE_COLORS[phase] || SKY_PHASE_COLORS.day;' +
 '  var grad = ctx.createLinearGradient(0, y, 0, y + h);' +
-'  grad.addColorStop(0, "#4a90d9");' +
-'  grad.addColorStop(1, "#bfe3f5");' +
+'  grad.addColorStop(0, g.top);' +
+'  grad.addColorStop(1, g.bottom);' +
 '  ctx.fillStyle = grad;' +
 '  ctx.fillRect(x, y, w, h);' +
-'  ctx.beginPath();' +
-'  ctx.arc(x + w * 0.72, y + h * 0.2, Math.max(7, w * 0.09), 0, 2 * Math.PI);' +
+'  if (skyMode !== "1") {' + // Clear sky never draws weather; Weather sky gets a cloud regardless of time of day
+'    ctx.fillStyle = "rgba(255,255,255,0.9)";' +
+'    function puff(cx, cy, r) { ctx.beginPath(); ctx.arc(cx, cy, r, 0, 2 * Math.PI); ctx.fill(); }' +
+'    var cy = y + h * 0.6;' +
+'    puff(x + w * 0.22, cy, w * 0.08);' +
+'    puff(x + w * 0.32, cy - 3, w * 0.1);' +
+'    puff(x + w * 0.42, cy, w * 0.07);' +
+'  }' +
+'}' +
+// Simple time-of-day heuristic -- this settings page has no real
+// astronomy data to work with (no lat/lon-based sunrise/sunset is
+// computed client-side, only on the phone/watch), so "day" vs
+// "twilight" vs "night" is read straight off the device's own current
+// clock instead. Not astronomically precise, but enough to make the
+// preview at least somewhat representative of what the watch would be
+// showing right now, per the request.
+'function currentSkyPhase(now) {' +
+'  var hour = now.getHours() + now.getMinutes() / 60;' +
+'  if (hour >= 7 && hour < 17) return "day";' +
+'  if ((hour >= 5 && hour < 7) || (hour >= 17 && hour < 20)) return "twilight";' +
+'  return "night";' +
+'}' +
+'var SKY_PHASE_COLORS = {' +
+'  day: { top: "#4a90d9", bottom: "#bfe3f5" },' +
+'  twilight: { top: "#2b3a63", bottom: "#ff9d5c" },' +
+'  night: { top: "#050912", bottom: "#141d33" }' +
+'};' +
+// Fixed relative (0-1) positions -- deliberately NOT Math.random(),
+// since updatePreview() re-runs every second (see the setInterval at
+// the bottom of this file) and randomizing on every redraw would make
+// the whole field visibly jitter/twinkle instead of sitting still like
+// a real star field. Space view (sky_mode 2) only.
+'var STAR_POSITIONS_PCT = [' +
+'  [0.08, 0.12], [0.18, 0.30], [0.30, 0.08], [0.42, 0.24], [0.55, 0.06], [0.66, 0.32],' +
+'  [0.78, 0.14], [0.90, 0.26], [0.14, 0.46], [0.60, 0.44], [0.85, 0.50], [0.35, 0.52]' +
+'];' +
+'function drawStarsPreview(ctx, x, y, w, h) {' +
+'  ctx.fillStyle = "#ffffff";' +
+'  STAR_POSITIONS_PCT.forEach(function (p, i) {' +
+'    var r = (i % 3 === 0) ? 1.6 : 1;' +
+'    ctx.beginPath();' +
+'    ctx.arc(x + w * p[0], y + h * p[1], r, 0, 2 * Math.PI);' +
+'    ctx.fill();' +
+'  });' +
+'}' +
+// Same planet_color() mapping background_layer.c uses -- Space view
+// only ("plenty of planets" per the request). Fixed relative positions
+// for the same reason STAR_POSITIONS_PCT above is fixed.
+'var PLANET_DOTS = [' +
+'  { x: 0.15, y: 0.58, color: "#AAAAAA" },' + // Mercury
+'  { x: 0.85, y: 0.64, color: "#FFFFFF" },' + // Venus
+'  { x: 0.46, y: 0.70, color: "#FF3B30" },' + // Mars
+'  { x: 0.62, y: 0.60, color: "#FFD400" },' + // Jupiter
+'  { x: 0.30, y: 0.42, color: "#FFD400" }' +  // Saturn
+'];' +
+// Two-overlapping-circles moon phase trick (same visual result as
+// background_layer.c's draw_moon_phase() per-pixel terminator ellipse,
+// just built from 2 canvas arcs instead of a scanline fill -- plenty
+// accurate for an icon-sized preview disc). k=0 (new): the dark
+// "shadow" circle sits exactly on top of the lit one, fully covering
+// it. k=1 (full): the shadow is offset a full diameter away, off the
+// visible disc entirely. k=0.5: offset by one radius, covering half.
+'function drawMoonPhasePreview(ctx, cx, cy, r, phasePct, waxing) {' +
+'  var k = Math.max(0, Math.min(100, phasePct)) / 100;' +
+'  ctx.save();' +
+'  ctx.beginPath(); ctx.arc(cx, cy, r, 0, 2 * Math.PI); ctx.closePath();' +
+'  ctx.clip();' +
 '  ctx.fillStyle = "#fff6d0";' +
-'  ctx.fill();' +
-'  ctx.fillStyle = "rgba(255,255,255,0.9)";' +
-'  function puff(cx, cy, r) { ctx.beginPath(); ctx.arc(cx, cy, r, 0, 2 * Math.PI); ctx.fill(); }' +
-'  var cy = y + h * 0.6;' +
-'  puff(x + w * 0.22, cy, w * 0.08);' +
-'  puff(x + w * 0.32, cy - 3, w * 0.1);' +
-'  puff(x + w * 0.42, cy, w * 0.07);' +
+'  ctx.fillRect(cx - r, cy - r, r * 2, r * 2);' +
+'  if (k < 0.999) {' +
+'    var offset = k * 2 * r;' +
+'    var dir = waxing ? -1 : 1;' +
+'    ctx.beginPath();' +
+'    ctx.arc(cx + dir * offset, cy, r, 0, 2 * Math.PI);' +
+'    ctx.fillStyle = "#3a3a3a";' +
+'    ctx.fill();' +
+'  }' +
+'  ctx.restore();' +
+'  ctx.beginPath(); ctx.arc(cx, cy, r, 0, 2 * Math.PI);' +
+'  ctx.strokeStyle = "#000000"; ctx.lineWidth = 1; ctx.stroke();' +
+'}' +
+// Pure date-based approximation (moon phase doesn\'t depend on
+// observer location) -- known synodic month + a reference new moon,
+// same simplification astro.js\'s own low-precision Meeus algorithms
+// make elsewhere in this app, just inlined here since config-page.js
+// runs in its own separate webview context and can\'t require() that
+// file directly.
+'function approxMoonPhase(date) {' +
+'  var synodic = 29.530588853;' +
+'  var known = Date.UTC(2000, 0, 6, 18, 14, 0);' +
+'  var days = (date.getTime() - known) / 86400000;' +
+'  var age = ((days % synodic) + synodic) % synodic;' +
+'  var illum = (1 - Math.cos(2 * Math.PI * age / synodic)) / 2;' +
+'  return { pct: Math.round(illum * 100), waxing: age < synodic / 2 };' +
+'}' +
+// draw_label_in_box()\'s 3 label styles (Boxed/Outlined/Soft), ported
+// for the shake-to-reveal Sun/Moon/ISS/Aurora name labels below --
+// see label_style\'s own comment in eclipse_data.h.
+'function contrastingColorFor(hex) {' +
+'  var r = parseInt(hex.substr(1, 2), 16) || 0, g = parseInt(hex.substr(3, 2), 16) || 0, b = parseInt(hex.substr(5, 2), 16) || 0;' +
+'  return (0.299 * r + 0.587 * g + 0.114 * b) > 140 ? "#000000" : "#ffffff";' +
+'}' +
+'function drawShakeLabel(ctx, x, y, text, labelStyle, colors) {' +
+'  var style = parseInt(labelStyle, 10) || 0;' +
+'  ctx.font = "bold 9px sans-serif";' +
+'  ctx.textAlign = "left";' +
+'  ctx.textBaseline = "middle";' +
+'  if (style === 2) {' + // Soft
+'    ctx.fillStyle = "#cccccc";' +
+'    ctx.fillText(text, x, y);' +
+'    return;' +
+'  }' +
+'  if (style === 1) {' + // Outlined
+'    var oc = contrastingColorFor(colors.text);' +
+'    ctx.fillStyle = oc;' +
+'    [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(function (o) { ctx.fillText(text, x + o[0], y + o[1]); });' +
+'    ctx.fillStyle = colors.text;' +
+'    ctx.fillText(text, x, y);' +
+'    return;' +
+'  }' +
+'  var textW = ctx.measureText(text).width;' + // Boxed (default)
+'  ctx.fillStyle = "#000000";' +
+'  ctx.fillRect(x - 3, y - 7, textW + 6, 14);' +
+'  ctx.fillStyle = "#ffffff";' +
+'  ctx.fillText(text, x, y);' +
+'}' +
+// Sun/Moon (sized off the Sun & Moon size setting -- SUN_R_NORMAL/
+// MOON_R_NORMAL below are background_layer.c\'s own real on-watch
+// values, 20px/16px at 100%), Space view\'s planets/stars, Aurora, and
+// the ISS -- plus each one\'s always-on shake-to-reveal label (this
+// static preview has no shake gesture to trigger it live, so it\'s
+// just always shown, in whatever style/colors are currently picked).
+// day/twilight both show the Sun; night shows the Moon instead (Space
+// view shows both, plus the planets/stars, regardless of time of day,
+// matching background_layer.c\'s own sky_mode==2 handling).
+'function drawCelestialPreview(ctx, x, y, w, h, skyMode, phase, colors, now) {' +
+'  var scale = w / 200;' +
+'  var sizePct = parseInt(document.getElementById("sunMoonSize").value, 10) || 75;' +
+'  var sunR = Math.max(3, 20 * scale * sizePct / 100);' +
+'  var moonR = Math.max(3, 16 * scale * sizePct / 100);' +
+'  var labelStyle = document.getElementById("labelStyle").value;' +
+'  var showIss = document.getElementById("showIss").checked;' +
+'  var auroraEnabled = document.getElementById("auroraEnabled").checked;' +
+'  var isSpace = skyMode === "2";' +
+'  var showSun = isSpace || phase !== "night";' +
+'  var showMoon = isSpace || phase === "night";' +
+
+'  if (isSpace) {' +
+'    PLANET_DOTS.forEach(function (p) {' +
+'      ctx.beginPath();' +
+'      ctx.arc(x + w * p.x, y + h * p.y, Math.max(1.5, 3 * scale), 0, 2 * Math.PI);' +
+'      ctx.fillStyle = p.color;' +
+'      ctx.fill();' +
+'    });' +
+'  }' +
+
+'  var sunX = x + w * 0.72, sunY = y + h * 0.2;' +
+'  var moonX = isSpace ? x + w * 0.35 : x + w * 0.72;' +
+'  var moonY = isSpace ? y + h * 0.38 : y + h * 0.2;' +
+
+'  if (showSun) {' +
+'    ctx.beginPath();' +
+'    ctx.arc(sunX, sunY, sunR, 0, 2 * Math.PI);' +
+'    ctx.fillStyle = "#fff6d0";' +
+'    ctx.fill();' +
+'    drawShakeLabel(ctx, sunX + sunR + 4, sunY, "Sun", labelStyle, colors);' +
+'  }' +
+'  if (showMoon) {' +
+'    var moonPhase = approxMoonPhase(now);' +
+'    drawMoonPhasePreview(ctx, moonX, moonY, moonR, moonPhase.pct, moonPhase.waxing);' +
+'    drawShakeLabel(ctx, moonX + moonR + 4, moonY, "Moon", labelStyle, colors);' +
+'  }' +
+
+'  var showAurora = auroraEnabled && phase === "night";' +
+'  if (showAurora) {' +
+'    var ag = ctx.createLinearGradient(x, y, x, y + h * 0.5);' +
+'    ag.addColorStop(0, "rgba(60,220,130,0.55)");' +
+'    ag.addColorStop(1, "rgba(60,220,130,0)");' +
+'    ctx.fillStyle = ag;' +
+'    ctx.fillRect(x, y, w, h * 0.5);' +
+'    drawShakeLabel(ctx, x + w * 0.5, y + h * 0.14, "Aurora", labelStyle, colors);' +
+'  }' +
+
+'  var showIssDot = showIss && (isSpace || phase === "night");' +
+'  if (showIssDot) {' +
+'    var issX = x + w * 0.52, issY = y + h * 0.78;' +
+'    ctx.beginPath();' +
+'    ctx.arc(issX, issY, Math.max(1.5, 3 * scale), 0, 2 * Math.PI);' +
+'    ctx.fillStyle = "#ffffff";' +
+'    ctx.fill();' +
+'    ctx.lineWidth = 1; ctx.strokeStyle = "#000000"; ctx.stroke();' +
+'    drawShakeLabel(ctx, issX + 6, issY, "ISS", labelStyle, colors);' +
+'  }' +
 '}' +
 
 // CORNER_PREVIEW_LABELS is now derived client-side from the same
@@ -3340,18 +3530,100 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  }' +
 '}' +
 
-'function drawDigitalPreview(ctx, colors, now, showSeconds, w, panelTop, panelBottom) {' +
+'var PREVIEW_IMAGE_CACHE = {};' +
+// Cached Image objects for the font-preview PNGs (see FONT_PREVIEW_IMAGES\'s
+// own comment) -- data-URIs decode almost instantly, but img.complete can
+// still read false for the very first frame drawn right after creating
+// one, so this triggers a follow-up updatePreview() once it\'s actually
+// ready rather than leaving the fallback text rendering up for a whole
+// second until the next scheduled tick.
+'function getCachedImage(src) {' +
+'  var img = PREVIEW_IMAGE_CACHE[src];' +
+'  if (!img) {' +
+'    img = new Image();' +
+'    img.onload = function () { updatePreview(); };' +
+'    img.src = src;' +
+'    PREVIEW_IMAGE_CACHE[src] = img;' +
+'  }' +
+'  return img;' +
+'}' +
+// Direct port of digital_clock_area() in features_layer.c -- how far
+// the digital clock text (and the single always-on "bottom" feature
+// under it) shifts away from whichever side column(s) are active, in
+// this canvas\'s own pixel space (see readHandConfig()\'s own `scale`
+// comment for why that conversion is needed at all).
+'function digitalClockArea(digitalSidesVal, w) {' +
+'  var boxW = 68 * (w / 200);' +
+'  if (digitalSidesVal === "right") return { x: 0, w: w - boxW };' +
+'  if (digitalSidesVal === "left") return { x: boxW, w: w - boxW };' +
+'  return { x: 0, w: w };' +
+'}' +
+// Digital mode\'s own reuse of the 8 edge-middle content fields as up
+// to 2 three-line side columns plus a single bottom feature -- direct
+// port of features_recompute_layout()\'s own digital-mode block in
+// features_layer.c (see SLOT_DEFS\' own comment above for exactly which
+// underlying element each row reads/writes). Row Y positions are the
+// real on-watch box_y values that block computes (screen_h(228) -
+// CORNER_ROW_H(24) - CORNER_INSET_PX(4) - bottom_shift, for bottom_shift
+// 48/24/0), scaled into canvas px the same way every other geometry
+// helper on this page already does.' +
+'function drawDigitalSideFeatures(ctx, w, h, colors, clockArea) {' +
+'  var avail = computeSlotAvailability();' +
+'  var scale = w / 200;' +
+'  var xInset = 5 * scale;' +
+'  var row1Y = 152 * scale, row2Y = 176 * scale, row3Y = 200 * scale;' +
+'  if (avail.digitalLeft) {' +
+'    drawCornerSlot(ctx, "middleLeftLine1Content", "middleLeftLine1Color", xInset, row1Y, "left", colors);' +
+'    drawCornerSlot(ctx, "middleLeftLine2Content", "middleLeftLine2Color", xInset, row2Y, "left", colors);' +
+'    drawCornerSlot(ctx, "upperMiddleLine1Content", "upperMiddleLine1Color", xInset, row3Y, "left", colors);' +
+'  }' +
+'  if (avail.digitalRight) {' +
+'    drawCornerSlot(ctx, "middleRightLine1Content", "middleRightLine1Color", w - xInset, row1Y, "right", colors);' +
+'    drawCornerSlot(ctx, "middleRightLine2Content", "middleRightLine2Color", w - xInset, row2Y, "right", colors);' +
+'    drawCornerSlot(ctx, "upperMiddleLine2Content", "upperMiddleLine2Color", w - xInset, row3Y, "right", colors);' +
+'  }' +
+'  drawCornerSlot(ctx, "bottomMiddleLine1Content", "bottomMiddleLine1Color", clockArea.x + clockArea.w / 2, row3Y, "center", colors);' +
+'}' +
+
+'function drawDigitalPreview(ctx, colors, now, showSeconds, w, panelTop, panelBottom, clockArea) {' +
+'  var cx = clockArea ? clockArea.x + clockArea.w / 2 : w / 2;' +
 '  var fontSel = document.getElementById("clockFont");' +
 '  var opt = fontSel.options[fontSel.selectedIndex];' +
 '  var hh = now.getHours(), mm = now.getMinutes();' +
 '  var txt = (hh < 10 ? "0" : "") + hh + ":" + (mm < 10 ? "0" : "") + mm;' +
 '  if (showSeconds) { var ss = now.getSeconds(); txt += ":" + (ss < 10 ? "0" : "") + ss; }' +
-'  ctx.font = canvasFontFor(opt.getAttribute("data-preview") || "", 26);' +
-'  ctx.fillStyle = colors.text;' +
-'  ctx.textAlign = "center"; ctx.textBaseline = "middle";' +
-'  ctx.fillText(txt, w / 2, panelTop + (panelBottom - panelTop) * 0.42);' +
-'  ctx.font = "11px sans-serif";' +
-'  ctx.fillText(now.toDateString(), w / 2, panelBottom - 12);' +
+'  var clockY = panelTop + (panelBottom - panelTop) * 0.42;' +
+// A real on-watch rendering of this font, when one exists, takes over
+// the main preview too -- same FONT_PREVIEW_IMAGES asset the font
+// PICKER buttons already use (see fontPreviewInnerHtml()), drawn here
+// via the standard canvas "draw image, then clip a color fill to its
+// alpha" trick rather than CSS mask-image (this is a <canvas>, not a
+// DOM element a mask-image could apply to). Only used when seconds
+// aren\'t shown -- the baked image is a fixed "12:34", nothing it could
+// show a live seconds count with -- the plain font-approximation text
+// path below covers that case instead.
+'  var images = FONT_PREVIEW_IMAGES[fontSel.value];' +
+'  var clockImgSrc = images && images.clock;' +
+'  var drewImage = false;' +
+'  if (clockImgSrc && !showSeconds) {' +
+'    var img = getCachedImage(clockImgSrc);' +
+'    if (img.complete && img.naturalWidth > 0) {' +
+'      var targetH = 26, targetW = targetH * (img.naturalWidth / img.naturalHeight);' +
+'      ctx.save();' +
+'      ctx.drawImage(img, cx - targetW / 2, clockY - targetH / 2, targetW, targetH);' +
+'      ctx.globalCompositeOperation = "source-in";' +
+'      ctx.fillStyle = colors.text;' +
+'      ctx.fillRect(cx - targetW / 2, clockY - targetH / 2, targetW, targetH);' +
+'      ctx.restore();' +
+'      drewImage = true;' +
+'    }' +
+'  }' +
+'  if (!drewImage) {' +
+'    ctx.font = canvasFontFor(opt.getAttribute("data-preview") || "", 26);' +
+'    ctx.fillStyle = colors.text;' +
+'    ctx.textAlign = "center"; ctx.textBaseline = "middle";' +
+'    ctx.fillText(txt, cx, clockY);' +
+'  }' +
 '}' +
 
 'function updatePreview() {' +
@@ -3361,14 +3633,23 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  var w = canvas.width, h = canvas.height;' +
 '  ctx.clearRect(0, 0, w, h);' +
 
-'  var colors = dayColors();' +
-'  var styleVal = document.getElementById("bottomStyleValue").value;' +
 '  var now = new Date();' +
+'  var phase = currentSkyPhase(now);' +
+// Night colors only take over the preview when night mode is actually
+// on AND the (heuristic, see currentSkyPhase()\'s own comment) current
+// phase is night -- matching eclipse_sky_is_bright()\'s own gating on
+// the watch, so what the preview shows right now tracks whichever
+// scheme the watch itself would actually be using at this moment.
+'  var nightActive = document.getElementById("nightEnabled").checked && phase === "night";' +
+'  var colors = nightActive ? nightColors() : dayColors();' +
+'  var skyMode = document.getElementById("skyMode").value || "0";' +
+'  var styleVal = document.getElementById("bottomStyleValue").value;' +
 '  var secondsBox = document.getElementById("showSeconds");' +
 '  var showSeconds = secondsBox.checked && !secondsBox.disabled;' +
 
 '  if (styleVal === "analog") {' +
-'    drawSkyLayer(ctx, 0, 0, w, h);' +
+'    drawSkyLayer(ctx, 0, 0, w, h, skyMode, phase);' +
+'    drawCelestialPreview(ctx, 0, 0, w, h, skyMode, phase, colors, now);' +
 '    var markerStyleVal = document.getElementById("bigAnalogMarkerStyle").value;' +
 '    var markerStyleInt = parseInt(markerStyleVal, 10);' +
 '    var markerImageDrawn = (markerStyleInt >= 3 && markerStyleInt !== 8 && markerStyleInt !== 9) && drawTintedMarkerBitmap(ctx, markerStyleVal, w, h, colors.text);' +
@@ -3376,11 +3657,15 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    drawCornersAndEdges(ctx, w, h, colors, h);' +
 '  } else {' +
 '    var skyH = Math.round(h * 152 / 228);' +
-'    drawSkyLayer(ctx, 0, 0, w, skyH);' +
+'    drawSkyLayer(ctx, 0, 0, w, skyH, skyMode, phase);' +
+'    drawCelestialPreview(ctx, 0, 0, w, skyH, skyMode, phase, colors, now);' +
 '    drawCornersAndEdges(ctx, w, h, colors, skyH);' +
 '    ctx.fillStyle = colors.bg;' +
 '    ctx.fillRect(0, skyH, w, h - skyH);' +
-'    drawDigitalPreview(ctx, colors, now, showSeconds, w, skyH, h);' +
+'    var digitalSidesVal = document.getElementById("digitalSides").value;' +
+'    var clockArea = digitalClockArea(digitalSidesVal, w);' +
+'    drawDigitalSideFeatures(ctx, w, h, colors, clockArea);' +
+'    drawDigitalPreview(ctx, colors, now, showSeconds, w, skyH, h, clockArea);' +
 '  }' +
 '}' +
 
