@@ -1555,43 +1555,64 @@ GPoint point_on_ring(GPoint center, GRect screen, int32_t angle,
   return fgpoint_to_gpoint(point_on_ring_fp(center_fp, screen, sin_v, cos_v, pct, eccentricity_pct));
 }
 
-// Draws one mark as a straight quad from inner to outer, half_thick_fp
-// wide, with the requested cap style -- built directly from sin_v/cos_v
-// (the same radial direction point_on_ring_fp() placed inner/outer
-// along) rather than re-deriving a direction from the two points via
-// vector subtraction, exactly mirroring how compute_hand_geometry_fp()
-// in hand_layer.c builds a hand's own dot/square body from its own
-// angle. style: 0=dot (round caps, via filled circles at both ends),
-// 1=line (flush/butt ends), 2=square (ends extended outward by
-// half_thick_fp, like SVG's stroke-linecap:square). translucent
-// switches every fill/stroke in here to subpixel.h's dithered variants.
+// Draws one mark as a straight quad from inner to outer, with the
+// requested cap style. inner_half_thick_fp/outer_half_thick_fp are
+// independent (both simply equal for every style except 4, "tapered",
+// which is what actually turns this into a trapezoid instead of a
+// uniform-width quad) -- built directly from sin_v/cos_v (the same
+// radial direction point_on_ring_fp() placed inner/outer along) rather
+// than re-deriving a direction from the two points via vector
+// subtraction, exactly mirroring how compute_hand_geometry_fp() in
+// hand_layer.c builds a hand's own dot/square body from its own angle.
+// style: 0=dot (round caps, via filled circles at both ends, each at
+// its own end's thickness), 1=line (flush/butt ends), 2=square (ends
+// extended outward by that end's own half-thickness, like SVG's
+// stroke-linecap:square), 4=tapered (same square-style extension as 2,
+// just per-end so an asymmetric taper still gets flush-looking ends
+// rather than a butt cut at an angle). translucent switches every
+// fill/stroke in here to subpixel.h's dithered variants.
 static void draw_ring_mark_fp(GContext *ctx, FGPoint inner, FGPoint outer, int32_t sin_v, int32_t cos_v,
-                               int32_t half_thick_fp, uint8_t style, GColor color, bool translucent, uint8_t thickness_px) {
-  bool thin = thickness_px < 3; // see subpixel.h's own comment on fill_polygon_thin_fp() for why
+                               int32_t inner_half_thick_fp, int32_t outer_half_thick_fp,
+                               uint8_t style, GColor color, bool translucent,
+                               uint8_t inner_thickness_px, uint8_t outer_thickness_px) {
+  // See subpixel.h's own comment on fill_polygon_thin_fp() for why:
+  // either end being genuinely thin is enough to want the supersampled
+  // path, even if the other end (a tapered mark's wide side) is not --
+  // fill_polygon_thin_fp() itself works fine on any convex polygon, not
+  // just uniform-width ones, so there's no extra cost to reusing it
+  // whole-shape rather than only over the thin end.
+  bool thin = inner_thickness_px < 3 || outer_thickness_px < 3;
   if (inner.x == outer.x && inner.y == outer.y) {
     // Degenerate zero-length mark (inner/outer border reach configured
     // equal) -- no direction to build a quad from, so just draw a dot
     // at that single point regardless of style, same fallback the
-    // pre-fixed-point version of this code used.
-    if (thin && !translucent) fill_circle_thin_fp(ctx, inner, half_thick_fp, color);
-    else fill_circle_fp(ctx, inner, half_thick_fp, color, translucent);
+    // pre-fixed-point version of this code used. Sized off the outer
+    // (end) thickness, same single value this fallback always used
+    // before inner/outer could differ.
+    if (thin && !translucent) fill_circle_thin_fp(ctx, inner, outer_half_thick_fp, color);
+    else fill_circle_fp(ctx, inner, outer_half_thick_fp, color, translucent);
     return;
   }
 
-  int32_t dx_w = (int32_t)(((int64_t)half_thick_fp * cos_v) / TRIG_MAX_RATIO);
-  int32_t dy_w = (int32_t)(((int64_t)half_thick_fp * sin_v) / TRIG_MAX_RATIO);
+  int32_t inner_dx_w = (int32_t)(((int64_t)inner_half_thick_fp * cos_v) / TRIG_MAX_RATIO);
+  int32_t inner_dy_w = (int32_t)(((int64_t)inner_half_thick_fp * sin_v) / TRIG_MAX_RATIO);
+  int32_t outer_dx_w = (int32_t)(((int64_t)outer_half_thick_fp * cos_v) / TRIG_MAX_RATIO);
+  int32_t outer_dy_w = (int32_t)(((int64_t)outer_half_thick_fp * sin_v) / TRIG_MAX_RATIO);
 
   FGPoint a = inner, b = outer;
-  if (style == 2) { // square caps -- extend along the same radial direction outer sits on
-    int32_t ex = (int32_t)(((int64_t)half_thick_fp * sin_v) / TRIG_MAX_RATIO);
-    int32_t ey = (int32_t)(((int64_t)half_thick_fp * cos_v) / TRIG_MAX_RATIO);
-    a = fgpoint_new(inner.x - ex, inner.y + ey);
-    b = fgpoint_new(outer.x + ex, outer.y - ey);
+  if (style == 2 || style == 4) { // square/tapered caps -- extend each end along the same
+                                    // radial direction outer sits on, by that end's own thickness
+    int32_t inner_ex = (int32_t)(((int64_t)inner_half_thick_fp * sin_v) / TRIG_MAX_RATIO);
+    int32_t inner_ey = (int32_t)(((int64_t)inner_half_thick_fp * cos_v) / TRIG_MAX_RATIO);
+    int32_t outer_ex = (int32_t)(((int64_t)outer_half_thick_fp * sin_v) / TRIG_MAX_RATIO);
+    int32_t outer_ey = (int32_t)(((int64_t)outer_half_thick_fp * cos_v) / TRIG_MAX_RATIO);
+    a = fgpoint_new(inner.x - inner_ex, inner.y + inner_ey);
+    b = fgpoint_new(outer.x + outer_ex, outer.y - outer_ey);
   }
 
   FGPoint points[4] = {
-    fgpoint_new(a.x - dx_w, a.y - dy_w), fgpoint_new(a.x + dx_w, a.y + dy_w),
-    fgpoint_new(b.x + dx_w, b.y + dy_w), fgpoint_new(b.x - dx_w, b.y - dy_w),
+    fgpoint_new(a.x - inner_dx_w, a.y - inner_dy_w), fgpoint_new(a.x + inner_dx_w, a.y + inner_dy_w),
+    fgpoint_new(b.x + outer_dx_w, b.y + outer_dy_w), fgpoint_new(b.x - outer_dx_w, b.y - outer_dy_w),
   };
 
   if (translucent) {
@@ -1602,13 +1623,13 @@ static void draw_ring_mark_fp(GContext *ctx, FGPoint inner, FGPoint outer, int32
     fill_polygon_fp(ctx, points, 4, color);
   }
 
-  if (style == 0) { // dot caps
+  if (style == 0) { // dot caps -- each end's own circle, at that end's own thickness
     if (thin && !translucent) {
-      fill_circle_thin_fp(ctx, inner, half_thick_fp, color);
-      fill_circle_thin_fp(ctx, outer, half_thick_fp, color);
+      fill_circle_thin_fp(ctx, inner, inner_half_thick_fp, color);
+      fill_circle_thin_fp(ctx, outer, outer_half_thick_fp, color);
     } else {
-      fill_circle_fp(ctx, inner, half_thick_fp, color, translucent);
-      fill_circle_fp(ctx, outer, half_thick_fp, color, translucent);
+      fill_circle_fp(ctx, inner, inner_half_thick_fp, color, translucent);
+      fill_circle_fp(ctx, outer, outer_half_thick_fp, color, translucent);
     }
   }
 }
@@ -1651,7 +1672,7 @@ static int32_t marker_anim_mark_progress_1000_raw(int mark_index, int marks, int
 
 static void draw_marker_ring(GContext *ctx, GPoint center, GRect screen, const MarkerRingConfig *cfg,
                               int marks, int skip_step, GColor main_color, GColor accent_color, GColor bg_color,
-                              bool anim_active, int32_t anim_overall_progress_1000) {
+                              bool anim_active, int32_t anim_overall_progress_1000, uint8_t inner_thickness) {
   if (cfg->thickness == 0) return;
   GColor color = marker_ring_color(cfg->color, main_color, accent_color, bg_color);
   uint8_t inner_pct = cfg->inner_border_pct, outer_pct = cfg->outer_border_pct;
@@ -1663,8 +1684,23 @@ static void draw_marker_ring(GContext *ctx, GPoint center, GRect screen, const M
   // every angle except the four cardinal ones, same "second hand only
   // draws at right angles" bug round_div()'s comment in subpixel.h
   // describes.
-  int32_t half_thick_fp = ((int32_t)cfg->thickness << SUBPIXEL_BITS) / 2;
-  if (half_thick_fp < SUBPIXEL_HALF) half_thick_fp = SUBPIXEL_HALF;
+  int32_t outer_half_thick_fp = ((int32_t)cfg->thickness << SUBPIXEL_BITS) / 2;
+  if (outer_half_thick_fp < SUBPIXEL_HALF) outer_half_thick_fp = SUBPIXEL_HALF;
+
+  // Only style 4 (tapered) actually uses inner_thickness -- every other
+  // style keeps inner and outer at the same width, exactly like before
+  // this value existed. inner_thickness itself floors the same way
+  // cfg->thickness does just above (and defaults to 0, i.e. "not yet
+  // sent by the phone" -- see EclipseData's own comment on it), so an
+  // unset value quietly reads as the sharpest possible taper (~1px)
+  // rather than needing its own special case.
+  int32_t inner_half_thick_fp = outer_half_thick_fp;
+  uint8_t inner_thickness_px = cfg->thickness;
+  if (cfg->style == 4) {
+    inner_half_thick_fp = ((int32_t)inner_thickness << SUBPIXEL_BITS) / 2;
+    if (inner_half_thick_fp < SUBPIXEL_HALF) inner_half_thick_fp = SUBPIXEL_HALF;
+    inner_thickness_px = inner_thickness;
+  }
 
   FGPoint center_fp = fgpoint_from_gpoint(center);
 
@@ -1687,7 +1723,8 @@ static void draw_marker_ring(GContext *ctx, GPoint center, GRect screen, const M
 
     FGPoint outer_fp = point_on_ring_fp(center_fp, screen, sin_v, cos_v, use_outer_pct, use_outer_ecc);
     FGPoint inner_fp = point_on_ring_fp(center_fp, screen, sin_v, cos_v, use_inner_pct, use_inner_ecc);
-    draw_ring_mark_fp(ctx, inner_fp, outer_fp, sin_v, cos_v, half_thick_fp, cfg->style, color, cfg->translucent, cfg->thickness);
+    draw_ring_mark_fp(ctx, inner_fp, outer_fp, sin_v, cos_v, inner_half_thick_fp, outer_half_thick_fp,
+                       cfg->style, color, cfg->translucent, inner_thickness_px, cfg->thickness);
   }
 }
 
@@ -1971,13 +2008,21 @@ static void draw_all_markers(GContext *ctx, CanvasState *state, GPoint center, G
   }
 
   const MarkerRingConfig *hour_cfg, *second_cfg;
+  uint8_t hour_inner_thickness, second_inner_thickness;
   if (marker_style == 8) {
     hour_cfg = &d->custom_hour_marker;
     second_cfg = &d->custom_second_marker;
+    hour_inner_thickness = d->custom_hour_marker_inner_thickness;
+    second_inner_thickness = d->custom_second_marker_inner_thickness;
   } else {
     uint8_t idx = (marker_style <= 2) ? marker_style : 0;
     hour_cfg = &MARKER_STYLE_HOUR_PRESETS[idx];
     second_cfg = &MARKER_STYLE_SECOND_PRESETS[idx];
+    // The 3 procedural presets never use style 4 (tapered), so this
+    // value is never actually read for them -- passed through anyway
+    // for a uniform call shape rather than a separate no-op overload.
+    hour_inner_thickness = hour_cfg->thickness;
+    second_inner_thickness = second_cfg->thickness;
   }
 
   // Second ring first so the hour ring's marks draw on top at shared
@@ -1992,8 +2037,8 @@ static void draw_all_markers(GContext *ctx, CanvasState *state, GPoint center, G
   // of work (see this project's own notes on the broader background-
   // animation caching architecture) than swapping which args get
   // passed here.
-  draw_marker_ring(ctx, center, screen, second_cfg, 60, 5, main_color, accent_color, bg_color, false, 0);
-  draw_marker_ring(ctx, center, screen, hour_cfg, 12, 0, main_color, accent_color, bg_color, anim_active, anim_progress_1000);
+  draw_marker_ring(ctx, center, screen, second_cfg, 60, 5, main_color, accent_color, bg_color, false, 0, second_inner_thickness);
+  draw_marker_ring(ctx, center, screen, hour_cfg, 12, 0, main_color, accent_color, bg_color, anim_active, anim_progress_1000, hour_inner_thickness);
 
   if (marker_style == 8) {
     draw_text_markers(ctx, center, screen, state, &d->marker_text, hour_cfg, second_cfg, main_color, anim_active, anim_progress_1000);

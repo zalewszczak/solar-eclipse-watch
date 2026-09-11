@@ -15,9 +15,24 @@
 // rather than in a leaf header of its own, to avoid a circular include
 // between the two.
 typedef struct {
-  uint8_t style;          // 0=dot (round caps), 1=line (thin stroke), 2=square (sharp caps)
-  uint8_t thickness;      // width of the mark, across the ring, in px.
-                           // Hour: 1-20. Second: 1-10 (clamped by the caller/settings UI).
+  uint8_t style;          // 0=dot (round caps), 1=line (thin stroke), 2=square (sharp caps).
+                            // 4=tapered (sharp/square-like caps too, but see thickness's own
+                            // comment below -- each end gets its own independent width instead
+                            // of one shared thickness). Id 3 is deliberately left unused for
+                            // now (reserved). Watch-side rendering only for now -- not yet
+                            // wired up to messaging or the settings page, so it can't actually
+                            // be selected from the phone yet; see custom_hour_marker_inner_
+                            // thickness/custom_second_marker_inner_thickness in EclipseData
+                            // below for the new value tapered needs and why THAT lives outside
+                            // this struct rather than as a field here.
+  uint8_t thickness;      // width of the mark, across the ring, in px. For every style except
+                            // 4 (tapered), this is the mark's one uniform width along its whole
+                            // length. For style 4, this is only the OUTER/end edge's width --
+                            // the inner/base edge's own width comes from a separate inner_
+                            // thickness value (see EclipseData's custom_hour_marker_inner_
+                            // thickness/custom_second_marker_inner_thickness) instead of a
+                            // field on this struct -- see style's own comment above for why.
+                            // Hour: 1-20. Second: 1-10 (clamped by the caller/settings UI).
   uint8_t inner_eccentricity; // 0-100: 0 = the inner edge follows a circle, 100 = it follows
                                // the screen-fitted rectangle (see background_layer.c:
                                // point_on_ring()) at the inner_border_pct "reach".
@@ -445,6 +460,26 @@ typedef struct {
   MarkerRingConfig custom_hour_marker;
   MarkerRingConfig custom_second_marker;
   MarkerTextConfig marker_text;
+
+  // Inner/base-edge thickness for the "tapered" ring style (style 4 --
+  // see MarkerRingConfig's own style comment), one per ring, only
+  // meaningful when the matching custom_*_marker.style above is 4.
+  // Deliberately NOT fields on MarkerRingConfig itself: that struct's
+  // size is load-bearing for the MARKER_RINGS wire blob (see
+  // pebble-eclipse-watch.c's own _Static_assert(sizeof(MarkerRingConfig)
+  // == 8, ...) and apply_consolidated_fields()'s memcpy of exactly
+  // 2 * sizeof(MarkerRingConfig) bytes) -- growing it here would need
+  // a matching phone-side change to actually fill the extra bytes,
+  // which is explicitly out of scope for now (watch-side rendering
+  // support only). These two live as their own plain fields instead,
+  // so MarkerRingConfig and the existing wire format stay untouched.
+  // Not sent by the phone yet, so they default to 0 -- draw_marker_ring()
+  // in background_layer.c floors that the exact same way it already
+  // floors `thickness` (never below a ~1px-equivalent minimum), so an
+  // unset 0 here quietly behaves like 1 (the sharpest possible taper)
+  // rather than needing its own special-cased default.
+  uint8_t custom_hour_marker_inner_thickness;
+  uint8_t custom_second_marker_inner_thickness;
 
   time_t c1;                // first contact (moon touches sun's edge)
   time_t c2;                // start of totality/annularity (0 if partial-only)
