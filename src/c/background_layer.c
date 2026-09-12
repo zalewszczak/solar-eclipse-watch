@@ -378,13 +378,13 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
       // gray band that un-grays again beneath it.
       SkyRgb neutral_gray = { 115, 117, 120 };
       SkyRgb dark_gray = { 40, 41, 46 };
-      band_rgb.r = lerp8(sky_hz_rgb.r, neutral_gray.r, gray_amount, 100);
-      band_rgb.g = lerp8(sky_hz_rgb.g, neutral_gray.g, gray_amount, 100);
-      band_rgb.b = lerp8(sky_hz_rgb.b, neutral_gray.b, gray_amount, 100);
-      hz_rgb.r = lerp8(sky_hz_rgb.r, dark_gray.r, gray_amount, 100);
-      hz_rgb.g = lerp8(sky_hz_rgb.g, dark_gray.g, gray_amount, 100);
-      hz_rgb.b = lerp8(sky_hz_rgb.b, dark_gray.b, gray_amount, 100);
-      band_y_screen = compute_cloud_band_y_virtual(virtual_top_y, virtual_total_h, d->cloud_altitude_pct);
+      band_rgb.r = sky_layer_lerp8(sky_hz_rgb.r, neutral_gray.r, gray_amount, 100);
+      band_rgb.g = sky_layer_lerp8(sky_hz_rgb.g, neutral_gray.g, gray_amount, 100);
+      band_rgb.b = sky_layer_lerp8(sky_hz_rgb.b, neutral_gray.b, gray_amount, 100);
+      hz_rgb.r = sky_layer_lerp8(sky_hz_rgb.r, dark_gray.r, gray_amount, 100);
+      hz_rgb.g = sky_layer_lerp8(sky_hz_rgb.g, dark_gray.g, gray_amount, 100);
+      hz_rgb.b = sky_layer_lerp8(sky_hz_rgb.b, dark_gray.b, gray_amount, 100);
+      band_y_screen = sky_layer_compute_cloud_band_y_virtual(virtual_top_y, virtual_total_h, d->cloud_altitude_pct);
     }
 
     sky_layer_fill_gradient(ctx, bounds, virtual_top_y, virtual_total_h, sky_top_rgb, band_rgb, band_y_screen, hz_rgb);
@@ -407,7 +407,7 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
   GColor sun_outline_color;
   bool fullscreen_sun = (d->bottom_style == 1) && d->has_eclipse && now >= d->c1 && now <= d->c4;
   SkyRgb sun_rgb = fullscreen_sun
-    ? (SkyRgb){ SUN_COLOR_SPACE_R, SUN_COLOR_SPACE_G, SUN_COLOR_SPACE_B }
+    ? sky_layer_space_sun_color()
     : sky_layer_sun_color_for_altitude(alt);
   sun_fill_color = GColorFromRGB(sun_rgb.r, sun_rgb.g, sun_rgb.b);
   sun_outline_color = GColorFromRGB((uint8_t)((uint16_t)sun_rgb.r * 55 / 100),
@@ -443,7 +443,7 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
   // reuses every frame -- see celestial.sun_center's own comment above).
   if (weather_enabled && !state->planet_seek_active) {
     SkyRgb cached_sun_rgb = fullscreen_sun
-      ? (SkyRgb){ SUN_COLOR_SPACE_R, SUN_COLOR_SPACE_G, SUN_COLOR_SPACE_B }
+      ? sky_layer_space_sun_color()
       : sky_layer_sun_color_for_altitude(alt);
     weather_layer_draw_clouds(ctx, bounds, cloud_pct, d->cloud_altitude_pct, d->vis_score_pct, stormy,
                               state->celestial.sun_center, state->celestial.sun_up, flash_currently_active, alt,

@@ -41,7 +41,7 @@ static const SkyAnchor SKY_ANCHORS[] = {
 
 
 
-static uint8_t lerp8(uint8_t a, uint8_t b, int32_t num, int32_t den) {
+uint8_t sky_layer_lerp8(uint8_t a, uint8_t b, int32_t num, int32_t den) {
   if (den == 0) return a;
   return (uint8_t)(a + ((int32_t)(b - a) * num) / den);
 }
@@ -104,6 +104,10 @@ static const SunColorAnchor SUN_COLOR_ANCHORS[] = {
 #define SUN_COLOR_SPACE_G 190
 #define SUN_COLOR_SPACE_B 60
 
+SkyRgb sky_layer_space_sun_color(void) {
+  return (SkyRgb){ SUN_COLOR_SPACE_R, SUN_COLOR_SPACE_G, SUN_COLOR_SPACE_B };
+}
+
 SkyRgb sky_layer_sun_color_for_altitude(int16_t alt_decideg) {
   SkyRgb out;
   if (alt_decideg >= SUN_COLOR_ANCHORS[0].alt_decideg) {
@@ -121,9 +125,9 @@ SkyRgb sky_layer_sun_color_for_altitude(int16_t alt_decideg) {
     if (alt_decideg <= hi->alt_decideg && alt_decideg >= lo->alt_decideg) {
       int32_t num = hi->alt_decideg - alt_decideg;
       int32_t den = hi->alt_decideg - lo->alt_decideg;
-      out.r = lerp8(hi->r, lo->r, num, den);
-      out.g = lerp8(hi->g, lo->g, num, den);
-      out.b = lerp8(hi->b, lo->b, num, den);
+      out.r = sky_layer_lerp8(hi->r, lo->r, num, den);
+      out.g = sky_layer_lerp8(hi->g, lo->g, num, den);
+      out.b = sky_layer_lerp8(hi->b, lo->b, num, den);
       return out;
     }
   }
@@ -149,12 +153,12 @@ void sky_layer_colors_for_altitude(int16_t alt_decideg, SkyRgb *top_out, SkyRgb 
     if (alt_decideg <= hi->alt_decideg && alt_decideg >= lo->alt_decideg) {
       int32_t num = hi->alt_decideg - alt_decideg;
       int32_t den = hi->alt_decideg - lo->alt_decideg;
-      top_out->r = lerp8(hi->top_r, lo->top_r, num, den);
-      top_out->g = lerp8(hi->top_g, lo->top_g, num, den);
-      top_out->b = lerp8(hi->top_b, lo->top_b, num, den);
-      hz_out->r = lerp8(hi->hz_r, lo->hz_r, num, den);
-      hz_out->g = lerp8(hi->hz_g, lo->hz_g, num, den);
-      hz_out->b = lerp8(hi->hz_b, lo->hz_b, num, den);
+      top_out->r = sky_layer_lerp8(hi->top_r, lo->top_r, num, den);
+      top_out->g = sky_layer_lerp8(hi->top_g, lo->top_g, num, den);
+      top_out->b = sky_layer_lerp8(hi->top_b, lo->top_b, num, den);
+      hz_out->r = sky_layer_lerp8(hi->hz_r, lo->hz_r, num, den);
+      hz_out->g = sky_layer_lerp8(hi->hz_g, lo->hz_g, num, den);
+      hz_out->b = sky_layer_lerp8(hi->hz_b, lo->hz_b, num, den);
       return;
     }
   }
@@ -170,7 +174,7 @@ void sky_layer_colors_for_altitude(int16_t alt_decideg, SkyRgb *top_out, SkyRgb 
 // comment for why that split exists at all. Returns a value in that
 // SAME virtual coordinate space (0 = the conceptual gradient's own
 // top), for sky_layer_fill_gradient()'s band_y param, not a screen y.
-static int16_t compute_cloud_band_y_virtual(int16_t virtual_top_y, int16_t virtual_total_h, uint8_t cloud_altitude_pct) {
+int16_t sky_layer_compute_cloud_band_y_virtual(int16_t virtual_top_y, int16_t virtual_total_h, uint8_t cloud_altitude_pct) {
   int16_t half_h = virtual_total_h / 2;
   int16_t lower_top = virtual_top_y + half_h;
   int16_t lower_bottom = virtual_top_y + virtual_total_h - SKY_GROUND_H - 10;
@@ -220,14 +224,14 @@ void sky_layer_fill_gradient(GContext *ctx, GRect bounds, int16_t virtual_top_y,
     int16_t virtual_y = virtual_top_y + y;
     SkyRgb row;
     if (virtual_y <= band_y) {
-      row.r = lerp8(top.r, band.r, y, upper_span > 0 ? upper_span : 1);
-      row.g = lerp8(top.g, band.g, y, upper_span > 0 ? upper_span : 1);
-      row.b = lerp8(top.b, band.b, y, upper_span > 0 ? upper_span : 1);
+      row.r = sky_layer_lerp8(top.r, band.r, y, upper_span > 0 ? upper_span : 1);
+      row.g = sky_layer_lerp8(top.g, band.g, y, upper_span > 0 ? upper_span : 1);
+      row.b = sky_layer_lerp8(top.b, band.b, y, upper_span > 0 ? upper_span : 1);
     } else {
       int16_t rel = virtual_y - band_y;
-      row.r = lerp8(band.r, hz.r, rel, lower_span > 0 ? lower_span : 1);
-      row.g = lerp8(band.g, hz.g, rel, lower_span > 0 ? lower_span : 1);
-      row.b = lerp8(band.b, hz.b, rel, lower_span > 0 ? lower_span : 1);
+      row.r = sky_layer_lerp8(band.r, hz.r, rel, lower_span > 0 ? lower_span : 1);
+      row.g = sky_layer_lerp8(band.g, hz.g, rel, lower_span > 0 ? lower_span : 1);
+      row.b = sky_layer_lerp8(band.b, hz.b, rel, lower_span > 0 ? lower_span : 1);
     }
 
     GColor phase_colors[4];
@@ -317,13 +321,13 @@ void sky_layer_compute_wash(const EclipseData *d, time_t now, int16_t virtual_to
   if (gray_amount > 0) {
     SkyRgb neutral_gray = { 115, 117, 120 };
     SkyRgb dark_gray = { 40, 41, 46 };
-    band_rgb.r = lerp8(sky_hz_rgb.r, neutral_gray.r, gray_amount, 100);
-    band_rgb.g = lerp8(sky_hz_rgb.g, neutral_gray.g, gray_amount, 100);
-    band_rgb.b = lerp8(sky_hz_rgb.b, neutral_gray.b, gray_amount, 100);
-    hz_rgb.r = lerp8(sky_hz_rgb.r, dark_gray.r, gray_amount, 100);
-    hz_rgb.g = lerp8(sky_hz_rgb.g, dark_gray.g, gray_amount, 100);
-    hz_rgb.b = lerp8(sky_hz_rgb.b, dark_gray.b, gray_amount, 100);
-    band_y = compute_cloud_band_y_virtual(virtual_top_y, virtual_total_h, d->cloud_altitude_pct);
+    band_rgb.r = sky_layer_lerp8(sky_hz_rgb.r, neutral_gray.r, gray_amount, 100);
+    band_rgb.g = sky_layer_lerp8(sky_hz_rgb.g, neutral_gray.g, gray_amount, 100);
+    band_rgb.b = sky_layer_lerp8(sky_hz_rgb.b, neutral_gray.b, gray_amount, 100);
+    hz_rgb.r = sky_layer_lerp8(sky_hz_rgb.r, dark_gray.r, gray_amount, 100);
+    hz_rgb.g = sky_layer_lerp8(sky_hz_rgb.g, dark_gray.g, gray_amount, 100);
+    hz_rgb.b = sky_layer_lerp8(sky_hz_rgb.b, dark_gray.b, gray_amount, 100);
+    band_y = sky_layer_compute_cloud_band_y_virtual(virtual_top_y, virtual_total_h, d->cloud_altitude_pct);
   }
 
   *out_top = sky_top_rgb; *out_band = band_rgb; *out_band_y = band_y; *out_hz = hz_rgb;

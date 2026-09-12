@@ -16,6 +16,17 @@ uint8_t sky_layer_interp_cloud_pct(const EclipseData *data, time_t now);
 // Compute the atmosphere-dependent Sun disc color.
 SkyRgb sky_layer_sun_color_for_altitude(int16_t alt_decideg);
 
+// Fixed Sun color used when the display is not representing an
+// atmosphere-dependent view (Space, fullscreen eclipse Sun, etc.).
+SkyRgb sky_layer_space_sun_color(void);
+
+// Shared integer helpers used by the background compositor while keeping
+// sky-specific math in this module.
+uint8_t sky_layer_lerp8(uint8_t a, uint8_t b, int32_t num, int32_t den);
+int16_t sky_layer_compute_cloud_band_y_virtual(int16_t virtual_top_y,
+                                               int16_t virtual_total_h,
+                                               uint8_t cloud_altitude_pct);
+
 // Compute the top/zenith and horizon colors for the current Sun altitude.
 void sky_layer_colors_for_altitude(int16_t alt_decideg, SkyRgb *top_out, SkyRgb *horizon_out);
 
