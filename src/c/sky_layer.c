@@ -174,10 +174,20 @@ void sky_layer_colors_for_altitude(int16_t alt_decideg, SkyRgb *top_out, SkyRgb 
 // comment for why that split exists at all. Returns a value in that
 // SAME virtual coordinate space (0 = the conceptual gradient's own
 // top), for sky_layer_fill_gradient()'s band_y param, not a screen y.
+// lower_top/lower_bottom are both measured from that same absolute 0,
+// not from virtual_top_y -- this call's own slice start plays no part
+// in where the band zone sits in the full 228px picture, only in which
+// portion of it this slice happens to paint (that mapping lives in
+// sky_layer_fill_gradient() itself). virtual_top_y is therefore unused
+// here; kept as a parameter purely so both call sites keep passing the
+// exact same (virtual_top_y, virtual_total_h) pair they already pass to
+// sky_layer_fill_gradient() right after, rather than two subtly
+// different argument lists for what's conceptually the same span.
 int16_t sky_layer_compute_cloud_band_y_virtual(int16_t virtual_top_y, int16_t virtual_total_h, uint8_t cloud_altitude_pct) {
+  (void)virtual_top_y;
   int16_t half_h = virtual_total_h / 2;
-  int16_t lower_top = virtual_top_y + half_h;
-  int16_t lower_bottom = virtual_top_y + virtual_total_h - SKY_GROUND_H - 10;
+  int16_t lower_top = half_h;
+  int16_t lower_bottom = virtual_total_h - SKY_GROUND_H - 10;
   if (lower_bottom < lower_top) lower_bottom = lower_top;
   return lower_bottom - (((int32_t)(lower_bottom - lower_top) * cloud_altitude_pct) / 100);
 }
@@ -214,19 +224,35 @@ int16_t sky_layer_compute_cloud_band_y_virtual(int16_t virtual_top_y, int16_t vi
 // row, to avoid redoing that work per pixel.
 void sky_layer_fill_gradient(GContext *ctx, GRect bounds, int16_t virtual_top_y, int16_t virtual_total_h,
                                   SkyRgb top, SkyRgb band, int16_t band_y, SkyRgb hz) {
-  int16_t virtual_bottom_y = virtual_top_y + virtual_total_h - 1;
+  // virtual_bottom_y, upper_span and the upper-branch lerp position
+  // below are all measured from the conceptual gradient's own absolute
+  // top (virtual y 0) -- NOT from virtual_top_y, which is only this
+  // call's own slice's starting offset within that gradient (used
+  // solely to map each local row `y` to its absolute `virtual_y`,
+  // right below). Folding virtual_top_y into these span/position
+  // values too (as this used to, via `virtual_top_y + virtual_total_h`
+  // and `sky_layer_lerp8(top, band, y, ...)`) double-counts it for any
+  // slice that doesn't start at the very top -- Digital top's own sky
+  // canvas, whose virtual_top_y is DIGITAL_PANEL_H, is exactly that
+  // case: every one of its rows got lerped as though it were
+  // DIGITAL_PANEL_H rows closer to `top` than it actually is, visibly
+  // disagreeing with sky_layer_top_gradient_*()'s own strip (whose
+  // virtual_top_y of 0 happens to make the same bug invisible there)
+  // right at the seam between the two. The lower branch already used
+  // absolute virtual_y/band_y and didn't need this fix.
+  int16_t virtual_bottom_y = virtual_total_h - 1;
   if (band_y > virtual_bottom_y) band_y = virtual_bottom_y;
-  if (band_y < virtual_top_y) band_y = virtual_top_y;
-  int16_t upper_span = band_y - virtual_top_y;
+  if (band_y < 0) band_y = 0;
+  int16_t upper_span = band_y;
   int16_t lower_span = virtual_bottom_y - band_y;
 
   for (int16_t y = 0; y < bounds.size.h; y++) {
     int16_t virtual_y = virtual_top_y + y;
     SkyRgb row;
     if (virtual_y <= band_y) {
-      row.r = sky_layer_lerp8(top.r, band.r, y, upper_span > 0 ? upper_span : 1);
-      row.g = sky_layer_lerp8(top.g, band.g, y, upper_span > 0 ? upper_span : 1);
-      row.b = sky_layer_lerp8(top.b, band.b, y, upper_span > 0 ? upper_span : 1);
+      row.r = sky_layer_lerp8(top.r, band.r, virtual_y, upper_span > 0 ? upper_span : 1);
+      row.g = sky_layer_lerp8(top.g, band.g, virtual_y, upper_span > 0 ? upper_span : 1);
+      row.b = sky_layer_lerp8(top.b, band.b, virtual_y, upper_span > 0 ? upper_span : 1);
     } else {
       int16_t rel = virtual_y - band_y;
       row.r = sky_layer_lerp8(band.r, hz.r, rel, lower_span > 0 ? lower_span : 1);

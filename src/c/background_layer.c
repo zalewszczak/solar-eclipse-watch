@@ -502,7 +502,29 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
   // Cache the base composition before drawing transient overlays. The cache
   // module owns the framebuffer capture/copy details; this layer only decides
   // which composition belongs in the reusable backdrop.
-  background_cache_capture(&state->cache, ctx, bounds);
+  //
+  // background_cache_capture() reads raw pixels straight out of the
+  // hardware framebuffer (graphics_capture_frame_buffer()), which is
+  // addressed in ABSOLUTE screen coordinates -- unlike every other
+  // drawing call in this function, which goes through `ctx` and is
+  // automatically translated by Pebble from this layer's own LOCAL
+  // bounds (always origin (0,0)) to wherever the layer's frame actually
+  // sits on screen. `bounds` here is that local rect, so passing it
+  // straight through used to make the capture read (and the next
+  // cache-hit blit above re-draw) the wrong rows whenever this layer
+  // isn't pinned to the screen's own top -- exactly Digital top's case,
+  // where the sky canvas's frame starts at (0, DIGITAL_PANEL_H) rather
+  // than (0, 0): the cache captured the screen's TOP DIGITAL_PANEL_H
+  // rows (actually the transparent clock panel's own area) instead of
+  // this layer's real ones, then blitted that back shifted down by
+  // DIGITAL_PANEL_H on every throttled redraw -- the blank-then-
+  // shifted-view glitch. Converting the local origin to its real
+  // on-screen position first fixes the capture; the cache-hit blit
+  // above doesn't need the same treatment since it draws through `ctx`
+  // like everything else here, not the raw framebuffer.
+  GPoint capture_screen_origin = layer_convert_point_to_screen(layer, bounds.origin);
+  GRect capture_bounds = GRect(capture_screen_origin.x, capture_screen_origin.y, bounds.size.w, bounds.size.h);
+  background_cache_capture(&state->cache, ctx, capture_bounds);
   background_cache_commit(&state->cache, now);
 
   if (state->planet_seek_active) {
