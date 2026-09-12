@@ -7,6 +7,8 @@
 #include "weather_layer.h"
 #include "input.h"
 #include "font_lookup.h"
+#include "feature_timezone.h"
+#include "feature_colors.h"
 #include <string.h>
 #include <stdlib.h> // atoi(), for parsing strftime's "%V" week-number string back to an int for grading
 
@@ -477,133 +479,7 @@ static void draw_weather_icon(GContext *ctx, GPoint top_left, uint8_t category, 
 typedef struct {
   const char *abbr;         // fixed on-watch label, e.g. "LON"
   int16_t base_offset_min;  // standard-time UTC offset, in minutes (can be negative)
-  uint8_t dst_rule;         // 0=none, 1=US, 2=EU
-} TimezoneInfo;
-
-static const TimezoneInfo TIMEZONES[] = {
-  { "LON",    0, 2 }, // London
-  { "PAR",   60, 2 }, // Paris/Berlin/Madrid (Central European Time)
-  { "CAI",  120, 0 }, // Cairo
-  { "MOW",  180, 0 }, // Moscow
-  { "DXB",  240, 0 }, // Dubai
-  { "DEL",  330, 0 }, // Delhi/Mumbai (UTC+5:30)
-  { "DAC",  360, 0 }, // Dhaka
-  { "BKK",  420, 0 }, // Bangkok/Jakarta
-  { "BJS",  480, 0 }, // Beijing/Shanghai/Singapore
-  { "TOK",  540, 0 }, // Tokyo
-  { "SYD",  600, 0 }, // Sydney (DST not modeled -- see note above)
-  { "AKL",  720, 0 }, // Auckland (DST not modeled -- see note above)
-  { "NYC", -300, 1 }, // New York
-  { "CHI", -360, 1 }, // Chicago
-  { "DEN", -420, 1 }, // Denver
-  { "LAX", -480, 1 }, // Los Angeles
-  { "ANC", -540, 1 }, // Anchorage
-  { "HNL", -600, 0 }, // Honolulu
-  { "SAO", -180, 0 }, // Sao Paulo
-};
-#define TIMEZONE_COUNT (int)(sizeof(TIMEZONES) / sizeof(TIMEZONES[0]))
-
-// civil_from_days()/days_from_civil() -- the well-known constant-time
-// Gregorian-calendar<->epoch-days conversion (Howard Hinnant's
-// "civil_from_days"/"days_from_civil"), used instead of gmtime() so this
-// doesn't depend on anything beyond plain integer arithmetic. Verified
-// numerically against Python's datetime for round-trips across leap
-// years and the epoch boundary before use.
-static void civil_from_days(int32_t z, int *y, int *m, int *d) {
-  z += 719468;
-  int32_t era = (z >= 0 ? z : z - 146096) / 146097;
-  uint32_t doe = (uint32_t)(z - era * 146097);
-  uint32_t yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
-  int32_t year = (int32_t)yoe + era * 400;
-  uint32_t doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
-  uint32_t mp = (5 * doy + 2) / 153;
-  uint32_t day = doy - (153 * mp + 2) / 5 + 1;
-  uint32_t month = mp + (mp < 10 ? 3 : (uint32_t)-9);
-  *y = year + (month <= 2 ? 1 : 0);
-  *m = (int)month;
-  *d = (int)day;
-}
-
-static int32_t days_from_civil(int y, int m, int d) {
-  y -= (m <= 2) ? 1 : 0;
-  int32_t era = (y >= 0 ? y : y - 399) / 400;
-  uint32_t yoe = (uint32_t)(y - era * 400);
-  uint32_t doy = (153 * (m + (m > 2 ? -3 : 9)) + 2) / 5 + d - 1;
-  uint32_t doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
-  return era * 146097 + (int32_t)doe - 719468;
-}
-
-// 0=Sunday..6=Saturday -- day 0 (1970-01-01) was a Thursday.
-static int day_of_week_from_days(int32_t days) {
-  int32_t d = (days + 4) % 7;
-  return (int)(d < 0 ? d + 7 : d);
-}
-
-// The Nth Sunday of a month as epoch days (nth=1 => first Sunday,
-// nth=-1 => last Sunday).
-static int32_t nth_sunday_epoch_days(int year, int month, int nth) {
-  if (nth > 0) {
-    int32_t d1 = days_from_civil(year, month, 1);
-    int dow1 = day_of_week_from_days(d1);
-    int first_sunday_day = (dow1 == 0) ? 1 : (8 - dow1);
-    return days_from_civil(year, month, first_sunday_day + (nth - 1) * 7);
-  }
-  static const int DAYS_IN_MONTH[] = { 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
-  int last_day = DAYS_IN_MONTH[month - 1];
-  if (month == 2 && ((year % 4 == 0 && year % 100 != 0) || year % 400 == 0)) last_day = 29;
-  int32_t d_last = days_from_civil(year, month, last_day);
-  return d_last - day_of_week_from_days(d_last);
-}
-
-// Whether US-rule DST is active at this exact UTC instant. Transition
-// hours are approximated with a single fixed UTC hour common to
-// continental US zones (2am local standard time is ~7am UTC for the
-// March start, ~6am UTC for the November end) -- exact for the correct
-// calendar day either way, could be off by up to a couple hours right
-// at the transition instant itself for the westernmost zones.
-static bool is_us_dst(int32_t epoch_days, int32_t secs_of_day, int year) {
-  int32_t start = nth_sunday_epoch_days(year, 3, 2) * 86400 + 7 * 3600;
-  int32_t end = nth_sunday_epoch_days(year, 11, 1) * 86400 + 6 * 3600;
-  int32_t now = epoch_days * 86400 + secs_of_day;
-  return now >= start && now < end;
-}
-
-// EU-rule DST -- exact, since the EU rule is itself defined in UTC
-// terms (01:00 UTC on the last Sunday of March/October).
-static bool is_eu_dst(int32_t epoch_days, int32_t secs_of_day, int year) {
-  int32_t start = nth_sunday_epoch_days(year, 3, -1) * 86400 + 3600;
-  int32_t end = nth_sunday_epoch_days(year, 10, -1) * 86400 + 3600;
-  int32_t now = epoch_days * 86400 + secs_of_day;
-  return now >= start && now < end;
-}
-
-// Resolves a TimezoneInfo's actual current UTC offset in minutes,
-// including DST if applicable right now.
-static int16_t timezone_current_offset_min(const TimezoneInfo *tz, time_t utc_now) {
-  int32_t epoch_days = (int32_t)(utc_now / 86400);
-  int32_t secs_of_day = (int32_t)(utc_now % 86400);
-  int y, m, d;
-  civil_from_days(epoch_days, &y, &m, &d);
-  bool dst = false;
-  if (tz->dst_rule == 1) dst = is_us_dst(epoch_days, secs_of_day, y);
-  else if (tz->dst_rule == 2) dst = is_eu_dst(epoch_days, secs_of_day, y);
-  return tz->base_offset_min + (dst ? 60 : 0);
-}
-
-// Discrete three-band read of a remote timezone's local hour: white
-// through the day, black overnight, and a light-gray "twilight" band
-// around sunrise/sunset -- deliberately a simple fixed-hour heuristic
-// (06:00-08:00 sunrise, 18:00-20:00 sunset) rather than real sun-
-// altitude astronomy, which isn't available for an arbitrary remote
-// timezone the way it is for the user's own location via
-// sky_layer_is_bright().
-static GColor timezone_daylight_color(int local_hour24) {
-  if (local_hour24 >= 8 && local_hour24 < 18) return GColorWhite;  // day
-  if (local_hour24 < 6 || local_hour24 >= 20) return GColorBlack;  // night
-  return GColorLightGray; // 06-08 sunrise, 18-20 sunset -- twilight
-}
-
-// ---- pressure trend / wind direction icons -------------------------------
+  uint8_t dst_rule;         // ---- pressure trend / wind direction icons -------------------------------
 
 // A small up/down chevron (rising/falling) or a flat horizontal line
 // (flat), drawn with plain line primitives -- no bitmap needed.
@@ -746,236 +622,8 @@ static void draw_mountain_icon(GContext *ctx, GPoint top_left, GColor color) {
 // temperature (-10..40C) and UV index (1..13) by passing different
 // min/max, per the brief's request for "more colors" than a simple
 // 2-stop blend.
-static GColor seven_stop_gradient(int32_t value, int32_t min_v, int32_t max_v) {
-  static const int16_t STOPS[7][3] = {
-    {  64, 224, 208 },  // turquoise
-    { 173, 216, 230 },  // light blue
-    {   0, 200,   0 },  // green
-    { 255, 220,   0 },  // yellow
-    { 255, 140,   0 },  // orange
-    { 220,  20,  20 },  // red
-    { 148,   0, 211 },  // violet
-  };
-  if (max_v <= min_v || value <= min_v) return GColorFromRGB(STOPS[0][0], STOPS[0][1], STOPS[0][2]);
-  if (value >= max_v) return GColorFromRGB(STOPS[6][0], STOPS[6][1], STOPS[6][2]);
-
-  int32_t pos_x6000 = ((value - min_v) * 6000) / (max_v - min_v); // 0..6000 across 6 segments
-  int seg = (int)(pos_x6000 / 1000);
-  if (seg > 5) seg = 5;
-  int32_t seg_frac = pos_x6000 - (int32_t)seg * 1000; // 0..1000 within the segment
-
-  int16_t r = STOPS[seg][0] + (int16_t)(((STOPS[seg + 1][0] - STOPS[seg][0]) * seg_frac) / 1000);
-  int16_t g = STOPS[seg][1] + (int16_t)(((STOPS[seg + 1][1] - STOPS[seg][1]) * seg_frac) / 1000);
-  int16_t b = STOPS[seg][2] + (int16_t)(((STOPS[seg + 1][2] - STOPS[seg][2]) * seg_frac) / 1000);
-  return GColorFromRGB((uint8_t)r, (uint8_t)g, (uint8_t)b);
-}
-
-// Simple white (low) -> turquoise (high) gradient, used for humidity,
-// wind, and rain chance -- these don't need the full 7-stop range,
-// just "more of this = more teal".
-static GColor white_to_turquoise_gradient(int32_t value, int32_t min_v, int32_t max_v) {
-  if (max_v <= min_v) return GColorWhite;
-  int32_t clamped = value < min_v ? min_v : (value > max_v ? max_v : value);
-  int32_t frac1000 = ((clamped - min_v) * 1000) / (max_v - min_v);
-  int16_t r = 255 - (int16_t)(((255 - 64) * frac1000) / 1000);
-  int16_t g = 255 - (int16_t)(((255 - 224) * frac1000) / 1000);
-  int16_t b = 255 - (int16_t)(((255 - 208) * frac1000) / 1000);
-  return GColorFromRGB((uint8_t)r, (uint8_t)g, (uint8_t)b);
-}
-
-// Same 7-stop rainbow as seven_stop_gradient(), but reversed: the
-// high end of the value range maps to the gradient's "calm" turquoise/
-// green side instead of its "alarming" red/violet side. Temperature
-// and UV use the gradient the normal way round (more = hotter/worse);
-// the sleep-duration features below want the opposite sense, since
-// more sleep is the good result.
-static GColor seven_stop_gradient_reversed(int32_t value, int32_t min_v, int32_t max_v) {
-  return seven_stop_gradient(min_v + (max_v - value), min_v, max_v);
-}
-
-// Red (0%) -> green (100%+). Shared by "steps today"/"step goal %"
-// (percent of daily goal) and "battery" (percent charged) -- same
-// red-is-low, green-is-high convention makes sense for both.
-static GColor red_green_gradient(uint8_t pct) {
-  if (pct >= 100) return GColorFromRGB(0, 200, 0);
-  int32_t frac1000 = ((int32_t)pct * 1000) / 100;
-  int16_t r = 220 - (int16_t)((220 * frac1000) / 1000);
-  int16_t g = (int16_t)((200 * frac1000) / 1000);
-  return GColorFromRGB((uint8_t)r, (uint8_t)g, 0);
-}
-
-// White (Kp 0, geomagnetically quiet) -> red (Kp 9, extreme storm) --
-// the aurora Kp index feature's own dynamic color. Runs the opposite
-// direction from red_green_gradient above (there, red is the BAD end;
-// here, red is the exciting "aurora reaching further south than
-// usual" end), so it's its own function rather than a reversed reuse.
-static GColor white_to_red_gradient(uint8_t kp_x10) {
-  if (kp_x10 >= 90) return GColorFromRGB(220, 0, 0);
-  int32_t frac1000 = ((int32_t)kp_x10 * 1000) / 90;
-  // Capped at 170, not 255 -- Pebble's display quantizes each RGB
-  // channel to just 4 levels (0/85/170/255), so anything above ~213
-  // rounds straight back up to 255 anyway. A genuinely calm Kp (or,
-  // more often in practice, no reading fetched yet, which also reads
-  // as 0) used to render as pure white text, which vanishes into any
-  // light/white-background color scheme whenever the outline setting
-  // is off. 170 quantizes cleanly to a pale pink-white that's never
-  // fully invisible, while still reading as "white-ish" per the
-  // original white-to-red design.
-  int16_t g = 170 - (int16_t)((170 * frac1000) / 1000);
-  int16_t b = g;
-  return GColorFromRGB(255, (uint8_t)g, (uint8_t)b);
-}
-
-// Pink (calm/resting) -> red -> violet (dangerously high), scaled by
-// actual BPM. The 3 thresholds below are a reasonable generic
-// resting/exertion/danger split, not personalized -- tune them once
-// you've seen real readings against this on the watch.
-#define HR_LOW_BPM 60
-#define HR_HIGH_BPM 120
-#define HR_DANGER_BPM 180
-static GColor heart_rate_gradient(int bpm) {
-  const int16_t pink[3]   = { 255, 105, 180 };
-  const int16_t red[3]    = { 220,  20,  20 };
-  const int16_t violet[3] = { 148,   0, 211 };
-  const int16_t *from, *to;
-  int32_t frac1000;
-  if (bpm <= HR_LOW_BPM) {
-    return GColorFromRGB((uint8_t)pink[0], (uint8_t)pink[1], (uint8_t)pink[2]);
-  } else if (bpm >= HR_DANGER_BPM) {
-    return GColorFromRGB((uint8_t)violet[0], (uint8_t)violet[1], (uint8_t)violet[2]);
-  } else if (bpm <= HR_HIGH_BPM) {
-    from = pink; to = red;
-    frac1000 = ((int32_t)(bpm - HR_LOW_BPM) * 1000) / (HR_HIGH_BPM - HR_LOW_BPM);
-  } else {
-    from = red; to = violet;
-    frac1000 = ((int32_t)(bpm - HR_HIGH_BPM) * 1000) / (HR_DANGER_BPM - HR_HIGH_BPM);
-  }
-  int16_t r = from[0] + (int16_t)(((to[0] - from[0]) * frac1000) / 1000);
-  int16_t g = from[1] + (int16_t)(((to[1] - from[1]) * frac1000) / 1000);
-  int16_t b = from[2] + (int16_t)(((to[2] - from[2]) * frac1000) / 1000);
-  return GColorFromRGB((uint8_t)r, (uint8_t)g, (uint8_t)b);
-}
-
-// White (sea level) -> turquoise (high), for the "Altitude" content --
-// default 0-4000m range, adjust ALTITUDE_GRADIENT_MAX_M once you've
-// seen real readings.
-#define ALTITUDE_GRADIENT_MAX_M 4000
-static GColor altitude_gradient(int16_t altitude_m) {
-  return white_to_turquoise_gradient(altitude_m, 0, ALTITUDE_GRADIENT_MAX_M);
-}
-
-// Dim gray (faint) -> white (strong), for the meteor-shower intensity
-// reading -- "more meteors = whiter", replacing the old red/green read.
-static GColor meteor_intensity_gradient(uint8_t pct) {
-  int32_t frac1000 = ((int32_t)pct * 1000) / 100;
-  int16_t v = 90 + (int16_t)((165 * frac1000) / 1000);
-  return GColorFromRGB((uint8_t)v, (uint8_t)v, (uint8_t)v);
-}
-
-// White during the day, black at night, blending linearly across the
-// hour either side of the actual sunrise/sunset moment -- shared by
-// the digital-time/full-time content and the bed-time/wake-time
-// content below. Falls back to a flat white if sun data hasn't
-// arrived yet (0 is never a real sunrise/sunset timestamp).
-#define DAYNIGHT_TRANSITION_SECS 3600
-static GColor daynight_gradient(time_t at, time_t sun_rise, time_t sun_set) {
-  if (sun_rise <= 0 || sun_set <= 0) return GColorWhite;
-  bool is_daytime = (at >= sun_rise && at < sun_set);
-  int32_t dist_to_rise = (int32_t)(at - sun_rise); // negative before rise, positive after
-  int32_t dist_to_set  = (int32_t)(at - sun_set);
-  int32_t abs_rise = dist_to_rise < 0 ? -dist_to_rise : dist_to_rise;
-  int32_t abs_set  = dist_to_set  < 0 ? -dist_to_set  : dist_to_set;
-  bool near_rise = abs_rise <= abs_set;
-  int32_t dist = near_rise ? dist_to_rise : dist_to_set;
-  int32_t abs_dist = near_rise ? abs_rise : abs_set;
-  if (abs_dist >= DAYNIGHT_TRANSITION_SECS) return is_daytime ? GColorWhite : GColorBlack;
-  // Within an hour of the nearer transition: blend across it. At
-  // sunrise `dist` runs -3600 (an hour before, still black) through 0
-  // (right at sunrise) to +3600 (an hour after, fully white); sunset
-  // is the same shape, inverted (white -> black).
-  int32_t frac1000 = ((dist + DAYNIGHT_TRANSITION_SECS) * 1000) / (2 * DAYNIGHT_TRANSITION_SECS);
-  if (frac1000 < 0) frac1000 = 0;
-  if (frac1000 > 1000) frac1000 = 1000;
-  int16_t v = near_rise ? (int16_t)((255 * frac1000) / 1000) : 255 - (int16_t)((255 * frac1000) / 1000);
-  return GColorFromRGB((uint8_t)v, (uint8_t)v, (uint8_t)v);
-}
-
-// Plain black->white ramp across a field's own numeric range, no
-// sunrise/sunset involved -- used for the standalone hour/minute/
-// second components ("single time values"), as opposed to the full
-// clock-time content above which uses daynight_gradient() instead.
-static GColor linear_white_black(int32_t value, int32_t min_v, int32_t max_v) {
-  if (max_v <= min_v) return GColorWhite;
-  int32_t clamped = value < min_v ? min_v : (value > max_v ? max_v : value);
-  int32_t frac1000 = ((clamped - min_v) * 1000) / (max_v - min_v);
-  int16_t v = (int16_t)((255 * frac1000) / 1000);
-  return GColorFromRGB((uint8_t)v, (uint8_t)v, (uint8_t)v);
-}
-
-// Multi-value dates (weekday+day, day/month, full dates, "long date",
-// ...) are graded by how far the year has progressed -- Jan 1 sits at
-// the gradient's cold end, Dec 31 at its hot end.
-static GColor date_year_progress_gradient(const struct tm *t) {
-  return seven_stop_gradient(t->tm_yday, 0, 365);
-}
-
-// White (just updated) -> full red at 2h+ stale, for the "last
-// weather update" content types.
-#define WEATHER_STALE_RED_SECS (2 * 3600)
-static GColor weather_staleness_gradient(time_t now, time_t last_update) {
-  if (last_update <= 0) return GColorRed; // never updated at all -- treat like fully stale
-  int32_t age = (int32_t)(now - last_update);
-  if (age <= 0) return GColorWhite;
-  if (age >= WEATHER_STALE_RED_SECS) return GColorRed;
-  int32_t frac1000 = (age * 1000) / WEATHER_STALE_RED_SECS;
-  int16_t gb = 255 - (int16_t)((255 * frac1000) / 1000);
-  return GColorFromRGB(255, (uint8_t)gb, (uint8_t)gb);
-}
-
-// The four weather-family color gradients "current conditions" (and
-// nothing else) uses, each scaled by that condition's own intensity
-// rather than a single flat color -- clearer sky/heavier rain/etc.
-// reads as a visibly different shade, not just a different icon.
-#define OVERCAST_CLOUD_THRESHOLD 40 // cloud_pct at/above this reads as "overcast" rather than "sunny"
-
-// Clear/sunny: white fading toward a warm golden-white as skies get
-// clearer (lower cloud_pct).
-static GColor sunny_yellow_white_gradient(uint8_t cloud_pct) {
-  uint8_t clamped = cloud_pct > OVERCAST_CLOUD_THRESHOLD ? OVERCAST_CLOUD_THRESHOLD : cloud_pct;
-  int32_t frac1000 = ((int32_t)(OVERCAST_CLOUD_THRESHOLD - clamped) * 1000) / OVERCAST_CLOUD_THRESHOLD;
-  int16_t b = 255 - (int16_t)((85 * frac1000) / 1000);
-  return GColorFromRGB(255, 255, (uint8_t)b);
-}
-
-// Overcast/fog: light gray darkening toward a heavier gray as cloud
-// cover thickens.
-static GColor overcast_gray_gradient(uint8_t cloud_pct) {
-  uint8_t clamped = cloud_pct < OVERCAST_CLOUD_THRESHOLD ? OVERCAST_CLOUD_THRESHOLD : cloud_pct;
-  int32_t frac1000 = ((int32_t)(clamped - OVERCAST_CLOUD_THRESHOLD) * 1000) / (100 - OVERCAST_CLOUD_THRESHOLD);
-  int16_t v = 200 - (int16_t)((115 * frac1000) / 1000);
-  return GColorFromRGB((uint8_t)v, (uint8_t)v, (uint8_t)v);
-}
-
-// Snow: white gaining a faint blue-white cast as it gets heavier
-// (denser cloud cover generally means heavier snowfall).
-static GColor snow_white_gradient(uint8_t cloud_pct) {
-  int32_t frac1000 = ((int32_t)cloud_pct * 1000) / 100;
-  int16_t rg = 255 - (int16_t)((85 * frac1000) / 1000);
-  return GColorFromRGB((uint8_t)rg, (uint8_t)rg, 255);
-}
-
-// weather_condition: 0=clear/cloudy (cloud_pct alone decides sunny vs
-// overcast), 1=fog (treated like overcast), 2=rain (reuses the
-// existing white->turquoise gradient, driven by rain chance),
-// 3=snow, 4=thunderstorm -- an extreme-weather warning that
-// overrides everything else with a flat bright red regardless of any
-// other value.
-static GColor weather_condition_color(uint8_t condition, uint8_t cloud_pct, uint8_t rain_chance_pct) {
-  if (condition == 4) return GColorFromRGB(255, 0, 0);
-  if (condition == 3) return snow_white_gradient(cloud_pct);
-  if (condition == 2) return white_to_turquoise_gradient(rain_chance_pct, 0, 100);
-  if (condition == 1) return overcast_gray_gradient(cloud_pct < OVERCAST_CLOUD_THRESHOLD ? OVERCAST_CLOUD_THRESHOLD : cloud_pct);
-  return (cloud_pct < OVERCAST_CLOUD_THRESHOLD) ? sunny_yellow_white_gradient(cloud_pct) : overcast_gray_gradient(cloud_pct);
+cloud_pct);
+  return (cloud_pct < OVERCAST_CLOUD_THRESHOLD) ? feature_colors_sunny_yellow_white_gradient(cloud_pct) : feature_colors_overcast_gray_gradient(cloud_pct);
 }
 
 // temp_unit: 0=Celsius (input is already Celsius, passed through),
@@ -1391,7 +1039,7 @@ static void __attribute__((noinline)) compute_health_value(FeatureSlot *slot, ui
   switch (content) {
     case 1: { // heart rate -- pink(low)->red->violet(dangerously high) gradient by actual BPM
       int bpm = peek_current_bpm();
-      GColor dyn = (bpm > 0) ? heart_rate_gradient(bpm) : GColorLightGray;
+      GColor dyn = (bpm > 0) ? feature_colors_heart_rate_gradient(bpm) : GColorLightGray;
       snprintf(buf, sizeof(buf), bpm > 0 ? "%d" : "N/A", bpm);
       slot->segment_count = 2;
       set_icon_seg(slot, 0, 1, resolve_flat_color(color_mode, dyn, main_color, accent_color));
@@ -1403,7 +1051,7 @@ static void __attribute__((noinline)) compute_health_value(FeatureSlot *slot, ui
       uint16_t goal = data->daily_step_goal > 0 ? data->daily_step_goal : 10000;
       int32_t pct = (steps * 100) / goal;
       if (pct > 100) pct = 100;
-      GColor dyn = red_green_gradient((uint8_t)pct);
+      GColor dyn = feature_colors_red_green_gradient((uint8_t)pct);
       snprintf(buf, sizeof(buf), "%d", (int)steps);
       slot->segment_count = 2;
       set_icon_seg(slot, 0, 2, resolve_flat_color(color_mode, dyn, main_color, accent_color));
@@ -1415,7 +1063,7 @@ static void __attribute__((noinline)) compute_health_value(FeatureSlot *slot, ui
       uint16_t goal = data->daily_step_goal > 0 ? data->daily_step_goal : 10000;
       int32_t pct = (steps * 100) / goal;
       if (pct > 999) pct = 999;
-      GColor dyn = red_green_gradient((uint8_t)(pct > 100 ? 100 : pct));
+      GColor dyn = feature_colors_red_green_gradient((uint8_t)(pct > 100 ? 100 : pct));
       snprintf(buf, sizeof(buf), "%d%%", (int)pct);
       slot->segment_count = 2;
       set_icon_seg(slot, 0, 2, resolve_flat_color(color_mode, dyn, main_color, accent_color));
@@ -1424,7 +1072,7 @@ static void __attribute__((noinline)) compute_health_value(FeatureSlot *slot, ui
     }
     case 10: { // battery %
       BatteryChargeState bs = battery_state_service_peek();
-      GColor dyn = bs.is_charging ? GColorGreen : red_green_gradient((uint8_t)bs.charge_percent);
+      GColor dyn = bs.is_charging ? GColorGreen : feature_colors_red_green_gradient((uint8_t)bs.charge_percent);
       snprintf(buf, sizeof(buf), bs.is_charging ? "%d%%+" : "%d%%", bs.charge_percent);
       GColor c = resolve_flat_color(color_mode, dyn, main_color, accent_color);
       slot->segment_count = 1;
@@ -1439,7 +1087,7 @@ static void __attribute__((noinline)) compute_health_value(FeatureSlot *slot, ui
     }
     case 17: { // pebble battery logo -- icon draws its own fill bar, no separate text
       BatteryChargeState bs = battery_state_service_peek();
-      GColor dyn = bs.is_charging ? GColorGreen : red_green_gradient((uint8_t)bs.charge_percent);
+      GColor dyn = bs.is_charging ? GColorGreen : feature_colors_red_green_gradient((uint8_t)bs.charge_percent);
       GColor c = resolve_flat_color(color_mode, dyn, main_color, accent_color);
       slot->segment_count = 1;
       set_icon_seg(slot, 0, 12, c);
@@ -1506,7 +1154,7 @@ static void __attribute__((noinline)) compute_health_value(FeatureSlot *slot, ui
       if (health_metric_available(metric)) {
         HealthValue secs = health_service_sum_today(metric);
         format_duration_hm(buf, sizeof(buf), (int32_t)secs);
-        c = resolve_flat_color(color_mode, seven_stop_gradient_reversed((int32_t)secs, 0, range_secs), main_color, accent_color);
+        c = resolve_flat_color(color_mode, feature_colors_seven_stop_gradient_reversed((int32_t)secs, 0, range_secs), main_color, accent_color);
       } else {
         snprintf(buf, sizeof(buf), "N/A");
         c = GColorLightGray;
@@ -1522,7 +1170,7 @@ static void __attribute__((noinline)) compute_health_value(FeatureSlot *slot, ui
         int pct = (total > 0) ? (int)((restful * 100) / total) : 0;
         if (pct > 100) pct = 100;
         snprintf(buf, sizeof(buf), "%d%%", pct);
-        c = resolve_flat_color(color_mode, red_green_gradient((uint8_t)pct), main_color, accent_color);
+        c = resolve_flat_color(color_mode, feature_colors_red_green_gradient((uint8_t)pct), main_color, accent_color);
       } else {
         snprintf(buf, sizeof(buf), "N/A");
         c = GColorLightGray;
@@ -1538,7 +1186,7 @@ static void __attribute__((noinline)) compute_health_value(FeatureSlot *slot, ui
       if (span.found) {
         struct tm *et = localtime(&event);
         strftime(buf, sizeof(buf), clock_is_24h_style() ? "%H:%M" : "%I:%M %p", et);
-        c = resolve_flat_color(color_mode, daynight_gradient(event, data->sun_rise, data->sun_set), main_color, accent_color);
+        c = resolve_flat_color(color_mode, feature_colors_daynight_gradient(event, data->sun_rise, data->sun_set), main_color, accent_color);
       } else {
         snprintf(buf, sizeof(buf), "N/A");
         c = GColorLightGray;
@@ -1563,7 +1211,7 @@ static void __attribute__((noinline)) compute_weather_value(FeatureSlot *slot, u
                                    uint8_t color_mode, GColor main_color, GColor accent_color, GColor bg_color) {
   char buf[24];
   GColor cond_color = data->valid
-    ? weather_condition_color(data->weather_condition, data->cloud_cover_pct, data->rain_chance_pct)
+    ? feature_colors_weather_condition_color(data->weather_condition, data->cloud_cover_pct, data->rain_chance_pct)
     : bg_color;
 
   switch (content) {
@@ -1577,8 +1225,8 @@ static void __attribute__((noinline)) compute_weather_value(FeatureSlot *slot, u
         snprintf(hi_buf, sizeof(hi_buf), "H%d", hi);
         snprintf(lo_buf, sizeof(lo_buf), "L%d", lo);
         slot->segment_count = 2;
-        set_text_seg(slot, 0, hi_buf, seven_stop_gradient(data->temp_high_c, -10, 40));
-        set_text_seg(slot, 1, lo_buf, seven_stop_gradient(data->temp_low_c, -10, 40));
+        set_text_seg(slot, 0, hi_buf, feature_colors_seven_stop_gradient(data->temp_high_c, -10, 40));
+        set_text_seg(slot, 1, lo_buf, feature_colors_seven_stop_gradient(data->temp_low_c, -10, 40));
       } else {
         snprintf(buf, sizeof(buf), "H%d L%d", hi, lo);
         slot->segment_count = 1;
@@ -1598,45 +1246,45 @@ static void __attribute__((noinline)) compute_weather_value(FeatureSlot *slot, u
       uint8_t uv = data->uv_index_x10 / 10;
       snprintf(buf, sizeof(buf), "UV%d", uv);
       slot->segment_count = 1;
-      set_text_seg(slot, 0, buf, resolve_flat_color(color_mode, seven_stop_gradient(uv, 1, 13), main_color, accent_color));
+      set_text_seg(slot, 0, buf, resolve_flat_color(color_mode, feature_colors_seven_stop_gradient(uv, 1, 13), main_color, accent_color));
       return;
     }
     case 104: { // current UV index (this hour, as opposed to 6's daily max)
       uint8_t uv = data->uv_index_current_x10 / 10;
       snprintf(buf, sizeof(buf), "UV%d", uv);
       slot->segment_count = 1;
-      set_text_seg(slot, 0, buf, resolve_flat_color(color_mode, seven_stop_gradient(uv, 1, 13), main_color, accent_color));
+      set_text_seg(slot, 0, buf, resolve_flat_color(color_mode, feature_colors_seven_stop_gradient(uv, 1, 13), main_color, accent_color));
       return;
     }
     case 7: { // rain chance
       snprintf(buf, sizeof(buf), "%d%%", data->rain_chance_pct);
-      GColor c = resolve_flat_color(color_mode, white_to_turquoise_gradient(data->rain_chance_pct, 0, 100), main_color, accent_color);
+      GColor c = resolve_flat_color(color_mode, feature_colors_white_to_turquoise_gradient(data->rain_chance_pct, 0, 100), main_color, accent_color);
       slot_set(slot, 5, buf, c);
       return;
     }
     case 8: { // humidity
       snprintf(buf, sizeof(buf), "%d%%", data->humidity_pct);
-      GColor c = resolve_flat_color(color_mode, white_to_turquoise_gradient(data->humidity_pct, 0, 100), main_color, accent_color);
+      GColor c = resolve_flat_color(color_mode, feature_colors_white_to_turquoise_gradient(data->humidity_pct, 0, 100), main_color, accent_color);
       slot_set(slot, 6, buf, c);
       return;
     }
     case 9: { // wind speed
       snprintf(buf, sizeof(buf), "%d", convert_wind(data->wind_speed_kmh, data->wind_speed_unit));
-      GColor c = resolve_flat_color(color_mode, white_to_turquoise_gradient(data->wind_speed_kmh, 0, 60), main_color, accent_color);
+      GColor c = resolve_flat_color(color_mode, feature_colors_white_to_turquoise_gradient(data->wind_speed_kmh, 0, 60), main_color, accent_color);
       slot_set(slot, 7, buf, c);
       return;
     }
     case 14: { // visibility -- grayscale, like cloud cover (vis_score_pct is sent as 100-cloud%)
       snprintf(buf, sizeof(buf), "%d%%", data->vis_score_pct);
       uint8_t equiv_cloud_pct = 100 - data->vis_score_pct;
-      GColor dyn = overcast_gray_gradient(equiv_cloud_pct < OVERCAST_CLOUD_THRESHOLD ? OVERCAST_CLOUD_THRESHOLD : equiv_cloud_pct);
+      GColor dyn = feature_colors_overcast_gray_gradient(equiv_cloud_pct < OVERCAST_CLOUD_THRESHOLD ? OVERCAST_CLOUD_THRESHOLD : equiv_cloud_pct);
       GColor c = resolve_flat_color(color_mode, dyn, main_color, accent_color);
       slot_set(slot, 9, buf, c);
       return;
     }
     case 15: { // cloud cover
       snprintf(buf, sizeof(buf), "%d%%", data->cloud_cover_pct);
-      GColor dyn = overcast_gray_gradient(data->cloud_cover_pct < OVERCAST_CLOUD_THRESHOLD ? OVERCAST_CLOUD_THRESHOLD : data->cloud_cover_pct);
+      GColor dyn = feature_colors_overcast_gray_gradient(data->cloud_cover_pct < OVERCAST_CLOUD_THRESHOLD ? OVERCAST_CLOUD_THRESHOLD : data->cloud_cover_pct);
       GColor c = resolve_flat_color(color_mode, dyn, main_color, accent_color);
       slot_set(slot, 10, buf, c);
       return;
@@ -1660,7 +1308,7 @@ static void __attribute__((noinline)) compute_weather_value(FeatureSlot *slot, u
     }
     case 34: { // pressure, with rising/falling/flat trend arrow
       snprintf(buf, sizeof(buf), "%d hPa", data->pressure_hpa);
-      GColor c = resolve_flat_color(color_mode, seven_stop_gradient(data->pressure_hpa, 970, 1050), main_color, accent_color);
+      GColor c = resolve_flat_color(color_mode, feature_colors_seven_stop_gradient(data->pressure_hpa, 970, 1050), main_color, accent_color);
       slot->segment_count = 2;
       set_icon_seg(slot, 0, 15, c);
       slot->segments[0].icon_extra = data->pressure_trend;
@@ -1683,7 +1331,7 @@ static void __attribute__((noinline)) compute_weather_value(FeatureSlot *slot, u
       bool use_eu = (data->aqi_unit == 1);
       uint16_t aqi_value = use_eu ? data->aqi_eu : data->aqi_us;
       snprintf(buf, sizeof(buf), "AQI %d", aqi_value);
-      GColor c = resolve_flat_color(color_mode, seven_stop_gradient(aqi_value, 0, use_eu ? 100 : 300), main_color, accent_color);
+      GColor c = resolve_flat_color(color_mode, feature_colors_seven_stop_gradient(aqi_value, 0, use_eu ? 100 : 300), main_color, accent_color);
       slot->segment_count = 1;
       set_text_seg(slot, 0, buf, c);
       return;
@@ -1707,7 +1355,7 @@ static void __attribute__((noinline)) compute_weather_value(FeatureSlot *slot, u
         } else {
           snprintf(buf, sizeof(buf), "%dm", data->altitude_m);
         }
-        c = resolve_flat_color(color_mode, altitude_gradient(data->altitude_m), main_color, accent_color);
+        c = resolve_flat_color(color_mode, feature_colors_altitude_gradient(data->altitude_m), main_color, accent_color);
       }
       slot_set(slot, 17, buf, c);
       return;
@@ -1720,7 +1368,7 @@ static void __attribute__((noinline)) compute_weather_value(FeatureSlot *slot, u
       else if (content == 75) { temp_c = data->temp_low_c; shown = convert_temp(temp_c, data->temp_unit); prefix = "L "; }
       else { temp_c = apparent_temp_c(data->weather_temp_c, data->wind_speed_kmh, data->humidity_pct); shown = convert_temp(temp_c, data->temp_unit); prefix = "FL "; }
       snprintf(buf, sizeof(buf), "%s%d", prefix, shown);
-      GColor c = resolve_flat_color(color_mode, seven_stop_gradient(temp_c, -10, 40), main_color, accent_color);
+      GColor c = resolve_flat_color(color_mode, feature_colors_seven_stop_gradient(temp_c, -10, 40), main_color, accent_color);
       slot->segment_count = 1;
       set_text_seg(slot, 0, buf, c);
       return;
@@ -1753,7 +1401,7 @@ static void __attribute__((noinline)) compute_weather_value(FeatureSlot *slot, u
       // Same shape as "temp + weather icon" (32): plain 7-stop gradient,
       // not the condition-based color -- per the "Temperature readouts
       // (including temp+weather icon)" rule.
-      c = resolve_flat_color(color_mode, seven_stop_gradient(data->forecast_temp_c[idx], -10, 40), main_color, accent_color);
+      c = resolve_flat_color(color_mode, feature_colors_seven_stop_gradient(data->forecast_temp_c[idx], -10, 40), main_color, accent_color);
       slot->segment_count = 2;
       set_icon_seg(slot, 0, 14, c);
       slot->segments[0].icon_extra = weather_icon_category(data->forecast_condition[idx], 50); // no forecast cloud% sent separately -- 50 is a neutral middle guess, only affects which of a few near-identical icon glyphs gets picked
@@ -1772,7 +1420,7 @@ static void __attribute__((noinline)) compute_weather_value(FeatureSlot *slot, u
       } else {
         snprintf(buf, sizeof(buf), "N/A");
       }
-      dyn = weather_staleness_gradient(now, data->weather_last_update);
+      dyn = feature_colors_weather_staleness_gradient(now, data->weather_last_update);
       GColor c = resolve_flat_color(color_mode, dyn, main_color, accent_color);
       if (content == 94) {
         // Short version only -- the long version's own "Last updated"
@@ -1807,19 +1455,19 @@ static void __attribute__((noinline)) compute_date_value(FeatureSlot *slot, uint
       char day_buf[4];
       strftime(day_buf, sizeof(day_buf), "%a", t);
       snprintf(buf, sizeof(buf), "%s %d", day_buf, t->tm_mday);
-      dyn = date_year_progress_gradient(t);
+      dyn = feature_colors_date_year_progress_gradient(t);
       break;
     }
     case 18: { // digital time ("Time") -- day/night gradient off the actual sunrise/sunset
       strftime(buf, sizeof(buf), clock_is_24h_style() ? "%H:%M" : "%I:%M %p", t);
-      dyn = daynight_gradient(now, data->sun_rise, data->sun_set);
+      dyn = feature_colors_daynight_gradient(now, data->sun_rise, data->sun_set);
       break;
     }
     case 19: { // week number (single-value) -- 7-stop gradient over its own 1-52 range
       char wk_buf[4];
       strftime(wk_buf, sizeof(wk_buf), "%V", t);
       snprintf(buf, sizeof(buf), "WK %s", wk_buf);
-      dyn = seven_stop_gradient(atoi(wk_buf), 1, 52);
+      dyn = feature_colors_seven_stop_gradient(atoi(wk_buf), 1, 52);
       break;
     }
     case 21: { // month + day (multi-value), e.g. "SEP 11"
@@ -1827,49 +1475,49 @@ static void __attribute__((noinline)) compute_date_value(FeatureSlot *slot, uint
       strftime(mon_buf, sizeof(mon_buf), "%b", t);
       to_upper_str(mon_buf);
       snprintf(buf, sizeof(buf), "%s %d", mon_buf, t->tm_mday);
-      dyn = date_year_progress_gradient(t);
+      dyn = feature_colors_date_year_progress_gradient(t);
       break;
     }
-    case 22: snprintf(buf, sizeof(buf), "%d", t->tm_mday); dyn = seven_stop_gradient(t->tm_mday, 1, 31); break;
-    case 23: strftime(buf, sizeof(buf), "%a", t); to_upper_str(buf); dyn = seven_stop_gradient(t->tm_wday, 0, 6); break;
-    case 24: strftime(buf, sizeof(buf), "%A", t); dyn = seven_stop_gradient(t->tm_wday, 0, 6); break;
-    case 25: strftime(buf, sizeof(buf), "%b", t); to_upper_str(buf); dyn = seven_stop_gradient(t->tm_mon, 0, 11); break;
-    case 26: strftime(buf, sizeof(buf), "%B", t); dyn = seven_stop_gradient(t->tm_mon, 0, 11); break;
-    case 27: snprintf(buf, sizeof(buf), "%d/%d", t->tm_mday, t->tm_mon + 1); dyn = date_year_progress_gradient(t); break;
-    case 28: snprintf(buf, sizeof(buf), "%d/%d", t->tm_mon + 1, t->tm_mday); dyn = date_year_progress_gradient(t); break;
-    case 29: snprintf(buf, sizeof(buf), "%d/%d/%d", t->tm_mday, t->tm_mon + 1, t->tm_year + 1900); dyn = date_year_progress_gradient(t); break;
-    case 30: snprintf(buf, sizeof(buf), "%d/%d/%02d", t->tm_mon + 1, t->tm_mday, (t->tm_year + 1900) % 100); dyn = date_year_progress_gradient(t); break;
+    case 22: snprintf(buf, sizeof(buf), "%d", t->tm_mday); dyn = feature_colors_seven_stop_gradient(t->tm_mday, 1, 31); break;
+    case 23: strftime(buf, sizeof(buf), "%a", t); to_upper_str(buf); dyn = feature_colors_seven_stop_gradient(t->tm_wday, 0, 6); break;
+    case 24: strftime(buf, sizeof(buf), "%A", t); dyn = feature_colors_seven_stop_gradient(t->tm_wday, 0, 6); break;
+    case 25: strftime(buf, sizeof(buf), "%b", t); to_upper_str(buf); dyn = feature_colors_seven_stop_gradient(t->tm_mon, 0, 11); break;
+    case 26: strftime(buf, sizeof(buf), "%B", t); dyn = feature_colors_seven_stop_gradient(t->tm_mon, 0, 11); break;
+    case 27: snprintf(buf, sizeof(buf), "%d/%d", t->tm_mday, t->tm_mon + 1); dyn = feature_colors_date_year_progress_gradient(t); break;
+    case 28: snprintf(buf, sizeof(buf), "%d/%d", t->tm_mon + 1, t->tm_mday); dyn = feature_colors_date_year_progress_gradient(t); break;
+    case 29: snprintf(buf, sizeof(buf), "%d/%d/%d", t->tm_mday, t->tm_mon + 1, t->tm_year + 1900); dyn = feature_colors_date_year_progress_gradient(t); break;
+    case 30: snprintf(buf, sizeof(buf), "%d/%d/%02d", t->tm_mon + 1, t->tm_mday, (t->tm_year + 1900) % 100); dyn = feature_colors_date_year_progress_gradient(t); break;
     case 63: { // full time with seconds -- day/night gradient, same as digital time
       strftime(buf, sizeof(buf), clock_is_24h_style() ? "%H:%M:%S" : "%I:%M:%S %p", t);
-      dyn = daynight_gradient(now, data->sun_rise, data->sun_set);
+      dyn = feature_colors_daynight_gradient(now, data->sun_rise, data->sun_set);
       break;
     }
-    case 64: snprintf(buf, sizeof(buf), "%02d", t->tm_hour); dyn = linear_white_black(t->tm_hour, 0, 23); break;
-    case 65: snprintf(buf, sizeof(buf), "%d", t->tm_hour); dyn = linear_white_black(t->tm_hour, 0, 23); break;
+    case 64: snprintf(buf, sizeof(buf), "%02d", t->tm_hour); dyn = feature_colors_linear_white_black(t->tm_hour, 0, 23); break;
+    case 65: snprintf(buf, sizeof(buf), "%d", t->tm_hour); dyn = feature_colors_linear_white_black(t->tm_hour, 0, 23); break;
     case 66: {
       int hour12 = t->tm_hour % 12; if (hour12 == 0) hour12 = 12;
-      snprintf(buf, sizeof(buf), "%d", hour12); dyn = linear_white_black(hour12, 1, 12);
+      snprintf(buf, sizeof(buf), "%d", hour12); dyn = feature_colors_linear_white_black(hour12, 1, 12);
       break;
     }
-    case 67: snprintf(buf, sizeof(buf), "%d", t->tm_min); dyn = linear_white_black(t->tm_min, 0, 59); break;
-    case 68: snprintf(buf, sizeof(buf), "%02d", t->tm_min); dyn = linear_white_black(t->tm_min, 0, 59); break;
-    case 69: snprintf(buf, sizeof(buf), "%d", t->tm_sec); dyn = linear_white_black(t->tm_sec, 0, 59); break;
-    case 70: snprintf(buf, sizeof(buf), "%02d", t->tm_sec); dyn = linear_white_black(t->tm_sec, 0, 59); break;
-    case 71: snprintf(buf, sizeof(buf), "%d", t->tm_sec / 10); dyn = linear_white_black(t->tm_sec / 10, 0, 5); break;
-    case 72: snprintf(buf, sizeof(buf), "%d", t->tm_sec % 10); dyn = linear_white_black(t->tm_sec % 10, 0, 9); break;
+    case 67: snprintf(buf, sizeof(buf), "%d", t->tm_min); dyn = feature_colors_linear_white_black(t->tm_min, 0, 59); break;
+    case 68: snprintf(buf, sizeof(buf), "%02d", t->tm_min); dyn = feature_colors_linear_white_black(t->tm_min, 0, 59); break;
+    case 69: snprintf(buf, sizeof(buf), "%d", t->tm_sec); dyn = feature_colors_linear_white_black(t->tm_sec, 0, 59); break;
+    case 70: snprintf(buf, sizeof(buf), "%02d", t->tm_sec); dyn = feature_colors_linear_white_black(t->tm_sec, 0, 59); break;
+    case 71: snprintf(buf, sizeof(buf), "%d", t->tm_sec / 10); dyn = feature_colors_linear_white_black(t->tm_sec / 10, 0, 5); break;
+    case 72: snprintf(buf, sizeof(buf), "%d", t->tm_sec % 10); dyn = feature_colors_linear_white_black(t->tm_sec % 10, 0, 9); break;
     case 86: snprintf(buf, sizeof(buf), "%s", t->tm_hour < 12 ? "AM" : "PM"); dyn = (t->tm_hour < 12) ? GColorBlack : GColorWhite; break;
     case 95: { // weekday + day/month (multi-value), e.g. "MON 24/9"
       char day_buf[4];
       strftime(day_buf, sizeof(day_buf), "%a", t); to_upper_str(day_buf);
       snprintf(buf, sizeof(buf), "%s %d/%d", day_buf, t->tm_mday, t->tm_mon + 1);
-      dyn = date_year_progress_gradient(t);
+      dyn = feature_colors_date_year_progress_gradient(t);
       break;
     }
     case 96: { // weekday + month/day (multi-value), e.g. "MON 9/24"
       char day_buf[4];
       strftime(day_buf, sizeof(day_buf), "%a", t); to_upper_str(day_buf);
       snprintf(buf, sizeof(buf), "%s %d/%d", day_buf, t->tm_mon + 1, t->tm_mday);
-      dyn = date_year_progress_gradient(t);
+      dyn = feature_colors_date_year_progress_gradient(t);
       break;
     }
     case 103: { // "long date" + week number (multi-value), e.g. "Mon 23 Sep WK34"
@@ -1878,7 +1526,7 @@ static void __attribute__((noinline)) compute_date_value(FeatureSlot *slot, uint
       strftime(mon_buf, sizeof(mon_buf), "%b", t);
       strftime(wk_buf, sizeof(wk_buf), "%V", t);
       snprintf(buf, sizeof(buf), "%s %d %s WK%s", day_buf, t->tm_mday, mon_buf, wk_buf);
-      dyn = date_year_progress_gradient(t);
+      dyn = feature_colors_date_year_progress_gradient(t);
       break;
     }
     default:
@@ -1893,8 +1541,8 @@ static void __attribute__((noinline)) compute_date_value(FeatureSlot *slot, uint
 
 static void __attribute__((noinline)) compute_timezone_value(FeatureSlot *slot, uint8_t content, uint8_t color_mode,
                                     GColor main_color, GColor accent_color, time_t now) {
-  const TimezoneInfo *tz = &TIMEZONES[content - 44];
-  int16_t offset_min = timezone_current_offset_min(tz, now);
+  const TimezoneInfo *tz = feature_timezone_get((uint8_t)(content - 44));
+  int16_t offset_min = feature_timezone_current_offset_min(tz, now);
   time_t local_time = now + (int32_t)offset_min * 60;
   int32_t local_secs_of_day = ((local_time % 86400) + 86400) % 86400;
   int local_hour24 = (int)(local_secs_of_day / 3600);
@@ -1907,7 +1555,7 @@ static void __attribute__((noinline)) compute_timezone_value(FeatureSlot *slot, 
     snprintf(buf, sizeof(buf), "%s %d:%02d%s", tz->abbr, hour12, local_min, local_hour24 < 12 ? "AM" : "PM");
   }
   slot->segment_count = 1;
-  set_text_seg(slot, 0, buf, resolve_flat_color(color_mode, timezone_daylight_color(local_hour24), main_color, accent_color));
+  set_text_seg(slot, 0, buf, resolve_flat_color(color_mode, feature_timezone_daylight_color(local_hour24), main_color, accent_color));
 }
 
 // ---- sky/astronomy cluster: moon phase, location, sunrise/sunset,
@@ -1970,7 +1618,7 @@ static void __attribute__((noinline)) compute_sky_value(FeatureSlot *slot, uint8
         c = GColorRed;
       } else if (data->meteor_intensity > 0 && data->meteor_shower_name[0] != '\0') {
         snprintf(buf, sizeof(buf), "%s", data->meteor_shower_name);
-        c = resolve_flat_color(color_mode, meteor_intensity_gradient(data->meteor_intensity), main_color, accent_color);
+        c = resolve_flat_color(color_mode, feature_colors_meteor_intensity_gradient(data->meteor_intensity), main_color, accent_color);
       } else {
         snprintf(buf, sizeof(buf), "N/A");
         c = GColorLightGray;
@@ -2042,7 +1690,7 @@ static void __attribute__((noinline)) compute_sky_value(FeatureSlot *slot, uint8
         c = GColorRed;
       } else {
         snprintf(buf, sizeof(buf), "Kp %d.%d", data->aurora_kp_x10 / 10, data->aurora_kp_x10 % 10);
-        c = resolve_flat_color(color_mode, white_to_red_gradient(data->aurora_kp_x10), main_color, accent_color);
+        c = resolve_flat_color(color_mode, feature_colors_white_to_red_gradient(data->aurora_kp_x10), main_color, accent_color);
       }
       slot_set(slot, 26, buf, c);
       return;
@@ -2098,14 +1746,14 @@ static void __attribute__((noinline)) compute_combo_value(FeatureSlot *slot, uin
   switch (content) {
     case 97: { // heart rate + steps
       int bpm = peek_current_bpm();
-      GColor hr_c = dynamic ? (bpm > 0 ? heart_rate_gradient(bpm) : GColorLightGray) : flat;
+      GColor hr_c = dynamic ? (bpm > 0 ? feature_colors_heart_rate_gradient(bpm) : GColorLightGray) : flat;
       snprintf(buf1, sizeof(buf1), bpm > 0 ? "%d" : "N/A", bpm);
 
       HealthValue steps = health_service_sum_today(HealthMetricStepCount);
       uint16_t goal = data->daily_step_goal > 0 ? data->daily_step_goal : 10000;
       int32_t pct = (steps * 100) / goal;
       if (pct > 100) pct = 100;
-      GColor step_c = dynamic ? red_green_gradient((uint8_t)pct) : flat;
+      GColor step_c = dynamic ? feature_colors_red_green_gradient((uint8_t)pct) : flat;
       snprintf(buf2, sizeof(buf2), "%d", (int)steps);
 
       slot->segment_count = 4;
@@ -2126,8 +1774,8 @@ static void __attribute__((noinline)) compute_combo_value(FeatureSlot *slot, uin
         strftime(wake_time, sizeof(wake_time), clock_is_24h_style() ? "%H:%M" : "%I:%M", wt);
         snprintf(buf2, sizeof(buf2), "/%s", wake_time);
         if (dynamic) {
-          bed_c = daynight_gradient(span.earliest_start, data->sun_rise, data->sun_set);
-          wake_c = daynight_gradient(span.latest_end, data->sun_rise, data->sun_set);
+          bed_c = feature_colors_daynight_gradient(span.earliest_start, data->sun_rise, data->sun_set);
+          wake_c = feature_colors_daynight_gradient(span.latest_end, data->sun_rise, data->sun_set);
         }
       } else {
         snprintf(buf1, sizeof(buf1), "N/A");
@@ -2142,7 +1790,7 @@ static void __attribute__((noinline)) compute_combo_value(FeatureSlot *slot, uin
     }
     case 99: case 100: { // battery + BT (icons only, 99), battery % + BT (100)
       BatteryChargeState bs = battery_state_service_peek();
-      GColor batt_c = dynamic ? (bs.is_charging ? GColorGreen : red_green_gradient((uint8_t)bs.charge_percent)) : flat;
+      GColor batt_c = dynamic ? (bs.is_charging ? GColorGreen : feature_colors_red_green_gradient((uint8_t)bs.charge_percent)) : flat;
       bool connected = connection_service_peek_pebble_app_connection();
       GColor bt_c = dynamic ? (connected ? GColorFromRGB(64, 224, 208) : GColorFromRGB(255, 0, 0)) : flat;
 
@@ -2163,7 +1811,7 @@ static void __attribute__((noinline)) compute_combo_value(FeatureSlot *slot, uin
     }
     case 109: { // battery + BT + Quiet Time, icons only
       BatteryChargeState bs = battery_state_service_peek();
-      GColor batt_c = dynamic ? (bs.is_charging ? GColorGreen : red_green_gradient((uint8_t)bs.charge_percent)) : flat;
+      GColor batt_c = dynamic ? (bs.is_charging ? GColorGreen : feature_colors_red_green_gradient((uint8_t)bs.charge_percent)) : flat;
       bool connected = connection_service_peek_pebble_app_connection();
       GColor bt_c = dynamic ? (connected ? GColorFromRGB(64, 224, 208) : GColorFromRGB(255, 0, 0)) : flat;
       bool quiet_active = quiet_time_is_active();
@@ -2180,7 +1828,7 @@ static void __attribute__((noinline)) compute_combo_value(FeatureSlot *slot, uin
     }
     case 110: { // battery % + Quiet Time ON/OFF + BT ON/OFF
       BatteryChargeState bs = battery_state_service_peek();
-      GColor batt_c = dynamic ? (bs.is_charging ? GColorGreen : red_green_gradient((uint8_t)bs.charge_percent)) : flat;
+      GColor batt_c = dynamic ? (bs.is_charging ? GColorGreen : feature_colors_red_green_gradient((uint8_t)bs.charge_percent)) : flat;
       bool quiet_active = quiet_time_is_active();
       GColor quiet_c = dynamic ? (quiet_active ? GColorRed : GColorWhite) : flat;
       bool connected = connection_service_peek_pebble_app_connection();
@@ -2201,7 +1849,7 @@ static void __attribute__((noinline)) compute_combo_value(FeatureSlot *slot, uin
     }
     case 111: { // battery + BT + Quiet Time + Hourly Vibrations, icons only
       BatteryChargeState bs = battery_state_service_peek();
-      GColor batt_c = dynamic ? (bs.is_charging ? GColorGreen : red_green_gradient((uint8_t)bs.charge_percent)) : flat;
+      GColor batt_c = dynamic ? (bs.is_charging ? GColorGreen : feature_colors_red_green_gradient((uint8_t)bs.charge_percent)) : flat;
       bool connected = connection_service_peek_pebble_app_connection();
       GColor bt_c = dynamic ? (connected ? GColorFromRGB(64, 224, 208) : GColorFromRGB(255, 0, 0)) : flat;
       bool quiet_active = quiet_time_is_active();
@@ -2226,7 +1874,7 @@ static void __attribute__((noinline)) compute_combo_value(FeatureSlot *slot, uin
                // else -- see compute_health_value's own case 10 comment); the other
                // 3 stay icon-only, same as 111.
       BatteryChargeState bs = battery_state_service_peek();
-      GColor batt_c = dynamic ? (bs.is_charging ? GColorGreen : red_green_gradient((uint8_t)bs.charge_percent)) : flat;
+      GColor batt_c = dynamic ? (bs.is_charging ? GColorGreen : feature_colors_red_green_gradient((uint8_t)bs.charge_percent)) : flat;
       bool connected = connection_service_peek_pebble_app_connection();
       GColor bt_c = dynamic ? (connected ? GColorFromRGB(64, 224, 208) : GColorFromRGB(255, 0, 0)) : flat;
       bool quiet_active = quiet_time_is_active();
@@ -2277,7 +1925,7 @@ static void __attribute__((noinline)) compute_combo_value(FeatureSlot *slot, uin
     }
     case 114: { // battery % + Bluetooth + Quiet Time + Hourly Vibrations, icon + "ON"/"OFF" (or %) each
       BatteryChargeState bs = battery_state_service_peek();
-      GColor batt_c = dynamic ? (bs.is_charging ? GColorGreen : red_green_gradient((uint8_t)bs.charge_percent)) : flat;
+      GColor batt_c = dynamic ? (bs.is_charging ? GColorGreen : feature_colors_red_green_gradient((uint8_t)bs.charge_percent)) : flat;
       bool connected = connection_service_peek_pebble_app_connection();
       GColor bt_c = dynamic ? (connected ? GColorFromRGB(64, 224, 208) : GColorFromRGB(255, 0, 0)) : flat;
       bool quiet_active = quiet_time_is_active();
@@ -2314,9 +1962,9 @@ static void __attribute__((noinline)) compute_combo_value(FeatureSlot *slot, uin
         char restful_paren[14];
         snprintf(restful_paren, sizeof(restful_paren), "(%s)", restful_buf);
 
-        GColor total_c = dynamic ? seven_stop_gradient_reversed((int32_t)total, 0, 9 * 3600) : flat;
-        GColor restful_c = dynamic ? seven_stop_gradient_reversed((int32_t)restful, 0, 3 * 3600) : flat;
-        GColor quality_c = dynamic ? red_green_gradient((uint8_t)pct) : flat;
+        GColor total_c = dynamic ? feature_colors_seven_stop_gradient_reversed((int32_t)total, 0, 9 * 3600) : flat;
+        GColor restful_c = dynamic ? feature_colors_seven_stop_gradient_reversed((int32_t)restful, 0, 3 * 3600) : flat;
+        GColor quality_c = dynamic ? feature_colors_red_green_gradient((uint8_t)pct) : flat;
 
         slot->segment_count = 4;
         set_icon_seg(slot, 0, 21, flat);
@@ -2336,7 +1984,7 @@ static void __attribute__((noinline)) compute_combo_value(FeatureSlot *slot, uin
       strftime(day_buf, sizeof(day_buf), "%a", t);
       strftime(mon_buf, sizeof(mon_buf), "%b", t);
       snprintf(buf1, sizeof(buf1), "%s %d %s", day_buf, t->tm_mday, mon_buf);
-      GColor date_c = dynamic ? date_year_progress_gradient(t) : flat;
+      GColor date_c = dynamic ? feature_colors_date_year_progress_gradient(t) : flat;
 
       bool is_sunrise = false;
       time_t sun_event_time = 0;
