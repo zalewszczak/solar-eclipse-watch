@@ -2,6 +2,11 @@
 
 #include <pebble.h>
 
+// cloud_pct at/above this reads as "overcast" rather than "sunny" -- shared
+// between feature_colors.c's own gradients and features_layer.c's direct
+// clamp calls to feature_colors_overcast_gray_gradient().
+#define OVERCAST_CLOUD_THRESHOLD 40
+
 GColor feature_colors_seven_stop_gradient(int32_t value, int32_t min_v, int32_t max_v);
 GColor feature_colors_white_to_turquoise_gradient(int32_t value, int32_t min_v, int32_t max_v);
 GColor feature_colors_seven_stop_gradient_reversed(int32_t value, int32_t min_v, int32_t max_v);

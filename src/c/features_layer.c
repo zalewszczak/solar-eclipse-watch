@@ -476,10 +476,10 @@ static void draw_weather_icon(GContext *ctx, GPoint top_left, uint8_t category, 
 // not a lookup table, so they stay correct in future years. Southern-
 // hemisphere DST (Sydney, Auckland) is NOT modeled -- those two just
 // use their fixed standard-time offset year-round, a known simplification.
-typedef struct {
-  const char *abbr;         // fixed on-watch label, e.g. "LON"
-  int16_t base_offset_min;  // standard-time UTC offset, in minutes (can be negative)
-  uint8_t dst_rule;         // ---- pressure trend / wind direction icons -------------------------------
+// (The TimezoneInfo struct itself lives in feature_timezone.h, already
+// included above -- see its use at content == 44+ below.)
+
+// ---- pressure trend / wind direction icons -------------------------------
 
 // A small up/down chevron (rising/falling) or a flat horizontal line
 // (flat), drawn with plain line primitives -- no bitmap needed.
@@ -621,10 +621,12 @@ static void draw_mountain_icon(GContext *ctx, GPoint top_left, GColor color) {
 // yellow -> orange -> red -> violet (hot/high end). Used for both
 // temperature (-10..40C) and UV index (1..13) by passing different
 // min/max, per the brief's request for "more colors" than a simple
-// 2-stop blend.
-cloud_pct);
-  return (cloud_pct < OVERCAST_CLOUD_THRESHOLD) ? feature_colors_sunny_yellow_white_gradient(cloud_pct) : feature_colors_overcast_gray_gradient(cloud_pct);
-}
+// 2-stop blend -- see feature_colors_seven_stop_gradient()'s call sites
+// below (temp high/low, UV index, pressure, AQI, week number, etc.).
+// Clear/cloudy condition coloring (sunny-vs-overcast by cloud_pct alone)
+// is handled directly by feature_colors_weather_condition_color()/
+// feature_colors_overcast_gray_gradient() at their own call sites further
+// down -- no separate wrapper needed here.
 
 // temp_unit: 0=Celsius (input is already Celsius, passed through),
 // 1=Fahrenheit, 2=Kelvin (whole-degree precision throughout this app,
