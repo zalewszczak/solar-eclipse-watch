@@ -56,25 +56,16 @@
 // size. Doesn't affect the marker text font picker (all fonts always
 // shown there) or the main Clock font picker (mainClock already
 // filters that one to just the big fonts).
-// `wide: true` marks a font that runs too wide for a full HH:MM:SS
-// digital readout (or for a digital-mode side feature column sharing
-// the bar with it) at its normal size -- blocks BOTH Show Seconds and
-// the digital "side features" toggle for this font, forced/grayed out
-// in the UI exactly like before. config-page.js's save() also
-// re-checks this at save time and overrides CONFIG_SHOW_SECONDS to
-// false regardless of the checkbox's own state if it's true, so a
-// stale/already-saved seconds-on selection can never reach the watch
-// paired with a font that can't support it.
 // `allowInlineSeconds: false` marks a font that blocks ONLY Show
-// Seconds -- unlike `wide`, side features stay available, since the
-// problem here isn't running out of horizontal room but the font's
-// own numerals not reading well with a running seconds counter
-// squeezed in next to the minutes (clipping, badly-kerned digits,
-// etc.). Defaults to true (seconds allowed) wherever omitted; every
-// entry below is being marked by hand over time, so most still default
-// true even where a future check might find otherwise. EmblemaOne is
-// the first confirmed case: not wide enough to need blocking outright,
-// but its numerals clip once a seconds counter is added.
+// Seconds -- side features stay available, since the problem here
+// isn't running out of horizontal room but the font's own numerals
+// not reading well with a running seconds counter squeezed in next to
+// the minutes (clipping, badly-kerned digits, etc.). Defaults to true
+// (seconds allowed) wherever omitted; every entry below is being
+// marked by hand over time, so most still default true even where a
+// future check might find otherwise. EmblemaOne is the first
+// confirmed case: not wide enough to need blocking outright, but its
+// numerals clip once a seconds counter is added.
 // `sizePx` is the REAL on-watch bake size -- copied straight from each
 // custom font's own package.json resource name (the trailing _NN is
 // the actual point size Pebble's font tool renders that .ttf/.otf at,
@@ -99,87 +90,141 @@
 // glyphs -- each one says why in its own comment. Every non-approx
 // entry below (whether `google` or `cdn`) is the literal same family
 // as what's baked into the watch resource.
+//
+// `categories` drives the font picker's category filter row (see
+// FONT_CATEGORIES just below, and buildFontCategoryFilterUi()/
+// fontMatchesCategoryFilters() in config-page.js) -- any combination
+// of FONT_CATEGORIES ids other than 'all', hand-curated per font by
+// look/purpose. 'all' itself is never listed here -- it's a special
+// picker-only selection meaning "ignore every category filter",
+// handled entirely in config-page.js.
+// `sidesAllowed` replaces the old plain `wide: true` flag, and ONLY
+// ever appears on entries that also have `mainClock: true` (it gates
+// the Style section's digital-mode "Side features" row, which only
+// that picker's fonts feed into): 0 means this font is too wide for
+// EITHER side column (side features hidden entirely for it, exactly
+// like the old `wide: true` did -- and, same as before, also forces
+// Show Seconds off since there's no room for that either); 1 means it
+// can fit exactly ONE side column but not both at once (picking one
+// unpicks the other, with a warning tooltip explaining why); 2 means
+// any combination (including both at once) fits fine, the old
+// plain "not wide" behavior. The 7 fonts that carried `wide: true`
+// before are 0 here unchanged; every other mainClock font defaults to
+// 2 (no prior behavior change) except a handful of borderline-wide
+// display faces called out as 1 below -- those are a best-effort
+// design-time judgment call (no real device to measure actual glyph
+// widths against), so treat them as a starting point to retune once
+// they've actually been seen on a watch.
 var FONT_LOOKUP = [
   { id: 0,  label: 'Gothic X-Small',        height: 14, preview: "font-family: Arial, sans-serif;", small: true,
-    google: null, sizePx: 14, approx: true }, // Pebble's built-in "Gothic" system font -- no Google Fonts equivalent by name; Arial/Helvetica is the closest common grotesque.
+    google: null, sizePx: 14, approx: true, categories: ['pebbleos', 'modern', 'tiny'] }, // Pebble's built-in "Gothic" system font -- no Google Fonts equivalent by name; Arial/Helvetica is the closest common grotesque.
   { id: 1,  label: 'Gothic Small',       height: 18, preview: "font-family: Arial, sans-serif; font-weight: 700;", small: true,
-    google: null, sizePx: 18, approx: true }, // see id 0
+    google: null, sizePx: 18, approx: true, categories: ['pebbleos', 'modern', 'bold', 'small'] }, // see id 0
   { id: 2,  label: 'Gothic Medium',        height: 24, preview: "font-family: Arial, sans-serif; font-weight: 700;", small: true,
-    google: null, sizePx: 24, approx: true }, // see id 0
+    google: null, sizePx: 24, approx: true, categories: ['pebbleos', 'modern', 'bold', 'medium'] }, // see id 0
   { id: 3,  label: 'Gothic Large',           height: 32, preview: "font-family: Arial, sans-serif; font-weight: 700;", small: true,
-    google: null, sizePx: 32, approx: true }, // see id 0
+    google: null, sizePx: 32, approx: true, categories: ['pebbleos', 'modern', 'bold', 'large'] }, // see id 0
   { id: 4,  label: 'Gothic X-Large',          height: 36, preview: "font-family: Arial, sans-serif; font-weight: 700;", small: true,
-    google: null, sizePx: 36, approx: true }, // see id 0
-  { id: 5,  label: 'Leco Small',          height: 17, preview: "font-family: Arial, sans-serif; font-weight: 300;", small: false, mainClock: true, google: null, sizePx: 17, approx: true }, // Pebble's built-in rounded numerals font -- no Google Fonts equivalent; no substitute attempted beyond a plain sans, since Leco's own rounded-digit character is hard to approximate with a generic family.
-  { id: 6,  label: 'Leco Medium',         height: 20, preview: "font-family: Arial, sans-serif; font-weight: 700;", small: false, mainClock: true, google: null, sizePx: 20, approx: true }, // see id 5
-  { id: 7,  label: 'Leco Large',          height: 23, preview: "font-family: Arial, sans-serif; font-weight: 700;", small: false, mainClock: true, google: null, sizePx: 23, approx: true }, // see id 5
-  { id: 8,  label: 'Leco XL',             height: 26, preview: "font-family: Arial, sans-serif; font-weight: 700;", small: false, mainClock: true, google: null, sizePx: 26, approx: true }, // see id 5
+    google: null, sizePx: 36, approx: true, categories: ['pebbleos', 'modern', 'bold', 'large'] }, // see id 0
+  { id: 5,  label: 'Leco Small',          height: 17, preview: "font-family: Arial, sans-serif; font-weight: 300;", small: false, mainClock: true, google: null, sizePx: 17, approx: true, categories: ['pebbleos', 'digital', 'thin', 'small'], sidesAllowed: 2 }, // Pebble's built-in rounded numerals font -- no Google Fonts equivalent; no substitute attempted beyond a plain sans, since Leco's own rounded-digit character is hard to approximate with a generic family.
+  { id: 6,  label: 'Leco Medium',         height: 20, preview: "font-family: Arial, sans-serif; font-weight: 700;", small: false, mainClock: true, google: null, sizePx: 20, approx: true, categories: ['pebbleos', 'digital', 'bold', 'small'], sidesAllowed: 2 }, // see id 5
+  { id: 7,  label: 'Leco Large',          height: 23, preview: "font-family: Arial, sans-serif; font-weight: 700;", small: false, mainClock: true, google: null, sizePx: 23, approx: true, categories: ['pebbleos', 'digital', 'bold', 'medium'], sidesAllowed: 2 }, // see id 5
+  { id: 8,  label: 'Leco XL',             height: 26, preview: "font-family: Arial, sans-serif; font-weight: 700;", small: false, mainClock: true, google: null, sizePx: 26, approx: true, categories: ['pebbleos', 'digital', 'bold', 'medium'], sidesAllowed: 2 }, // see id 5
   { id: 9,  label: 'Droid Serif',         height: 17, preview: "font-family: 'Droid Serif', Georgia, serif; font-weight: 700;", small: true,
-    google: 'Droid Serif', weight: 700, sizePx: 17 }, // still genuinely on Google Fonts (legacy listing, but live)
+    google: 'Droid Serif', weight: 700, sizePx: 17, categories: ['pebbleos', 'serif', 'bold', 'small'] }, // still genuinely on Google Fonts (legacy listing, but live)
   { id: 10, label: 'Roboto Condensed',    height: 15, preview: "font-family: 'Roboto Condensed', Arial, sans-serif;", small: true,
-    google: 'Roboto Condensed', weight: 400, sizePx: 15 },
-  { id: 11, label: 'Roboto Bold',         height: 30, preview: "font-family: 'Roboto', Arial, sans-serif; font-weight: 700;", small: false, mainClock: true, google: 'Roboto', weight: 700, sizePx: 30 },
-  { id: 12, label: 'Bitham Bold 30',      height: 19, preview: "font-family: 'Futura', 'Century Gothic', sans-serif; font-weight: 700;", small: false, mainClock: true, google: null, sizePx: 19, approx: true }, // Pebble's built-in Bitham -- no Google Fonts equivalent; Futura/Century Gothic (neither actually Google Fonts either) are the closest geometric-sans stand-ins available without downloading anything.
-  { id: 13, label: 'Bitham Medium 34',    height: 21, preview: "font-family: 'Futura', 'Century Gothic', sans-serif; font-weight: 500;", small: false, mainClock: true, google: null, sizePx: 21, approx: true }, // see id 12
-  { id: 14, label: 'Bitham Light',        height: 26, preview: "font-family: 'Futura', 'Century Gothic', sans-serif; font-weight: 300; letter-spacing: 1px;", small: false, mainClock: true, google: null, sizePx: 26, approx: true }, // see id 12
-  { id: 15, label: 'Bitham Bold',         height: 26, preview: "font-family: 'Futura', 'Century Gothic', sans-serif; font-weight: 700; letter-spacing: 1px;", small: true, mainClock: true, google: null, sizePx: 26, approx: true }, // see id 12
+    google: 'Roboto Condensed', weight: 400, sizePx: 15, categories: ['pebbleos', 'modern', 'narrow', 'small'] },
+  { id: 11, label: 'Roboto Bold',         height: 30, preview: "font-family: 'Roboto', Arial, sans-serif; font-weight: 700;", small: false, mainClock: true, google: 'Roboto', weight: 700, sizePx: 30, categories: ['pebbleos', 'modern', 'bold', 'medium'], sidesAllowed: 2 },
+  { id: 12, label: 'Bitham Bold 30',      height: 19, preview: "font-family: 'Futura', 'Century Gothic', sans-serif; font-weight: 700;", small: false, mainClock: true, google: null, sizePx: 19, approx: true, categories: ['pebbleos', 'modern', 'bold', 'small'], sidesAllowed: 2 }, // Pebble's built-in Bitham -- no Google Fonts equivalent; Futura/Century Gothic (neither actually Google Fonts either) are the closest geometric-sans stand-ins available without downloading anything.
+  { id: 13, label: 'Bitham Medium 34',    height: 21, preview: "font-family: 'Futura', 'Century Gothic', sans-serif; font-weight: 500;", small: false, mainClock: true, google: null, sizePx: 21, approx: true, categories: ['pebbleos', 'modern', 'medium'], sidesAllowed: 2 }, // see id 12
+  { id: 14, label: 'Bitham Light',        height: 26, preview: "font-family: 'Futura', 'Century Gothic', sans-serif; font-weight: 300; letter-spacing: 1px;", small: false, mainClock: true, google: null, sizePx: 26, approx: true, categories: ['pebbleos', 'modern', 'thin', 'medium'], sidesAllowed: 2 }, // see id 12
+  { id: 15, label: 'Bitham Bold',         height: 26, preview: "font-family: 'Futura', 'Century Gothic', sans-serif; font-weight: 700; letter-spacing: 1px;", small: true, mainClock: true, google: null, sizePx: 26, approx: true, categories: ['pebbleos', 'modern', 'bold', 'medium'], sidesAllowed: 2 }, // see id 12
   { id: 16, label: 'Digital Dream Small', height: 12, preview: "font-family: 'Digital dream', 'Courier New', monospace; letter-spacing: 1px;", small: true,
-    cdn: 'digital-dream', sizePx: 12 }, // Digital Dream (Pizzadude, dafont-only) isn't on Google Fonts, but the exact same font is hosted on cdnfonts.com as a webfont -- see cdnFontLinks() in config-page.js for how the extra <link> gets added.
-  { id: 17, label: 'Digital Dream',       height: 40, preview: "font-family: 'Digital dream', 'Courier New', monospace; letter-spacing: 2px;", small: false, mainClock: true, cdn: 'digital-dream', sizePx: 48 }, // see id 16
+    cdn: 'digital-dream', sizePx: 12, categories: ['digital', 'narrow', 'tiny'] }, // Digital Dream (Pizzadude, dafont-only) isn't on Google Fonts, but the exact same font is hosted on cdnfonts.com as a webfont -- see cdnFontLinks() in config-page.js for how the extra <link> gets added.
+  { id: 17, label: 'Digital Dream',       height: 40, preview: "font-family: 'Digital dream', 'Courier New', monospace; letter-spacing: 2px;", small: false, mainClock: true, cdn: 'digital-dream', sizePx: 48, categories: ['digital', 'narrow', 'large'], sidesAllowed: 1 }, // see id 16
   { id: 18, label: 'Minecrafter Small',   height: 12, preview: "font-family: 'Fizzy Soda', 'Courier New', monospace;", small: true,
-    cdn: 'fizzy-soda', sizePx: 12, approx: true }, // Minecrafter (dafont-only) itself isn't on cdnfonts, but Fizzy Soda (also on cdnfonts) is an almost identical blocky pixel-game face -- much closer than Google Fonts' own Press Start 2P was.
-  { id: 19, label: 'Minecrafter',         height: 40, preview: "font-family: 'Fizzy Soda', 'Courier New', monospace;", small: false, mainClock: true, wide: true,
-    cdn: 'fizzy-soda', sizePx: 48, approx: true }, // see id 18
-  { id: 20, label: 'SF Pixelate',         height: 40, preview: "font-family: 'DotGothic16', 'Courier New', monospace;", small: false, mainClock: true, wide: true, secondsDisabled: true,
-    google: 'DotGothic16', weight: 400, sizePx: 48, approx: true }, // see id 20
+    cdn: 'fizzy-soda', sizePx: 12, approx: true, categories: ['pixelated', 'funky', 'tiny'] }, // Minecrafter (dafont-only) itself isn't on cdnfonts, but Fizzy Soda (also on cdnfonts) is an almost identical blocky pixel-game face -- much closer than Google Fonts' own Press Start 2P was.
+  { id: 19, label: 'Minecrafter',         height: 40, preview: "font-family: 'Fizzy Soda', 'Courier New', monospace;", small: false, mainClock: true,
+    cdn: 'fizzy-soda', sizePx: 48, approx: true, categories: ['pixelated', 'funky', 'wide', 'large'], sidesAllowed: 0 }, // see id 18
+  { id: 20, label: 'SF Pixelate',         height: 40, preview: "font-family: 'DotGothic16', 'Courier New', monospace;", small: false, mainClock: true, secondsDisabled: true,
+    google: 'DotGothic16', weight: 400, sizePx: 48, approx: true, categories: ['pixelated', 'digital', 'wide', 'large'], sidesAllowed: 0 }, // see id 20
   { id: 21, label: 'Alagard Small',       height: 19, preview: "font-family: 'Pixelify Sans', 'Century Gothic', sans-serif; font-weight: 600;", small: true,
-    google: 'Pixelify Sans', weight: 600, sizePx: 19, approx: true }, // Alagard (dafont-only, Hewett Tsoi's 16px fantasy bitmap face) isn't on Google Fonts -- Pixelify Sans's blocky pixel-game look is the closest available match.
-  { id: 22, label: 'Alagard',             height: 40, preview: "font-family: 'Pixelify Sans', 'Century Gothic', sans-serif; font-weight: 600;", small: false, mainClock: true, google: 'Pixelify Sans', weight: 600, sizePx: 48, approx: true }, // see id 22
+    google: 'Pixelify Sans', weight: 600, sizePx: 19, approx: true, categories: ['pixelated', 'stylish', 'small'] }, // Alagard (dafont-only, Hewett Tsoi's 16px fantasy bitmap face) isn't on Google Fonts -- Pixelify Sans's blocky pixel-game look is the closest available match.
+  { id: 22, label: 'Alagard',             height: 40, preview: "font-family: 'Pixelify Sans', 'Century Gothic', sans-serif; font-weight: 600;", small: false, mainClock: true, google: 'Pixelify Sans', weight: 600, sizePx: 48, categories: ['pixelated', 'stylish', 'large'], sidesAllowed: 2 }, // see id 22
   { id: 23, label: 'Bebas Small',         height: 20, preview: "font-family: 'Bebas Neue', 'Century Gothic', sans-serif; letter-spacing: 1px;", small: true,
-    google: 'Bebas Neue', weight: 400, sizePx: 20 },
-  { id: 24, label: 'Bebas',               height: 40, preview: "font-family: 'Bebas Neue', 'Century Gothic', sans-serif; letter-spacing: 1px;", small: false, mainClock: true, google: 'Bebas Neue', weight: 400, sizePx: 48 },
-  { id: 25, label: 'Amita',               height: 40, preview: "font-family: 'Amita', Impact, sans-serif; font-weight: 700;", small: false, mainClock: true, google: 'Amita', weight: 700, sizePx: 48 },
-  { id: 26, label: 'AveriaSerifLibre',    height: 40, preview: "font-family: 'Averia Serif Libre', 'Courier New', serif; font-weight: 700; font-style: italic;", small: false, mainClock: true, wide: true, secondsDisabled: true,
-    google: 'Averia Serif Libre', weight: 700, italic: true, sizePx: 48 },
-  { id: 27, label: 'Bagel',               height: 40, preview: "font-family: 'Bagel Fat One', 'Courier New', monospace;", small: false, mainClock: true, wide: true, secondsDisabled: true,
-    google: 'Bagel Fat One', weight: 400, sizePx: 48 },
-  { id: 28, label: 'Bricolage Grotesque', height: 40, preview: "font-family: 'Bricolage Grotesque', Impact, 'Arial Narrow', sans-serif; font-weight: 700;", small: false, mainClock: true, wide: true, secondsDisabled: true,
-    google: 'Bricolage Grotesque', weight: 700, sizePx: 48 },
-  { id: 29, label: 'Chango',              height: 40, preview: "font-family: 'Chango', 'Courier New', monospace;", small: false, mainClock: true, google: 'Chango', weight: 400, sizePx: 48 },
-  { id: 30, label: 'EmblemaOne',          height: 40, preview: "font-family: 'Emblema One', 'Arial Narrow', sans-serif; letter-spacing: 1px;", small: false, mainClock: true, google: 'Emblema One', weight: 400, sizePx: 48 },
-  { id: 31, label: 'Fraunces',            height: 40, preview: "font-family: 'Fraunces', Georgia, serif; font-weight: 700;", small: false, mainClock: true, google: 'Fraunces', weight: 700, sizePx: 48 },
-  { id: 32, label: 'Geostar Fill',        height: 40, preview: "font-family: 'Geostar Fill', Impact, sans-serif;", small: false, mainClock: true, google: 'Geostar Fill', weight: 400, sizePx: 48 },
-  { id: 33, label: 'Michroma',            height: 40, preview: "font-family: 'Michroma', 'Arial Black', sans-serif; letter-spacing: 1px;", small: false, mainClock: true, wide: true, secondsDisabled: true,
-    google: 'Michroma', weight: 400, sizePx: 48 },
-  { id: 34, label: 'National Park',       height: 40, preview: "font-family: 'National Park', Verdana, sans-serif; font-weight: 700;", small: false, mainClock: true, google: 'National Park', weight: 700, sizePx: 48 },
-  { id: 35, label: 'Komika',              height: 40, preview: "font-family: 'Bangers', 'Comic Sans MS', cursive;", small: false, mainClock: true, wide: true, secondsDisabled: true,
-    google: 'Bangers', weight: 400, sizePx: 48, approx: true }, // Komika Hand (Apostrophic Labs, dafont-only) isn't on Google Fonts -- Bangers is the closest bold comic-lettering face Google Fonts actually has.
-  { id: 36, label: 'Quantico',            height: 40, preview: "font-family: 'Quantico', Impact, 'Arial Narrow', sans-serif; font-weight: 700; font-style: italic;", small: false, mainClock: true, google: 'Quantico', weight: 700, italic: true, sizePx: 48 },
-  { id: 37, label: 'Silkscreen',          height: 40, preview: "font-family: 'Silkscreen', Impact, 'Arial Narrow', sans-serif;", small: false, mainClock: true, google: 'Silkscreen', weight: 400, sizePx: 48 },
-  { id: 38, label: 'StackSansHeadline',   height: 40, preview: "font-family: 'Anton', 'Arial Narrow', sans-serif;", small: false, mainClock: true, google: 'Anton', weight: 400, sizePx: 48, approx: true }, // Stack Sans Headline isn't on Google Fonts (independent foundry release) -- Anton's ultra-bold condensed headline shape is the closest match.
-  { id: 39, label: 'Unbounded',           height: 40, preview: "font-family: 'Unbounded', Impact, 'Arial Narrow', sans-serif; font-weight: 500;", small: false, mainClock: true, google: 'Unbounded', weight: 500, sizePx: 48 },
-  { id: 40, label: 'Wallpoet',            height: 40, preview: "font-family: 'Wallpoet', Impact, 'Arial Narrow', sans-serif;", small: false, mainClock: true, google: 'Wallpoet', weight: 400, sizePx: 48 },
-  { id: 41, label: 'ZalandoSans',         height: 40, preview: "font-family: 'Zalando Sans Expanded', Impact, 'Arial Narrow', sans-serif; font-weight: 500;", small: false, mainClock: true, google: 'Zalando Sans Expanded', weight: 500, sizePx: 48 },
- 
-  { id: 42, label: 'Bytesized',           height: 16, preview: "font-family: 'Bytesized', Impact, 'Arial Narrow', sans-serif; font-weight: 400;", small: true, mainClock: false, google: 'Bytesized', weight: 400, sizePx: 16 },
-  { id: 43, label: 'M Plus 1C',           height: 16, preview: "font-family: 'M PLUS 1 Code', Impact, 'Arial Narrow', sans-serif; font-weight: 700;", small: true, mainClock: false, google: 'M PLUS 1 Code', weight: 700, sizePx: 16 },
-  { id: 44, label: 'Noto Serif',          height: 18, preview: "font-family: 'Noto Serif', Impact, 'Arial Narrow', sans-serif; font-weight: 500; font-style: italic;", small: true, mainClock: false, google: 'Noto Serif', weight: 500, italic: true, sizePx: 18 },
+    google: 'Bebas Neue', weight: 400, sizePx: 20, categories: ['stylish', 'modern', 'narrow', 'small'] },
+  { id: 24, label: 'Bebas',               height: 40, preview: "font-family: 'Bebas Neue', 'Century Gothic', sans-serif; letter-spacing: 1px;", small: false, mainClock: true, google: 'Bebas Neue', weight: 400, sizePx: 48, categories: ['stylish', 'modern', 'narrow', 'large'], sidesAllowed: 2 },
+  { id: 25, label: 'Amita',               height: 40, preview: "font-family: 'Amita', Impact, sans-serif; font-weight: 700;", small: false, mainClock: true, google: 'Amita', weight: 700, sizePx: 48, categories: ['stylish', 'handwritten', 'bold', 'large'], sidesAllowed: 2 },
+  { id: 26, label: 'AveriaSerifLibre',    height: 40, preview: "font-family: 'Averia Serif Libre', 'Courier New', serif; font-weight: 700; font-style: italic;", small: false, mainClock: true, secondsDisabled: true,
+    google: 'Averia Serif Libre', weight: 700, italic: true, sizePx: 48, categories: ['serif', 'italic', 'bold', 'wide', 'large'], sidesAllowed: 0 },
+  { id: 27, label: 'Bagel',               height: 40, preview: "font-family: 'Bagel Fat One', 'Courier New', monospace;", small: false, mainClock: true, secondsDisabled: true,
+    google: 'Bagel Fat One', weight: 400, sizePx: 48, categories: ['funky', 'bold', 'wide', 'large'], sidesAllowed: 0 },
+  { id: 28, label: 'Bricolage Grotesque', height: 40, preview: "font-family: 'Bricolage Grotesque', Impact, 'Arial Narrow', sans-serif; font-weight: 700;", small: false, mainClock: true, secondsDisabled: true,
+    google: 'Bricolage Grotesque', weight: 700, sizePx: 48, categories: ['modern', 'bold', 'wide', 'large'], sidesAllowed: 0 },
+  { id: 29, label: 'Chango',              height: 40, preview: "font-family: 'Chango', 'Courier New', monospace;", small: false, mainClock: true, google: 'Chango', weight: 400, sizePx: 48, categories: ['funky', 'stylish', 'bold', 'large'], sidesAllowed: 2 },
+  { id: 30, label: 'EmblemaOne',          height: 40, preview: "font-family: 'Emblema One', 'Arial Narrow', sans-serif; letter-spacing: 1px;", small: false, mainClock: true, google: 'Emblema One', weight: 400, sizePx: 48, categories: ['stylish', 'narrow', 'bold', 'large'], sidesAllowed: 1 },
+  { id: 31, label: 'Fraunces',            height: 40, preview: "font-family: 'Fraunces', Georgia, serif; font-weight: 700;", small: false, mainClock: true, google: 'Fraunces', weight: 700, sizePx: 48, categories: ['serif', 'stylish', 'bold', 'large'], sidesAllowed: 2 },
+  { id: 32, label: 'Geostar Fill',        height: 40, preview: "font-family: 'Geostar Fill', Impact, sans-serif;", small: false, mainClock: true, google: 'Geostar Fill', weight: 400, sizePx: 48, categories: ['stylish', 'funky', 'modern', 'large'], sidesAllowed: 2 },
+  { id: 33, label: 'Michroma',            height: 40, preview: "font-family: 'Michroma', 'Arial Black', sans-serif; letter-spacing: 1px;", small: false, mainClock: true, secondsDisabled: true,
+    google: 'Michroma', weight: 400, sizePx: 48, categories: ['modern', 'wide', 'large'], sidesAllowed: 0 },
+  { id: 34, label: 'National Park',       height: 40, preview: "font-family: 'National Park', Verdana, sans-serif; font-weight: 700;", small: false, mainClock: true, google: 'National Park', weight: 700, sizePx: 48, categories: ['modern', 'stylish', 'bold', 'large'], sidesAllowed: 1 },
+  { id: 35, label: 'Komika',              height: 40, preview: "font-family: 'Bangers', 'Comic Sans MS', cursive;", small: false, mainClock: true, secondsDisabled: true,
+    google: 'Bangers', weight: 400, sizePx: 48, approx: true, categories: ['funky', 'bold', 'wide', 'large'], sidesAllowed: 0 }, // Komika Hand (Apostrophic Labs, dafont-only) isn't on Google Fonts -- Bangers is the closest bold comic-lettering face Google Fonts actually has.
+  { id: 36, label: 'Quantico',            height: 40, preview: "font-family: 'Quantico', Impact, 'Arial Narrow', sans-serif; font-weight: 700; font-style: italic;", small: false, mainClock: true, google: 'Quantico', weight: 700, italic: true, sizePx: 48, categories: ['modern', 'italic', 'bold', 'narrow', 'large'], sidesAllowed: 2 },
+  { id: 37, label: 'Silkscreen',          height: 40, preview: "font-family: 'Silkscreen', Impact, 'Arial Narrow', sans-serif;", small: false, mainClock: true, google: 'Silkscreen', weight: 400, sizePx: 48, categories: ['pixelated', 'digital', 'large'], sidesAllowed: 2 },
+  { id: 38, label: 'StackSansHeadline',   height: 40, preview: "font-family: 'Anton', 'Arial Narrow', sans-serif;", small: false, mainClock: true, google: 'Anton', weight: 400, sizePx: 48, approx: true, categories: ['modern', 'bold', 'narrow', 'large'], sidesAllowed: 2 }, // Stack Sans Headline isn't on Google Fonts (independent foundry release) -- Anton's ultra-bold condensed headline shape is the closest match.
+  { id: 39, label: 'Unbounded',           height: 40, preview: "font-family: 'Unbounded', Impact, 'Arial Narrow', sans-serif; font-weight: 500;", small: false, mainClock: true, google: 'Unbounded', weight: 500, sizePx: 48, categories: ['modern', 'stylish', 'bold', 'large'], sidesAllowed: 1 },
+  { id: 40, label: 'Wallpoet',            height: 40, preview: "font-family: 'Wallpoet', Impact, 'Arial Narrow', sans-serif;", small: false, mainClock: true, google: 'Wallpoet', weight: 400, sizePx: 48, categories: ['stylish', 'funky', 'modern', 'large'], sidesAllowed: 2 },
+  { id: 41, label: 'ZalandoSans',         height: 40, preview: "font-family: 'Zalando Sans Expanded', Impact, 'Arial Narrow', sans-serif; font-weight: 500;", small: false, mainClock: true, google: 'Zalando Sans Expanded', weight: 500, sizePx: 48, categories: ['modern', 'wide', 'bold', 'large'], sidesAllowed: 1 },
 
-  { id: 45, label: 'M Plus 1C',           height: 40, preview: "font-family: 'M PLUS 1 Code', Impact, 'Arial Narrow', sans-serif; font-weight: 700;", small: false, mainClock: true, google: 'M PLUS 1 Code', weight: 700, sizePx: 48 },
-  { id: 46, label: 'Reddit Sans',         height: 40, preview: "font-family: 'Reddit Sans', Impact, 'Arial Narrow', sans-serif; font-weight: 700;", small: false, mainClock: true, google: 'Reddit Sans', weight: 700, sizePx: 48 },
-  
-  { id: 47, label: 'Arcade',              height: 18, preview: "font-family: 'ArcadeClassic', 'Courier New', monospace;", small: true, mainClock: false, cdn: 'arcadeclassic', sizePx: 18 }, // ArcadeClassic (Pizzadude, dafont-only) is hosted on cdnfonts.com as a webfont under its own name -- see cdnFontLinks() below.
-  { id: 48, label: 'DS Digital Bold',     height: 20, preview: "font-family: 'DS-Digital', 'Courier New', monospace; font-weight: 700;", small: true, mainClock: false, cdn: 'ds-digital', sizePx: 20 }, // DS-Digital is hosted on cdnfonts.com as a webfont -- see cdnFontLinks() below.
-  { id: 49, label: 'DS Digital Bold Italic',height: 20, preview: "font-family: 'DS-Digital', 'Courier New', monospace; font-weight: 700; font-style: italic;", small: true, mainClock: false, cdn: 'ds-digital', sizePx: 20 }, // see id 48
-  { id: 50, label: 'LCD',                 height: 18, preview: "font-family: 'Press Start 2P', 'Courier New', monospace;", small: true, mainClock: false, google: 'Press Start 2P', weight: 400, sizePx: 18, approx: true }, // LCD Solid (dafont-only) doesn't appear to be hosted on cdnfonts.com or Google Fonts under its own name -- Press Start 2P remains the closest available blocky-digital match found so far.
-  { id: 51, label: 'Radioland',           height: 16, preview: "font-family: 'Radioland', 'Courier New', monospace;", small: true, mainClock: false, cdn: 'radioland', sizePx: 16 }, // Radioland (Pizzadude, dafont-only) is hosted on cdnfonts.com as a webfont under its own name -- see cdnFontLinks() below.
+  { id: 42, label: 'Bytesized',           height: 16, preview: "font-family: 'Bytesized', Impact, 'Arial Narrow', sans-serif; font-weight: 400;", small: true, mainClock: false, google: 'Bytesized', weight: 400, sizePx: 16, categories: ['pixelated', 'small'] },
+  { id: 43, label: 'M Plus 1C',           height: 16, preview: "font-family: 'M PLUS 1 Code', Impact, 'Arial Narrow', sans-serif; font-weight: 700;", small: true, mainClock: false, google: 'M PLUS 1 Code', weight: 700, sizePx: 16, categories: ['modern', 'bold', 'small'] },
+  { id: 44, label: 'Noto Serif',          height: 18, preview: "font-family: 'Noto Serif', Impact, 'Arial Narrow', sans-serif; font-weight: 500; font-style: italic;", small: true, mainClock: false, google: 'Noto Serif', weight: 500, italic: true, sizePx: 18, categories: ['serif', 'italic', 'small'] },
 
-  { id: 52, label: 'DS Digital Bold',     height: 48, preview: "font-family: 'DS-Digital', 'Courier New', monospace; font-weight: 700;", small: false, mainClock: true, cdn: 'ds-digital', sizePx: 48 }, // see id 48
-  { id: 53, label: 'DS Digital Bold Italic',height: 48, preview: "font-family: 'DS-Digital', 'Courier New', monospace; font-weight: 700; font-style: italic;", small: false, mainClock: true, cdn: 'ds-digital', sizePx: 48 }, // see id 48
-  { id: 54, label: 'LCD',                 height: 48, preview: "font-family: 'Press Start 2P', 'Courier New', monospace;", small: false, mainClock: true, google: 'Press Start 2P', weight: 400, sizePx: 48, approx: true }, // see id 50
-  { id: 55, label: 'Rebel Redux',         height: 48, preview: "font-family: 'RebelRedux', 'Arial Narrow', 'Impact', sans-serif; font-weight: 500;", small: false, mainClock: true, cdn: 'rebelredux', sizePx: 48 } // RebelRedux (dafont-only) is hosted on cdnfonts.com as a webfont -- see cdnFontLinks() in config-page.js.
+  { id: 45, label: 'M Plus 1C',           height: 40, preview: "font-family: 'M PLUS 1 Code', Impact, 'Arial Narrow', sans-serif; font-weight: 700;", small: false, mainClock: true, google: 'M PLUS 1 Code', weight: 700, sizePx: 48, categories: ['modern', 'bold', 'large'], sidesAllowed: 2 },
+  { id: 46, label: 'Reddit Sans',         height: 40, preview: "font-family: 'Reddit Sans', Impact, 'Arial Narrow', sans-serif; font-weight: 700;", small: false, mainClock: true, google: 'Reddit Sans', weight: 700, sizePx: 48, categories: ['modern', 'bold', 'large'], sidesAllowed: 2 },
+
+  { id: 47, label: 'Arcade',              height: 18, preview: "font-family: 'ArcadeClassic', 'Courier New', monospace;", small: true, mainClock: false, cdn: 'arcadeclassic', sizePx: 18, categories: ['digital', 'pixelated', 'small'] }, // ArcadeClassic (Pizzadude, dafont-only) is hosted on cdnfonts.com as a webfont under its own name -- see cdnFontLinks() below.
+  { id: 48, label: 'DS Digital Bold',     height: 20, preview: "font-family: 'DS-Digital', 'Courier New', monospace; font-weight: 700;", small: true, mainClock: false, cdn: 'ds-digital', sizePx: 20, categories: ['digital', 'bold', 'small'] }, // DS-Digital is hosted on cdnfonts.com as a webfont -- see cdnFontLinks() below.
+  { id: 49, label: 'DS Digital Bold Italic',height: 20, preview: "font-family: 'DS-Digital', 'Courier New', monospace; font-weight: 700; font-style: italic;", small: true, mainClock: false, cdn: 'ds-digital', sizePx: 20, categories: ['digital', 'bold', 'italic', 'small'] }, // see id 48
+  { id: 50, label: 'LCD',                 height: 18, preview: "font-family: 'Press Start 2P', 'Courier New', monospace;", small: true, mainClock: false, google: 'Press Start 2P', weight: 400, sizePx: 18, approx: true, categories: ['digital', 'pixelated', 'small'] }, // LCD Solid (dafont-only) doesn't appear to be hosted on cdnfonts.com or Google Fonts under its own name -- Press Start 2P remains the closest available blocky-digital match found so far.
+  { id: 51, label: 'Radioland',           height: 16, preview: "font-family: 'Radioland', 'Courier New', monospace;", small: true, mainClock: false, cdn: 'radioland', sizePx: 16, categories: ['digital', 'small'] }, // Radioland (Pizzadude, dafont-only) is hosted on cdnfonts.com as a webfont under its own name -- see cdnFontLinks() below.
+
+  { id: 52, label: 'DS Digital Bold',     height: 48, preview: "font-family: 'DS-Digital', 'Courier New', monospace; font-weight: 700;", small: false, mainClock: true, cdn: 'ds-digital', sizePx: 48, categories: ['digital', 'bold', 'large'], sidesAllowed: 2 }, // see id 48
+  { id: 53, label: 'DS Digital Bold Italic',height: 48, preview: "font-family: 'DS-Digital', 'Courier New', monospace; font-weight: 700; font-style: italic;", small: false, mainClock: true, cdn: 'ds-digital', sizePx: 48, categories: ['digital', 'bold', 'italic', 'large'], sidesAllowed: 2 }, // see id 48
+  { id: 54, label: 'LCD',                 height: 48, preview: "font-family: 'Press Start 2P', 'Courier New', monospace;", small: false, mainClock: true, google: 'Press Start 2P', weight: 400, sizePx: 48, approx: true, categories: ['digital', 'pixelated', 'large'], sidesAllowed: 2 }, // see id 50
+  { id: 55, label: 'Rebel Redux',         height: 48, preview: "font-family: 'RebelRedux', 'Arial Narrow', 'Impact', sans-serif; font-weight: 500;", small: false, mainClock: true, cdn: 'rebelredux', sizePx: 48, categories: ['stylish', 'funky', 'modern', 'bold', 'large'], sidesAllowed: 1 } // RebelRedux (dafont-only) is hosted on cdnfonts.com as a webfont -- see cdnFontLinks() in config-page.js.
 
 ]; // remember to bump FONT_MAX_CONTENT_ID in index.js!!!
+
+// Font picker category filter row -- 'all' is a special case handled
+// entirely client-side (see fontMatchesCategoryFilters() in
+// config-page.js): it's never listed in any font's own `categories`
+// array, always shows every font (still subject to the "Show
+// incompatible fonts" checkbox, same as every other filter
+// combination), and picking it clears/replaces whatever combination
+// of the other categories was active. Order here is the order the
+// picker's horizontal scroll row shows them in.
+var FONT_CATEGORIES = [
+  { id: 'all', label: 'All' },
+  { id: 'digital', label: 'Digital' },
+  { id: 'pixelated', label: 'Pixelated' },
+  { id: 'stylish', label: 'Stylish' },
+  { id: 'modern', label: 'Modern' },
+  { id: 'funky', label: 'Funky' },
+  { id: 'serif', label: 'Serif' },
+  { id: 'italic', label: 'Italic' },
+  { id: 'bold', label: 'Bold' },
+  { id: 'thin', label: 'Thin' },
+  { id: 'narrow', label: 'Narrow' },
+  { id: 'wide', label: 'Wide' },
+  { id: 'pebbleos', label: 'PebbleOS' },
+  { id: 'large', label: 'Large' },
+  { id: 'medium', label: 'Medium' },
+  { id: 'small', label: 'Small' },
+  { id: 'tiny', label: 'Tiny' },
+  { id: 'handwritten', label: 'Handwritten' }
+];
 
 // Must match get_color_scheme() in pebble-eclipse-watch.c exactly --
 // same order, same id, same colors.
@@ -1129,6 +1174,7 @@ var HAND_PRESETS = {
 
 module.exports = {
   FONT_LOOKUP: FONT_LOOKUP,
+  FONT_CATEGORIES: FONT_CATEGORIES,
   COLOR_SCHEMES: COLOR_SCHEMES,
   ROMAN_INCOMPATIBLE_FONTS: ROMAN_INCOMPATIBLE_FONTS,
   CORNER_COLOR_MODE_LABELS: CORNER_COLOR_MODE_LABELS,

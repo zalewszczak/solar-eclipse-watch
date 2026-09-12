@@ -33,6 +33,7 @@ var servicelog = require('./servicelog.js');
 // are used well before HAND_PRESETS' own spot further down.
 var PRESETS_LOOKUPS = require('./presets-lookups');
 var FONT_LOOKUP = PRESETS_LOOKUPS.FONT_LOOKUP;
+var FONT_CATEGORIES = PRESETS_LOOKUPS.FONT_CATEGORIES;
 var COLOR_SCHEMES = PRESETS_LOOKUPS.COLOR_SCHEMES;
 var CORNER_COLOR_MODE_LABELS = PRESETS_LOOKUPS.CORNER_COLOR_MODE_LABELS;
 var ROMAN_INCOMPATIBLE_FONTS = PRESETS_LOOKUPS.ROMAN_INCOMPATIBLE_FONTS;
@@ -464,15 +465,18 @@ function fontOptionsHtml(selectedId, onlyMainClock) {
   return FONT_LOOKUP.filter(function (f) {
     return !onlyMainClock || f.mainClock;
   }).map(function (f) {
-    // A wide font can't show seconds at all (no room), and a font
-    // that's merely marked allowInlineSeconds:false can't either (its
-    // own numerals don't read well with one) -- both fold into this
-    // same data-seconds flag rather than being two separate checks
-    // every consumer of data-seconds would otherwise need to remember.
-    var secondsOk = !f.wide && f.allowInlineSeconds !== false;
+    // A font whose sidesAllowed is 0 can't show seconds at all (no
+    // room -- same reasoning the old `wide: true` flag used to cover),
+    // and a font that's merely marked allowInlineSeconds:false can't
+    // either (its own numerals don't read well with one) -- both fold
+    // into this same data-seconds flag rather than being two separate
+    // checks every consumer of data-seconds would otherwise need to
+    // remember. Fonts with no sidesAllowed at all (non-mainClock) are
+    // never affected by the first half of this check.
+    var secondsOk = f.sidesAllowed !== 0 && f.allowInlineSeconds !== false;
     return '<option value="' + f.id + '" data-preview="' + esc(f.preview) + '" data-seconds="' +
       (secondsOk ? '1' : '0') + '" data-height="' + f.height + '" data-small="' + (f.small ? '1' : '0') +
-      '" data-wide="' + (f.wide ? '1' : '0') + '"' +
+      '" data-sides-allowed="' + (typeof f.sidesAllowed === 'number' ? f.sidesAllowed : 2) + '"' +
       (selectedId === f.id ? ' selected' : '') + '>' + esc(f.label) + '</option>';
   }).join('');
 }
@@ -1105,15 +1109,25 @@ function buildConfigHtml(current) {
   var bottomStyleVal = (current.bottomStyle === 'analog' || current.bottomStyle === 'biganalog') ? 'analog' : 'digital';
   var isAnalog = bottomStyleVal === 'analog';
   var clockFontId = parseInt(current.clockFont || '8', 10);
-  var clockFontIsWide = !!fontLookupEntry(clockFontId).wide;
-  // A wide font can't show seconds at all (no room), and a font
-  // marked allowInlineSeconds:false can't either (its own numerals
-  // clip/read badly with one) -- see fontOptionsHtml()'s own comment
-  // on why data-seconds folds both of those together too.
+  // sidesAllowed only ever appears on mainClock fonts (see FONT_LOOKUP's
+  // own comment) -- default to 2 (unrestricted) for the rare case a
+  // stale/hand-edited clockFont value points at a non-mainClock entry.
+  var clockSidesAllowed = typeof fontLookupEntry(clockFontId).sidesAllowed === 'number' ? fontLookupEntry(clockFontId).sidesAllowed : 2;
+  var clockFontIsWide = clockSidesAllowed === 0;
+  // A font whose sidesAllowed is 0 can't show seconds at all (no room),
+  // and a font marked allowInlineSeconds:false can't either (its own
+  // numerals clip/read badly with one) -- see fontOptionsHtml()'s own
+  // comment on why data-seconds folds both of those together too.
   var secondsUnsupported = (bottomStyleVal === 'digital') && (fontLookupEntry(clockFontId).allowInlineSeconds === false || clockFontIsWide);
   var secondsChecked = (current.showSeconds && !secondsUnsupported) ? 'checked' : '';
   var secondsDisabled = secondsUnsupported ? 'disabled' : '';
   var digitalSidesVal = current.digitalSides || 'none';
+  // Belt-and-suspenders, same idea as save()'s own re-checks further
+  // down: a persisted "both" can't survive a font that only allows one
+  // side column at a time (sidesAllowed === 1) -- collapse it to just
+  // "left" rather than rendering two active buttons the font can't
+  // actually support.
+  if (clockSidesAllowed === 1 && digitalSidesVal === 'both') digitalSidesVal = 'left';
   var digitalLeftOn = digitalSidesVal === 'left' || digitalSidesVal === 'both';
   var digitalRightOn = digitalSidesVal === 'right' || digitalSidesVal === 'both';
   var cornerFontId = parseInt(current.cornerFont || '1', 10);
@@ -1247,6 +1261,7 @@ cdnFontLinks() +
 '  input[type=checkbox][disabled] { background: var(--border-light); border-color: var(--border-lighter); }' +
 '  input[type=checkbox][disabled]:checked { background: #f0c785; border-color: #f0c785; }' +
 '  .help { color: var(--text-faint); font-size: 12px; margin-top: 4px; }' +
+'  .tooltip-warning { color: #ff9200; font-weight: 600; }' +
 '  .radio-row { display: flex; gap: 16px; margin-top: 8px; flex-wrap: wrap; }' +
 '  .radio-row label { display: flex; align-items: center; gap: 6px; margin: 0; font-weight: normal; }' +
 '  .radio-row input { width: auto; }' +
@@ -1477,6 +1492,19 @@ cdnFontLinks() +
 '  .category-btn:last-child { border-right: none; }' +
 '  .category-btn.active { background: #ff9200; border-color: #ff9200; color: #fff; }' +
 '  .category-btn svg { width: 21px; height: 21px; pointer-events: none; }' +
+// Font picker's own category filter row -- a horizontally-scrolling,
+// no-gap strip of pill buttons (same flush/bordered-divider look as
+// .category-btn-group above, just single-row + scrolling instead of
+// wrapping, since there are 18 of these vs. that one's 9). Negative
+// margin + matching padding lets the scroll area bleed to the modal's
+// own edges (so the first/last buttons aren't visually inset) without
+// actually widening the modal-box itself.
+'  .font-category-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; flex: 0 0 auto; margin: 0 -16px 10px; padding: 0 16px; scrollbar-width: none; }' +
+'  .font-category-scroll::-webkit-scrollbar { display: none; }' +
+'  .font-category-row { display: flex; width: max-content; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }' +
+'  .font-category-btn { flex: 0 0 auto; padding: 8px 14px; font-size: 12px; font-weight: 600; white-space: nowrap; background: var(--btn-bg); border: none; border-right: 1px solid var(--border); color: var(--text-strong); }' +
+'  .font-category-btn:last-child { border-right: none; }' +
+'  .font-category-btn.active { background: #ff9200; border-color: #ff9200; color: #fff; }' +
 '  .mode-btn { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 8px 0 10px; font-size: 12px; font-weight: 700; color: var(--text-strong); background: var(--btn-bg); border: none; border-right: 1px solid var(--border); }' +
 '  .mode-btn svg { width: 23px; height: 26px; display: block; }' +
 '  .mode-btn:last-child { border-right: none; }' +
@@ -1770,8 +1798,10 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '<div class="modal-overlay" id="fontPickerModal" onclick="if (event.target === this) closeFontPicker();">' +
 '  <div class="modal-box">' +
 '    <div class="modal-title" id="fontPickerTitle">Font</div>' +
+'    <div class="font-category-scroll"><div class="font-category-row" id="fontPickerCategoryRow"></div></div>' +
 '    <div class="modal-scroll-body">' +
 '      <div id="fontPickerGrid"></div>' +
+'      <div class="help" id="fontPickerEmptyMsg" style="display:none; text-align:center; margin-top:16px;">No fonts match these filters -- remove some to see results.</div>' +
 '    </div>' +
 '    <div class="modal-footer">' +
 '      <div class="checkbox-row" id="fontPickerIncompatibleRow" style="margin-top:10px;">' +
@@ -2011,7 +2041,9 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '        <button type="button" class="mode-btn' + (digitalRightOn ? ' active' : '') + '" data-side="right" onclick="toggleDigitalSide(\'right\')">RIGHT SIDE</button>' +
 '      </div>' +
 '      <input type="hidden" id="digitalSides" value="' + esc(digitalSidesVal) + '">' +
-'      <div class="help">Adds up to 3 short info lines down each side of the digital clock, on the bottom bar -- pick their content on the diagram above. Only offered for narrower clock fonts (this one qualifies); picking both sides assumes the font is already narrow enough to share the bar with them without shrinking the clock any further.</div>' +
+'      <div class="help tooltip-warning" id="digitalSidesExclusiveTip" style="display:none;">This font only fits one side at a time -- picking a side turns the other off.</div>' +
+'      <div class="help" id="digitalSidesOneOnlyHelp" style="' + (clockSidesAllowed === 1 ? '' : 'display:none;') + '">This font only has room for one side column at a time -- pick left OR right, not both.</div>' +
+'      <div class="help" id="digitalSidesNormalHelp" style="' + (clockSidesAllowed === 1 ? 'display:none;' : '') + '">Adds up to 3 short info lines down each side of the digital clock, on the bottom bar -- pick their content on the diagram above. Only offered for narrower clock fonts (this one qualifies); picking both sides assumes the font is already narrow enough to share the bar with them without shrinking the clock any further.</div>' +
 '    </div>' +
 '    <div class="help" id="digitalSidesWideHelp" style="' + ((bottomStyleVal === 'digital' && clockFontIsWide) ? '' : 'display:none;') + '">This font runs too wide for side features -- pick a narrower one in the Style section to use them.</div>' +
 
@@ -2738,6 +2770,10 @@ handEditorModalHtml('sec', 'Edit second hand') +
 // so the two can never drift apart the way two independently-typed
 // copies could.
 'var FONT_LOOKUP = ' + JSON.stringify(FONT_LOOKUP) + ';' +
+// Runtime copy of the generator-side FONT_CATEGORIES (see its own
+// comment in presets-lookups.js) -- drives the font picker's
+// horizontal category filter row below.
+'var FONT_CATEGORIES = ' + JSON.stringify(FONT_CATEGORIES) + ';' +
 // Runtime copy of the constant controlling how many "Example styles"
 // tiles exist -- used only by the Example styles section's own
 // sub-header (computeExamplesSubheader() below); that count never
@@ -2787,6 +2823,67 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    previewText: function () { var roman = document.getElementById("markerTextRoman"); return (roman && roman.checked) ? "XII" : "12"; } }' +
 '};' +
 'var currentFontPickerRole = null;' +
+
+// Font picker category filter state -- shared across all 3 roles
+// (clock/cornerFont/markerTextFont) rather than kept per-role, since
+// the request treats this as one filter UI, not 3 independent ones.
+// Resets to just [\'all\'] every time this script runs, i.e. every
+// settings page load, per the request -- NOT reset just by opening/
+// closing the picker modal within the same page session.
+// fontPickerPreAllCategories remembers whatever combination was
+// active right before the user tapped "All", so tapping "All" a
+// second time can restore it (see toggleFontCategory() below) instead
+// of just leaving "All" stuck on.
+'var fontPickerActiveCategories = ["all"];' +
+'var fontPickerPreAllCategories = [];' +
+
+// A font matches the current filter set if EITHER "All" is active
+// (every font matches, no exceptions -- narrowing only ever happens
+// via the "Show incompatible fonts" checkbox at that point, per the
+// request) OR it carries every one of the currently-active category
+// ids in its own `categories` array (AND, not OR -- selecting more
+// categories narrows the results further, same as any other
+// multi-facet filter).
+'function fontMatchesCategoryFilters(f) {' +
+'  if (fontPickerActiveCategories.indexOf("all") !== -1) return true;' +
+'  var cats = f.categories || [];' +
+'  return fontPickerActiveCategories.every(function (c) { return cats.indexOf(c) !== -1; });' +
+'}' +
+
+'function renderFontCategoryRow() {' +
+'  var row = document.getElementById("fontPickerCategoryRow");' +
+'  if (!row) return;' +
+'  row.innerHTML = FONT_CATEGORIES.map(function (c) {' +
+'    var active = fontPickerActiveCategories.indexOf(c.id) !== -1;' +
+'    return \'<button type="button" class="font-category-btn\' + (active ? " active" : "") + \'" onclick="toggleFontCategory(\\\'\' + c.id + \'\\\')">\' + esc(c.label) + "</button>";' +
+'  }).join("");' +
+'}' +
+
+// "All" always replaces the whole selection and unselects everything
+// else; tapping it again while it\'s already active restores whatever
+// non-"all" combination was active right before. Any other category
+// button just toggles itself in/out of the current combination and
+// always drops "All" in the process (selecting any other category
+// unselects it, per the request) -- and if that leaves nothing
+// selected at all, falls back to "All" rather than showing zero
+// fonts from an empty filter set.
+'function toggleFontCategory(catId) {' +
+'  if (catId === "all") {' +
+'    if (fontPickerActiveCategories.indexOf("all") !== -1) {' +
+'      fontPickerActiveCategories = fontPickerPreAllCategories.length ? fontPickerPreAllCategories.slice() : ["all"];' +
+'    } else {' +
+'      fontPickerPreAllCategories = fontPickerActiveCategories.slice();' +
+'      fontPickerActiveCategories = ["all"];' +
+'    }' +
+'  } else {' +
+'    var withoutAll = fontPickerActiveCategories.filter(function (c) { return c !== "all"; });' +
+'    var idx = withoutAll.indexOf(catId);' +
+'    if (idx !== -1) withoutAll.splice(idx, 1); else withoutAll.push(catId);' +
+'    fontPickerActiveCategories = withoutAll.length ? withoutAll : ["all"];' +
+'  }' +
+'  renderFontCategoryRow();' +
+'  renderFontPickerGrid();' +
+'}' +
 
 // Builds whatever goes inside a .font-picker-preview cell for one
 // (fontId, role) pair -- a real on-watch rendering (see
@@ -2839,6 +2936,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    var currentId = document.getElementById(cfg.selectId).value;' +
 '    document.getElementById("fontPickerShowIncompatible").checked = !fontLookupEntry(currentId).small;' +
 '  }' +
+'  renderFontCategoryRow();' +
 '  renderFontPickerGrid();' +
 '  document.getElementById("fontPickerModal").className = "modal-overlay open";' +
 '}' +
@@ -2857,15 +2955,22 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  var showIncompatible = cfg.showIncompatibleToggle ? document.getElementById("fontPickerShowIncompatible").checked : true;' +
 '  var previewText = cfg.previewText();' +
 '  var html = "";' +
+// Category filters are just another AND-ed condition alongside the
+// existing onlyMainClock/showIncompatible checks -- "Show incompatible
+// fonts" still wins regardless of category selection (including
+// "All"), exactly per the request: unchecking it hides small:false
+// fonts no matter what categories are active.
 '  FONT_LOOKUP.forEach(function (f) {' +
 '    if (cfg.onlyMainClock && !f.mainClock) return;' +
 '    if (!showIncompatible && !f.small && f.id !== currentId) return;' +
+'    if (!fontMatchesCategoryFilters(f)) return;' +
 '    var previewStyle = f.preview + " font-size:" + fontPickerPreviewPx(f.sizePx) + "px;";' +
 '    html += \'<button type="button" class="font-picker-btn\' + (f.id === currentId ? " selected" : "") + \'" onclick="chooseFontOption(\' + f.id + \')">\' +' +
 '      \'<span class="font-picker-preview" style="\' + previewStyle + \'">\' + fontPreviewInnerHtml(f.id, currentFontPickerRole, previewText) + "</span>" +' +
 '      \'<span class="font-picker-name">\' + esc(f.label) + "</span></button>";' +
 '  });' +
 '  document.getElementById("fontPickerGrid").innerHTML = html;' +
+'  document.getElementById("fontPickerEmptyMsg").style.display = html ? "none" : "block";' +
 '}' +
 'function chooseFontOption(id) {' +
 '  var cfg = FONT_PICKER_ROLES[currentFontPickerRole];' +
@@ -3912,18 +4017,49 @@ handEditorModalHtml('sec', 'Edit second hand') +
 // reasoning clearGrayedSlotsIfUnavailable() clears stale corner/edge picks
 // instead of leaving a hidden section quietly keep sending a value the
 // watch would otherwise still draw.
-'function updateDigitalSidesVisibility() {' +
-'  var styleVal = document.getElementById("bottomStyleValue").value;' +
+// Reads the currently-selected clock font's data-sides-allowed
+// (0/1/2 -- see FONT_LOOKUP's own sidesAllowed comment), defaulting
+// to 2 (unrestricted) for anything missing the attribute.
+'function currentClockSidesAllowed() {' +
 '  var fontSel = document.getElementById("clockFont");' +
 '  var opt = fontSel.options[fontSel.selectedIndex];' +
-'  var fontIsWide = opt.getAttribute("data-wide") === "1";' +
+'  var raw = opt.getAttribute("data-sides-allowed");' +
+'  var val = parseInt(raw, 10);' +
+'  return isNaN(val) ? 2 : val;' +
+'}' +
+'function showDigitalSidesExclusiveTip() {' +
+'  var tip = document.getElementById("digitalSidesExclusiveTip");' +
+'  if (!tip) return;' +
+'  tip.style.display = "block";' +
+'  clearTimeout(tip.__hideTimer);' +
+'  tip.__hideTimer = setTimeout(function () { tip.style.display = "none"; }, 3500);' +
+'}' +
+'function updateDigitalSidesVisibility() {' +
+'  var styleVal = document.getElementById("bottomStyleValue").value;' +
+'  var sidesAllowedVal = currentClockSidesAllowed();' +
 '  var isDigital = styleVal === "digital";' +
-'  document.getElementById("digitalSidesSection").style.display = (isDigital && !fontIsWide) ? "" : "none";' +
-'  document.getElementById("digitalSidesWideHelp").style.display = (isDigital && fontIsWide) ? "" : "none";' +
-'  if (!isDigital || fontIsWide) {' +
+'  var blocked = sidesAllowedVal === 0;' +
+'  document.getElementById("digitalSidesSection").style.display = (isDigital && !blocked) ? "" : "none";' +
+'  document.getElementById("digitalSidesWideHelp").style.display = (isDigital && blocked) ? "" : "none";' +
+'  document.getElementById("digitalSidesOneOnlyHelp").style.display = (isDigital && !blocked && sidesAllowedVal === 1) ? "" : "none";' +
+'  document.getElementById("digitalSidesNormalHelp").style.display = (isDigital && !blocked && sidesAllowedVal === 1) ? "none" : "";' +
+'  if (!isDigital || blocked) {' +
 '    document.getElementById("digitalSides").value = "none";' +
 '    var buttons = document.getElementById("digitalSidesGroup").getElementsByClassName("mode-btn");' +
 '    for (var i = 0; i < buttons.length; i++) buttons[i].className = "mode-btn";' +
+'    document.getElementById("digitalSidesExclusiveTip").style.display = "none";' +
+'    return;' +
+'  }' +
+// A font switch away from an unrestricted font can leave a stale
+// "both" selection behind on a font that now only allows one side at
+// a time -- collapse it to "left" (arbitrary but consistent pick)
+// rather than silently keep sending a "both" the watch would still
+// try to honor as far as the digitalSides value itself is concerned.
+'  if (sidesAllowedVal === 1 && document.getElementById("digitalSides").value === "both") {' +
+'    document.getElementById("digitalSides").value = "left";' +
+'    var buttons2 = document.getElementById("digitalSidesGroup").getElementsByClassName("mode-btn");' +
+'    buttons2[0].className = "mode-btn active";' +
+'    buttons2[1].className = "mode-btn";' +
 '  }' +
 '}' +
 'function toggleDigitalSide(side) {' +
@@ -3931,7 +4067,21 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  var cur = hidden.value;' +
 '  var leftOn = cur === "left" || cur === "both";' +
 '  var rightOn = cur === "right" || cur === "both";' +
-'  if (side === "left") leftOn = !leftOn; else rightOn = !rightOn;' +
+'  var sidesAllowedVal = currentClockSidesAllowed();' +
+'  if (sidesAllowedVal === 1) {' +
+// Exclusive mode: turning one side on always forces the other off
+// (never "both"); turning the active side off just leaves both off.
+// Only warn on the "turning one on" case -- that's the one that
+// silently overrides the other side\'s existing state.
+'    var turningOn = side === "left" ? !leftOn : !rightOn;' +
+'    if (turningOn) {' +
+'      leftOn = side === "left";' +
+'      rightOn = side === "right";' +
+'      showDigitalSidesExclusiveTip();' +
+'    } else if (side === "left") { leftOn = false; } else { rightOn = false; }' +
+'  } else {' +
+'    if (side === "left") leftOn = !leftOn; else rightOn = !rightOn;' +
+'  }' +
 '  var next = leftOn && rightOn ? "both" : (leftOn ? "left" : (rightOn ? "right" : "none"));' +
 '  hidden.value = next;' +
 '  var buttons = document.getElementById("digitalSidesGroup").getElementsByClassName("mode-btn");' +
