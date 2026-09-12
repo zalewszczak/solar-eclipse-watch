@@ -725,6 +725,59 @@ static void draw_mountain_icon(GContext *ctx, GPoint top_left, GColor color) {
   gpath_destroy(path2);
 }
 
+// Classic speaker glyph (a small driver box plus a trapezoid cone
+// opening to the right) for the Quiet Time status content types --
+// `muted` (Quiet Time currently active) adds a single diagonal
+// strike-through across the whole glyph, the universal "sound off"
+// reading, rather than a second baked asset. Quiet Time's own dynamic
+// color (red when active, white when not -- see compute_health_value's
+// case 105/106 and compute_combo_value's own quiet-time segments) does
+// most of the state-signaling work; the crossed-out shape is what
+// makes it read correctly even under color_mode settings that ignore
+// that color (mono/accent/Pill).
+static void draw_quiet_time_icon(GContext *ctx, GPoint top_left, GColor color, bool muted) {
+  graphics_context_set_fill_color(ctx, color);
+  graphics_fill_rect(ctx, GRect(top_left.x, top_left.y + 3, 3, 6), 0, GCornerNone);
+  GPoint cone[4] = {
+    GPoint(top_left.x + 3, top_left.y + 3),
+    GPoint(top_left.x + 3, top_left.y + 9),
+    GPoint(top_left.x + 8, top_left.y + 12),
+    GPoint(top_left.x + 8, top_left.y),
+  };
+  GPathInfo cone_info = { .num_points = 4, .points = cone };
+  GPath *cone_path = gpath_create(&cone_info);
+  gpath_draw_filled(ctx, cone_path);
+  gpath_destroy(cone_path);
+  if (muted) {
+    graphics_context_set_stroke_color(ctx, color);
+    graphics_context_set_stroke_width(ctx, 2);
+    graphics_draw_line(ctx, GPoint(top_left.x - 1, top_left.y + 12), GPoint(top_left.x + 10, top_left.y - 1));
+  }
+}
+
+// A tiny watch face (circle + two hand ticks) plus two short zigzag
+// "buzz" strokes beside it, for the Hourly Vibrations status content
+// types -- `off` adds the same single diagonal strike-through
+// draw_quiet_time_icon() uses, for the same "one shape reads correctly
+// under any color_mode" reason.
+static void draw_hourly_vibe_icon(GContext *ctx, GPoint top_left, GColor color, bool off) {
+  graphics_context_set_stroke_color(ctx, color);
+  graphics_context_set_stroke_width(ctx, 1);
+  GPoint watch_center = GPoint(top_left.x + 4, top_left.y + 6);
+  graphics_draw_circle(ctx, watch_center, 4);
+  graphics_draw_line(ctx, watch_center, GPoint(watch_center.x, watch_center.y - 3)); // hour hand, toward 12
+  graphics_draw_line(ctx, watch_center, GPoint(watch_center.x + 2, watch_center.y)); // minute hand, toward 3
+  int16_t zx = top_left.x + 10;
+  graphics_draw_line(ctx, GPoint(zx, top_left.y + 2), GPoint(zx + 3, top_left.y + 5));
+  graphics_draw_line(ctx, GPoint(zx + 3, top_left.y + 5), GPoint(zx, top_left.y + 8));
+  graphics_draw_line(ctx, GPoint(zx + 5, top_left.y + 2), GPoint(zx + 8, top_left.y + 5));
+  graphics_draw_line(ctx, GPoint(zx + 8, top_left.y + 5), GPoint(zx + 5, top_left.y + 8));
+  if (off) {
+    graphics_context_set_stroke_width(ctx, 2);
+    graphics_draw_line(ctx, GPoint(top_left.x - 1, top_left.y + 12), GPoint(top_left.x + 15, top_left.y - 1));
+  }
+}
+
 // 7-stop gradient: turquoise (cold/low end) -> light blue -> green ->
 // yellow -> orange -> red -> violet (hot/high end). Used for both
 // temperature (-10..40C) and UV index (1..13) by passing different
@@ -1036,6 +1089,35 @@ static int peek_current_bpm(void) {
   return (int)health_service_peek_current_value(HealthMetricHeartRateBPM);
 }
 
+// Whether Hourly Vibrations would actually go off right now -- mode
+// on, today's weekday enabled in the day mask, and the current time
+// falling within the configured start/end window -- for the Hourly
+// Vibrations status content types below. Deliberately excludes the
+// exact-minute "should_fire" edge (on the hour / every N minutes) and
+// the Quiet-Time-override check maybe_do_hourly_vibe() in
+// pebble-eclipse-watch.c also applies: those two decide whether a
+// buzz fires on THIS tick, not whether the feature is "on" in any
+// sense a glanceable status icon should reflect, which is closer to
+// "is a reminder due to still ring at some point in the next hour"
+// than "is a buzz happening this exact second." A small, deliberate
+// re-derivation of hourly_vibe_time_in_range()'s own start/end-wrap
+// logic rather than a shared call across files -- see this app's
+// features_layer.c/pebble-eclipse-watch.c split: the corner/edge
+// content system here never calls back into the main app file, so a
+// few lines of genuinely tiny, unlikely-to-drift logic (the field
+// values themselves are the single source of truth either way) is
+// simpler than introducing that dependency for it.
+static bool hourly_vibe_is_scheduled_now(const EclipseData *d, time_t now) {
+  if (d->hourly_vibe_mode == 0) return false;
+  struct tm *t = localtime(&now);
+  if (!((d->hourly_vibe_days_mask >> t->tm_wday) & 1)) return false; // tm_wday: 0=Sunday..6=Saturday, matches the mask's own bit order
+  int minute_of_day = t->tm_hour * 60 + t->tm_min;
+  int start = d->hourly_vibe_start_min, end = d->hourly_vibe_end_min;
+  if (start == end) return true; // "all 24 hours" -- see that field's own comment in eclipse_data.h
+  if (start < end) return minute_of_day >= start && minute_of_day <= end;
+  return minute_of_day >= start || minute_of_day <= end; // wraps past midnight
+}
+
 // Simple apparent-temperature ("feels like") estimate, computed
 // entirely on-watch from data already being sent (temperature, wind,
 // humidity) rather than plumbing a whole new field through the
@@ -1088,6 +1170,8 @@ static int16_t icon_plus_gap_width(int icon_kind) { // TODO: This might not be n
     case 16: return 14; // wind direction arrow + gap
     case 17: return 20; // mountain icon (16-wide box) + gap
     case 27: return 21; // compass rose (~16px-wide box, same footprint class as moon/mountain) + 5px gap
+    case 29: return 18; // quiet time speaker (~11px wide) + gap
+    case 30: return 24; // hourly vibe watch+buzz (~18px wide, widest of this bunch) + gap
     default: return 0; // no icon
   }
 }
@@ -1194,8 +1278,14 @@ static bool content_is_weather_derived(uint8_t content) {
 // the slot's own box_x -- used both by the single icon+text path (as a
 // 2-element case: an optional icon segment, then the text segment) and
 // by the multi-icon combo content (heart rate + steps, battery + BT,
-// ...), so both paths share the exact same draw-time code.
-#define MAX_RENDER_SEGMENTS 4
+// ...), so both paths share the exact same draw-time code. Raised from
+// 4 to 6 for content 110 (battery % + Quiet Time icon+"ON"/"OFF" +
+// Bluetooth icon+"ON"/"OFF" -- 3 icon+text pairs, 6 segments) -- the
+// widest combo needs, so every slot pays the same fixed
+// sizeof(RenderSegment)*2 extra bytes regardless of which content it's
+// actually showing, same as raising it for any future wider combo
+// would.
+#define MAX_RENDER_SEGMENTS 6
 typedef struct {
   bool is_icon;
   uint8_t icon_kind;    // 0 = none; same icon_kind numbering the old single-icon path always used
@@ -1328,7 +1418,8 @@ static void slot_set(FeatureSlot *slot, uint8_t icon_kind, const char *text, GCo
   }
 }
 
-// ---- health cluster: heart rate, steps, battery, Bluetooth, sleep -----
+// ---- health cluster: heart rate, steps, battery, Bluetooth, sleep,
+// Quiet Time, Hourly Vibrations -----------------------------------------
 
 static void __attribute__((noinline)) compute_health_value(FeatureSlot *slot, uint8_t content, const EclipseData *data,
                                   uint8_t color_mode, GColor main_color, GColor accent_color) {
@@ -1403,6 +1494,44 @@ static void __attribute__((noinline)) compute_health_value(FeatureSlot *slot, ui
       GColor c = connected ? GColorFromRGB(64, 224, 208) : GColorFromRGB(255, 0, 0);
       slot->segment_count = 1;
       set_icon_seg(slot, 0, 13, c);
+      return;
+    }
+    case 105: { // Quiet Time status, icon only -- plain speaker (off) / crossed-out speaker (active)
+      bool active = quiet_time_is_active();
+      GColor dyn = active ? GColorRed : GColorWhite;
+      GColor c = resolve_flat_color(color_mode, dyn, main_color, accent_color);
+      slot->segment_count = 1;
+      set_icon_seg(slot, 0, 29, c);
+      slot->segments[0].icon_flag = active; // true = crossed-out
+      return;
+    }
+    case 106: { // Quiet Time status, icon (always plain speaker) + "ON"/"OFF" text
+      bool active = quiet_time_is_active();
+      GColor dyn = active ? GColorRed : GColorWhite;
+      GColor c = resolve_flat_color(color_mode, dyn, main_color, accent_color);
+      slot->segment_count = 2;
+      set_icon_seg(slot, 0, 29, c);
+      slot->segments[0].icon_flag = false; // never crossed out here -- the text carries the state instead
+      set_text_seg(slot, 1, active ? "ON" : "OFF", c);
+      return;
+    }
+    case 107: { // Hourly Vibrations status, icon only -- watch+buzz (on) / crossed-out (off)
+      bool on = hourly_vibe_is_scheduled_now(data, time(NULL));
+      GColor dyn = on ? GColorGreen : GColorLightGray;
+      GColor c = resolve_flat_color(color_mode, dyn, main_color, accent_color);
+      slot->segment_count = 1;
+      set_icon_seg(slot, 0, 30, c);
+      slot->segments[0].icon_flag = !on; // true = crossed-out
+      return;
+    }
+    case 108: { // Hourly Vibrations status, icon (always plain watch+buzz) + "ON"/"OFF" text
+      bool on = hourly_vibe_is_scheduled_now(data, time(NULL));
+      GColor dyn = on ? GColorGreen : GColorLightGray;
+      GColor c = resolve_flat_color(color_mode, dyn, main_color, accent_color);
+      slot->segment_count = 2;
+      set_icon_seg(slot, 0, 30, c);
+      slot->segments[0].icon_flag = false;
+      set_text_seg(slot, 1, on ? "ON" : "OFF", c);
       return;
     }
     case 39: case 40: { // sleep duration (total, 39) / restful (deep) sleep duration (40)
@@ -1989,7 +2118,7 @@ static void __attribute__((noinline)) compute_sky_value(FeatureSlot *slot, uint8
   }
 }
 
-// ---- combo cluster: multi-icon/multi-value content (97-102) -----------
+// ---- combo cluster: multi-icon/multi-value content (97-102, 109-113) --
 //
 // Per request, these share ONE flat color (always main_color, not
 // accent -- there's no single sensible "accent" reading across a
@@ -2066,6 +2195,93 @@ static void __attribute__((noinline)) compute_combo_value(FeatureSlot *slot, uin
         set_text_seg(slot, 1, buf1, batt_c);
         set_icon_seg(slot, 2, 13, bt_c);
       }
+      return;
+    }
+    case 109: { // battery + BT + Quiet Time, icons only
+      BatteryChargeState bs = battery_state_service_peek();
+      GColor batt_c = dynamic ? (bs.is_charging ? GColorGreen : red_green_gradient((uint8_t)bs.charge_percent)) : flat;
+      bool connected = connection_service_peek_pebble_app_connection();
+      GColor bt_c = dynamic ? (connected ? GColorFromRGB(64, 224, 208) : GColorFromRGB(255, 0, 0)) : flat;
+      bool quiet_active = quiet_time_is_active();
+      GColor quiet_c = dynamic ? (quiet_active ? GColorRed : GColorWhite) : flat;
+
+      slot->segment_count = 3;
+      set_icon_seg(slot, 0, 3, batt_c);
+      slot->segments[0].icon_extra = bs.charge_percent;
+      slot->segments[0].icon_flag = bs.is_charging;
+      set_icon_seg(slot, 1, 13, bt_c);
+      set_icon_seg(slot, 2, 29, quiet_c);
+      slot->segments[2].icon_flag = quiet_active;
+      return;
+    }
+    case 110: { // battery % + Quiet Time ON/OFF + BT ON/OFF
+      BatteryChargeState bs = battery_state_service_peek();
+      GColor batt_c = dynamic ? (bs.is_charging ? GColorGreen : red_green_gradient((uint8_t)bs.charge_percent)) : flat;
+      bool quiet_active = quiet_time_is_active();
+      GColor quiet_c = dynamic ? (quiet_active ? GColorRed : GColorWhite) : flat;
+      bool connected = connection_service_peek_pebble_app_connection();
+      GColor bt_c = dynamic ? (connected ? GColorFromRGB(64, 224, 208) : GColorFromRGB(255, 0, 0)) : flat;
+
+      snprintf(buf1, sizeof(buf1), "%d%%", bs.charge_percent);
+      slot->segment_count = 6;
+      set_icon_seg(slot, 0, 3, batt_c);
+      slot->segments[0].icon_extra = bs.charge_percent;
+      slot->segments[0].icon_flag = bs.is_charging;
+      set_text_seg(slot, 1, buf1, batt_c);
+      set_icon_seg(slot, 2, 29, quiet_c);
+      slot->segments[2].icon_flag = false; // text carries the state here, not the icon shape
+      set_text_seg(slot, 3, quiet_active ? "ON" : "OFF", quiet_c);
+      set_icon_seg(slot, 4, 13, bt_c);
+      set_text_seg(slot, 5, connected ? "ON" : "OFF", bt_c);
+      return;
+    }
+    case 111: { // battery + BT + Quiet Time + Hourly Vibrations, icons only
+      BatteryChargeState bs = battery_state_service_peek();
+      GColor batt_c = dynamic ? (bs.is_charging ? GColorGreen : red_green_gradient((uint8_t)bs.charge_percent)) : flat;
+      bool connected = connection_service_peek_pebble_app_connection();
+      GColor bt_c = dynamic ? (connected ? GColorFromRGB(64, 224, 208) : GColorFromRGB(255, 0, 0)) : flat;
+      bool quiet_active = quiet_time_is_active();
+      GColor quiet_c = dynamic ? (quiet_active ? GColorRed : GColorWhite) : flat;
+      bool vibe_on = hourly_vibe_is_scheduled_now(data, now);
+      GColor vibe_c = dynamic ? (vibe_on ? GColorGreen : GColorLightGray) : flat;
+
+      slot->segment_count = 4;
+      set_icon_seg(slot, 0, 3, batt_c);
+      slot->segments[0].icon_extra = bs.charge_percent;
+      slot->segments[0].icon_flag = bs.is_charging;
+      set_icon_seg(slot, 1, 13, bt_c);
+      set_icon_seg(slot, 2, 29, quiet_c);
+      slot->segments[2].icon_flag = quiet_active;
+      set_icon_seg(slot, 3, 30, vibe_c);
+      slot->segments[3].icon_flag = !vibe_on;
+      return;
+    }
+    case 112: { // Quiet Time + Hourly Vibrations, icons only
+      bool quiet_active = quiet_time_is_active();
+      GColor quiet_c = dynamic ? (quiet_active ? GColorRed : GColorWhite) : flat;
+      bool vibe_on = hourly_vibe_is_scheduled_now(data, now);
+      GColor vibe_c = dynamic ? (vibe_on ? GColorGreen : GColorLightGray) : flat;
+
+      slot->segment_count = 2;
+      set_icon_seg(slot, 0, 29, quiet_c);
+      slot->segments[0].icon_flag = quiet_active;
+      set_icon_seg(slot, 1, 30, vibe_c);
+      slot->segments[1].icon_flag = !vibe_on;
+      return;
+    }
+    case 113: { // Quiet Time + Hourly Vibrations, icons + "ON"/"OFF" texts
+      bool quiet_active = quiet_time_is_active();
+      GColor quiet_c = dynamic ? (quiet_active ? GColorRed : GColorWhite) : flat;
+      bool vibe_on = hourly_vibe_is_scheduled_now(data, now);
+      GColor vibe_c = dynamic ? (vibe_on ? GColorGreen : GColorLightGray) : flat;
+
+      slot->segment_count = 4;
+      set_icon_seg(slot, 0, 29, quiet_c);
+      slot->segments[0].icon_flag = false; // text carries the state here, not the icon shape
+      set_text_seg(slot, 1, quiet_active ? "ON" : "OFF", quiet_c);
+      set_icon_seg(slot, 2, 30, vibe_c);
+      slot->segments[2].icon_flag = false;
+      set_text_seg(slot, 3, vibe_on ? "ON" : "OFF", vibe_c);
       return;
     }
     case 101: { // sleep times: sleep icon, total duration, (restful duration), quality%
@@ -2203,6 +2419,7 @@ static void features_recompute_slot_value(FeatureSlot *slot, const EclipseData *
   uint8_t content = slot->content, color_mode = slot->color_mode;
   switch (content) {
     case 97: case 98: case 99: case 100: case 101: case 102:
+    case 109: case 110: case 111: case 112: case 113:
       compute_combo_value(slot, content, data, color_mode, main_color, now);
       break;
     case 44: case 45: case 46: case 47: case 48: case 49: case 50: case 51: case 52: case 53:
@@ -2210,6 +2427,7 @@ static void features_recompute_slot_value(FeatureSlot *slot, const EclipseData *
       compute_timezone_value(slot, content, color_mode, main_color, accent_color, now);
       break;
     case 1: case 2: case 3: case 10: case 17: case 20: case 39: case 40: case 41: case 42: case 43: case 78:
+    case 105: case 106: case 107: case 108:
       compute_health_value(slot, content, data, color_mode, main_color, accent_color);
       break;
     case 11: case 13: case 16: case 79: case 80: case 81: case 82: case 83: case 84: case 85:
@@ -2439,6 +2657,28 @@ static void draw_render_icon(GContext *ctx, const RenderSegment *seg, int16_t ic
       draw_debug_marker_point(ctx, draw_debug, pos, GColorMagenta);
       if (seg->icon_flag) draw_compass_sleep_icon(ctx, pos, color);
       else draw_compass_icon(ctx, pos, seg->icon_extra, seg->color, seg->color2);
+      return;
+    }
+    case 29: { // Quiet Time -- speaker / crossed-out speaker (icon_flag: true = active/muted)
+      GPoint pos = GPoint(icon_x, box_y + (CORNER_ROW_H - 12) / 2);
+      if (do_outline) {
+        for (int i = 0; i < offs_n; i++) {
+          draw_quiet_time_icon(ctx, GPoint(pos.x + offs[i].x, pos.y + offs[i].y), outline_color, seg->icon_flag);
+        }
+      }
+      draw_debug_marker_point(ctx, draw_debug, pos, GColorMagenta);
+      draw_quiet_time_icon(ctx, pos, color, seg->icon_flag);
+      return;
+    }
+    case 30: { // Hourly Vibrations -- watch+buzz / crossed-out (icon_flag: true = off/crossed)
+      GPoint pos = GPoint(icon_x, box_y + (CORNER_ROW_H - 12) / 2);
+      if (do_outline) {
+        for (int i = 0; i < offs_n; i++) {
+          draw_hourly_vibe_icon(ctx, GPoint(pos.x + offs[i].x, pos.y + offs[i].y), outline_color, seg->icon_flag);
+        }
+      }
+      draw_debug_marker_point(ctx, draw_debug, pos, GColorMagenta);
+      draw_hourly_vibe_icon(ctx, pos, color, seg->icon_flag);
       return;
     }
     default:

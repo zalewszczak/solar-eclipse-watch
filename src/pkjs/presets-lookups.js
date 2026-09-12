@@ -26,7 +26,7 @@
  * class of bug structurally impossible: there's nowhere left for a
  * new id to be added to one list and forgotten in another.
  *
- * Every content id features_layer.c actually implements (0-104,
+ * Every content id features_layer.c actually implements (0-113,
  * minus the retired id 33) must appear in exactly one category's
  * items list, with an id matching its case in draw_corner_item()'s
  * switch exactly.
@@ -320,6 +320,51 @@ var CORNER_CATEGORIES = [
         "id": 100,
         "label": "Battery % + Bluetooth",
         "preview": "68% (bt)"
+      },
+      {
+        "id": 105,
+        "label": "Quiet Time (icon only)",
+        "preview": "(quiet)"
+      },
+      {
+        "id": 106,
+        "label": "Quiet Time (icon + ON/OFF)",
+        "preview": "(spkr) OFF"
+      },
+      {
+        "id": 107,
+        "label": "Hourly Vibrations (icon only)",
+        "preview": "(vibe)"
+      },
+      {
+        "id": 108,
+        "label": "Hourly Vibrations (icon + ON/OFF)",
+        "preview": "(vibe) ON"
+      },
+      {
+        "id": 109,
+        "label": "Battery + Bluetooth + Quiet Time (icons only)",
+        "preview": "(batt)(bt)(quiet)"
+      },
+      {
+        "id": 110,
+        "label": "Battery % + Quiet Time + Bluetooth (icon + ON/OFF each)",
+        "preview": "82% (spkr)OFF (bt)ON"
+      },
+      {
+        "id": 111,
+        "label": "Battery + Bluetooth + Quiet Time + Hourly Vibrations (icons only)",
+        "preview": "(batt)(bt)(quiet)(vibe)"
+      },
+      {
+        "id": 112,
+        "label": "Quiet Time + Hourly Vibrations (icons only)",
+        "preview": "(quiet)(vibe)"
+      },
+      {
+        "id": 113,
+        "label": "Quiet Time + Hourly Vibrations (icon + ON/OFF each)",
+        "preview": "(spkr)OFF (vibe)ON"
       }
     ]
   },
