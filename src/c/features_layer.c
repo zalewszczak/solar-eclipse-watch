@@ -1236,12 +1236,13 @@ static bool content_is_weather_derived(uint8_t content) {
 // by the multi-icon combo content (heart rate + steps, battery + BT,
 // ...), so both paths share the exact same draw-time code. Raised from
 // 4 to 6 for content 110 (battery % + Quiet Time icon+"ON"/"OFF" +
-// Bluetooth icon+"ON"/"OFF" -- 3 icon+text pairs, 6 segments) -- the
-// widest combo needs, so every slot pays the same fixed
-// sizeof(RenderSegment)*2 extra bytes regardless of which content it's
-// actually showing, same as raising it for any future wider combo
-// would.
-#define MAX_RENDER_SEGMENTS 6
+// Bluetooth icon+"ON"/"OFF" -- 3 icon+text pairs, 6 segments), then 6
+// to 8 for content 114 (all 4 -- battery, Bluetooth, Quiet Time,
+// Hourly Vibrations -- icon+text each) -- the widest combo needs, so
+// every slot pays the same fixed sizeof(RenderSegment)*2 extra bytes
+// regardless of which content it's actually showing, same as raising
+// it for any future wider combo would.
+#define MAX_RENDER_SEGMENTS 8
 typedef struct {
   bool is_icon;
   uint8_t icon_kind;    // 0 = none; same icon_kind numbering the old single-icon path always used
@@ -2074,7 +2075,7 @@ static void __attribute__((noinline)) compute_sky_value(FeatureSlot *slot, uint8
   }
 }
 
-// ---- combo cluster: multi-icon/multi-value content (97-102, 109-113) --
+// ---- combo cluster: multi-icon/multi-value content (97-102, 109-114) --
 //
 // Per request, these share ONE flat color (always main_color, not
 // accent -- there's no single sensible "accent" reading across a
@@ -2240,6 +2241,32 @@ static void __attribute__((noinline)) compute_combo_value(FeatureSlot *slot, uin
       set_text_seg(slot, 3, vibe_on ? "ON" : "OFF", vibe_c);
       return;
     }
+    case 114: { // battery % + Bluetooth + Quiet Time + Hourly Vibrations, icon + "ON"/"OFF" (or %) each
+      BatteryChargeState bs = battery_state_service_peek();
+      GColor batt_c = dynamic ? (bs.is_charging ? GColorGreen : red_green_gradient((uint8_t)bs.charge_percent)) : flat;
+      bool connected = connection_service_peek_pebble_app_connection();
+      GColor bt_c = dynamic ? (connected ? GColorFromRGB(64, 224, 208) : GColorFromRGB(255, 0, 0)) : flat;
+      bool quiet_active = quiet_time_is_active();
+      GColor quiet_c = dynamic ? (quiet_active ? GColorRed : GColorWhite) : flat;
+      bool vibe_on = hourly_vibe_is_scheduled_now(data, now);
+      GColor vibe_c = dynamic ? (vibe_on ? GColorGreen : GColorLightGray) : flat;
+
+      snprintf(buf1, sizeof(buf1), "%d%%", bs.charge_percent);
+      slot->segment_count = 8;
+      set_icon_seg(slot, 0, 3, batt_c);
+      slot->segments[0].icon_extra = bs.charge_percent;
+      slot->segments[0].icon_flag = bs.is_charging;
+      set_text_seg(slot, 1, buf1, batt_c);
+      set_icon_seg(slot, 2, 13, bt_c);
+      set_text_seg(slot, 3, connected ? "ON" : "OFF", bt_c);
+      set_icon_seg(slot, 4, 29, quiet_c);
+      slot->segments[4].icon_flag = false; // text carries the state here, not the icon shape
+      set_text_seg(slot, 5, quiet_active ? "ON" : "OFF", quiet_c);
+      set_icon_seg(slot, 6, 30, vibe_c);
+      slot->segments[6].icon_flag = false;
+      set_text_seg(slot, 7, vibe_on ? "ON" : "OFF", vibe_c);
+      return;
+    }
     case 101: { // sleep times: sleep icon, total duration, (restful duration), quality%
       if (health_metric_available(HealthMetricSleepSeconds)) {
         HealthValue total = health_service_sum_today(HealthMetricSleepSeconds);
@@ -2375,7 +2402,7 @@ static void features_recompute_slot_value(FeatureSlot *slot, const EclipseData *
   uint8_t content = slot->content, color_mode = slot->color_mode;
   switch (content) {
     case 97: case 98: case 99: case 100: case 101: case 102:
-    case 109: case 110: case 111: case 112: case 113:
+    case 109: case 110: case 111: case 112: case 113: case 114:
       compute_combo_value(slot, content, data, color_mode, main_color, now);
       break;
     case 44: case 45: case 46: case 47: case 48: case 49: case 50: case 51: case 52: case 53:

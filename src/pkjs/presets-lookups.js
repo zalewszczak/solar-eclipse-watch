@@ -26,10 +26,10 @@
  * class of bug structurally impossible: there's nowhere left for a
  * new id to be added to one list and forgotten in another.
  *
- * Every content id features_layer.c actually implements (0-113,
+ * Every content id features_layer.c actually implements (0-114,
  * minus the retired id 33) must appear in exactly one category's
  * items list, with an id matching its case in draw_corner_item()'s
- * switch exactly.
+ * switch exactly and be reflected in MAX_FEATURES in index.js
  */
 
 // One canonical font table, id-for-id identical to font_lookup.c's
@@ -884,10 +884,15 @@ var CORNER_CATEGORIES = [
         "id": 94,
         "label": "Last weather update, short",
         "preview": "12:34"
+      },
+      {
+        "id": 114,
+        "label": "Battery + Bluetooth + Quiet Time + Hourly Vibrations (icon + ON/OFF or % each)",
+        "preview": "82% (bt)ON (spkr)OFF (vibe)ON"
       }
     ]
   }
-];
+]; // Remember to bump MAX_FEATURES in index.js when adding features here!
 
 // Starter hand-style presets for the Style section's "Hand style"
 // picker -- keyed "1"."9" to match HAND_STYLE_IMAGES/

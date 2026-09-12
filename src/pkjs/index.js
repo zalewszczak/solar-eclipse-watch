@@ -7,7 +7,7 @@ var servicelog = require('./servicelog');
 
 var TYPE_CODE = { none: 0, partial: 1, total: 2, annular: 3 };
 
-var MAX_FEATURES = 113; // highest corner/edge content id -- see CORNER_CONTENT_OPTIONS in config-page.js
+var MAX_FEATURES = 114; // highest corner/edge content id -- see CORNER_CONTENT_OPTIONS in config-page.js
 var FONT_MAX_CONTENT_ID = 55;
 
 // ---- migration: settings-key wire-format schema version ------------------
