@@ -3923,6 +3923,50 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  return true;' +
 '}' +
 
+// Same getImageData/putImageData recolor approach getTintedMarkerCanvas()
+// above already uses, reused here for the font-preview clock images
+// drawDigitalPreview() draws -- NOT the save()/globalCompositeOperation
+// "source-in"/restore() trick this used to be: that one composites the
+// fill against whatever's ALREADY on the live preview canvas at that
+// spot (the sky/background, already opaque there by the time this
+// runs), not just the freshly-drawn image's own alpha, so it painted a
+// solid tintColor-filled rectangle over the whole image's bounding box
+// instead of just its glyph pixels -- on a light text color, that's a
+// blank-looking rectangle standing in for the clock, exactly what this
+// was reported as. Recoloring on an isolated OFFSCREEN canvas first
+// (starts fully transparent, nothing else drawn on it to composite
+// against) and only then drawing the correctly-recolored RESULT onto
+// the live canvas avoids that entirely.
+'var FONT_IMG_TINT_CACHE = {};' +
+'function getTintedFontImageCanvas(src, tintColor) {' +
+'  var cacheKey = src + "|" + tintColor;' +
+'  if (FONT_IMG_TINT_CACHE[cacheKey]) return FONT_IMG_TINT_CACHE[cacheKey];' +
+'  var img = getCachedImage(src);' +
+'  if (!img.complete || !img.naturalWidth) return null;' +
+'  var iw = img.naturalWidth, ih = img.naturalHeight;' +
+'  try {' +
+'    var off = document.createElement("canvas");' +
+'    off.width = iw; off.height = ih;' +
+'    var octx = off.getContext("2d");' +
+'    octx.drawImage(img, 0, 0, iw, ih);' +
+'    var imageData = octx.getImageData(0, 0, iw, ih);' +
+'    var rgb = hexToRgb(tintColor);' +
+'    var data = imageData.data;' +
+'    for (var i = 0; i < data.length; i += 4) {' +
+'      if (data[i + 3] > 0) {' +
+'        data[i] = rgb.r;' +
+'        data[i + 1] = rgb.g;' +
+'        data[i + 2] = rgb.b;' +
+'      }' +
+'    }' +
+'    octx.putImageData(imageData, 0, 0);' +
+'    FONT_IMG_TINT_CACHE[cacheKey] = off;' +
+'    return off;' +
+'  } catch (e) {' +
+'    return null;' +
+'  }' +
+'}' +
+
 // ---- marker ring preview -------------------------------------------------
 // Direct port of background_layer.c's point_on_ring_fp()/point_on_ring():
 // blends a point on a circle of radius reach(pct) with a point on a
@@ -4176,11 +4220,17 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  if (avail.digitalLeft) {' +
 '    drawCornerSlot(ctx, "middleLeftLine1Content", "middleLeftLine1Color", xInset, row1Y, "left", colors);' +
 '    drawCornerSlot(ctx, "middleLeftLine2Content", "middleLeftLine2Color", xInset, row2Y, "left", colors);' +
-'    drawCornerSlot(ctx, "upperMiddleLine1Content", "upperMiddleLine1Color", xInset, row3Y, "left", colors);' +
 '  }' +
 '  if (avail.digitalRight) {' +
 '    drawCornerSlot(ctx, "middleRightLine1Content", "middleRightLine1Color", w - xInset, row1Y, "right", colors);' +
 '    drawCornerSlot(ctx, "middleRightLine2Content", "middleRightLine2Color", w - xInset, row2Y, "right", colors);' +
+'  }' +
+// Row 3 is independent of whether rows 1/2 (avail.digitalLeft/Right,
+// font-width-limited) are even on -- see avail.digitalBottomRow's own
+// comment in computeSlotAvailability() -- so it\'s drawn unconditionally
+// here rather than nested inside either block above.
+'  if (avail.digitalBottomRow) {' +
+'    drawCornerSlot(ctx, "upperMiddleLine1Content", "upperMiddleLine1Color", xInset, row3Y, "left", colors);' +
 '    drawCornerSlot(ctx, "upperMiddleLine2Content", "upperMiddleLine2Color", w - xInset, row3Y, "right", colors);' +
 '  }' +
 '  drawCornerSlot(ctx, "bottomMiddleLine1Content", "bottomMiddleLine1Color", clockArea.x + clockArea.w / 2, row3Y, "center", colors);' +
@@ -4202,26 +4252,22 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  var clockY = panelTop + (panelBottom - panelTop) * (isTop ? 0.58 : 0.42);' +
 // A real on-watch rendering of this font, when one exists, takes over
 // the main preview too -- same FONT_PREVIEW_IMAGES asset the font
-// PICKER buttons already use (see fontPreviewInnerHtml()), drawn here
-// via the standard canvas "draw image, then clip a color fill to its
-// alpha" trick rather than CSS mask-image (this is a <canvas>, not a
-// DOM element a mask-image could apply to). Only used when seconds
-// aren\'t shown -- the baked image is a fixed "12:34", nothing it could
-// show a live seconds count with -- the plain font-approximation text
-// path below covers that case instead.
+// PICKER buttons already use (see fontPreviewInnerHtml()), recolored
+// via getTintedFontImageCanvas() (see that function's own comment for
+// why an offscreen canvas, not a live-canvas composite trick, is what
+// actually works here) rather than CSS mask-image (this is a <canvas>,
+// not a DOM element a mask-image could apply to). Only used when
+// seconds aren\'t shown -- the baked image is a fixed "12:34", nothing
+// it could show a live seconds count with -- the plain font-
+// approximation text path below covers that case instead.
 '  var images = FONT_PREVIEW_IMAGES[fontSel.value];' +
 '  var clockImgSrc = images && images.clock;' +
 '  var drewImage = false;' +
 '  if (clockImgSrc && !showSeconds) {' +
-'    var img = getCachedImage(clockImgSrc);' +
-'    if (img.complete && img.naturalWidth > 0) {' +
-'      var targetH = 26, targetW = targetH * (img.naturalWidth / img.naturalHeight);' +
-'      ctx.save();' +
-'      ctx.drawImage(img, cx - targetW / 2, clockY - targetH / 2, targetW, targetH);' +
-'      ctx.globalCompositeOperation = "source-in";' +
-'      ctx.fillStyle = colors.text;' +
-'      ctx.fillRect(cx - targetW / 2, clockY - targetH / 2, targetW, targetH);' +
-'      ctx.restore();' +
+'    var tinted = getTintedFontImageCanvas(clockImgSrc, colors.text);' +
+'    if (tinted) {' +
+'      var targetH = 26, targetW = targetH * (tinted.width / tinted.height);' +
+'      ctx.drawImage(tinted, cx - targetW / 2, clockY - targetH / 2, targetW, targetH);' +
 '      drewImage = true;' +
 '    }' +
 '  }' +
@@ -4490,10 +4536,10 @@ handEditorModalHtml('sec', 'Edit second hand') +
   // slot reading/writing its own.
 '  digitalLeft1: { contentId: "middleLeftLine1Content", colorId: "middleLeftLine1Color", btnId: "slotBtn-digitalLeft1", label: "Left side, row 1 (top)", digitalOnly: true, avail: function (a) { return a.digitalLeft; } },' +
 '  digitalLeft2: { contentId: "middleLeftLine2Content", colorId: "middleLeftLine2Color", btnId: "slotBtn-digitalLeft2", label: "Left side, row 2", digitalOnly: true, avail: function (a) { return a.digitalLeft; } },' +
-'  digitalLeft3: { contentId: "upperMiddleLine1Content", colorId: "upperMiddleLine1Color", btnId: "slotBtn-digitalLeft3", label: "Left side, row 3 (bottom)", digitalOnly: true, avail: function (a) { return a.digitalLeft; } },' +
+'  digitalLeft3: { contentId: "upperMiddleLine1Content", colorId: "upperMiddleLine1Color", btnId: "slotBtn-digitalLeft3", label: "Left side, row 3 (bottom)", digitalOnly: true, avail: function (a) { return a.digitalBottomRow; } },' +
 '  digitalRight1: { contentId: "middleRightLine1Content", colorId: "middleRightLine1Color", btnId: "slotBtn-digitalRight1", label: "Right side, row 1 (top)", digitalOnly: true, avail: function (a) { return a.digitalRight; } },' +
 '  digitalRight2: { contentId: "middleRightLine2Content", colorId: "middleRightLine2Color", btnId: "slotBtn-digitalRight2", label: "Right side, row 2", digitalOnly: true, avail: function (a) { return a.digitalRight; } },' +
-'  digitalRight3: { contentId: "upperMiddleLine2Content", colorId: "upperMiddleLine2Color", btnId: "slotBtn-digitalRight3", label: "Right side, row 3 (bottom)", digitalOnly: true, avail: function (a) { return a.digitalRight; } },' +
+'  digitalRight3: { contentId: "upperMiddleLine2Content", colorId: "upperMiddleLine2Color", btnId: "slotBtn-digitalRight3", label: "Right side, row 3 (bottom)", digitalOnly: true, avail: function (a) { return a.digitalBottomRow; } },' +
 '  digitalBottom: { contentId: "bottomMiddleLine1Content", colorId: "bottomMiddleLine1Color", btnId: "slotBtn-digitalBottom", label: "Bottom feature", digitalOnly: true, avail: function () { return true; } }' +
 '};' +
 'var CURRENT_SLOT_KEY = null;' +
@@ -4516,7 +4562,19 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  var digitalSidesVal = document.getElementById("digitalSides").value;' +
 '  var avail = { upper: false, bottom: false, left: false, right: false, cornersGrayed: false,' +
 '    digitalLeft: !isAnalog && (digitalSidesVal === "left" || digitalSidesVal === "both"),' +
-'    digitalRight: !isAnalog && (digitalSidesVal === "right" || digitalSidesVal === "both") };' +
+'    digitalRight: !isAnalog && (digitalSidesVal === "right" || digitalSidesVal === "both"),' +
+// Row 3 (digitalLeft3/digitalRight3 -- upperMiddleLine1/2Content) sits
+// in the SAME row as the always-on "digital bottom" feature
+// (digitalBottom, bottomMiddleLine1Content -- see that SLOT_DEFS
+// entry's own "return true" avail), not the font-width-limited row
+// 1/2 side columns -- so it gets the same unconditional treatment:
+// available in any digital layout regardless of sidesAllowed/
+// digitalSidesVal, unlike digitalLeft/digitalRight above. Deliberately
+// NOT read anywhere near the seconds-availability logic (that only
+// ever looks at digitalSidesVal, which this never touches or is
+// touched by), so turning one of these two on/off can\'t affect
+// whether seconds are offered.' +
+'    digitalBottomRow: !isAnalog };' +
 '  if (isAnalog) {' +
 '    if (markerStyle < 3 || markerStyle === 8 || markerStyle === 9) {' +
 '      avail.upper = avail.bottom = avail.left = avail.right = true;' +
@@ -6688,8 +6746,8 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  if (!avail.cornersGrayed) {' +
 '    ["cornerTL", "cornerTR", "cornerBL", "cornerBR"].forEach(function (id) { if (val(id) !== 0) count++; });' +
 '  }' +
-'  if (edgeActive("upperMiddleLine1Content", avail.upper, avail.digitalLeft)) count++;' +
-'  if (edgeActive("upperMiddleLine2Content", avail.upper, avail.digitalRight)) count++;' +
+'  if (edgeActive("upperMiddleLine1Content", avail.upper, avail.digitalBottomRow)) count++;' +
+'  if (edgeActive("upperMiddleLine2Content", avail.upper, avail.digitalBottomRow)) count++;' +
 '  if (edgeActive("bottomMiddleLine1Content", avail.bottom, true)) count++;' +
 '  if (edgeActive("bottomMiddleLine2Content", avail.bottom, false)) count++;' +
 '  if (edgeActive("middleLeftLine1Content", avail.left, avail.digitalLeft)) count++;' +

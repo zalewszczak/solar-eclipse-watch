@@ -29,7 +29,7 @@
  * Every content id features_layer.c actually implements (0-115,
  * minus the retired id 33) must appear in exactly one category's
  * items list, with an id matching its case in draw_corner_item()'s
- * switch exactly and be reflected in MAX_FEATURES in index.js
+ * switch exactly.
  */
 
 // One canonical font table, id-for-id identical to font_lookup.c's

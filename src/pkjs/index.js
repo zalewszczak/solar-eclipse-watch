@@ -786,28 +786,39 @@ function dualContextVisible(edgeKey, digitalGate) {
   return digitalGate === true ? true : digitalSideActive(digitalGate);
 }
 
+// upperMiddleLine1/2 are Digital mode's row-3 side features -- the row
+// that sits level with the always-on "digital bottom" feature (see
+// bottomMiddleLine1ContentCode's own true digital gate just below),
+// not the font-width-limited row-1/2 side columns -- so their own
+// digital gate is unconditionally true too: available in any digital
+// layout regardless of sidesAllowed/CONFIG_DIGITAL_SIDES, and (since
+// neither reads or is read by CONFIG_DIGITAL_SIDES at all) turning one
+// on/off can never affect whether seconds are offered either. Analog's
+// own "upper middle" availability (marker-style-driven) is unaffected
+// -- dualContextVisible() only applies this true gate on the Digital
+// side of the isAnalogModeNow() branch.
 function upperMiddleLine1ContentCode() {
   var id = parseInt(dualContextSetting('CONFIG_UPPER_MIDDLE_LINE1_CONTENT', '0'), 10);
   if (isNaN(id) || id < 0 || id > MAX_FEATURES) id = 0;
-  if (!dualContextVisible('upper', 'left')) return 0;
+  if (!dualContextVisible('upper', true)) return 0;
   return id;
 }
 function upperMiddleLine1ColorModeCode() {
   var id = parseInt(dualContextSetting('CONFIG_UPPER_MIDDLE_LINE1_COLOR', '0'), 10);
   if (isNaN(id) || id < 0 || id > 3) id = 0;
-  if (!dualContextVisible('upper', 'left')) return 0;
+  if (!dualContextVisible('upper', true)) return 0;
   return id;
 }
 function upperMiddleLine2ContentCode() {
   var id = parseInt(dualContextSetting('CONFIG_UPPER_MIDDLE_LINE2_CONTENT', '0'), 10);
   if (isNaN(id) || id < 0 || id > MAX_FEATURES) id = 0;
-  if (!dualContextVisible('upper', 'right')) return 0;
+  if (!dualContextVisible('upper', true)) return 0;
   return id;
 }
 function upperMiddleLine2ColorModeCode() {
   var id = parseInt(dualContextSetting('CONFIG_UPPER_MIDDLE_LINE2_COLOR', '0'), 10);
   if (isNaN(id) || id < 0 || id > 3) id = 0;
-  if (!dualContextVisible('upper', 'right')) return 0;
+  if (!dualContextVisible('upper', true)) return 0;
   return id;
 }
 // Bottom-middle line 1 (the upper of its own pair) defaults to "Long
