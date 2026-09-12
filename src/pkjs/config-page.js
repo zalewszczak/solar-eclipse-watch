@@ -1329,8 +1329,15 @@ cdnFontLinks() +
 // and a visibly larger picker glyph (::-webkit-calendar-picker-
 // indicator) since that icon is the actual tap target on most mobile
 // browsers, not just decorative.
-'  input[type=time], input[type=datetime-local] { width: 100%; box-sizing: border-box; padding: 13px 12px; font-size: 18px; font-weight: 600; min-height: 46px; border: 1px solid var(--border); border-radius: 8px; background: var(--card-bg); color: var(--text); }' +
-'  input[type=time]::-webkit-calendar-picker-indicator, input[type=datetime-local]::-webkit-calendar-picker-indicator { transform: scale(1.5); margin-left: 8px; cursor: pointer; }' +
+'  input[type=time], input[type=datetime-local] { width: 100%; max-width: 100%; box-sizing: border-box; padding: 13px 40px 13px 12px; font-size: 17px; font-weight: 600; min-height: 46px; border: 1px solid var(--border); border-radius: 8px; background: var(--card-bg); color: var(--text); }' +
+// scale() is purely visual (doesn't change layout), but the earlier
+// version also gave the indicator its own margin-left -- THAT does
+// take up real layout width on top of the input\'s own 100%-wide box,
+// which is what was actually pushing these past the right edge of
+// their section. Reserved space for the enlarged icon now comes from
+// the input\'s own right padding above instead, so the rendered
+// control never exceeds the width it was actually given.
+'  input[type=time]::-webkit-calendar-picker-indicator, input[type=datetime-local]::-webkit-calendar-picker-indicator { transform: scale(1.3); cursor: pointer; }' +
 '  input[disabled], select[disabled] { background: var(--border-light); color: var(--text-disabled); }' +
 '  .checkbox-row { display: flex; align-items: center; gap: 10px; }' +
 '  .radio-row { display: flex; align-items: center; gap: 10px; margin-top: 6px; }' +
