@@ -3,6 +3,16 @@
 #include <pebble.h>
 #include "eclipse_data.h"
 
+// The digital clock's own panel height, in px on this app's fixed
+// 200x228 screen -- shared between background_layer.c (sizes/positions
+// the sky canvas around it, and feeds it into the gradient math the two
+// Digital layouts' panels use -- see eclipse_top_gradient_create()'s own
+// comment below) and features_layer.c (corner/side-column geometry --
+// see that file's own use of this same constant). Was a features_layer.c-
+// local #define until Digital top needed it here too; kept the same
+// name and value so nothing downstream had to change.
+#define DIGITAL_PANEL_H 76
+
 // The sky/sun/moon graphic AND, for big-analog mode, the hour/second
 // markers drawn on top of it -- merged into one module (formerly
 // eclipse_layer.c + marker_layer.c, two separate cached-drawing systems)
@@ -18,6 +28,23 @@
 Layer *eclipse_canvas_create(GRect frame);
 void eclipse_canvas_destroy(Layer *layer);
 void eclipse_canvas_set_data(Layer *layer, EclipseData *data);
+
+// Digital top layout only: a thin, always-gradient-only strip (see
+// apply_layout()'s own DIGITAL_PANEL_H-tall frame for it) that fills
+// the panel's reserved band at the screen's TOP with a plain
+// continuation of the SAME sky gradient/flat-black-space-mode wash the
+// main sky canvas below it draws -- no sun/moon/stars/clouds/markers,
+// "only sky gradient" per the request. Deliberately its own tiny
+// module rather than another eclipse_canvas_create() frame -- it needs
+// none of that layer's astronomy/animation/caching machinery, just the
+// current sky colors, recomputed fresh each call (no caching -- see
+// the .c file's own compute_sky_wash() comment for why this is cheap
+// enough not to need it). set_data re-reads whatever's currently in
+// `data` on every call rather than storing a copy, same "no separate
+// staleness to track" reasoning as the plain corner/edge text draws.
+Layer *eclipse_top_gradient_create(GRect frame);
+void eclipse_top_gradient_destroy(Layer *layer);
+void eclipse_top_gradient_set_data(Layer *layer, EclipseData *data);
 
 // Toggles the "Sun" / "Moon" / "Saturn" name labels shown briefly
 // next to each visible body after a shake gesture. main.c calls this

@@ -299,11 +299,19 @@ typedef struct {
   uint8_t night_custom_text;
   uint8_t night_custom_accent;
 
-  uint8_t bottom_style;       // 0=digital (big time+date), 1=analog (fullscreen hands over the sky, no bottom bar),
-                               // 2=digital + right-side features, 3=digital + left-side features,
-                               // 4=digital + both sides -- see the upper/bottom/middle_left/middle_right
+  uint8_t bottom_style;       // 0=digital bar (big time+date), 1=analog (fullscreen hands over the sky, no bottom bar),
+                               // 2=digital bar + right-side features, 3=digital bar + left-side features,
+                               // 4=digital bar + both sides -- see the upper/bottom/middle_left/middle_right
                                // fields' own dual-purpose comment above for what digital mode uses them for.
-                               // Any of 0/2/3/4 draws the digital clock; only 1 is analog.
+                               // 5/7/8/9 are Digital top's own mirror of 0/2/3/4 (no/right/left/both sides,
+                               // same +2/+3/+4 side-code arithmetic, just offset by +5 -- 6 is deliberately
+                               // skipped, kept free as a spacer rather than implying anything) -- same panel
+                               // content, just drawn transparently at the screen's TOP instead of drawn
+                               // opaque at its bottom, with the sky/element canvas below it (not above) as
+                               // a result. See digital_side_mode()/bottom_style_is_digital_top() in
+                               // features_layer.h for how the two pieces (which sides, top-vs-bottom) get
+                               // pulled back apart wherever the code needs one without the other. Any value
+                               // other than 1 draws a digital clock somewhere; only 1 is analog.
 
   uint8_t sun_moon_size_pct;   // 25/50/75/100, scales SUN_R_NORMAL/MOON_R_NORMAL. Ignored during
                                  // an active eclipse (and in big-analogue's fullscreen-sun mode) --

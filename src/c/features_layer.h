@@ -93,6 +93,17 @@ void features_layer_refresh_content(Layer *layer, uint8_t content);
 // feature can never disagree about which horizontal band they share.
 void digital_clock_area(uint8_t bottom_style, int16_t screen_w, int16_t *out_x, int16_t *out_w);
 
+// Pulls bottom_style's two independent pieces -- which side column(s)
+// are on, and whether the panel itself sits at the screen's top or
+// bottom -- back apart (see that field's own 0-9 comment in
+// eclipse_data.h). Shared with pebble-eclipse-watch.c, which needs both
+// (digital_side_mode() for the same single/both-side ellipsis-avoidance
+// shifting digital_clock_area() already handles; bottom_style_is_
+// digital_top() to pick which panel layer/update_proc applies at all)
+// without duplicating the +5 arithmetic in two files.
+uint8_t digital_side_mode(uint8_t bottom_style); // 0=none, 2=right, 3=left, 4=both -- Digital bar's own values, regardless of which layout bottom_style actually is
+bool bottom_style_is_digital_top(uint8_t bottom_style);
+
 // Loads/unloads the shared corner/edge custom font on demand -- cheap to
 // call repeatedly (no-ops if the choice hasn't changed since the last
 // call). Used by this module's own value-recompute functions and the

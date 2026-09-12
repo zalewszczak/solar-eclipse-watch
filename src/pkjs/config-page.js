@@ -83,10 +83,32 @@ var MODE_BTN_ICONS = {
     '</mask>' +
     '<rect x="4" y="152" width="192" height="72" rx="8" fill="currentColor" stroke="none" mask="url(#modeIconDigitalMask)"/>' +
     '</svg>',
+  // Same sky dots as DIGITAL above, just given the room its own bottom
+  // info band would otherwise occupy (shifted down/spread out into
+  // that freed space, not reused verbatim, so they don't crowd the two
+  // line-shapes below), plus two solid currentColor bars near the TOP
+  // standing in for the clock/date text -- no enclosing bar shape and
+  // no mask-punched cutout the way DIGITAL's own info band needs
+  // (there's no separate-colored panel here to punch a hole through --
+  // DIGITAL TOP's whole point is a transparent panel over the sky, so
+  // the icon draws the two lines directly, solid, exactly like every
+  // other plain shape in these icons already does).
+  digitalTop:
+    '<svg viewBox="0 0 200 228" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">' +
+    '<rect x="4" y="4" width="192" height="220" rx="20"/>' +
+    '<rect x="38" y="16" width="124" height="22" rx="10" fill="currentColor" stroke="none"/>' +
+    '<rect x="58" y="46" width="84" height="10" rx="5" fill="currentColor" stroke="none"/>' +
+    '<circle cx="40" cy="100" r="5" fill="currentColor" stroke="none"/>' +
+    '<circle cx="150" cy="95" r="5" fill="currentColor" stroke="none"/>' +
+    '<circle cx="100" cy="120" r="4" fill="currentColor" stroke="none"/>' +
+    '<circle cx="60" cy="160" r="4" fill="currentColor" stroke="none"/>' +
+    '<circle cx="140" cy="170" r="4" fill="currentColor" stroke="none"/>' +
+    '<circle cx="95" cy="195" r="5" fill="currentColor" stroke="none"/>' +
+    '</svg>',
   // No separate info band at all -- one big analog clock filling
   // nearly the whole screen, plus a couple of stray sky dots, since
   // ANALOG replaces the digital/edge-content area entirely rather
-  // than sharing the screen with it the way DIGITAL does.
+  // than sharing the screen with it the way DIGITAL (bar or top) does.
   analog:
     '<svg viewBox="0 0 200 228" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">' +
     '<rect x="4" y="4" width="192" height="220" rx="20"/>' +
@@ -1106,8 +1128,21 @@ function buildConfigHtml(current) {
   var debugTextareaInitial = (current.debugOverrideEnabled && current.debugOverrideData)
     ? current.debugOverrideData
     : (mostRecentRawChunk ? JSON.stringify(mostRecentRawChunk, null, 2) : '');
-  var bottomStyleVal = (current.bottomStyle === 'analog' || current.bottomStyle === 'biganalog') ? 'analog' : 'digital';
+  var bottomStyleVal = (current.bottomStyle === 'analog' || current.bottomStyle === 'biganalog') ? 'analog'
+    : (current.bottomStyle === 'digitalTop' ? 'digitalTop' : 'digital');
   var isAnalog = bottomStyleVal === 'analog';
+  // isDigitalBar/isDigitalTop split what used to be a single "not
+  // analog" case into the two digital layouts (opaque panel at the
+  // bottom vs transparent panel at the top -- see DIGITAL TOP's own
+  // help text below) -- isDigital (either one) covers everywhere the
+  // two behave identically (clock font choice, seconds availability,
+  // side-feature availability), which is most call sites; the split
+  // ones are only where the two layouts actually differ (which panel
+  // icon/label is active, and the live preview/slot diagram further
+  // down, which really do need to draw the panel in a different place).
+  var isDigitalBar = bottomStyleVal === 'digital';
+  var isDigitalTop = bottomStyleVal === 'digitalTop';
+  var isDigital = isDigitalBar || isDigitalTop;
   var clockFontId = parseInt(current.clockFont || '8', 10);
   // sidesAllowed only ever appears on mainClock fonts (see FONT_LOOKUP's
   // own comment) -- default to 2 (unrestricted) for the rare case a
@@ -1118,7 +1153,7 @@ function buildConfigHtml(current) {
   // and a font marked allowInlineSeconds:false can't either (its own
   // numerals clip/read badly with one) -- see fontOptionsHtml()'s own
   // comment on why data-seconds folds both of those together too.
-  var secondsUnsupported = (bottomStyleVal === 'digital') && (fontLookupEntry(clockFontId).allowInlineSeconds === false || clockFontIsWide);
+  var secondsUnsupported = isDigital && (fontLookupEntry(clockFontId).allowInlineSeconds === false || clockFontIsWide);
   var secondsChecked = (current.showSeconds && !secondsUnsupported) ? 'checked' : '';
   var secondsDisabled = secondsUnsupported ? 'disabled' : '';
   var digitalSidesVal = current.digitalSides || 'none';
@@ -1618,6 +1653,13 @@ cdnFontLinks() +
 // DIGITAL_PANEL_H in features_layer.c. Toggled by the same
 // renderSlotPicker() call that shows/hides the clock bar itself.
 '  .slot-corner-bl.slot-corner-above-bar, .slot-corner-br.slot-corner-above-bar { bottom: calc(33.33% + 6px); }' +
+// Digital top's own mirror image of the rule above: its panel sits at
+// the diagram's TOP instead, so it\'s the TOP-left/-right corners (not
+// bottom) that need to move -- down, below #slotDiagramClockBarTop --
+// while BL/BR stay put at the diagram's own bottom edge, since that\'s
+// open sky in this layout (see DIGITAL_PANEL_H's mirrored-for-top-
+// layout comment in features_layer.c).
+'  .slot-corner-tl.slot-corner-below-bar, .slot-corner-tr.slot-corner-below-bar { top: calc(33.33% + 6px); }' +
 '  .slot-upper-l1 { left: 50%; top: 34px; transform: translateX(-50%); }' +
 '  .slot-upper-l2 { left: 50%; top: 62px; transform: translateX(-50%); }' +
 '  .slot-bottom-l1 { left: 50%; bottom: 62px; transform: translateX(-50%); }' +
@@ -1638,6 +1680,16 @@ cdnFontLinks() +
 // without any of them crowding its top edge.
 '  #slotDiagramClockBar { position: absolute; left: 0; right: 0; bottom: 0; height: 33.33%; background: #000; border-radius: 0 0 8px 8px; display: none; }' +
 '  #slotDiagramClockText { position: absolute; left: 50%; top: 8px; transform: translateX(-50%); color: #fff; font-family: "Courier New", monospace; font-size: 22px; font-weight: 700; letter-spacing: 1px; pointer-events: none; }' +
+// Digital top's own panel -- same box as #slotDiagramClockBar, flipped
+// to the diagram's top edge (border-radius mirrored to round the TOP
+// corners instead) and drawn semi-transparent rather than solid black,
+// since on the real watch this panel is transparent over the sky
+// rather than an opaque bar -- the diagram's own sky-blue gradient
+// shows faintly through it here the same way. Shown/hidden by the same
+// renderSlotPicker() call as the bottom bar, toggled by bottom_style
+// instead of by isAnalogMode alone (see that function's own comment).
+'  #slotDiagramClockBarTop { position: absolute; left: 0; right: 0; top: 0; height: 33.33%; background: rgba(0,0,0,0.55); border-radius: 8px 8px 0 0; display: none; }' +
+'  #slotDiagramClockTextTop { position: absolute; left: 50%; bottom: 8px; transform: translateX(-50%); color: #fff; font-family: "Courier New", monospace; font-size: 22px; font-weight: 700; letter-spacing: 1px; pointer-events: none; }' +
 // 3 rows per side, bottom-anchored within the clock bar (row 1 nearest
 // the clock/top of the bar, row 3 nearest the screen's bottom edge --
 // same ordering as SLOT_LEFT_L1..UPPER_L1/SLOT_RIGHT_L1..UPPER_L2 in
@@ -1659,6 +1711,29 @@ cdnFontLinks() +
 '  .slot-digital-right2 { right: 4px; bottom: 32px; }' +
 '  .slot-digital-right3 { right: 4px; bottom: 4px; }' +
 '  .slot-digital-bottom { left: 50%; bottom: 2px; transform: translateX(-50%); min-width: 90px; }' +
+// Digital top's own mirror of the 7 rules above: same buttons (see
+// SLOT_DEFS' own comment on why the digital-* slots are shared, not
+// duplicated, between layouts), just repositioned from the diagram's
+// BOTTOM edge to its TOP -- same per-row distances (4/32/60px), just
+// measured down from the opposite edge, so row 1 stays nearest the
+// clock (now near the panel's own bottom, next to the sky boundary)
+// and row 3 stays nearest the screen's real outer edge (now the
+// diagram's own top) exactly as on the watch. Applied via a
+// #slotPickerDiagram.top-bar-mode modifier (toggled by renderSlotPicker(),
+// same as #slotDiagramClockBarTop's own visibility) rather than
+// swapping each button's own class, since a slot button's className is
+// already fully rewritten every renderSlotPicker() pass to reflect its
+// current N/A/OFF/value state (see that function's own comment on why
+// .slot-corner-above-bar has to be applied AFTER that loop, not baked
+// into it) -- a second, independent modifier class on the shared
+// container sidesteps that entirely.
+'  #slotPickerDiagram.top-bar-mode .slot-digital-left1 { bottom: auto; top: 4px; }' +
+'  #slotPickerDiagram.top-bar-mode .slot-digital-left2 { bottom: auto; top: 32px; }' +
+'  #slotPickerDiagram.top-bar-mode .slot-digital-left3 { bottom: auto; top: 60px; }' +
+'  #slotPickerDiagram.top-bar-mode .slot-digital-right1 { bottom: auto; top: 4px; }' +
+'  #slotPickerDiagram.top-bar-mode .slot-digital-right2 { bottom: auto; top: 32px; }' +
+'  #slotPickerDiagram.top-bar-mode .slot-digital-right3 { bottom: auto; top: 60px; }' +
+'  #slotPickerDiagram.top-bar-mode .slot-digital-bottom { bottom: auto; top: 2px; }' +
 '</style></head>' +
 '<body>' +
 
@@ -1898,13 +1973,14 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    <div class="subsection"></div>' +
 '    <label>Layout</label>' +
 '    <div class="mode-btn-group" id="bottomStyleGroup">' +
-'      <button type="button" class="mode-btn' + (bottomStyleVal === 'digital' ? ' active' : '') + '" onclick="selectBottomStyle(\'digital\')">' + MODE_BTN_ICONS.digital + '<span>DIGITAL</span></button>' +
+'      <button type="button" class="mode-btn' + (bottomStyleVal === 'digital' ? ' active' : '') + '" onclick="selectBottomStyle(\'digital\')">' + MODE_BTN_ICONS.digital + '<span>DIGITAL BAR</span></button>' +
+'      <button type="button" class="mode-btn' + (bottomStyleVal === 'digitalTop' ? ' active' : '') + '" onclick="selectBottomStyle(\'digitalTop\')">' + MODE_BTN_ICONS.digitalTop + '<span>DIGITAL TOP</span></button>' +
 '      <button type="button" class="mode-btn' + (isAnalog ? ' active' : '') + '" onclick="selectBottomStyle(\'analog\')">' + MODE_BTN_ICONS.analog + '<span>ANALOG</span></button>' +
 '    </div>' +
 '    <input type="hidden" id="bottomStyleValue" value="' + esc(bottomStyleVal) + '">' +
-'    <div class="help">Analog fills the whole screen with fullscreen hands over the sky/eclipse view -- no bottom bar.</div>' +
+'    <div class="help">Digital bar puts the clock in a solid panel at the bottom of the screen. Digital top puts that same panel at the TOP instead, but transparent -- the sky gradient shows through behind the clock, and the panel\'s own area is otherwise left empty of sky elements (sun/moon/stars/clouds), mirroring the bar\'s own reserved space flipped to the top; the outline setting below can also help the clock text stay readable over it. Analog fills the whole screen with fullscreen hands over the sky/eclipse view -- no panel at all.</div>' +
 
-'    <div id="digitalOnlySettings" class="subsection" style="' + (bottomStyleVal === 'digital' ? '' : 'display:none;') + '">' +
+'    <div id="digitalOnlySettings" class="subsection" style="' + (isDigitalBar || isDigitalTop ? '' : 'display:none;') + '">' +
 '      <label for="clockFont">Clock font</label>' +
 '      <select id="clockFont" onchange="onFontChange()" style="display:none;">' + fontOptions + '</select>' +
 '      <button type="button" class="font-picker-btn font-picker-trigger" id="clockFontTrigger" onclick="openFontPicker(\'clock\')">' +
@@ -1995,7 +2071,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
         { value: '2', label: 'Thick' }
       ], current.outlineStyle || '1', 'onOutlineStyleChange') +
 '    </div>' +
-'    <div class="help">Adds an outline (in your color scheme\'s background color) behind corner/edge text and icons, the analog date, and the eclipse phase text -- so they stay readable over any part of the sky. Thick adds a wider 2px cardinal shift plus 1px diagonal shifts on top of Thin\'s own 1px cardinal outline. Icons only get it outside translucent/transparent mode. Hands have their own separate outline setting, per hand, in the Style section.</div>' +
+'    <div class="help">Adds an outline (in your color scheme\'s background color) behind corner/edge text and icons, the analog date, the eclipse phase text, and (Digital top layout only, since that\'s the one clock with sky visible right behind it) the main clock digits themselves -- so they stay readable over any part of the sky. Thick adds a wider 2px cardinal shift plus 1px diagonal shifts on top of Thin\'s own 1px cardinal outline. Icons only get it outside translucent/transparent mode. Hands have their own separate outline setting, per hand, in the Style section.</div>' +
 
 '  </fieldset>' +
 
@@ -2007,6 +2083,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 
 '    <div id="slotPickerDiagram">' +
 '      <div id="slotDiagramClockBar"><span id="slotDiagramClockText">12:34</span></div>' +
+'      <div id="slotDiagramClockBarTop"><span id="slotDiagramClockTextTop">12:34</span></div>' +
 '      <button type="button" class="slot-btn slot-corner-tl" id="slotBtn-cornerTL" onclick="openSlotEditor(\'cornerTL\')"></button>' +
 '      <button type="button" class="slot-btn slot-corner-tr" id="slotBtn-cornerTR" onclick="openSlotEditor(\'cornerTR\')"></button>' +
 '      <button type="button" class="slot-btn slot-corner-bl" id="slotBtn-cornerBL" onclick="openSlotEditor(\'cornerBL\')"></button>' +
@@ -2034,7 +2111,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    </div>' +
 '    <div class="help" id="bitmapCornerOverrideHelp" style="' + ((isBitmapMarkerStyle && markerStyleNum !== 5) ? '' : 'display:none;') + '">Your current bitmap marker style\'s artwork doesn\'t leave room for every feature slot -- corners and side edges are grayed out above by default so they don\'t overlap it. Check this box to enable all of them anyway.</div>' +
 
-'    <div class="subsection" id="digitalSidesSection" style="' + ((bottomStyleVal === 'digital' && !clockFontIsWide) ? '' : 'display:none;') + '">' +
+'    <div class="subsection" id="digitalSidesSection" style="' + ((isDigital && !clockFontIsWide) ? '' : 'display:none;') + '">' +
 '      <label>Side features</label>' +
 '      <div class="mode-btn-group" id="digitalSidesGroup">' +
 '        <button type="button" class="mode-btn' + (digitalLeftOn ? ' active' : '') + '" data-side="left" onclick="toggleDigitalSide(\'left\')">LEFT SIDE</button>' +
@@ -2043,9 +2120,9 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      <input type="hidden" id="digitalSides" value="' + esc(digitalSidesVal) + '">' +
 '      <div class="help tooltip-warning" id="digitalSidesExclusiveTip" style="display:none;">This font only fits one side at a time -- picking a side turns the other off.</div>' +
 '      <div class="help" id="digitalSidesOneOnlyHelp" style="' + (clockSidesAllowed === 1 ? '' : 'display:none;') + '">This font only has room for one side column at a time -- pick left OR right, not both.</div>' +
-'      <div class="help" id="digitalSidesNormalHelp" style="' + (clockSidesAllowed === 1 ? 'display:none;' : '') + '">Adds up to 3 short info lines down each side of the digital clock, on the bottom bar -- pick their content on the diagram above. Only offered for narrower clock fonts (this one qualifies); picking both sides assumes the font is already narrow enough to share the bar with them without shrinking the clock any further.</div>' +
+'      <div class="help" id="digitalSidesNormalHelp" style="' + (clockSidesAllowed === 1 ? 'display:none;' : '') + '">Adds up to 3 short info lines down each side of the digital clock, on the clock\'s own panel -- pick their content on the diagram above. Only offered for narrower clock fonts (this one qualifies); picking both sides assumes the font is already narrow enough to share the panel with them without shrinking the clock any further.</div>' +
 '    </div>' +
-'    <div class="help" id="digitalSidesWideHelp" style="' + ((bottomStyleVal === 'digital' && clockFontIsWide) ? '' : 'display:none;') + '">This font runs too wide for side features -- pick a narrower one in the Style section to use them.</div>' +
+'    <div class="help" id="digitalSidesWideHelp" style="' + ((isDigital && clockFontIsWide) ? '' : 'display:none;') + '">This font runs too wide for side features -- pick a narrower one in the Style section to use them.</div>' +
 
 '    <label for="cornerFont">Font</label>' +
 
@@ -2983,11 +3060,18 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  refreshAllFontTriggerLabels();' +
 '}' +
 
-'function drawSkyLayer(ctx, x, y, w, h, skyMode, phase) {' +
+// skipElements (Digital top\'s own reserved panel band only) leaves out
+// the weather puffs/starfield that would otherwise draw here -- "only
+// sky gradient", matching fill_sky_gradient_ex()\'s own watch-side
+// continuation of the SAME gradient into that band with no astronomy
+// drawn over it. The plain gradient/flat-black wash itself is still
+// drawn either way, so the two bands (this one and the real sky area
+// below it) read as one continuous sky rather than a flat void.' +
+'function drawSkyLayer(ctx, x, y, w, h, skyMode, phase, skipElements) {' +
 '  if (skyMode === "2") {' +
 '    ctx.fillStyle = "#000000";' +
 '    ctx.fillRect(x, y, w, h);' +
-'    drawStarsPreview(ctx, x, y, w, h);' +
+'    if (!skipElements) drawStarsPreview(ctx, x, y, w, h);' +
 '    return;' +
 '  }' +
 '  var g = SKY_PHASE_COLORS[phase] || SKY_PHASE_COLORS.day;' +
@@ -2996,7 +3080,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  grad.addColorStop(1, g.bottom);' +
 '  ctx.fillStyle = grad;' +
 '  ctx.fillRect(x, y, w, h);' +
-'  if (skyMode !== "1") {' + // Clear sky never draws weather; Weather sky gets a cloud regardless of time of day
+'  if (skyMode !== "1" && !skipElements) {' + // Clear sky never draws weather; Weather sky gets a cloud regardless of time of day
 '    ctx.fillStyle = "rgba(255,255,255,0.9)";' +
 '    function puff(cx, cy, r) { ctx.beginPath(); ctx.arc(cx, cy, r, 0, 2 * Math.PI); ctx.fill(); }' +
 '    var cy = y + h * 0.6;' +
@@ -3281,11 +3365,18 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  return margins;' +
 '}' +
 
-'function drawCornersAndEdges(ctx, w, h, colors, skyBottom) {' +
+// skyTop defaults to 0 (TL/TR sit right at the screen's own top edge --
+// Analog and Digital bar both have open sky there). Digital top's own
+// call passes the panel's height instead, since that layout's TL/TR
+// corners sit at the sky's own top edge instead -- right below the
+// transparent clock panel -- mirroring skyBottom\'s existing job of
+// pulling BL/BR up above Digital bar\'s own panel the other way.
+'function drawCornersAndEdges(ctx, w, h, colors, skyBottom, skyTop) {' +
 '  var bottomY = (typeof skyBottom === "number") ? skyBottom : h;' +
+'  var topY = (typeof skyTop === "number") ? skyTop : 0;' +
 '  var lineH = 14;' +
-'  if (slotAvailable("cornerTLWrap")) drawCornerSlot(ctx, "cornerTL", "cornerTLColor", 5, 5, "left", colors);' +
-'  if (slotAvailable("cornerTRWrap")) drawCornerSlot(ctx, "cornerTR", "cornerTRColor", w - 5, 5, "right", colors);' +
+'  if (slotAvailable("cornerTLWrap")) drawCornerSlot(ctx, "cornerTL", "cornerTLColor", 5, topY + 5, "left", colors);' +
+'  if (slotAvailable("cornerTRWrap")) drawCornerSlot(ctx, "cornerTR", "cornerTRColor", w - 5, topY + 5, "right", colors);' +
 '  if (slotAvailable("cornerBLWrap")) drawCornerSlot(ctx, "cornerBL", "cornerBLColor", 5, bottomY - 14, "left", colors);' +
 '  if (slotAvailable("cornerBRWrap")) drawCornerSlot(ctx, "cornerBR", "cornerBRColor", w - 5, bottomY - 14, "right", colors);' +
 '  var needMiddleMargins = slotAvailable("upperMiddleWrap") || slotAvailable("bottomMiddleWrap") || slotAvailable("middleLeftWrap") || slotAvailable("middleRightWrap");' +
@@ -3891,11 +3982,22 @@ handEditorModalHtml('sec', 'Edit second hand') +
 // CORNER_ROW_H(24) - CORNER_INSET_PX(4) - bottom_shift, for bottom_shift
 // 48/24/0), scaled into canvas px the same way every other geometry
 // helper on this page already does.' +
-'function drawDigitalSideFeatures(ctx, w, h, colors, clockArea) {' +
+// isTop (Digital top layout) mirrors every one of these rows vertically
+// around the panel\'s own two edges rather than recomputing anything from
+// scratch: row 1 (nearest the clock) stays anchored to whichever edge is
+// actually adjacent to the clock/sky boundary -- the panel\'s own BOTTOM
+// now, instead of its top -- and rows 2/3 step AWAY from the clock (up
+// toward the screen\'s real top edge) instead of down toward it, the
+// same CORNER_ROW_H-sized steps features_recompute_layout()\'s own
+// top_offset branch uses on the watch for this same layout.' +
+'function drawDigitalSideFeatures(ctx, w, h, colors, clockArea, isTop) {' +
 '  var avail = computeSlotAvailability();' +
 '  var scale = w / 200;' +
 '  var xInset = 5 * scale;' +
-'  var row1Y = 152 * scale, row2Y = 176 * scale, row3Y = 200 * scale;' +
+'  var panelH = 76 * scale;' +
+'  var innerEdgeY = isTop ? panelH : 152 * scale;' +
+'  var stepDir = isTop ? -1 : 1;' +
+'  var row1Y = innerEdgeY, row2Y = innerEdgeY + stepDir * 24 * scale, row3Y = innerEdgeY + stepDir * 48 * scale;' +
 '  if (avail.digitalLeft) {' +
 '    drawCornerSlot(ctx, "middleLeftLine1Content", "middleLeftLine1Color", xInset, row1Y, "left", colors);' +
 '    drawCornerSlot(ctx, "middleLeftLine2Content", "middleLeftLine2Color", xInset, row2Y, "left", colors);' +
@@ -3909,14 +4011,20 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  drawCornerSlot(ctx, "bottomMiddleLine1Content", "bottomMiddleLine1Color", clockArea.x + clockArea.w / 2, row3Y, "center", colors);' +
 '}' +
 
-'function drawDigitalPreview(ctx, colors, now, showSeconds, w, panelTop, panelBottom, clockArea) {' +
+// isTop mirrors the 42%-down-the-panel placement into 42%-UP-from-the-
+// panel\'s-bottom instead, so the clock still sits right at the edge
+// adjacent to the sky in both layouts (the panel\'s own top edge for
+// Digital bar, its own bottom edge for Digital top) rather than always
+// reading from the panel\'s top regardless of which edge that actually
+// is.' +
+'function drawDigitalPreview(ctx, colors, now, showSeconds, w, panelTop, panelBottom, clockArea, isTop) {' +
 '  var cx = clockArea ? clockArea.x + clockArea.w / 2 : w / 2;' +
 '  var fontSel = document.getElementById("clockFont");' +
 '  var opt = fontSel.options[fontSel.selectedIndex];' +
 '  var hh = now.getHours(), mm = now.getMinutes();' +
 '  var txt = (hh < 10 ? "0" : "") + hh + ":" + (mm < 10 ? "0" : "") + mm;' +
 '  if (showSeconds) { var ss = now.getSeconds(); txt += ":" + (ss < 10 ? "0" : "") + ss; }' +
-'  var clockY = panelTop + (panelBottom - panelTop) * 0.42;' +
+'  var clockY = panelTop + (panelBottom - panelTop) * (isTop ? 0.58 : 0.42);' +
 // A real on-watch rendering of this font, when one exists, takes over
 // the main preview too -- same FONT_PREVIEW_IMAGES asset the font
 // PICKER buttons already use (see fontPreviewInnerHtml()), drawn here
@@ -3979,6 +4087,28 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    var markerImageDrawn = (markerStyleInt >= 3 && markerStyleInt !== 8 && markerStyleInt !== 9) && drawTintedMarkerBitmap(ctx, markerStyleVal, w, h, colors.text);' +
 '    drawBigAnalogPreview(ctx, colors, now, showSeconds, w, h, markerImageDrawn);' +
 '    drawCornersAndEdges(ctx, w, h, colors, h);' +
+'  } else if (styleVal === "digitalTop") {' +
+// Mirror image of the Digital bar branch below: sky/celestial fill the
+// region BELOW the panel (anchored to the screen's own bottom instead
+// of its top -- corner features and any weather/celestial elements
+// only ever land there, same "reserved band" idea as bar mode's own
+// skyH region, just flipped), the panel's own band gets a gradient-
+// only wash (no elements -- see drawSkyLayer's own skipElements
+// comment), and it's drawn WITHOUT an opaque fill first (unlike bar
+// mode's solid colors.bg rect below) so the gradient shows through
+// behind the clock text, matching the transparent panel this layout
+// actually draws on the watch.
+'    var panelH = Math.round(h * 76 / 228);' +
+'    var skyTop = panelH;' +
+'    var skyH = h - panelH;' +
+'    drawSkyLayer(ctx, 0, skyTop, w, skyH, skyMode, phase);' +
+'    drawCelestialPreview(ctx, 0, skyTop, w, skyH, skyMode, phase, colors, now);' +
+'    drawSkyLayer(ctx, 0, 0, w, panelH, skyMode, phase, true);' +
+'    drawCornersAndEdges(ctx, w, h, colors, h, panelH);' +
+'    var digitalSidesValTop = document.getElementById("digitalSides").value;' +
+'    var clockAreaTop = digitalClockArea(digitalSidesValTop, w);' +
+'    drawDigitalSideFeatures(ctx, w, h, colors, clockAreaTop, true);' +
+'    drawDigitalPreview(ctx, colors, now, showSeconds, w, 0, panelH, clockAreaTop, true);' +
 '  } else {' +
 '    var skyH = Math.round(h * 152 / 228);' +
 '    drawSkyLayer(ctx, 0, 0, w, skyH, skyMode, phase);' +
@@ -3996,7 +4126,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 'function onBottomStyleChange() {' +
 '  var styleVal = document.getElementById("bottomStyleValue").value;' +
 '  var isAnalog = styleVal === "analog";' +
-'  document.getElementById("digitalOnlySettings").style.display = (styleVal === "digital") ? "block" : "none";' +
+'  document.getElementById("digitalOnlySettings").style.display = !isAnalog ? "block" : "none";' +
 '  document.getElementById("bigAnalogSettings").style.display = isAnalog ? "block" : "none";' +
 '  updateDigitalSidesVisibility();' +
 '  var secondsBox = document.getElementById("showSeconds");' +
@@ -4037,7 +4167,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 'function updateDigitalSidesVisibility() {' +
 '  var styleVal = document.getElementById("bottomStyleValue").value;' +
 '  var sidesAllowedVal = currentClockSidesAllowed();' +
-'  var isDigital = styleVal === "digital";' +
+'  var isDigital = styleVal === "digital" || styleVal === "digitalTop";' +
 '  var blocked = sidesAllowedVal === 0;' +
 '  document.getElementById("digitalSidesSection").style.display = (isDigital && !blocked) ? "" : "none";' +
 '  document.getElementById("digitalSidesWideHelp").style.display = (isDigital && blocked) ? "" : "none";' +
@@ -4206,8 +4336,13 @@ handEditorModalHtml('sec', 'Edit second hand') +
 // changes.
 'function renderSlotPicker() {' +
 '  var avail = computeSlotAvailability();' +
-'  var isAnalogMode = document.getElementById("bottomStyleValue").value === "analog";' +
-'  document.getElementById("slotDiagramClockBar").style.display = isAnalogMode ? "none" : "block";' +
+'  var styleValNow = document.getElementById("bottomStyleValue").value;' +
+'  var isAnalogMode = styleValNow === "analog";' +
+'  var isDigitalTopMode = styleValNow === "digitalTop";' +
+'  var isDigitalBarMode = !isAnalogMode && !isDigitalTopMode;' +
+'  document.getElementById("slotDiagramClockBar").style.display = isDigitalBarMode ? "block" : "none";' +
+'  document.getElementById("slotDiagramClockBarTop").style.display = isDigitalTopMode ? "block" : "none";' +
+'  document.getElementById("slotPickerDiagram").classList.toggle("top-bar-mode", isDigitalTopMode);' +
 '  for (var key in SLOT_DEFS) {' +
 '    var def = SLOT_DEFS[key];' +
 '    var btn = document.getElementById(def.btnId);' +
@@ -4252,8 +4387,10 @@ handEditorModalHtml('sec', 'Edit second hand') +
 // reload re-derived everything from scratch. This is exactly why the
 // bug this fixes only ever showed up after switching modes, not on a
 // fresh load.
-'  document.getElementById("slotBtn-cornerBL").classList.toggle("slot-corner-above-bar", !isAnalogMode);' +
-'  document.getElementById("slotBtn-cornerBR").classList.toggle("slot-corner-above-bar", !isAnalogMode);' +
+'  document.getElementById("slotBtn-cornerBL").classList.toggle("slot-corner-above-bar", isDigitalBarMode);' +
+'  document.getElementById("slotBtn-cornerBR").classList.toggle("slot-corner-above-bar", isDigitalBarMode);' +
+'  document.getElementById("slotBtn-cornerTL").classList.toggle("slot-corner-below-bar", isDigitalTopMode);' +
+'  document.getElementById("slotBtn-cornerTR").classList.toggle("slot-corner-below-bar", isDigitalTopMode);' +
 '}' +
 'function setSlotEditorColorGroupVisibility(contentVal) {' +
 '  document.getElementById("slotEditColorGroup").style.display = (contentVal === "0") ? "none" : "flex";' +
@@ -5464,7 +5601,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 'function selectBottomStyle(val) {' +
 '  document.getElementById("bottomStyleValue").value = val;' +
 '  var buttons = document.getElementById("bottomStyleGroup").getElementsByClassName("mode-btn");' +
-'  var order = ["digital", "analog"];' +
+'  var order = ["digital", "digitalTop", "analog"];' +
 '  for (var i = 0; i < buttons.length; i++) {' +
 '    buttons[i].className = "mode-btn" + (order[i] === val ? " active" : "");' +
 '  }' +
@@ -5870,7 +6007,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 // selection directly rather than trusted to already be correct.
 '  var clockFontSel = document.getElementById("clockFont");' +
 '  var clockFontOpt = clockFontSel.options[clockFontSel.selectedIndex];' +
-'  var secondsOverriddenOff = bottomStyleVal === "digital" && clockFontOpt.getAttribute("data-seconds") === "0";' +
+'  var secondsOverriddenOff = bottomStyleVal !== "analog" && clockFontOpt.getAttribute("data-seconds") === "0";' +
 '  var showSecondsVal = !secondsOverriddenOff && document.getElementById("showSeconds").checked;' +
 // Same "re-derive at save time rather than trust the DOM already
 // reflects it" belt-and-suspenders principle as showSecondsVal above,

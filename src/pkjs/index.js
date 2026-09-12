@@ -486,14 +486,22 @@ function nightCustomBgByte() { return customColorByte('CONFIG_NIGHT_CUSTOM_BG', 
 function nightCustomTextByte() { return customColorByte('CONFIG_NIGHT_CUSTOM_TEXT', 0xFF); }
 function nightCustomAccentByte() { return customColorByte('CONFIG_NIGHT_CUSTOM_ACCENT', 0xFF); }
 
+// Encodes the phone-side layout/side-feature choice into the single
+// EclipseData.bottom_style byte the watch reads (see that field's own
+// comment in eclipse_data.h for the full 0-9 table). Digital top reuses
+// the exact same side-code arithmetic as Digital bar (0/2/3/4), just
+// offset by +5 (giving 5/7/8/9 -- 6 is deliberately unused, kept free
+// as a spacer rather than implying some meaning) -- so
+// digital_side_mode()/bottom_style_is_digital_top() on the watch can
+// recover both pieces (which sides, and top vs bottom) with simple
+// arithmetic instead of a lookup table, and this function itself never
+// has to duplicate the sides 0/2/3/4 mapping for a second layout.
 function bottomStyleCode() {
   var v = getSetting('CONFIG_BOTTOM_STYLE', 'digital');
   if (v === 'analog' || v === 'biganalog') return 1;
   var sides = getSetting('CONFIG_DIGITAL_SIDES', 'none');
-  if (sides === 'right') return 2;
-  if (sides === 'left') return 3;
-  if (sides === 'both') return 4;
-  return 0;
+  var sideCode = sides === 'right' ? 2 : sides === 'left' ? 3 : sides === 'both' ? 4 : 0;
+  return v === 'digitalTop' ? sideCode + 5 : sideCode;
 }
 
 function sunMoonSizeCode() {
@@ -2108,7 +2116,8 @@ Pebble.addEventListener('webviewclosed', function (e) {
   setSetting('CONFIG_NIGHT_CUSTOM_BG', settings.CONFIG_NIGHT_CUSTOM_BG || '192');
   setSetting('CONFIG_NIGHT_CUSTOM_TEXT', settings.CONFIG_NIGHT_CUSTOM_TEXT || '255');
   setSetting('CONFIG_NIGHT_CUSTOM_ACCENT', settings.CONFIG_NIGHT_CUSTOM_ACCENT || '255');
-  setSetting('CONFIG_BOTTOM_STYLE', (settings.CONFIG_BOTTOM_STYLE === 'analog' || settings.CONFIG_BOTTOM_STYLE === 'biganalog') ? 'analog' : 'digital');
+  setSetting('CONFIG_BOTTOM_STYLE', (settings.CONFIG_BOTTOM_STYLE === 'analog' || settings.CONFIG_BOTTOM_STYLE === 'biganalog') ? 'analog'
+    : (settings.CONFIG_BOTTOM_STYLE === 'digitalTop' ? 'digitalTop' : 'digital'));
   setSetting('CONFIG_DIGITAL_SIDES', settings.CONFIG_DIGITAL_SIDES || 'none');
   setSetting('CONFIG_SUN_MOON_SIZE', settings.CONFIG_SUN_MOON_SIZE || '100');
   setSetting('CONFIG_SKY_MODE', settings.CONFIG_SKY_MODE || '0');

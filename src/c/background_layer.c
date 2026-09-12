@@ -561,37 +561,68 @@ static int16_t compute_cloud_band_y(GRect bounds, uint8_t cloud_altitude_pct) {
   return lower_bottom - (((int32_t)(lower_bottom - lower_top) * cloud_altitude_pct) / 100);
 }
 
-// Fills `bounds` with a dithered vertical gradient from `top` (row 0)
-// down to `hz` (last row), optionally kinking through a third `band`
-// color at `band_y` along the way -- this is how overcast/rainy
-// conditions show up as a grayer lower sky, like the view crossing
-// beneath a cloud deck seen from a plane window, rather than the
-// whole sky stretching through unbroken blue regardless of weather.
-// Pass band_y at or past the bottom row (and band == hz) to skip the
-// effect entirely and get a plain two-point gradient, same as before.
-// Each row's true continuous colour is computed first, then every
-// pixel in that row is ordered-dithered down to the palette
-// individually -- that's what turns hard colour bands into a
-// smooth-looking blend on real hardware. Row colours only depend on
-// y, so the per-row RGB lerp happens once; only the 4 possible x-phases
-// of the Bayer matrix are then dithered and cached before sweeping
-// across the row, to avoid redoing that work per pixel.
-static void fill_sky_gradient(GContext *ctx, GRect bounds, RGB8 top, RGB8 band, int16_t band_y, RGB8 hz) {
-  int16_t bottom_y = bounds.origin.y + bounds.size.h - 1;
-  if (band_y > bottom_y) band_y = bottom_y;
-  if (band_y < bounds.origin.y) band_y = bounds.origin.y;
-  int16_t upper_span = band_y - bounds.origin.y;
-  int16_t lower_span = bottom_y - band_y;
+// Digital top layout only: same "where does the cloud deck's graying
+// kick in" math as compute_cloud_band_y() above, just computed against
+// a conceptual gradient span (virtual_top_y/virtual_total_y) taller
+// than any one physical layer -- see fill_sky_gradient_ex()'s own
+// comment for why that split exists at all. Returns a value in that
+// SAME virtual coordinate space (0 = the conceptual gradient's own
+// top), for fill_sky_gradient_ex()'s band_y param, not a screen y.
+static int16_t compute_cloud_band_y_virtual(int16_t virtual_top_y, int16_t virtual_total_h, uint8_t cloud_altitude_pct) {
+  int16_t half_h = virtual_total_h / 2;
+  int16_t lower_top = virtual_top_y + half_h;
+  int16_t lower_bottom = virtual_top_y + virtual_total_h - GROUND_H - 10;
+  if (lower_bottom < lower_top) lower_bottom = lower_top;
+  return lower_bottom - (((int32_t)(lower_bottom - lower_top) * cloud_altitude_pct) / 100);
+}
+
+// Fills `bounds` with a dithered vertical gradient from `top` down to
+// `hz`, optionally kinking through a third `band` color at `band_y`
+// along the way -- this is how overcast/rainy conditions show up as a
+// grayer lower sky, like the view crossing beneath a cloud deck seen
+// from a plane window, rather than the whole sky stretching through
+// unbroken blue regardless of weather. Pass band_y at or past the
+// bottom row (and band == hz) to skip the effect entirely and get a
+// plain two-point gradient.
+//
+// virtual_top_y/virtual_total_h decouple "where do row 0 and the last
+// row sit for the top-to-band-to-hz color math" (a CONCEPTUAL gradient
+// span, in the same coordinate space band_y is given in) from `bounds`
+// itself (the REAL pixels actually painted) -- ordinarily callers just
+// pass bounds.origin.y/bounds.size.h straight through, making the two
+// spans identical (a plain single-bounds gradient, same as before this
+// split existed), but Digital top's own gradient-only strip needs to
+// paint just its own DIGITAL_PANEL_H-tall slice of a conceptual
+// gradient that's actually 228px tall overall (matching the full
+// screen), so the colors it shows line up seamlessly with where the
+// sky canvas's OWN (separately painted, unmodified-since-Digital-bar)
+// gradient wash picks up right where this strip leaves off, rather
+// than each independently stretching the same top/band/hz colors
+// across its own much-shorter span and visibly disagreeing at the
+// seam. Each row's true continuous colour is computed first, then
+// every pixel in that row is ordered-dithered down to the palette
+// individually -- that's what turns hard colour bands into a smooth-
+// looking blend on real hardware. Row colours only depend on y, so the
+// per-row RGB lerp happens once; only the 4 possible x-phases of the
+// Bayer matrix are then dithered and cached before sweeping across the
+// row, to avoid redoing that work per pixel.
+static void fill_sky_gradient_ex(GContext *ctx, GRect bounds, int16_t virtual_top_y, int16_t virtual_total_h,
+                                  RGB8 top, RGB8 band, int16_t band_y, RGB8 hz) {
+  int16_t virtual_bottom_y = virtual_top_y + virtual_total_h - 1;
+  if (band_y > virtual_bottom_y) band_y = virtual_bottom_y;
+  if (band_y < virtual_top_y) band_y = virtual_top_y;
+  int16_t upper_span = band_y - virtual_top_y;
+  int16_t lower_span = virtual_bottom_y - band_y;
 
   for (int16_t y = 0; y < bounds.size.h; y++) {
-    int16_t screen_y = bounds.origin.y + y;
+    int16_t virtual_y = virtual_top_y + y;
     RGB8 row;
-    if (screen_y <= band_y) {
+    if (virtual_y <= band_y) {
       row.r = lerp8(top.r, band.r, y, upper_span > 0 ? upper_span : 1);
       row.g = lerp8(top.g, band.g, y, upper_span > 0 ? upper_span : 1);
       row.b = lerp8(top.b, band.b, y, upper_span > 0 ? upper_span : 1);
     } else {
-      int16_t rel = screen_y - band_y;
+      int16_t rel = virtual_y - band_y;
       row.r = lerp8(band.r, hz.r, rel, lower_span > 0 ? lower_span : 1);
       row.g = lerp8(band.g, hz.g, rel, lower_span > 0 ? lower_span : 1);
       row.b = lerp8(band.b, hz.b, rel, lower_span > 0 ? lower_span : 1);
@@ -616,6 +647,84 @@ static void fill_sky_gradient(GContext *ctx, GRect bounds, RGB8 top, RGB8 band, 
     }
     graphics_fill_rect(ctx, GRect(bounds.origin.x + run_start, bounds.origin.y + y, bounds.size.w - run_start, 1), 0, GCornerNone);
   }
+}
+
+// Ordinarily (Analog, Digital bar) the conceptual gradient span IS
+// `bounds` itself -- callers just pass bounds.origin.y/bounds.size.h
+// straight through for virtual_top_y/virtual_total_h, reproducing the
+// plain single-bounds formula this function replaced exactly. Digital
+// top's own gradient calls (both the sky canvas's own, and
+// eclipse_top_gradient_*()'s) are the only ones that pass something
+// taller -- see canvas_update_proc()'s own local virtual_top_y/
+// virtual_total_h for why.
+
+// Digital top layout only: computes the same "what should the plain
+// sky wash look like right now" colors canvas_update_proc()'s own
+// gradient block below works out inline (sun altitude -> top/horizon
+// colors, then weather-driven graying toward a band/horizon color and
+// where that graying band sits) -- factored out here so
+// eclipse_top_gradient_*()'s own thin gradient-only strip can call the
+// exact same logic instead of a second, hand-duplicated copy that
+// could quietly drift out of sync with the sky canvas's own version
+// over time. Returns via out_flat_black instead of drawing anything
+// itself for sky_mode 2 (Space) -- that mode has no gradient at all
+// (flat near-black, handled by canvas_update_proc()'s own separate
+// branch) -- callers fill flat black themselves rather than this
+// function reaching for a GContext it doesn't otherwise need.
+//
+// Deliberately uses the REAL current sun altitude (interp_sun_alt_
+// decideg(d, now), `now` being whatever the caller passes) rather than
+// chasing canvas_update_proc()'s own sky_now animated-sweep
+// substitution (see that function's own local `sky_now` and the
+// "Planets" background-animation comment above it) -- reproducing that
+// whole eased-sweep state machine here, just to keep a 76px sliver
+// with no sun/moon/stars in it in perfect lockstep during a well-
+// under-2-second startup animation, isn't worth either the code size
+// or coupling this function to CanvasState (which it otherwise has no
+// need to know about at all). The two can very briefly disagree during
+// that animation; they're back in exact agreement, same as any other
+// moment, the instant it finishes.
+static void compute_sky_wash(const EclipseData *d, time_t now, int16_t virtual_top_y, int16_t virtual_total_h,
+                              RGB8 *out_top, RGB8 *out_band, int16_t *out_band_y, RGB8 *out_hz, bool *out_flat_black) {
+  *out_flat_black = (d->sky_mode == 2);
+  if (*out_flat_black) return;
+
+  int16_t alt = interp_sun_alt_decideg(d, now);
+  RGB8 sky_top_rgb, sky_hz_rgb;
+  sky_colors_for_altitude(alt, &sky_top_rgb, &sky_hz_rgb);
+
+  uint8_t cloud_pct = interp_cloud_pct(d, now);
+  bool stormy = d->weather_condition == 4;
+  bool weather_enabled = d->sky_mode == 0; // Clear sky (1) skips the haze entirely, same as canvas_update_proc()'s own gating
+  uint8_t gray_amount = 0;
+  if (weather_enabled) {
+    if (cloud_pct > 35) {
+      int32_t g = ((int32_t)(cloud_pct - 35) * 100) / 65;
+      gray_amount = (uint8_t)(g > 100 ? 100 : g);
+    }
+    if (stormy) {
+      if (gray_amount < 85) gray_amount = 85;
+    } else if (d->weather_condition == 2 || d->weather_condition == 3) {
+      if (gray_amount < 55) gray_amount = 55;
+    }
+  }
+
+  RGB8 band_rgb = sky_hz_rgb;
+  RGB8 hz_rgb = sky_hz_rgb; // what actually reaches fill_sky_gradient_ex's horizon row
+  int16_t band_y = virtual_top_y + virtual_total_h; // off-canvas by default -- no visible band
+  if (gray_amount > 0) {
+    RGB8 neutral_gray = { 115, 117, 120 };
+    RGB8 dark_gray = { 40, 41, 46 };
+    band_rgb.r = lerp8(sky_hz_rgb.r, neutral_gray.r, gray_amount, 100);
+    band_rgb.g = lerp8(sky_hz_rgb.g, neutral_gray.g, gray_amount, 100);
+    band_rgb.b = lerp8(sky_hz_rgb.b, neutral_gray.b, gray_amount, 100);
+    hz_rgb.r = lerp8(sky_hz_rgb.r, dark_gray.r, gray_amount, 100);
+    hz_rgb.g = lerp8(sky_hz_rgb.g, dark_gray.g, gray_amount, 100);
+    hz_rgb.b = lerp8(sky_hz_rgb.b, dark_gray.b, gray_amount, 100);
+    band_y = compute_cloud_band_y_virtual(virtual_top_y, virtual_total_h, d->cloud_altitude_pct);
+  }
+
+  *out_top = sky_top_rgb; *out_band = band_rgb; *out_band_y = band_y; *out_hz = hz_rgb;
 }
 
 // isqrt32 is defined further down (see its own comment there for
@@ -2540,7 +2649,7 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
   // day/night gradient, but weather_enabled below skips the haze and
   // the cloud/weather-effect calls further down), 2=Space view (no
   // gradient at all -- flat near-black, handled entirely in this
-  // branch instead of falling through to fill_sky_gradient()).
+  // branch instead of falling through to fill_sky_gradient_ex()).
   bool weather_enabled = d->sky_mode == 0;
   if (d->sky_mode == 2) {
     graphics_context_set_fill_color(ctx, GColorBlack);
@@ -2548,6 +2657,23 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
   } else {
     RGB8 sky_top_rgb, sky_hz_rgb;
     sky_colors_for_altitude(alt, &sky_top_rgb, &sky_hz_rgb);
+
+    // Digital top layout only: this canvas is the BOTTOM
+    // DIGITAL_PANEL_H..(DIGITAL_PANEL_H+bounds.size.h) slice of a
+    // conceptually 228px-tall gradient whose top DIGITAL_PANEL_H rows
+    // are painted separately by eclipse_top_gradient_*() (the
+    // transparent panel's own reserved strip -- see that module's own
+    // comment) -- computing this canvas's OWN band/horizon math
+    // against that same taller virtual span, instead of just its own
+    // local bounds, is what makes the two independently-drawn pieces
+    // line up into one seamless gradient rather than each stretching
+    // the same top/band/hz colors across its own shorter span and
+    // visibly disagreeing at the seam. Every other layout keeps the
+    // virtual span identical to `bounds` itself -- i.e. no change at
+    // all from before this existed.
+    bool is_digital_top = bottom_style_is_digital_top(d->bottom_style);
+    int16_t virtual_top_y = is_digital_top ? DIGITAL_PANEL_H : bounds.origin.y;
+    int16_t virtual_total_h = is_digital_top ? (DIGITAL_PANEL_H + bounds.size.h) : bounds.size.h;
 
     // Beneath an overcast deck the sky reads grayer, like the view
     // crossing under cloud cover from a plane window -- the effect
@@ -2568,8 +2694,8 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
     }
 
     RGB8 band_rgb = sky_hz_rgb;
-    RGB8 hz_rgb = sky_hz_rgb; // what actually reaches fill_sky_gradient's horizon row
-    int16_t band_y_screen = bounds.origin.y + bounds.size.h; // off-canvas: no visible band by default
+    RGB8 hz_rgb = sky_hz_rgb; // what actually reaches fill_sky_gradient_ex's horizon row
+    int16_t band_y_screen = virtual_top_y + virtual_total_h; // off-canvas: no visible band by default
     if (gray_amount > 0) {
       // The gradient used to fade back UP to the raw (often bright/
       // warm, especially at sunset/sunrise) horizon color right at
@@ -2589,10 +2715,10 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
       hz_rgb.r = lerp8(sky_hz_rgb.r, dark_gray.r, gray_amount, 100);
       hz_rgb.g = lerp8(sky_hz_rgb.g, dark_gray.g, gray_amount, 100);
       hz_rgb.b = lerp8(sky_hz_rgb.b, dark_gray.b, gray_amount, 100);
-      band_y_screen = compute_cloud_band_y(bounds, d->cloud_altitude_pct);
+      band_y_screen = compute_cloud_band_y_virtual(virtual_top_y, virtual_total_h, d->cloud_altitude_pct);
     }
 
-    fill_sky_gradient(ctx, bounds, sky_top_rgb, band_rgb, band_y_screen, hz_rgb);
+    fill_sky_gradient_ex(ctx, bounds, virtual_top_y, virtual_total_h, sky_top_rgb, band_rgb, band_y_screen, hz_rgb);
   }
 
   // Space-view sky mode's bright-star field: real azimuth-to-x /
@@ -3140,6 +3266,69 @@ void eclipse_canvas_set_planet_seek(Layer *layer, bool active, uint16_t elapsed_
 // decides whether anything actually gets recomputed. Safe to call
 // every second without it costing a full redraw every time.
 void eclipse_canvas_tick(Layer *layer) {
+  layer_mark_dirty(layer);
+}
+
+// ---- Digital top's own gradient-only strip ------------------------------
+// See this pair's own declaration comment in background_layer.h for
+// the "why a separate tiny module instead of another eclipse_canvas_
+// create() frame" reasoning. Layer-local state is just the EclipseData
+// pointer -- no cache, no animation/tick bookkeeping, nothing else this
+// needs to remember between redraws (compute_sky_wash() is cheap
+// enough -- a handful of lerps, no per-pixel work of its own -- to just
+// re-run in full on every call rather than caching its own result).
+typedef struct {
+  EclipseData *data;
+} TopGradientState;
+
+static void top_gradient_update_proc(Layer *layer, GContext *ctx) {
+  TopGradientState *state = (TopGradientState *)layer_get_data(layer);
+  EclipseData *d = state->data;
+  GRect bounds = layer_get_bounds(layer);
+  if (!d) return;
+
+  if (d->sky_mode == 2) {
+    graphics_context_set_fill_color(ctx, GColorBlack);
+    graphics_fill_rect(ctx, bounds, 0, GCornerNone);
+    return;
+  }
+
+  RGB8 top, band, hz;
+  int16_t band_y;
+  bool flat_black;
+  // virtual_top_y 0 / virtual_total_h 228 -- this strip is always the
+  // TOP slice of one conceptual gradient spanning the app's fixed
+  // 200x228 screen (see the marker ring's own `GRect screen = GRect(0,
+  // 0, 200, 228)` in features_layer.c for the same fixed-screen-size
+  // convention elsewhere), the sky canvas's own bottom slice
+  // continuing it from DIGITAL_PANEL_H down to 228 (see
+  // canvas_update_proc()'s own matching virtual_top_y/virtual_total_h
+  // for that other end) -- the two are laid out edge-to-edge with no
+  // gap, so together they cover the whole thing exactly once.
+  compute_sky_wash(d, time(NULL), 0, 228, &top, &band, &band_y, &hz, &flat_black);
+  if (flat_black) {
+    graphics_context_set_fill_color(ctx, GColorBlack);
+    graphics_fill_rect(ctx, bounds, 0, GCornerNone);
+    return;
+  }
+  fill_sky_gradient_ex(ctx, bounds, 0, 228, top, band, band_y, hz);
+}
+
+Layer *eclipse_top_gradient_create(GRect frame) {
+  Layer *layer = layer_create_with_data(frame, sizeof(TopGradientState));
+  TopGradientState *state = (TopGradientState *)layer_get_data(layer);
+  state->data = NULL;
+  layer_set_update_proc(layer, top_gradient_update_proc);
+  return layer;
+}
+
+void eclipse_top_gradient_destroy(Layer *layer) {
+  layer_destroy(layer);
+}
+
+void eclipse_top_gradient_set_data(Layer *layer, EclipseData *data) {
+  TopGradientState *state = (TopGradientState *)layer_get_data(layer);
+  state->data = data;
   layer_mark_dirty(layer);
 }
 

@@ -17,19 +17,26 @@
 // How far a corner slot's box sits from the screen edge.
 #define CORNER_INSET_PX 2
 
-// The digital mode's bottom (clock) panel's own fixed height -- screen
-// height (228) minus the sky canvas's fixed top-of-panel value (152,
-// see apply_layout()/unobstructed_change_handler() in
-// pebble-eclipse-watch.c, both of which keep the panel at this exact
-// height and instead shift its TOP up as a system notification
-// obstructs the bottom of the screen, rather than shrinking it). Used
-// below purely to keep the two BOTTOM corner slots anchored to the
-// sky's own bottom edge in digital mode (see their own comment) --
-// the obstruction itself cancels out of that distance (both the sky
-// and the full screen shrink by the exact same amount), so this can
-// stay a plain constant instead of something recomputed on every
-// unobstructed-area change.
-#define DIGITAL_PANEL_H 76
+// DIGITAL_PANEL_H (the digital clock panel's own fixed height -- screen
+// height 228 minus the sky canvas's fixed top-of-panel value 152) now
+// lives in background_layer.h (background_layer.c needs it too, to size
+// Digital top's own reserved gradient-only strip) -- see that header's
+// own comment for the full explanation this used to carry here. Same
+// name/value, still used below purely to keep the two BOTTOM (Digital
+// bar) or TOP (Digital top) corner slots anchored to the sky's own
+// edge rather than the full screen's.
+
+// Pulls bottom_style's side-code (0/2/3/4, same meaning regardless of
+// which layout) and top-vs-bottom bit back apart -- see that field's
+// own comment in eclipse_data.h. Declared in features_layer.h; used
+// throughout this file and by pebble-eclipse-watch.c's own clock-text
+// drawing.
+uint8_t digital_side_mode(uint8_t bottom_style) {
+  return bottom_style_is_digital_top(bottom_style) ? bottom_style - 5 : bottom_style;
+}
+bool bottom_style_is_digital_top(uint8_t bottom_style) {
+  return bottom_style >= 5;
+}
 
 // point_in_convex_polygon()/fill_polygon_dithered() used to live here
 // for the old "semi" color mode's dithered highlight plate -- removed
@@ -2517,10 +2524,11 @@ static void features_draw_slot(GContext *ctx, GRect bounds, const FeatureSlot *s
 // features_recompute_layout() (positions the bottom feature to match)
 // so the two can never drift out of sync with each other.
 void digital_clock_area(uint8_t bottom_style, int16_t screen_w, int16_t *out_x, int16_t *out_w) {
-  if (bottom_style == 2) { // right side only -- shift left
+  uint8_t side = digital_side_mode(bottom_style);
+  if (side == 2) { // right side only -- shift left
     *out_x = 0;
     *out_w = screen_w - CORNER_BOX_W;
-  } else if (bottom_style == 3) { // left side only -- shift right
+  } else if (side == 3) { // left side only -- shift right
     *out_x = CORNER_BOX_W;
     *out_w = screen_w - CORNER_BOX_W;
   } else { // 0 (no sides) or 4 (both sides) -- centered, full width
@@ -2536,6 +2544,7 @@ static void features_recompute_layout(FeaturesState *state) {
   if (!d) return;
 
   bool is_analog = d->bottom_style == 1;
+  bool is_digital_top = bottom_style_is_digital_top(d->bottom_style);
   uint8_t marker_style = d->big_analog_marker_style;
   bool is_bitmap_style = is_analog && marker_style >= 3 && marker_style != 8 && marker_style != 9;
 
@@ -2727,52 +2736,63 @@ static void features_recompute_layout(FeaturesState *state) {
     int16_t clock_x, clock_w;
     digital_clock_area(d->bottom_style, 200, &clock_x, &clock_w);
 
-    // 1 = top (nearest the clock), 3 = bottom (nearest the screen
-    // edge) -- all bottom-anchored (not top-anchored off a fixed
-    // panel offset) so a shrinking screen during a system
-    // notification shifts the whole stack up together, same as the
-    // corners already do, rather than the top row drifting away from
-    // the panel it's meant to sit inside.
+    // 1 = nearest the clock, 3 = nearest the screen's own outer edge --
+    // anchored off whichever edge is adjacent to the clock for the
+    // CURRENT layout (the panel's own top for Digital bar, since the
+    // clock sits near there with the sky above it; the panel's own
+    // bottom for Digital top, mirrored, since the clock sits near
+    // THERE with the sky below it instead) via is_top/top_offset vs
+    // bottom_shift -- same row_1/2/3_off magnitudes either way, so
+    // Digital top's column reads as a literal vertical flip of Digital
+    // bar's rather than a separately-tuned layout. Bottom-anchored (not
+    // top-anchored off a fixed panel offset) in the Digital bar case so
+    // a shrinking screen during a system notification shifts the whole
+    // stack up together, same as the corners already do, rather than
+    // the top row drifting away from the panel it's meant to sit
+    // inside -- Digital top has no such obstruction to react to (system
+    // notifications only ever eat into the screen's bottom), so being
+    // top-anchored there costs nothing.
+    int16_t row1_off = CORNER_ROW_H * 2, row2_off = CORNER_ROW_H, row3_off = 0;
     state->slots[SLOT_LEFT_L1] = (FeatureSlot){
       .active = true, .content = d->middle_left_line1_content, .color_mode = d->middle_left_line1_color_mode,
-      .is_top = false, .is_left = true, .is_middle = false, .is_side = true,
-      .top_offset = 0, .bottom_shift = CORNER_ROW_H * 2, .middle_inset = 0,
+      .is_top = is_digital_top, .is_left = true, .is_middle = false, .is_side = true,
+      .top_offset = is_digital_top ? row1_off : 0, .bottom_shift = is_digital_top ? 0 : row1_off, .middle_inset = 0,
       .center_horizontal = false, .center_vertical = false, .allow_outline = true,
       .needs_second_refresh = content_needs_second_refresh(d->middle_left_line1_content),
     };
     state->slots[SLOT_LEFT_L2] = (FeatureSlot){
       .active = true, .content = d->middle_left_line2_content, .color_mode = d->middle_left_line2_color_mode,
-      .is_top = false, .is_left = true, .is_middle = false, .is_side = true,
-      .top_offset = 0, .bottom_shift = CORNER_ROW_H, .middle_inset = 0,
+      .is_top = is_digital_top, .is_left = true, .is_middle = false, .is_side = true,
+      .top_offset = is_digital_top ? row2_off : 0, .bottom_shift = is_digital_top ? 0 : row2_off, .middle_inset = 0,
       .center_horizontal = false, .center_vertical = false, .allow_outline = true,
       .needs_second_refresh = content_needs_second_refresh(d->middle_left_line2_content),
     };
     state->slots[SLOT_UPPER_L1] = (FeatureSlot){ // reused: digital left column, row 3 -- reads upper_middle_line1
       .active = true, .content = d->upper_middle_line1_content, .color_mode = d->upper_middle_line1_color_mode,
-      .is_top = false, .is_left = true, .is_middle = false, .is_side = true,
-      .top_offset = 0, .bottom_shift = 0, .middle_inset = 0,
+      .is_top = is_digital_top, .is_left = true, .is_middle = false, .is_side = true,
+      .top_offset = row3_off, .bottom_shift = row3_off, .middle_inset = 0,
       .center_horizontal = false, .center_vertical = false, .allow_outline = true,
       .needs_second_refresh = content_needs_second_refresh(d->upper_middle_line1_content),
     };
 
     state->slots[SLOT_RIGHT_L1] = (FeatureSlot){
       .active = true, .content = d->middle_right_line1_content, .color_mode = d->middle_right_line1_color_mode,
-      .is_top = false, .is_left = false, .is_middle = false, .is_side = true,
-      .top_offset = 0, .bottom_shift = CORNER_ROW_H * 2, .middle_inset = 0,
+      .is_top = is_digital_top, .is_left = false, .is_middle = false, .is_side = true,
+      .top_offset = is_digital_top ? row1_off : 0, .bottom_shift = is_digital_top ? 0 : row1_off, .middle_inset = 0,
       .center_horizontal = false, .center_vertical = false, .allow_outline = true,
       .needs_second_refresh = content_needs_second_refresh(d->middle_right_line1_content),
     };
     state->slots[SLOT_RIGHT_L2] = (FeatureSlot){
       .active = true, .content = d->middle_right_line2_content, .color_mode = d->middle_right_line2_color_mode,
-      .is_top = false, .is_left = false, .is_middle = false, .is_side = true,
-      .top_offset = 0, .bottom_shift = CORNER_ROW_H, .middle_inset = 0,
+      .is_top = is_digital_top, .is_left = false, .is_middle = false, .is_side = true,
+      .top_offset = is_digital_top ? row2_off : 0, .bottom_shift = is_digital_top ? 0 : row2_off, .middle_inset = 0,
       .center_horizontal = false, .center_vertical = false, .allow_outline = true,
       .needs_second_refresh = content_needs_second_refresh(d->middle_right_line2_content),
     };
     state->slots[SLOT_UPPER_L2] = (FeatureSlot){ // reused: digital right column, row 3 -- reads upper_middle_line2
       .active = true, .content = d->upper_middle_line2_content, .color_mode = d->upper_middle_line2_color_mode,
-      .is_top = false, .is_left = false, .is_middle = false, .is_side = true,
-      .top_offset = 0, .bottom_shift = 0, .middle_inset = 0,
+      .is_top = is_digital_top, .is_left = false, .is_middle = false, .is_side = true,
+      .top_offset = row3_off, .bottom_shift = row3_off, .middle_inset = 0,
       .center_horizontal = false, .center_vertical = false, .allow_outline = true,
       .needs_second_refresh = content_needs_second_refresh(d->upper_middle_line2_content),
     };
@@ -2781,12 +2801,14 @@ static void features_recompute_layout(FeaturesState *state) {
     // upper of its own 2-line pair; bottom_middle_line2 has no
     // digital-mode role, 7 slots needed against 8 available fields).
     // Shares clock_x/clock_w with the clock text itself
-    // (bottom_canvas_update_proc() in pebble-eclipse-watch.c uses the
+    // (draw_digital_clock_panel() in pebble-eclipse-watch.c uses the
     // exact same digital_clock_area() call), always centered within
-    // that band, anchored to the screen's own bottom edge.
+    // that band, anchored to the screen's own outer edge -- the true
+    // bottom for Digital bar, the true top for Digital top (row 3's own
+    // edge in both cases, per the comment above).
     state->slots[SLOT_BOTTOM_L1] = (FeatureSlot){
       .active = true, .content = d->bottom_middle_line1_content, .color_mode = d->bottom_middle_line1_color_mode,
-      .is_top = false, .is_left = true, .is_middle = false, .is_side = false,
+      .is_top = is_digital_top, .is_left = true, .is_middle = false, .is_side = false,
       .top_offset = 0, .bottom_shift = 0, .middle_inset = 0,
       .center_horizontal = false, .center_vertical = false, .allow_outline = true,
       .custom_box = true, .box_x = clock_x, .box_w = clock_w,
@@ -2798,32 +2820,46 @@ static void features_recompute_layout(FeaturesState *state) {
   // every marker style including bitmap ones -- defaulting that to
   // "off" for bitmap styles (and offering an "enable corner features"
   // override) is the settings page's job, not this file's.
+  //
+  // Top corners (TL/TR): anchored to the screen's own top edge for
+  // Analog and Digital bar (both have open sky right there), but
+  // pulled DOWN by DIGITAL_PANEL_H for Digital top -- that layout's
+  // panel sits at the top instead, so its own sky begins
+  // DIGITAL_PANEL_H down, and these two need to land at THAT boundary
+  // instead of the screen's real top edge (features_layer's frame
+  // spans the full screen in every layout -- see apply_layout() -- so
+  // without this they'd land inside the transparent panel itself,
+  // overlapping the clock). Exact mirror of bottom_corner_shift below,
+  // just for the opposite pair of corners.
+  int16_t top_corner_shift = is_digital_top ? DIGITAL_PANEL_H : 0;
   state->slots[SLOT_CORNER_TL] = (FeatureSlot){
     .active = true, .content = d->corner_content[0], .color_mode = d->corner_color_mode[0],
     .is_top = true, .is_left = true, .is_middle = false, .is_side = false,
-    .top_offset = CORNER_INSET_PX, .bottom_shift = 0,
+    .top_offset = CORNER_INSET_PX + top_corner_shift, .bottom_shift = 0,
     .center_horizontal = false, .center_vertical = false, .allow_outline = true,
     .needs_second_refresh = content_needs_second_refresh(d->corner_content[0]),
   };
   state->slots[SLOT_CORNER_TR] = (FeatureSlot){
     .active = true, .content = d->corner_content[1], .color_mode = d->corner_color_mode[1],
     .is_top = true, .is_left = false, .is_middle = false, .is_side = false,
-    .top_offset = CORNER_INSET_PX, .bottom_shift = 0,
+    .top_offset = CORNER_INSET_PX + top_corner_shift, .bottom_shift = 0,
     .center_horizontal = false, .center_vertical = false, .allow_outline = true,
     .needs_second_refresh = content_needs_second_refresh(d->corner_content[1]),
   };
   // Bottom corners (BL/BR): stay anchored to the SKY's own bottom
   // edge, not the full screen's -- meaningfully different only in
-  // digital mode, where the sky canvas only occupies the screen's top
+  // Digital bar, where the sky canvas only occupies the screen's top
   // portion and the digital clock's own bottom panel fills the rest.
-  // features_layer's own frame spans the FULL screen in both modes
+  // features_layer's own frame spans the FULL screen in every layout
   // (see apply_layout()), so a plain bottom_shift of 0 here would put
   // these two corners down inside the digital panel instead of at the
   // sky's own bottom-left/-right -- adding DIGITAL_PANEL_H's worth of
   // shift pulls them back up to the sky boundary. Analog mode has no
-  // separate panel (sky already fills the screen), so bottom_shift
-  // stays 0 there, same as before.
-  int16_t bottom_corner_shift = is_analog ? 0 : DIGITAL_PANEL_H;
+  // separate panel (sky already fills the screen) and Digital top's
+  // own sky already reaches all the way to the real screen bottom (its
+  // panel is up at the TOP instead -- see top_corner_shift above), so
+  // bottom_shift stays 0 for both of those.
+  int16_t bottom_corner_shift = (is_analog || is_digital_top) ? 0 : DIGITAL_PANEL_H;
   state->slots[SLOT_CORNER_BL] = (FeatureSlot){
     .active = true, .content = d->corner_content[2], .color_mode = d->corner_color_mode[2],
     .is_top = false, .is_left = true, .is_middle = false, .is_side = false,
