@@ -374,7 +374,7 @@ void celestial_layer_update(CelestialLayerState *state, GContext *ctx, GRect bou
   bool star_visible[STAR_COUNT] = { false };
   GPoint star_center[STAR_COUNT];
   for (int s = 0; s < STAR_COUNT; s++) star_center[s] = GPoint(0, 0);
-  if (d->sky_mode == 2 && !suppress_other_bodies) {
+  if (d->sky_mode == 2 && d->show_major_stars && !skip_body_paint && !suppress_other_bodies) {
     for (int s = 0; s < STAR_COUNT; s++) {
       if (d->star_alt_decideg[s] <= 0) continue;
       int16_t y = celestial_alt_to_y(d->star_alt_decideg[s], d->sky_scale_max_alt_decideg, bounds.size.h, STAR_RADIUS[s]);
@@ -577,7 +577,7 @@ void celestial_layer_draw_planet_seek(GContext *ctx, GRect bounds, const Eclipse
                            state->planet_center[p], CELESTIAL_PLANET_R, planet_color((PlanetId)p), heading_deg,
                            blend_t_1000, label_style, main_color, false, 0, false);
   }
-  if (d->sky_mode == 2) {
+  if (d->sky_mode == 2 && d->show_major_stars) {
     for (int s = 0; s < STAR_COUNT; s++) {
       if (!state->star_visible[s]) continue;
       draw_planet_seek_body(ctx, bounds, STAR_NAMES[s], d->star_az_decideg[s], state->star_center[s], STAR_RADIUS[s],

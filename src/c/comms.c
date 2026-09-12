@@ -357,6 +357,10 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
     d->show_iss = t->value->uint8 != 0;
     changes |= COMMS_CHANGE_CANVAS;
   }
+  if ((t = dict_find(iter, MESSAGE_KEY_SHOW_MAJOR_STARS))) {
+    d->show_major_stars = t->value->uint8 != 0;
+    changes |= COMMS_CHANGE_CANVAS;
+  }
   if ((t = dict_find(iter, MESSAGE_KEY_AURORA_ENABLED))) {
     d->aurora_enabled = t->value->uint8 != 0;
     changes |= COMMS_CHANGE_CANVAS;
