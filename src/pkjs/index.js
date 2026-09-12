@@ -2083,16 +2083,22 @@ Pebble.addEventListener('showConfiguration', function () {
     serviceLogs: servicelog.snapshotAll(),
     presetSlot1Name: getSetting('CONFIG_PRESET_1_NAME', ''),
     presetSlot1Json: getSetting('CONFIG_PRESET_1_JSON', ''),
+    presetSlot1Image: getSetting('CONFIG_PRESET_1_IMAGE', ''),
     presetSlot2Name: getSetting('CONFIG_PRESET_2_NAME', ''),
     presetSlot2Json: getSetting('CONFIG_PRESET_2_JSON', ''),
+    presetSlot2Image: getSetting('CONFIG_PRESET_2_IMAGE', ''),
     presetSlot3Name: getSetting('CONFIG_PRESET_3_NAME', ''),
     presetSlot3Json: getSetting('CONFIG_PRESET_3_JSON', ''),
+    presetSlot3Image: getSetting('CONFIG_PRESET_3_IMAGE', ''),
     presetSlot4Name: getSetting('CONFIG_PRESET_4_NAME', ''),
     presetSlot4Json: getSetting('CONFIG_PRESET_4_JSON', ''),
+    presetSlot4Image: getSetting('CONFIG_PRESET_4_IMAGE', ''),
     presetSlot5Name: getSetting('CONFIG_PRESET_5_NAME', ''),
     presetSlot5Json: getSetting('CONFIG_PRESET_5_JSON', ''),
+    presetSlot5Image: getSetting('CONFIG_PRESET_5_IMAGE', ''),
     presetSlot6Name: getSetting('CONFIG_PRESET_6_NAME', ''),
-    presetSlot6Json: getSetting('CONFIG_PRESET_6_JSON', '')
+    presetSlot6Json: getSetting('CONFIG_PRESET_6_JSON', ''),
+    presetSlot6Image: getSetting('CONFIG_PRESET_6_IMAGE', '')
   });
   // Classic no-server config page: the whole thing is a data: URI, no
   // hosting required. The page reads a `return_to` query param that
@@ -2326,16 +2332,22 @@ Pebble.addEventListener('webviewclosed', function (e) {
   setSetting('CONFIG_DEBUG_OVERRIDE_DATA', settings.CONFIG_DEBUG_OVERRIDE_DATA || '');
   setSetting('CONFIG_PRESET_1_NAME', settings.CONFIG_PRESET_1_NAME || '');
   setSetting('CONFIG_PRESET_1_JSON', settings.CONFIG_PRESET_1_JSON || '');
+  setSetting('CONFIG_PRESET_1_IMAGE', settings.CONFIG_PRESET_1_IMAGE || '');
   setSetting('CONFIG_PRESET_2_NAME', settings.CONFIG_PRESET_2_NAME || '');
   setSetting('CONFIG_PRESET_2_JSON', settings.CONFIG_PRESET_2_JSON || '');
+  setSetting('CONFIG_PRESET_2_IMAGE', settings.CONFIG_PRESET_2_IMAGE || '');
   setSetting('CONFIG_PRESET_3_NAME', settings.CONFIG_PRESET_3_NAME || '');
   setSetting('CONFIG_PRESET_3_JSON', settings.CONFIG_PRESET_3_JSON || '');
+  setSetting('CONFIG_PRESET_3_IMAGE', settings.CONFIG_PRESET_3_IMAGE || '');
   setSetting('CONFIG_PRESET_4_NAME', settings.CONFIG_PRESET_4_NAME || '');
   setSetting('CONFIG_PRESET_4_JSON', settings.CONFIG_PRESET_4_JSON || '');
+  setSetting('CONFIG_PRESET_4_IMAGE', settings.CONFIG_PRESET_4_IMAGE || '');
   setSetting('CONFIG_PRESET_5_NAME', settings.CONFIG_PRESET_5_NAME || '');
   setSetting('CONFIG_PRESET_5_JSON', settings.CONFIG_PRESET_5_JSON || '');
+  setSetting('CONFIG_PRESET_5_IMAGE', settings.CONFIG_PRESET_5_IMAGE || '');
   setSetting('CONFIG_PRESET_6_NAME', settings.CONFIG_PRESET_6_NAME || '');
   setSetting('CONFIG_PRESET_6_JSON', settings.CONFIG_PRESET_6_JSON || '');
+  setSetting('CONFIG_PRESET_6_IMAGE', settings.CONFIG_PRESET_6_IMAGE || '');
   setSetting('CONFIG_DRAW_DEBUG', settings.CONFIG_DRAW_DEBUG ? 'true' : 'false');
   setSetting('CONFIG_HOURLY_VIBE_MODE', settings.CONFIG_HOURLY_VIBE_MODE || '0');
   setSetting('CONFIG_HOURLY_VIBE_INTERVAL_MIN', settings.CONFIG_HOURLY_VIBE_INTERVAL_MIN || '30');

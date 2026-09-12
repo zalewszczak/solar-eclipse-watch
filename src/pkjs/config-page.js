@@ -1060,21 +1060,25 @@ function handEditorModalHtml(kind, title) {
  *     AppMessage key/value pre-filled for the debug "Full keyset" window (see buildFullKeysetDict() in index.js) }
  */
 // One quick-recall Style Presets row (apply button, rename input, save/
-// rename icon buttons) plus its two backing hidden inputs -- called for
-// n = 1..6 from buildConfigHtml below, same "templated, not copy-pasted
-// per slot" pattern as handEditorModalHtml() uses for the 3 hands.
+// rename/delete icon buttons) plus its three backing hidden inputs --
+// called for n = 1..6 from buildConfigHtml below, same "templated, not
+// copy-pasted per slot" pattern as handEditorModalHtml() uses for the
+// 3 hands.
 function presetSlotHtml(current, n) {
   var name = current['presetSlot' + n + 'Name'] || ('Preset ' + n);
   var json = current['presetSlot' + n + 'Json'] || '';
+  var image = current['presetSlot' + n + 'Image'] || '';
   return (
 '    <div class="preset-slot-row">' +
 '      <button type="button" class="preset-apply-btn" id="presetApplyBtn' + n + '" onclick="applyPresetSlot(' + n + ')" ' + (json ? '' : 'disabled') + '>' + esc(name) + '</button>' +
 '      <input type="text" class="preset-name-input" id="presetNameInput' + n + '" style="display:none;" onblur="commitRenamePresetSlot(' + n + ')" onkeydown="if (event.key === \'Enter\') this.blur();">' +
 '      <button type="button" class="preset-icon-btn" onclick="savePresetSlot(' + n + ')" title="Save current design here">&#128190;</button>' +
 '      <button type="button" class="preset-icon-btn" onclick="startRenamePresetSlot(' + n + ')" title="Rename">&#9998;</button>' +
+'      <button type="button" class="preset-icon-btn" onclick="deletePresetSlot(' + n + ')" title="Delete" id="presetDeleteBtn' + n + '" ' + (json ? '' : 'disabled') + '>&#128465;</button>' +
 '    </div>' +
 '    <input type="hidden" id="presetSlot' + n + 'Name" value="' + esc(name) + '">' +
-'    <input type="hidden" id="presetSlot' + n + 'Json" value="' + esc(json) + '">'
+'    <input type="hidden" id="presetSlot' + n + 'Json" value="' + esc(json) + '">' +
+'    <input type="hidden" id="presetSlot' + n + 'Image" value="' + esc(image) + '">'
   );
 }
 // One "Update section" status row (colored dot + service name + an
@@ -1569,6 +1573,23 @@ cdnFontLinks() +
 '  .modal-cancel-btn { width: 100%; padding: 12px; font-size: 14px; font-weight: 600; color: var(--text-strong); background: var(--border-light); border: none; border-radius: 8px; margin-top: 12px; }' +
 '  .modal-confirm-btn { width: 100%; padding: 12px; font-size: 14px; font-weight: 600; color: #fff; background: #ff9200; border: none; border-radius: 8px; margin-top: 8px; }' +
 '  .modal-confirm-btn:active { background: #e08300; }' +
+// Delete's own red variant of .modal-confirm-btn, for the delete-preset
+// confirmation only -- everything else that uses showConfirm() keeps
+// the ordinary orange "Confirm" styling/wording.
+'  .modal-confirm-btn.danger { background: #e03131; }' +
+'  .modal-confirm-btn.danger:active { background: #c92a2a; }' +
+// Preset save/apply confirmations show a quick before/after preview
+// pair here -- see showConfirm()'s own images param -- each about a
+// third of the popup's own width (.modal-box maxes out at 400px), a
+// red-bordered "what's there now / about to change FROM" image, an
+// arrow, and a green-bordered "what it's changing TO" one. Delete's
+// own confirmation reuses just the left (red) slot alone, no arrow/
+// right image, for the one preset image being removed.
+'  .confirm-image-compare { display: flex; align-items: center; justify-content: center; gap: 8px; margin: 4px 0 12px; }' +
+'  .confirm-compare-img { width: 32%; height: auto; display: block; border-radius: 8px; box-sizing: border-box; border: 3px solid; background: #000; }' +
+'  .confirm-compare-img.border-red { border-color: #e03131; }' +
+'  .confirm-compare-img.border-green { border-color: #2f9e44; }' +
+'  .confirm-compare-arrow { font-size: 22px; line-height: 1; color: var(--text-faint); flex-shrink: 0; }' +
 '  .example-style-modal-img { max-width: min(50%, 3cm); width: auto; height: auto; margin: 0 auto; border-radius: 8px; display: block; }' +
 '  .example-style-modal-title { font-weight: 700; font-size: 16px; margin-top: 10px; text-align: center; color: var(--text-strong); }' +
 '  .mode-btn-group { display: flex; width: 100%; margin-top: 6px; border-radius: 6px; overflow: hidden; border: 1px solid var(--border); box-sizing: border-box; }' +
@@ -1994,8 +2015,13 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '<div class="modal-overlay" id="confirmModal" onclick="if (event.target === this) closeConfirmModal();">' +
 '  <div class="modal-box">' +
 '    <div class="modal-title" id="confirmModalTitle"></div>' +
+'    <div class="confirm-image-compare" id="confirmImageCompare" style="display:none;">' +
+'      <img class="confirm-compare-img border-red" id="confirmImageLeft" alt="">' +
+'      <span class="confirm-compare-arrow" id="confirmImageArrow">&#8594;</span>' +
+'      <img class="confirm-compare-img border-green" id="confirmImageRight" alt="">' +
+'    </div>' +
 '    <div class="help" id="confirmModalMessage" style="text-align:center;"></div>' +
-'    <button type="button" class="modal-confirm-btn" onclick="confirmModalYes()">Confirm</button>' +
+'    <button type="button" class="modal-confirm-btn" id="confirmModalYesBtn" onclick="confirmModalYes()">Confirm</button>' +
 '    <button type="button" class="modal-cancel-btn" onclick="closeConfirmModal()">Cancel</button>' +
 '  </div>' +
 '</div>' +
@@ -5341,11 +5367,37 @@ handEditorModalHtml('sec', 'Edit second hand') +
 // Shared "are you sure?" step -- stashes the action to run and shows
 // the confirm modal; confirmModalYes() runs it (once) and closes;
 // canceling (or tapping outside the box) just closes without running
-// anything.
+// anything. opts is optional: { images: {left, right (optional)},
+// danger: bool, confirmLabel: string } -- images shows the before/
+// after (or, with no `right`, just a single) preview compare row;
+// danger switches the confirm button to its red "destructive action"
+// styling and, together with confirmLabel, is only ever used by the
+// preset delete flow below.
 'var s_pendingConfirmAction = null;' +
-'function showConfirm(title, message, onConfirm) {' +
+'function showConfirm(title, message, onConfirm, opts) {' +
+'  opts = opts || {};' +
 '  document.getElementById("confirmModalTitle").textContent = title;' +
 '  document.getElementById("confirmModalMessage").textContent = message;' +
+'  var compareRow = document.getElementById("confirmImageCompare");' +
+'  if (opts.images && opts.images.left) {' +
+'    document.getElementById("confirmImageLeft").src = opts.images.left;' +
+'    compareRow.style.display = "flex";' +
+'    var rightImg = document.getElementById("confirmImageRight");' +
+'    var arrow = document.getElementById("confirmImageArrow");' +
+'    if (opts.images.right) {' +
+'      rightImg.src = opts.images.right;' +
+'      rightImg.style.display = "";' +
+'      arrow.style.display = "";' +
+'    } else {' +
+'      rightImg.style.display = "none";' +
+'      arrow.style.display = "none";' +
+'    }' +
+'  } else {' +
+'    compareRow.style.display = "none";' +
+'  }' +
+'  var yesBtn = document.getElementById("confirmModalYesBtn");' +
+'  yesBtn.className = "modal-confirm-btn" + (opts.danger ? " danger" : "");' +
+'  yesBtn.textContent = opts.confirmLabel || "Confirm";' +
 '  s_pendingConfirmAction = onConfirm;' +
 '  document.getElementById("confirmModal").className = "modal-overlay open";' +
 '}' +
@@ -5389,26 +5441,69 @@ handEditorModalHtml('sec', 'Edit second hand') +
 'function closeServiceLogModal() {' +
 '  document.getElementById("serviceLogModal").className = "modal-overlay";' +
 '}' +
+// Snapshots the live preview canvas as a small PNG data URL -- used to
+// remember what a preset looked like at save time, and to show the
+// current design for comparison when applying/saving/deleting one.
+// Never sent to the watch (nothing in this app's AppMessage traffic
+// touches it) -- purely a phone-side round-trip through settings, same
+// as the preset's own JSON blob already is.
+'function capturePreviewImage() {' +
+'  var canvas = document.getElementById("previewCanvas");' +
+'  if (!canvas || !canvas.toDataURL) return "";' +
+'  try { return canvas.toDataURL("image/png"); } catch (e) { return ""; }' +
+'}' +
 'function applyPresetSlot(n) {' +
 '  var jsonEl = document.getElementById("presetSlot" + n + "Json");' +
 '  if (!jsonEl || !jsonEl.value) return;' +
 '  var obj;' +
 '  try { obj = JSON.parse(jsonEl.value); } catch (e) { return; }' +
 '  var name = document.getElementById("presetSlot" + n + "Name").value || ("Preset " + n);' +
+'  var currentImg = capturePreviewImage();' +
+'  var savedImg = document.getElementById("presetSlot" + n + "Image").value;' +
+// Applying: left/red is the current (about to be replaced) design,
+// right/green is the saved preset it's changing into -- see
+// showConfirm()'s own images param comment for the shared red=FROM,
+// green=TO convention both directions use.
 '  showConfirm("Apply preset", \'Apply "\' + name + \'"? This replaces your current Style, Colors, and Features settings.\', function () {' +
 '    applyStyleCornersJson(obj);' +
-'  });' +
+'  }, (currentImg && savedImg) ? { images: { left: currentImg, right: savedImg } } : null);' +
 '}' +
 'function savePresetSlot(n) {' +
 '  var jsonEl = document.getElementById("presetSlot" + n + "Json");' +
+'  var imageEl = document.getElementById("presetSlot" + n + "Image");' +
 '  var btn = document.getElementById("presetApplyBtn" + n);' +
+'  var deleteBtn = document.getElementById("presetDeleteBtn" + n);' +
 '  if (!jsonEl) return;' +
 '  var name = document.getElementById("presetSlot" + n + "Name").value || ("Preset " + n);' +
 '  var hadPreset = !!jsonEl.value;' +
+'  var savedImg = imageEl.value;' +
+'  var currentImg = capturePreviewImage();' +
+// Saving: reversed from Apply -- left/red is the EXISTING saved
+// preview about to be overwritten (only shown if there was one),
+// right/green is the current design replacing it.
 '  showConfirm("Save preset", (hadPreset ? \'Overwrite "\' : \'Save your current design into "\') + name + \'"?\' + (hadPreset ? \' This replaces what was saved there.\' : \'\'), function () {' +
 '    jsonEl.value = JSON.stringify(collectStyleCornersJson());' +
+'    imageEl.value = capturePreviewImage();' +
 '    if (btn) btn.disabled = false;' +
-'  });' +
+'    if (deleteBtn) deleteBtn.disabled = false;' +
+'  }, (hadPreset && savedImg && currentImg) ? { images: { left: savedImg, right: currentImg } } : null);' +
+'}' +
+'function deletePresetSlot(n) {' +
+'  var jsonEl = document.getElementById("presetSlot" + n + "Json");' +
+'  var imageEl = document.getElementById("presetSlot" + n + "Image");' +
+'  var nameEl = document.getElementById("presetSlot" + n + "Name");' +
+'  var btn = document.getElementById("presetApplyBtn" + n);' +
+'  var deleteBtn = document.getElementById("presetDeleteBtn" + n);' +
+'  if (!jsonEl || !jsonEl.value) return;' +
+'  var name = nameEl.value || ("Preset " + n);' +
+'  var savedImg = imageEl.value;' +
+'  showConfirm("Delete preset", \'Delete "\' + name + \'"? This can\\\'t be undone.\', function () {' +
+'    jsonEl.value = "";' +
+'    imageEl.value = "";' +
+'    nameEl.value = "Preset " + n;' +
+'    if (btn) { btn.textContent = "Preset " + n; btn.disabled = true; }' +
+'    if (deleteBtn) deleteBtn.disabled = true;' +
+'  }, { images: savedImg ? { left: savedImg } : null, danger: true, confirmLabel: "Delete" });' +
 '}' +
 'function startRenamePresetSlot(n) {' +
 '  var btn = document.getElementById("presetApplyBtn" + n);' +
@@ -6378,16 +6473,22 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    CONFIG_DEBUG_OVERRIDE_DATA: document.getElementById("debugData").value,' +
 '    CONFIG_PRESET_1_NAME: document.getElementById("presetSlot1Name").value,' +
 '    CONFIG_PRESET_1_JSON: document.getElementById("presetSlot1Json").value,' +
+'    CONFIG_PRESET_1_IMAGE: document.getElementById("presetSlot1Image").value,' +
 '    CONFIG_PRESET_2_NAME: document.getElementById("presetSlot2Name").value,' +
 '    CONFIG_PRESET_2_JSON: document.getElementById("presetSlot2Json").value,' +
+'    CONFIG_PRESET_2_IMAGE: document.getElementById("presetSlot2Image").value,' +
 '    CONFIG_PRESET_3_NAME: document.getElementById("presetSlot3Name").value,' +
 '    CONFIG_PRESET_3_JSON: document.getElementById("presetSlot3Json").value,' +
+'    CONFIG_PRESET_3_IMAGE: document.getElementById("presetSlot3Image").value,' +
 '    CONFIG_PRESET_4_NAME: document.getElementById("presetSlot4Name").value,' +
 '    CONFIG_PRESET_4_JSON: document.getElementById("presetSlot4Json").value,' +
+'    CONFIG_PRESET_4_IMAGE: document.getElementById("presetSlot4Image").value,' +
 '    CONFIG_PRESET_5_NAME: document.getElementById("presetSlot5Name").value,' +
 '    CONFIG_PRESET_5_JSON: document.getElementById("presetSlot5Json").value,' +
+'    CONFIG_PRESET_5_IMAGE: document.getElementById("presetSlot5Image").value,' +
 '    CONFIG_PRESET_6_NAME: document.getElementById("presetSlot6Name").value,' +
 '    CONFIG_PRESET_6_JSON: document.getElementById("presetSlot6Json").value,' +
+'    CONFIG_PRESET_6_IMAGE: document.getElementById("presetSlot6Image").value,' +
 '    CONFIG_DRAW_DEBUG: document.getElementById("drawDebug").checked,' +
 '    CONFIG_HOURLY_VIBE_MODE: document.getElementById("hourlyVibeMode").value,' +
 '    CONFIG_HOURLY_VIBE_INTERVAL_MIN: document.getElementById("hourlyVibeIntervalMin").value,' +
