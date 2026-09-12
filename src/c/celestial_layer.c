@@ -476,6 +476,21 @@ void celestial_layer_draw_bg_anim_planets(GContext *ctx, GRect bounds,
     if (p == PLANET_SATURN) draw_saturn(ctx, state->planet_center[p], d->saturn_ring_open_pct);
     else { graphics_context_set_fill_color(ctx, planet_color((PlanetId)p)); graphics_fill_circle(ctx, state->planet_center[p], CELESTIAL_PLANET_R); }
   }
+  // Space view's star field -- celestial_layer_update() above already
+  // computes state->star_visible[]/star_center[] every frame regardless
+  // of skip_body_paint (same as it does for the Sun/Moon/planets), but
+  // nothing used to actually paint them back in here, so they simply
+  // never appeared for the ~2s "animate background on start" sweep and
+  // only popped in once bg_anim_mode 1 ended and the normal (non-
+  // skip_body_paint) draw path took over. Same plain white fill circle
+  // celestial_layer_update() itself uses; no per-star animation of
+  // their own to blend since -- unlike the Sun/Moon/planets -- stars
+  // don't move with the sweep's altitude/azimuth interpolation at all.
+  for (int s = 0; s < STAR_COUNT; s++) {
+    if (!state->star_visible[s]) continue;
+    graphics_context_set_fill_color(ctx, GColorWhite);
+    graphics_fill_circle(ctx, state->star_center[s], STAR_RADIUS[s]);
+  }
 }
 
 static int32_t planet_seek_az_offset_decideg(uint16_t az_decideg, int32_t heading_deg) {
