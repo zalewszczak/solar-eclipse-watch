@@ -163,7 +163,8 @@
       "HOURLY_VIBE_START_MIN",
       "HOURLY_VIBE_END_MIN",
       "HOURLY_VIBE_DAYS_MASK",
-      "HOURLY_VIBE_OVERRIDE_QUIET"
+      "HOURLY_VIBE_OVERRIDE_QUIET",
+      "SHOW_MAJOR_STARS"
     ],
     "resources": {
       "media": [
@@ -474,6 +475,30 @@
           "type": "bitmap",
           "name": "ICON_BLUETOOTH",
           "file": "images/icon_bluetooth.png",
+          "memoryFormat": "1BitPalette"
+        },
+        {
+          "type": "bitmap",
+          "name": "ICON_QUIET_TIME",
+          "file": "images/icon_quiet_time.png",
+          "memoryFormat": "1BitPalette"
+        },
+        {
+          "type": "bitmap",
+          "name": "ICON_QUIET_TIME_MUTED",
+          "file": "images/icon_quiet_time_muted.png",
+          "memoryFormat": "1BitPalette"
+        },
+        {
+          "type": "bitmap",
+          "name": "ICON_HOURLY_VIBE",
+          "file": "images/icon_hourly_vibe.png",
+          "memoryFormat": "1BitPalette"
+        },
+        {
+          "type": "bitmap",
+          "name": "ICON_HOURLY_VIBE_OFF",
+          "file": "images/icon_hourly_vibe_off.png",
           "memoryFormat": "1BitPalette"
         },
         {

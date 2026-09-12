@@ -2428,7 +2428,7 @@ static void draw_planet_seek_overlay(GContext *ctx, CanvasState *state, const Ec
   // the phone, unlike the Sun/Moon/planets' whole-day arcs, so there's
   // nothing to interpolate: d->star_az_decideg[]/d->iss_az_deg IS
   // already "now".
-  if (d->sky_mode == 2) {
+  if (d->sky_mode == 2 && d->show_major_stars) {
     for (int s = 0; s < STAR_COUNT; s++) {
       if (d->star_alt_decideg[s] <= 0) continue; // below the horizon
       int16_t s_y = alt_to_y(d->star_alt_decideg[s], d->sky_scale_max_alt_decideg, bounds.size.h, STAR_RADIUS[s]);
@@ -2735,6 +2735,11 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
   // stars/planets/ISS are all hidden for the duration, the same way
   // they'd be washed out by real daylight in Clear/Weather sky mode
   // (Space view has no atmosphere to do that on its own).
+  //
+  // show_major_stars: user setting, on by default -- turning it off
+  // limits Space view to the Sun/Moon/planets and the sky-effects
+  // layer (aurora/ISS/meteor showers, drawn further down, entirely
+  // unaffected by this flag) rather than this star field specifically.
   bool suppress_other_bodies_for_eclipse = d->sky_mode == 2 && eclipse_is_active(d, now);
   bool star_visible[STAR_COUNT];
   GPoint star_center[STAR_COUNT];
@@ -2742,7 +2747,7 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
     star_visible[s] = false;
     star_center[s] = GPoint(0, 0);
   }
-  if (d->sky_mode == 2 && !skip_body_paint && !suppress_other_bodies_for_eclipse) {
+  if (d->sky_mode == 2 && d->show_major_stars && !skip_body_paint && !suppress_other_bodies_for_eclipse) {
     for (int s = 0; s < STAR_COUNT; s++) {
       int16_t s_alt = d->star_alt_decideg[s];
       if (s_alt <= 0) continue; // below the horizon -- no atmosphere doesn't mean no ground
@@ -2858,10 +2863,17 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
   }
   if (sun_up && !skip_body_paint) {
     // fullscreen-sun (an eclipse's space view, see fullscreen_sun's
-    // own comment above) gets the flat space color instead of the
-    // normal altitude-based white-to-red shift -- see
-    // SUN_COLOR_SPACE_R's own comment for why.
-    RGB8 sun_rgb = fullscreen_sun
+    // own comment above) AND ordinary Space view both get the flat
+    // space color instead of the normal altitude-based white-to-red
+    // shift -- see SUN_COLOR_SPACE_R's own comment for why: Space view
+    // is defined as having no atmosphere, and that white-to-red shift
+    // models exactly the atmospheric scattering/reddening a real
+    // sunset shows, so imitating it here would contradict the mode's
+    // own premise. (fullscreen_sun implies sky_mode == 2 already --
+    // see its own definition -- so this is really just "sky_mode == 2"
+    // written to keep both call sites' reasoning visible together.)
+    bool is_space_view = fullscreen_sun || d->sky_mode == 2;
+    RGB8 sun_rgb = is_space_view
       ? (RGB8){ SUN_COLOR_SPACE_R, SUN_COLOR_SPACE_G, SUN_COLOR_SPACE_B }
       : sun_color_for_altitude(alt);
     GColor sun_fill = GColorFromRGB(sun_rgb.r, sun_rgb.g, sun_rgb.b);

@@ -135,7 +135,7 @@ var KEY_TYPE_MAP = (function () {
     'COLORS',
     'NIGHT_SCHEME_ENABLED',
     'BOTTOM_STYLE', 'SUN_MOON_SIZE_PCT',
-    'SKY_MODE', 'WEATHER_ICON_STYLE', 'AQI_UNIT', 'ALTITUDE_UNIT',
+    'SKY_MODE', 'SHOW_MAJOR_STARS', 'WEATHER_ICON_STYLE', 'AQI_UNIT', 'ALTITUDE_UNIT',
     'SHAKE_LABEL_SECONDS', 'LABEL_STYLE',
     'VIBRATE_ON_PHASE_CHANGE', 'STARTUP_CLOCK_ANIM_MODE',
     'BG_ANIM_MODE', 'SHAKE_ANIM_MODE', 'OUTLINE_ENABLED',
@@ -803,6 +803,7 @@ function middleRightLine2ColorModeCode() {
 
 function showSunTimeCode() { return getSetting('CONFIG_SHOW_SUN_TIME', 'false') === 'true' ? 1 : 0; }
 function showIssCode() { return getSetting('CONFIG_SHOW_ISS', 'false') === 'true' ? 1 : 0; }
+function showMajorStarsCode() { return getSetting('CONFIG_SHOW_MAJOR_STARS', 'true') === 'true' ? 1 : 0; }
 function auroraEnabledCode() { return getSetting('CONFIG_AURORA_ENABLED', 'false') === 'true' ? 1 : 0; }
 function vibrateOnPhaseChangeCode() { return getSetting('CONFIG_VIBRATE_ON_PHASE_CHANGE', 'false') === 'true' ? 1 : 0; }
 function drawDebugCode() { return getSetting('CONFIG_DRAW_DEBUG', 'false') === 'true' ? 1 : 0; }
@@ -1026,6 +1027,7 @@ function populateSettingsFields(dict) {
   dict['BOTTOM_STYLE'] = bottomStyleCode();
   dict['SUN_MOON_SIZE_PCT'] = sunMoonSizeCode();
   dict['SKY_MODE'] = skyModeCode();
+  dict['SHOW_MAJOR_STARS'] = showMajorStarsCode();
   dict['WEATHER_ICON_STYLE'] = weatherIconStyleCode();
   dict['AQI_UNIT'] = aqiUnitCode();
   dict['ALTITUDE_UNIT'] = altitudeUnitCode();
@@ -1986,6 +1988,7 @@ Pebble.addEventListener('showConfiguration', function () {
     stepGoal: getSetting('CONFIG_STEP_GOAL', '10000'),
     showSunTime: getSetting('CONFIG_SHOW_SUN_TIME', 'false') === 'true',
     showIss: getSetting('CONFIG_SHOW_ISS', 'false') === 'true',
+    showMajorStars: getSetting('CONFIG_SHOW_MAJOR_STARS', 'true') === 'true',
     auroraEnabled: getSetting('CONFIG_AURORA_ENABLED', 'false') === 'true',
     vibrateOnPhaseChange: getSetting('CONFIG_VIBRATE_ON_PHASE_CHANGE', 'false') === 'true',
     startupClockAnimMode: getSetting('CONFIG_STARTUP_CLOCK_ANIM_MODE', '1'),
@@ -2227,6 +2230,7 @@ Pebble.addEventListener('webviewclosed', function (e) {
   setSetting('CONFIG_STEP_GOAL', settings.CONFIG_STEP_GOAL || '10000');
   setSetting('CONFIG_SHOW_SUN_TIME', settings.CONFIG_SHOW_SUN_TIME ? 'true' : 'false');
   setSetting('CONFIG_SHOW_ISS', settings.CONFIG_SHOW_ISS ? 'true' : 'false');
+  setSetting('CONFIG_SHOW_MAJOR_STARS', settings.CONFIG_SHOW_MAJOR_STARS === false ? 'false' : 'true');
   setSetting('CONFIG_AURORA_ENABLED', settings.CONFIG_AURORA_ENABLED ? 'true' : 'false');
   setSetting('CONFIG_VIBRATE_ON_PHASE_CHANGE', settings.CONFIG_VIBRATE_ON_PHASE_CHANGE ? 'true' : 'false');
   setSetting('CONFIG_STARTUP_CLOCK_ANIM_MODE', settings.CONFIG_STARTUP_CLOCK_ANIM_MODE || '1');

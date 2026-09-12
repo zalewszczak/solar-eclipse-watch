@@ -1642,6 +1642,10 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
     s_data.show_iss = t->value->uint8 != 0;
     if (s_canvas_layer) eclipse_canvas_set_data(s_canvas_layer, &s_data); // force immediately, not just mark dirty -- the canvas throttles plain redraws internally
   }
+  if ((t = dict_find(iter, MESSAGE_KEY_SHOW_MAJOR_STARS))) {
+    s_data.show_major_stars = t->value->uint8 != 0;
+    if (s_canvas_layer) eclipse_canvas_set_data(s_canvas_layer, &s_data); // force immediately, not just mark dirty -- the canvas throttles plain redraws internally
+  }
   if ((t = dict_find(iter, MESSAGE_KEY_AURORA_ENABLED))) {
     s_data.aurora_enabled = t->value->uint8 != 0;
     if (s_canvas_layer) eclipse_canvas_set_data(s_canvas_layer, &s_data); // force immediately, not just mark dirty -- the canvas throttles plain redraws internally

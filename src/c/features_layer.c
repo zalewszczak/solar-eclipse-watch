@@ -725,58 +725,15 @@ static void draw_mountain_icon(GContext *ctx, GPoint top_left, GColor color) {
   gpath_destroy(path2);
 }
 
-// Classic speaker glyph (a small driver box plus a trapezoid cone
-// opening to the right) for the Quiet Time status content types --
-// `muted` (Quiet Time currently active) adds a single diagonal
-// strike-through across the whole glyph, the universal "sound off"
-// reading, rather than a second baked asset. Quiet Time's own dynamic
-// color (red when active, white when not -- see compute_health_value's
-// case 105/106 and compute_combo_value's own quiet-time segments) does
-// most of the state-signaling work; the crossed-out shape is what
-// makes it read correctly even under color_mode settings that ignore
-// that color (mono/accent/Pill).
-static void draw_quiet_time_icon(GContext *ctx, GPoint top_left, GColor color, bool muted) {
-  graphics_context_set_fill_color(ctx, color);
-  graphics_fill_rect(ctx, GRect(top_left.x, top_left.y + 3, 3, 6), 0, GCornerNone);
-  GPoint cone[4] = {
-    GPoint(top_left.x + 3, top_left.y + 3),
-    GPoint(top_left.x + 3, top_left.y + 9),
-    GPoint(top_left.x + 8, top_left.y + 12),
-    GPoint(top_left.x + 8, top_left.y),
-  };
-  GPathInfo cone_info = { .num_points = 4, .points = cone };
-  GPath *cone_path = gpath_create(&cone_info);
-  gpath_draw_filled(ctx, cone_path);
-  gpath_destroy(cone_path);
-  if (muted) {
-    graphics_context_set_stroke_color(ctx, color);
-    graphics_context_set_stroke_width(ctx, 2);
-    graphics_draw_line(ctx, GPoint(top_left.x - 1, top_left.y + 12), GPoint(top_left.x + 10, top_left.y - 1));
-  }
-}
-
-// A tiny watch face (circle + two hand ticks) plus two short zigzag
-// "buzz" strokes beside it, for the Hourly Vibrations status content
-// types -- `off` adds the same single diagonal strike-through
-// draw_quiet_time_icon() uses, for the same "one shape reads correctly
-// under any color_mode" reason.
-static void draw_hourly_vibe_icon(GContext *ctx, GPoint top_left, GColor color, bool off) {
-  graphics_context_set_stroke_color(ctx, color);
-  graphics_context_set_stroke_width(ctx, 1);
-  GPoint watch_center = GPoint(top_left.x + 4, top_left.y + 6);
-  graphics_draw_circle(ctx, watch_center, 4);
-  graphics_draw_line(ctx, watch_center, GPoint(watch_center.x, watch_center.y - 3)); // hour hand, toward 12
-  graphics_draw_line(ctx, watch_center, GPoint(watch_center.x + 2, watch_center.y)); // minute hand, toward 3
-  int16_t zx = top_left.x + 10;
-  graphics_draw_line(ctx, GPoint(zx, top_left.y + 2), GPoint(zx + 3, top_left.y + 5));
-  graphics_draw_line(ctx, GPoint(zx + 3, top_left.y + 5), GPoint(zx, top_left.y + 8));
-  graphics_draw_line(ctx, GPoint(zx + 5, top_left.y + 2), GPoint(zx + 8, top_left.y + 5));
-  graphics_draw_line(ctx, GPoint(zx + 8, top_left.y + 5), GPoint(zx + 5, top_left.y + 8));
-  if (off) {
-    graphics_context_set_stroke_width(ctx, 2);
-    graphics_draw_line(ctx, GPoint(top_left.x - 1, top_left.y + 12), GPoint(top_left.x + 15, top_left.y - 1));
-  }
-}
+// Quiet Time's speaker glyph and Hourly Vibrations' watch+buzz glyph
+// used to be hand-drawn here with fill/gpath primitives, each with its
+// own crossed-out variant drawn via an extra conditional stroke. Both
+// are now plain exported images instead (resources/images/icon_quiet_
+// time*.png, icon_hourly_vibe*.png), drawn through the same shared
+// draw_icon_resource_with_outline() every other bitmap corner icon
+// already uses -- see draw_render_icon()'s own case 29/30 -- so
+// there's no bespoke drawing code left to maintain (or ship) for
+// either one.
 
 // 7-stop gradient: turquoise (cold/low end) -> light blue -> green ->
 // yellow -> orange -> red -> violet (hot/high end). Used for both
@@ -1160,6 +1117,7 @@ static int16_t icon_plus_gap_width(int icon_kind) { // TODO: This might not be n
   switch (icon_kind) {
     case 1: case 2: case 5: case 6: case 7: case 8: case 9: case 10:
     case 18: case 19: case 20: case 21: case 22: case 23: case 24: case 25: case 26: case 28:
+    case 29: case 30:
       return 15; // bitmap icons (7-wide at 140% scale, ~10px) + 5px gap
     case 3: return 13; // battery (8px wide outlined body) + 5px gap
     case 4: return 21; // moon (radius 9, so 2*9+2 diameter box) + gap
@@ -1170,8 +1128,6 @@ static int16_t icon_plus_gap_width(int icon_kind) { // TODO: This might not be n
     case 16: return 14; // wind direction arrow + gap
     case 17: return 20; // mountain icon (16-wide box) + gap
     case 27: return 21; // compass rose (~16px-wide box, same footprint class as moon/mountain) + 5px gap
-    case 29: return 18; // quiet time speaker (~11px wide) + gap
-    case 30: return 24; // hourly vibe watch+buzz (~18px wide, widest of this bunch) + gap
     default: return 0; // no icon
   }
 }
@@ -2659,26 +2615,27 @@ static void draw_render_icon(GContext *ctx, const RenderSegment *seg, int16_t ic
       else draw_compass_icon(ctx, pos, seg->icon_extra, seg->color, seg->color2);
       return;
     }
-    case 29: { // Quiet Time -- speaker / crossed-out speaker (icon_flag: true = active/muted)
-      GPoint pos = GPoint(icon_x, box_y + (CORNER_ROW_H - 12) / 2);
-      if (do_outline) {
-        for (int i = 0; i < offs_n; i++) {
-          draw_quiet_time_icon(ctx, GPoint(pos.x + offs[i].x, pos.y + offs[i].y), outline_color, seg->icon_flag);
-        }
-      }
+    case 29: { // Quiet Time -- speaker / crossed-out speaker (icon_flag: true = active/muted).
+               // Exported to a real image (see resources/images/icon_quiet_time.png /
+               // icon_quiet_time_muted.png) and drawn the exact same way every other
+               // bitmap corner icon is (draw_icon_resource_with_outline, standard
+               // ICON_WIDTH x ICON_ROWS size) -- was hand-drawn with fill/gpath
+               // primitives every frame; a plain resource lookup + the shared tinted-
+               // bitmap draw already every other icon_kind here reuses costs
+               // meaningfully less code than that custom drawing function did.
+      GPoint pos = GPoint(icon_x, box_y + (CORNER_ROW_H - ICON_ROWS) / 2);
+      uint32_t quiet_time_resource = seg->icon_flag ? RESOURCE_ID_ICON_QUIET_TIME_MUTED : RESOURCE_ID_ICON_QUIET_TIME;
       draw_debug_marker_point(ctx, draw_debug, pos, GColorMagenta);
-      draw_quiet_time_icon(ctx, pos, color, seg->icon_flag);
+      draw_icon_resource_with_outline(ctx, pos, quiet_time_resource, outline_style, outline_color, color);
       return;
     }
-    case 30: { // Hourly Vibrations -- watch+buzz / crossed-out (icon_flag: true = off/crossed)
-      GPoint pos = GPoint(icon_x, box_y + (CORNER_ROW_H - 12) / 2);
-      if (do_outline) {
-        for (int i = 0; i < offs_n; i++) {
-          draw_hourly_vibe_icon(ctx, GPoint(pos.x + offs[i].x, pos.y + offs[i].y), outline_color, seg->icon_flag);
-        }
-      }
+    case 30: { // Hourly Vibrations -- watch+buzz / crossed-out (icon_flag: true = off/crossed).
+               // Same "exported to a real image" treatment as Quiet Time above (see
+               // resources/images/icon_hourly_vibe.png / icon_hourly_vibe_off.png).
+      GPoint pos = GPoint(icon_x, box_y + (CORNER_ROW_H - ICON_ROWS) / 2);
+      uint32_t hourly_vibe_resource = seg->icon_flag ? RESOURCE_ID_ICON_HOURLY_VIBE_OFF : RESOURCE_ID_ICON_HOURLY_VIBE;
       draw_debug_marker_point(ctx, draw_debug, pos, GColorMagenta);
-      draw_hourly_vibe_icon(ctx, pos, color, seg->icon_flag);
+      draw_icon_resource_with_outline(ctx, pos, hourly_vibe_resource, outline_style, outline_color, color);
       return;
     }
     default:

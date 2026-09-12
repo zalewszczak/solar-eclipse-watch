@@ -1021,7 +1021,7 @@ function handEditorModalHtml(kind, title) {
  *     bigAnalogMarkerStyle: '0'-'8' (8=custom -- see customHour.../customSec.../markerText... below), upperMiddleLine1Content/upperMiddleLine2Content: '0'-'12', upperMiddleLine1Color/upperMiddleLine2Color: '0'-'3',
  *     colorScheme: '0'-'9'|'custom', customBg, customText, customAccent (packed byte strings),
  *     nightEnabled, nightScheme, nightCustomBg, nightCustomText, nightCustomAccent,
- *     showSunTime, showIss, sunMoonSize: '25'|'50'|'75'|'100', shakeLabelSeconds, vibrateOnPhaseChange,
+ *     showSunTime, showIss, showMajorStars, sunMoonSize: '25'|'50'|'75'|'100', shakeLabelSeconds, vibrateOnPhaseChange,
  *     tempUnit: 'C'|'F',
  *     cornerTL, cornerTR, cornerBL, cornerBR: '0'-'9', cornerTLColor, cornerTRColor, cornerBLColor, cornerBRColor: '0'-'3', stepGoal,
  *     customHourStyle/customSecStyle: '0'-'2' (dot/line/square), '4' (tapered -- 3 reserved/unused;
@@ -2061,7 +2061,13 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      <button type="button" class="mode-btn' + (current.skyMode === '2' ? ' active' : '') + '" data-value="2" onclick="selectSkyMode(\'2\')">' + MODE_BTN_ICONS.skySpace + '<span>SPACE</span></button>' +
 '    </div>' +
 '    <input type="hidden" id="skyMode" value="' + esc(current.skyMode || '0') + '">' +
-'    <div class="help">Weather sky shows clouds/rain/snow and the day-night gradient. Clear sky keeps the gradient but never draws weather. Space view drops the gradient entirely for a fixed dark sky, always shows the Sun/Moon/planets when above the horizon regardless of time of day, and adds a field of bright named stars (tap/shake to reveal names).</div>' +
+'    <div class="help">Weather sky shows clouds/rain/snow and the day-night gradient. Clear sky keeps the gradient but never draws weather. Space view drops the gradient entirely for a fixed dark sky, always shows the Sun/Moon/planets when above the horizon regardless of time of day, and (when the checkbox below is on) adds a field of bright named stars (tap/shake to reveal names).</div>' +
+
+'    <div class="checkbox-row" id="showMajorStarsRow" style="' + (current.skyMode === '2' ? '' : 'display:none;') + '">' +
+'      <input type="checkbox" id="showMajorStars" ' + (current.showMajorStars === false ? '' : 'checked') + ' onchange="updatePreview()">' +
+'      <label for="showMajorStars" style="margin:0;">Show major stars</label>' +
+'    </div>' +
+'    <div class="help" id="showMajorStarsHelp" style="' + (current.skyMode === '2' ? '' : 'display:none;') + '">On by default. Turning this off limits Space view to the Sun, Moon, planets, and sky effects (aurora, ISS, meteor showers) -- no star field.</div>' +
 
 '    <div class="subsection">' +
 '      <label>Outline text and icons for contrast</label>' +
@@ -5341,6 +5347,9 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  updatePreview();' +
 '}' +
 'function onSkyModeChange() {' +
+'  var isSpace = document.getElementById("skyMode").value === "2";' +
+'  document.getElementById("showMajorStarsRow").style.display = isSpace ? "" : "none";' +
+'  document.getElementById("showMajorStarsHelp").style.display = isSpace ? "" : "none";' +
 '  updatePreview();' +
 '}' +
 'function updateHandValLabels(kind) {' +
@@ -6039,6 +6048,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    CONFIG_AQI_UNIT: document.getElementById("aqiUnit").value,' +
 '    CONFIG_ALTITUDE_UNIT: document.getElementById("altitudeUnit").value,' +
 '    CONFIG_SKY_MODE: document.getElementById("skyMode").value,' +
+'    CONFIG_SHOW_MAJOR_STARS: document.getElementById("showMajorStars").checked,' +
 '    CONFIG_WEATHER_ICON_STYLE: document.getElementById("weatherIconStyle").value,' +
 '    CONFIG_SHOW_SECONDS: showSecondsVal,' +
 '    CONFIG_CUSTOM_BG: document.getElementById("customBgValue").value,' +

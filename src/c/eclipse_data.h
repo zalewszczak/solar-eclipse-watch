@@ -627,10 +627,20 @@ typedef struct {
                                                  // or the overcast gray haze), 2=Space view (no
                                                  // gradient at all -- a fixed dark background, Sun/
                                                  // Moon/planets still only shown above the horizon
-                                                 // but with no atmospheric haze/color, and the
-                                                 // STAR_COUNT bright stars below always visible,
-                                                 // day or night, since there's no atmosphere left to
-                                                 // scatter sunlight and wash them out).
+                                                 // but with no atmospheric haze/color (see the Sun's
+                                                 // own comment on sky_colors_for_altitude() -- Space
+                                                 // view skips its reddening entirely, for the same
+                                                 // "no atmosphere" reason), and (show_major_stars
+                                                 // permitting) the STAR_COUNT bright stars always
+                                                 // visible, day or night, since there's no atmosphere
+                                                 // left to scatter sunlight and wash them out).
+  bool show_major_stars;      // user setting, Space view only: true (the default) draws the
+                               // STAR_COUNT bright-star field described above; false limits Space
+                               // view to the Sun, Moon, planets, and the sky-effects layer (aurora,
+                               // ISS, meteor showers) if those are otherwise enabled -- for a
+                               // sparser look, or on a watch where 16 extra circles every redraw is
+                               // worth skipping. Only ever consulted when sky_mode == 2; every
+                               // other sky_mode never draws this field's own star layer regardless.
   int16_t moon_alt_decideg[MAX_SKY_SAMPLES];  // altitude x10, same grid as sun
   uint16_t moon_az_decideg[MAX_SKY_SAMPLES];  // azimuth x10 -- same convention as sun_az_decideg
 
