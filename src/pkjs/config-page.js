@@ -1329,7 +1329,7 @@ cdnFontLinks() +
 // and a visibly larger picker glyph (::-webkit-calendar-picker-
 // indicator) since that icon is the actual tap target on most mobile
 // browsers, not just decorative.
-'  input[type=time], input[type=datetime-local] { width: 100%; max-width: 100%; box-sizing: border-box; padding: 13px 40px 13px 12px; font-size: 17px; font-weight: 600; min-height: 46px; border: 1px solid var(--border); border-radius: 8px; background: var(--card-bg); color: var(--text); }' +
+'  input[type=time], input[type=datetime-local] { display: block; width: 50vw; max-width: 50vw; margin: 0 auto; box-sizing: border-box; padding: 13px 40px 13px 12px; font-size: 24px; font-weight: 600; min-height: 46px; border: 1px solid var(--border); border-radius: 8px; background: var(--card-bg); color: var(--text); }' +
 // scale() is purely visual (doesn't change layout), but the earlier
 // version also gave the indicator its own margin-left -- THAT does
 // take up real layout width on top of the input\'s own 100%-wide box,
