@@ -2397,7 +2397,7 @@ static void window_load(Window *window) {
   // Added first; apply_layout() re-parents it on top of whatever it
   // builds, both here on first load and again on any later mode
   // switch, so its own creation only has to happen once.
-  s_countdown_layer = layer_create(GRect(0, 2, bounds.size.w, 20));
+  s_countdown_layer = layer_create(GRect(0, 20, bounds.size.w, 20));
   layer_set_update_proc(s_countdown_layer, countdown_layer_update_proc);
   s_countdown_text_color = GColorBlack;
   layer_add_child(root, s_countdown_layer);
