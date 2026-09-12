@@ -1,5 +1,6 @@
 #include "features_layer.h"
 #include "background_layer.h"
+#include "sky_layer.h"
 #include "marker_layer.h"
 #include "celestial_layer.h"
 #include "weather_layer.h"
@@ -593,7 +594,7 @@ static int16_t timezone_current_offset_min(const TimezoneInfo *tz, time_t utc_no
 // (06:00-08:00 sunrise, 18:00-20:00 sunset) rather than real sun-
 // altitude astronomy, which isn't available for an arbitrary remote
 // timezone the way it is for the user's own location via
-// eclipse_sky_is_bright().
+// sky_layer_is_bright().
 static GColor timezone_daylight_color(int local_hour24) {
   if (local_hour24 >= 8 && local_hour24 < 18) return GColorWhite;  // day
   if (local_hour24 < 6 || local_hour24 >= 20) return GColorBlack;  // night

@@ -3,48 +3,13 @@
 #include <pebble.h>
 #include "eclipse_data.h"
 
-// The digital clock's own panel height, in px on this app's fixed
-// 200x228 screen -- shared between background_layer.c (sizes/positions
-// the sky canvas around it, and feeds it into the gradient math the two
-// Digital layouts' panels use -- see eclipse_top_gradient_create()'s own
-// comment below) and features_layer.c (corner/side-column geometry --
-// see that file's own use of this same constant). Was a features_layer.c-
-// local #define until Digital top needed it here too; kept the same
-// name and value so nothing downstream had to change.
+// Digital clock panel height on the fixed 200x228 display.
 #define DIGITAL_PANEL_H 76
 
-// The sky/sun/moon graphic AND, for big-analog mode, the hour/second
-// markers drawn on top of it -- merged into one module (formerly
-// eclipse_layer.c + marker_layer.c, two separate cached-drawing systems)
-// so there's a single cached bitmap per redraw instead of two. Markers
-// are drawn directly into the same live GContext as the sky, right
-// before the frame gets captured into the cache -- see the design note
-// at the top of background_layer.c for why that's both simpler and
-// cheaper than the marker ring's previous standalone bitmap cache.
-//
-// Owns its own draw state; call eclipse_canvas_set_data() whenever a
-// fresh EclipseData arrives, a marker/text-marker setting changes, or
-// once a minute so the moon's position animates smoothly.
+// Main cached sky/composition canvas.
 Layer *eclipse_canvas_create(GRect frame);
 void eclipse_canvas_destroy(Layer *layer);
 void eclipse_canvas_set_data(Layer *layer, EclipseData *data);
-
-// Digital top layout only: a thin, always-gradient-only strip (see
-// apply_layout()'s own DIGITAL_PANEL_H-tall frame for it) that fills
-// the panel's reserved band at the screen's TOP with a plain
-// continuation of the SAME sky gradient/flat-black-space-mode wash the
-// main sky canvas below it draws -- no sun/moon/stars/clouds/markers,
-// "only sky gradient" per the request. Deliberately its own tiny
-// module rather than another eclipse_canvas_create() frame -- it needs
-// none of that layer's astronomy/animation/caching machinery, just the
-// current sky colors, recomputed fresh each call (no caching -- see
-// the .c file's own compute_sky_wash() comment for why this is cheap
-// enough not to need it). set_data re-reads whatever's currently in
-// `data` on every call rather than storing a copy, same "no separate
-// staleness to track" reasoning as the plain corner/edge text draws.
-Layer *eclipse_top_gradient_create(GRect frame);
-void eclipse_top_gradient_destroy(Layer *layer);
-void eclipse_top_gradient_set_data(Layer *layer, EclipseData *data);
 
 // Toggles the "Sun" / "Moon" / "Saturn" name labels shown briefly
 // next to each visible body after a shake gesture. main.c calls this
@@ -90,12 +55,6 @@ void eclipse_canvas_tick(Layer *layer);
 // redraw rate can actually keep up with.
 EclipsePhase eclipse_get_status_text(const EclipseData *data, time_t now,
                                       char *buf, size_t buf_len, bool live_seconds);
-
-// True if the sky is currently bright enough (day through civil
-// twilight) that dark text reads better than light text on top of
-// it. Cheap -- just interpolates the transmitted altitude samples,
-// no drawing -- so it's safe to call every second.
-bool eclipse_sky_is_bright(const EclipseData *data, time_t now);
 
 // True from first contact up to (not including) last contact -- see
 // the .c file's own comment for why every "is the eclipse happening

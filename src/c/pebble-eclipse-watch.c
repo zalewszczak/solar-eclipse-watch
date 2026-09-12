@@ -6,6 +6,7 @@
 #include "input.h"
 #include "time_service.h"
 #include "background_layer.h"
+#include "sky_layer.h"
 #include "features_layer.h"
 #include "font_lookup.h"
 #include "message_key_index.h" // MK_* is used for the startup key-index consistency check.
@@ -20,7 +21,7 @@ static Layer *s_panel_layer; // NULL in analog mode -- the digital clock panel (
 static Layer *s_top_gradient_layer; // Digital top only -- the reserved band's own gradient-only wash,
                                       // BELOW s_panel_layer in z-order so the panel's transparent
                                       // background lets it show through -- see background_layer.h's own
-                                      // eclipse_top_gradient_create() comment
+                                      // sky_layer_top_gradient_create() comment
 static Layer *s_hands_layer;  // big-analogue mode only
 static Layer *s_features_layer; // always present -- overlays the FULL screen (not just the sky
                                   // canvas's own frame, which in digital mode is only the top 152px --
@@ -87,7 +88,7 @@ bool weather_should_show_error(const EclipseData *d) {
 }
 
 // Picks the day or night set of colors based on the Sun's altitude
-// (reusing eclipse_sky_is_bright()'s existing civil-twilight threshold
+// (reusing sky_layer_is_bright()'s existing civil-twilight threshold
 // rather than a second definition of "night") -- falls back to the day
 // colors entirely if the user hasn't turned on separate night ones.
 // Takes `d` explicitly (rather than reading the global s_data) so
@@ -98,7 +99,7 @@ bool weather_should_show_error(const EclipseData *d) {
 // a named preset in the settings page just fills in these same three
 // fields before sending, same as manually choosing each color would.
 void get_active_color_scheme(const EclipseData *d, time_t now, GColor *bg, GColor *text, GColor *accent) {
-  bool night = d->night_scheme_enabled && !eclipse_sky_is_bright(d, now);
+  bool night = d->night_scheme_enabled && !sky_layer_is_bright(d, now);
   if (night) {
     *bg = gcolor_from_packed(d->night_custom_bg);
     *text = gcolor_from_packed(d->night_custom_text);
@@ -295,181 +296,6 @@ static int32_t ease_out_lut_1000(int32_t t) {
   int32_t hi = EASE_OUT_LUT[idx + 1];
   return lo + ((hi - lo) * frac) / 50;
 }
-// Planet seek's own watch-side compass reading -- subscribed only for
-// as long as the animation itself runs (compass/magnetometer use has
-// a real, ongoing power cost, unlike a plain timer), storing just the
-// latest heading for whatever future rendering code reads it via
-// planet_seek_heading_deg() below.
-//
-// Smoothing here follows the same target-angle/presented-angle split
-// Pebble's own compass app uses (github.com/coredevices/pebble-compass,
-// data_provider.{h,c} -- its README describes the presented heading as
-// "fak[ing] a physical model with friction and inertia", and its
-// DataProviderHandlers keep an "attraction_modifier"/"friction_modifier"
-// pair separate from the raw input heading rather than one single
-// smoothing knob). Two things about that shape mattered enough to pull
-// over:
-//
-// 1. The raw compass sample only ever updates a *target* heading here
-//    (s_planet_seek_heading_target_deg) -- the actual on-screen value
-//    (s_planet_seek_heading_smoothed_fp) is advanced separately, once
-//    per animation frame, by planet_seek_heading_physics_step() below.
-//    Previously this smoothed every raw sample right here in the
-//    compass callback, but compass_service_subscribe()'s callback
-//    doesn't fire on a fixed schedule -- the OS delivers a new
-//    magnetometer sample whenever one's ready, which isn't the same
-//    cadence as the 30fps SHAKE_ANIM_FRAME_MS animation loop actually
-//    drawing the result. Smoothing per-sample meant the *effective*
-//    smoothing time constant quietly depended on how often samples
-//    happened to arrive. Stepping it from the fixed-rate animation
-//    timer instead (already running throughout Planet seek -- see
-//    shake_anim_timer_callback()) makes every smoothing step the same
-//    real-world size regardless of sensor timing, which is a large
-//    part of why the reference app holds up smoothly.
-//
-// 2. The smoothing itself is a velocity-based spring (attraction pulls
-//    the presented angle toward the target, friction damps how much
-//    of that pull actually shows up as motion) rather than a plain
-//    one-shot exponential blend. A raw sample's noise only nudges the
-//    *velocity* term, which friction then bleeds off over a couple of
-//    frames, instead of being applied straight to the displayed
-//    position the way every single-alpha EMA update does -- so it
-//    settles into a steady heading rather than visibly hunting around
-//    it, while still tracking a real, deliberate turn promptly.
-static int32_t s_planet_seek_heading_target_deg = 0;   // degrees 0-359, true north-relative, CLOCKWISE (see below) -- latest raw compass sample, untouched
-static int32_t s_planet_seek_heading_smoothed_fp = 0;  // Q24.8 fixed-point (degrees << 8) -- the actual presented/rendered heading
-static int32_t s_planet_seek_heading_velocity_fp = 0;  // Q24.8 fixed-point, degrees-per-frame -- the spring's "inertia"
-// True once at least one real compass sample has arrived this Planet
-// seek session -- reset by maybe_start_shake_animation() each time the
-// mode (re)starts, so the very first reading after that jumps the
-// presented angle straight to wherever the compass actually says
-// instead of the spring pulling in from 0 (or a stale heading left
-// over from last time), which would otherwise show up as a big,
-// pointless swing right as the mode opens.
-static bool s_planet_seek_heading_has_reading = false;
-// True whenever the compass isn't fully calibrated yet (or has no
-// reading at all) -- see planet_seek_compass_handler()'s own comment.
-// Starts true (not false) since there's no reading at all until the
-// first callback fires, and "we don't know the heading yet" is exactly
-// the "don't trust this" state the low-accuracy warning is for.
-static bool s_planet_seek_compass_low_accuracy = true;
-
-static void planet_seek_compass_handler(CompassHeadingData data) {
-  // CompassHeading (both magnetic_heading and true_heading -- the
-  // latter is currently just an alias for the former, see Pebble's
-  // own CompassService docs) increases COUNTER-clockwise from north:
-  // https://developer.rebble.io/docs/c/Foundation/Event_Service/CompassService/
-  // "Measured angle that increases counter-clockwise from magnetic
-  // north (use int clockwise_heading = TRIG_MAX_ANGLE -
-  // heading_data.magnetic_heading ... to find your heading clockwise
-  // from magnetic north)." Every other bearing in this app -- the
-  // az_decideg samples PKJS sends (0=north, 90=east, ...) and the
-  // compass-rose math in draw_compass_icon() below -- assumes the
-  // usual CLOCKWISE-from-north convention instead, so without this
-  // flip, "heading" here was actually the mirror image of the
-  // wearer's real facing direction: turning right (clockwise) made
-  // the stored value swing as if the wearer had turned left, which is
-  // exactly the "objects move away instead of towards me" symptom.
-  //
-  // Just the target, here -- see this whole block's own top comment
-  // for why the actual smoothing has moved out of this handler and
-  // into planet_seek_heading_physics_step().
-  CompassHeading clockwise = TRIG_MAX_ANGLE - data.true_heading;
-  s_planet_seek_heading_target_deg = (int32_t)(((int64_t)clockwise * 360) / TRIG_MAX_ANGLE) % 360;
-
-  if (!s_planet_seek_heading_has_reading) {
-    s_planet_seek_heading_smoothed_fp = s_planet_seek_heading_target_deg << 8;
-    s_planet_seek_heading_velocity_fp = 0;
-    s_planet_seek_heading_has_reading = true;
-  }
-
-  // Calibrated = high confidence; Calibrating = a reading exists but
-  // is still being refined; DataInvalid/Unavailable = no usable
-  // reading at all. Anything short of Calibrated is worth flagging to
-  // the wearer, per the compass guide's own "tell the user whether
-  // this can be trusted" framing.
-  s_planet_seek_compass_low_accuracy = (data.compass_status != CompassStatusCalibrated);
-}
-
-// Advances the presented heading one animation frame toward whatever
-// the compass most recently said -- called once per
-// SHAKE_ANIM_FRAME_MS from shake_anim_timer_callback() while Planet
-// seek is active (see this block's own top comment for why a fixed
-// animation-frame cadence, rather than the compass callback itself,
-// drives this).
-static void planet_seek_heading_physics_step(void) {
-  if (!s_planet_seek_heading_has_reading) return;
-
-  // Same one-shot "how tilted is the watch right now" read the old
-  // per-sample smoothing used: a single accel_service_peek() (no
-  // running subscription -- this only needs "right now", not a
-  // stream) tells flat (face roughly horizontal, z axis dominant)
-  // apart from upright/raised (x/y dominant) cheaply. Kept for the
-  // same reason as before -- the magnetometer heading is visibly
-  // noisier the flatter the watch sits -- but note Pebble's own
-  // compass guide independently backs the "raised is the good case"
-  // half of that: CompassService is documented as expecting "the top
-  // of watch parallel to the ground", i.e. the normal raised,
-  // glance-at-the-time pose, to read the wearer's facing direction
-  // correctly (https://developer.rebble.io/guides/events-and-services/compass/).
-  AccelData accel = { 0 };
-  int32_t flatness_pct = 0; // 0 = vertical/raised (light smoothing), 100 = flat (heavy smoothing)
-  if (accel_service_peek(&accel) == 0) {
-    int32_t az = accel.z < 0 ? -accel.z : accel.z;
-    int32_t axy = (accel.x < 0 ? -accel.x : accel.x) + (accel.y < 0 ? -accel.y : accel.y);
-    flatness_pct = (az * 100) / (az + axy + 1); // +1: avoid a div-by-zero on a (0,0,0) reading
-  }
-  // Two independent knobs instead of the old single alpha -- attraction
-  // is how hard the target angle pulls on the velocity each frame,
-  // friction is how much of the existing velocity survives each frame.
-  // Both tuned by the same flatness reading as before (responsive
-  // while raised, gentle while flat), and deliberately conservative
-  // (friction comfortably above attraction at both ends) so the arrow
-  // eases into place rather than overshooting and ringing back --
-  // raised's numbers are just enough livelier than flat's to feel
-  // responsive without wobbling.
-  int32_t attraction_pct = 32 - ((32 - 14) * flatness_pct) / 100; // 32% raised -> 14% flat
-  int32_t friction_pct   = 55 + ((80 - 55) * flatness_pct) / 100; // 55% raised -> 80% flat
-
-  int32_t smoothed_deg = s_planet_seek_heading_smoothed_fp >> 8;
-  // Shortest signed distance from the presented heading to the
-  // current target, handling the 359->0 wraparound (a naive
-  // `target - smoothed` would otherwise pull the "long way around"
-  // through 180 whenever the two straddle north).
-  int32_t delta = ((s_planet_seek_heading_target_deg - smoothed_deg + 540) % 360) - 180;
-
-  // Semi-implicit Euler, one animation frame at a time (the frame's
-  // dt is fixed at SHAKE_ANIM_FRAME_MS, so it's baked into the two
-  // percentages above rather than multiplied in separately): pull the
-  // velocity toward the target by "attraction", then damp whatever's
-  // left by "friction", then move the presented angle by that
-  // velocity. Errors only ever enter through the pull step, so a
-  // single noisy sample shows up as one small nudge to velocity that
-  // friction bleeds off over the next couple of frames, rather than
-  // an instant jump in the displayed heading.
-  s_planet_seek_heading_velocity_fp += (delta * 256 * attraction_pct) / 100;
-  s_planet_seek_heading_velocity_fp = (s_planet_seek_heading_velocity_fp * (100 - friction_pct)) / 100;
-  s_planet_seek_heading_smoothed_fp += s_planet_seek_heading_velocity_fp;
-
-  // Keep the fixed-point value's whole-degree part wrapped into 0-359
-  // so it can't slowly drift outside a sane range over a long Planet
-  // seek session, and so the delta math above keeps working the same
-  // way frame after frame.
-  while (s_planet_seek_heading_smoothed_fp < 0) s_planet_seek_heading_smoothed_fp += (360 << 8);
-  while (s_planet_seek_heading_smoothed_fp >= (360 << 8)) s_planet_seek_heading_smoothed_fp -= (360 << 8);
-}
-
-// Exposed for background_layer.c's rendering code -- the presented
-// heading (see s_planet_seek_heading_smoothed_fp's own comment), not
-// the raw compass sample.
-int32_t planet_seek_heading_deg(void) {
-  return s_planet_seek_heading_smoothed_fp >> 8;
-}
-
-bool planet_seek_compass_low_accuracy(void) {
-  return s_planet_seek_compass_low_accuracy;
-}
-
 static void hands_layer_update_proc(Layer *layer, GContext *ctx) {
   // Unobstructed (not full) bounds -- this layer has no background
   // fill of its own to worry about leaving gaps in (it's a pure
@@ -791,7 +617,7 @@ static void refresh_status_and_maybe_canvas(bool force_canvas) {
   // The countdown label overlays the sky canvas transparently, so its
   // own contrast needs to track the sky brightness underneath it --
   // this check is cheap (no drawing), so it's fine to do every second.
-  s_countdown_text_color = eclipse_sky_is_bright(&s_data, now) ? GColorBlack : GColorWhite;
+  s_countdown_text_color = sky_layer_is_bright(&s_data, now) ? GColorBlack : GColorWhite;
   // Hidden entirely (not just left blank) when there's confirmed to
   // be no eclipse today -- this field is purely about eclipse phases
   // now (see eclipse_get_status_text), so there's nothing for it to
@@ -1050,7 +876,7 @@ static void update_planet_seek_accuracy_label(bool active) {
     bool flash_visible = (now % 2) != 0; // on for odd seconds, off for even seconds
     if (flash_visible) {
       snprintf(s_countdown_buf, sizeof(s_countdown_buf), "Low compass accuracy");
-      s_countdown_text_color = eclipse_sky_is_bright(&s_data, now) ? GColorBlack : GColorWhite;
+      s_countdown_text_color = sky_layer_is_bright(&s_data, now) ? GColorBlack : GColorWhite;
       layer_set_hidden(s_countdown_layer, false);
     } else {
       s_countdown_buf[0] = '\0';
@@ -1281,7 +1107,7 @@ static void apply_layout(void) {
     s_panel_layer = NULL;
   }
   if (s_top_gradient_layer) {
-    eclipse_top_gradient_destroy(s_top_gradient_layer);
+    sky_layer_top_gradient_destroy(s_top_gradient_layer);
     s_top_gradient_layer = NULL;
   }
   if (s_hands_layer) {
@@ -1326,7 +1152,7 @@ static void apply_layout(void) {
     // Added in exactly this bottom-to-top z-order for that to work.
     s_canvas_layer = eclipse_canvas_create(GRect(0, DIGITAL_PANEL_H, bounds.size.w, bounds.size.h - DIGITAL_PANEL_H));
     layer_add_child(root, s_canvas_layer);
-    s_top_gradient_layer = eclipse_top_gradient_create(GRect(0, 0, bounds.size.w, DIGITAL_PANEL_H));
+    s_top_gradient_layer = sky_layer_top_gradient_create(GRect(0, 0, bounds.size.w, DIGITAL_PANEL_H));
     layer_add_child(root, s_top_gradient_layer);
     s_panel_layer = layer_create(GRect(0, 0, bounds.size.w, DIGITAL_PANEL_H));
     layer_set_update_proc(s_panel_layer, draw_digital_clock_panel);
@@ -1367,7 +1193,7 @@ static void apply_layout(void) {
   }
 
   eclipse_canvas_set_data(s_canvas_layer, &s_data);
-  if (s_top_gradient_layer) eclipse_top_gradient_set_data(s_top_gradient_layer, &s_data);
+  if (s_top_gradient_layer) sky_layer_top_gradient_set_data(s_top_gradient_layer, &s_data);
   features_layer_set_data(s_features_layer, &s_data);
 
   // Newly (re)created layers start at their full, unobstructed frame
@@ -1402,7 +1228,7 @@ static void window_unload(Window *window) {
   layer_destroy(s_countdown_layer);
   if (s_canvas_layer) eclipse_canvas_destroy(s_canvas_layer); // also releases marker renderer resources now
   if (s_panel_layer) layer_destroy(s_panel_layer);
-  if (s_top_gradient_layer) eclipse_top_gradient_destroy(s_top_gradient_layer);
+  if (s_top_gradient_layer) sky_layer_top_gradient_destroy(s_top_gradient_layer);
   if (s_hands_layer) layer_destroy(s_hands_layer);
   if (s_features_layer) features_layer_destroy(s_features_layer);
   features_layer_unload_fonts();

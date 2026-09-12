@@ -1,0 +1,42 @@
+#pragma once
+
+#include <pebble.h>
+#include "eclipse_data.h"
+
+// Continuous RGB representation used while constructing the sky gradient.
+// It is deliberately kept at 8 bits/channel until the final ordered-dither
+// step converts each pixel to Pebble's 2-bit-per-channel palette.
+typedef struct {
+  uint8_t r, g, b;
+} SkyRgb;
+
+// Interpolate the transmitted cloud-cover samples at an arbitrary time.
+uint8_t sky_layer_interp_cloud_pct(const EclipseData *data, time_t now);
+
+// Compute the atmosphere-dependent Sun disc color.
+SkyRgb sky_layer_sun_color_for_altitude(int16_t alt_decideg);
+
+// Compute the top/zenith and horizon colors for the current Sun altitude.
+void sky_layer_colors_for_altitude(int16_t alt_decideg, SkyRgb *top_out, SkyRgb *horizon_out);
+
+// Paint a dithered vertical sky gradient. The virtual coordinates allow the
+// Digital-top strip and the main canvas to render two seamless slices of the
+// same conceptual 228px gradient.
+void sky_layer_fill_gradient(GContext *ctx, GRect bounds,
+                             int16_t virtual_top_y, int16_t virtual_total_h,
+                             SkyRgb top, SkyRgb band, int16_t band_y, SkyRgb horizon);
+
+// Compute the weather-adjusted sky wash shared by the main canvas and the
+// Digital-top gradient strip.
+void sky_layer_compute_wash(const EclipseData *data, time_t now,
+                            int16_t virtual_top_y, int16_t virtual_total_h,
+                            SkyRgb *out_top, SkyRgb *out_band, int16_t *out_band_y,
+                            SkyRgb *out_horizon, bool *out_flat_black);
+
+// Cheap daylight/twilight test used by countdown/color policy.
+bool sky_layer_is_bright(const EclipseData *data, time_t now);
+
+// Digital-top layout's gradient-only layer.
+Layer *sky_layer_top_gradient_create(GRect frame);
+void sky_layer_top_gradient_destroy(Layer *layer);
+void sky_layer_top_gradient_set_data(Layer *layer, EclipseData *data);
