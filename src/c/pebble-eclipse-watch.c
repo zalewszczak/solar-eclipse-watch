@@ -45,6 +45,13 @@ static char s_countdown_buf[40];
 
 static EclipseData s_data;
 
+// Shared state for the startup background sweep. The hands animation
+// reads this state so the optional planet-sweep time shift follows the
+// same swept observation time as the background.
+#define BG_ANIM_MS 1400
+static bool s_bg_anim_active = false;
+static uint16_t s_bg_anim_elapsed_ms = 0;
+
 // Declare a file-scope variable
 static GFont clock_font;
 static FontSlot s_clock_font_slot = FONT_SLOT_EMPTY;

@@ -2,6 +2,8 @@
 #include "eclipse_data.h"
 #include "battery_saver.h"
 #include "input.h"
+#include "features_layer.h"
+#include "background_layer.h"
 
 static EclipseData *s_data;
 static InputCallbacks s_callbacks;
@@ -45,28 +47,6 @@ static bool shake_anim_wants_smooth_second(uint8_t mode) {
   return mode == 1 || mode == 3;
 }
 
-// ---- shared ease-out lookup table -----------------------------------
-// Cubic ease-out (1-(1-t)^3), precomputed at 21 points (0, 50, 100,
-// ..., 1000) -- avoids the 2 multiplications ease_out_cubic_1000()
-// used to do on every single call in favor of one table lookup + a
-// cheap linear interpolation between its 2 nearest points, and gives
-// every animation that wants this same "starts quick, eases into
-// place" feel (the startup clock/hand sweep, the background sweep,
-// marker reveals, the shake color cycle) one shared table to pull
-// from instead of each recomputing its own curve. Integer-only, no
-// floating point anywhere in here.
-static const int16_t EASE_OUT_LUT[21] = {
-  0, 143, 271, 386, 488, 579, 657, 726, 784, 834, 875, 909, 936, 958, 973, 985, 992, 997, 999, 1000, 1000
-};
-static int32_t ease_out_lut_1000(int32_t t) {
-  if (t <= 0) return 0;
-  if (t >= 1000) return 1000;
-  int32_t idx = t / 50;
-  int32_t frac = t - idx * 50;
-  int32_t lo = EASE_OUT_LUT[idx];
-  int32_t hi = EASE_OUT_LUT[idx + 1];
-  return lo + ((hi - lo) * frac) / 50;
-}
 // Planet seek's own watch-side compass reading -- subscribed only for
 // as long as the animation itself runs (compass/magnetometer use has
 // a real, ongoing power cost, unlike a plain timer), storing just the
@@ -320,7 +300,7 @@ static void shake_anim_timer_callback(void *data) {
 // the gradient/hand-smoothing window rather than just extending it.
 static void maybe_start_shake_animation(void) {
   if (s_data->shake_anim_mode == 0) return;
-  if (eclipse_is_active(&s_data, time(NULL))) return; // no shake animations (smooth second OR Planet seek) while the eclipse itself is actively in progress, per request
+  if (eclipse_is_active(s_data, time(NULL))) return; // no shake animations (smooth second OR Planet seek) while the eclipse itself is actively in progress, per request
   if (shake_anim_wants_planet_seek(s_data->shake_anim_mode) && s_data->has_eclipse) return; // Planet seek (modes 2 and 3) never runs on an eclipse day, per request
   s_shake_anim_active = true;
   s_shake_anim_elapsed_ms = 0;
@@ -338,16 +318,6 @@ static void maybe_start_shake_animation(void) {
     compass_service_subscribe(planet_seek_compass_handler);
   }
 }
-
-// Moved up from next to the rest of the "background on start" state
-// below (s_bg_anim_timer/s_bg_anim_played/bg_anim_timer_callback) --
-// only these 2 need to be visible this early, for
-// hands_layer_update_proc()'s own use of them (see its comment on the
-// Planets-sweep hand animation) below.
-#define BG_ANIM_MS 1400
-static bool s_bg_anim_active = false;
-static uint16_t s_bg_anim_elapsed_ms = 0;
-
 
 static AppTimer *s_label_timer;
 

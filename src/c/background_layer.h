@@ -102,30 +102,9 @@ bool eclipse_sky_is_bright(const EclipseData *data, time_t now);
 // right now" check in the app goes through this one function.
 bool eclipse_is_active(const EclipseData *data, time_t now);
 
-// A short word ("Sunny", "Overcast", "Rain", ...) summarizing current
-// conditions from weather_condition + cloud_cover_pct -- shared with
-// the corners overlay's "current conditions" content type so both
-// places agree on the same wording.
-const char *short_condition_text(uint8_t weather_condition, uint8_t cloud_pct);
 
-// Draws an accurately-shaped Moon phase disc (not just an icon glyph)
-// at `center`/`radius`, tinted `lit_color` on the illuminated side --
-// shared by the sky canvas's own Moon rendering (which always passes
-// GColorWhite, preserving its usual look) and the corners overlay's
-// "Moon phase" content type (which passes whatever color that
-// corner's color mode calls for).
-void draw_moon_phase(GContext *ctx, GRect bounds, GPoint center, int16_t radius,
-                      uint8_t phase_pct, bool waxing, GColor lit_color);
 
 // Compact ("WxGb", "Full", ...) Moon phase name for the corners
 // overlay's tight box width -- see the .c file for the full set.
 const char *moon_phase_short_name(uint8_t pct, bool waxing);
-
-// How many of the 5 tracked naked-eye planets (Mercury/Venus/Mars/
-// Jupiter/Saturn -- see PlanetId) are currently above the horizon,
-// interpolated from the same planet_alt_decideg samples the sky
-// canvas already animates their positions from. Used by the "Planets
-// visible" corner content -- purely a re-read of data already being
-// sent every refresh, no new phone-side computation.
-uint8_t background_count_visible_planets(const EclipseData *d, time_t now);
 

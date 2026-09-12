@@ -2,6 +2,7 @@
 
 #include "battery_saver.h"
 #include "features_layer.h"
+#include "background_layer.h"
 
 // Content ids that display a live seconds value -- see the corresponding
 // corner/edge content table in the configuration page.

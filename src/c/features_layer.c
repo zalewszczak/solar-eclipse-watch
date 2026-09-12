@@ -1,6 +1,8 @@
 #include "features_layer.h"
 #include "background_layer.h"
 #include "marker_layer.h"
+#include "celestial_layer.h"
+#include "weather_layer.h"
 #include "font_lookup.h"
 #include <string.h>
 #include <stdlib.h> // atoi(), for parsing strftime's "%V" week-number string back to an int for grading
@@ -1951,7 +1953,7 @@ static void __attribute__((noinline)) compute_sky_value(FeatureSlot *slot, uint8
         snprintf(buf, sizeof(buf), "ERR %d", data->error_code);
         c = GColorRed;
       } else {
-        uint8_t count = background_count_visible_planets(data, now);
+        uint8_t count = celestial_count_visible_planets(data, now);
         snprintf(buf, sizeof(buf), "%d planet%s", count, count == 1 ? "" : "s");
         c = resolve_flat_color(color_mode, main_color, main_color, accent_color);
       }
