@@ -6,6 +6,7 @@
 #include "celestial_layer.h"
 #include "sky_layer.h"
 #include "background_cache.h"
+#include "background_animation.h"
 
 // ---------------------------------------------------------------------------
 // Marker rendering lives in marker_layer.c. The background canvas owns the
@@ -85,7 +86,6 @@ static inline int32_t div_round(int32_t num, int32_t den) {
 // through a header for one function -- same reasoning subpixel.h's
 // own top-of-file comment already gives for this project's small
 // self-contained helpers generally.
-#define BG_ANIM_MS 1400 // must match pebble-eclipse-watch.c's own BG_ANIM_MS -- same duplication reasoning as above
 static int32_t bg_anim_ease_out_1000(int32_t t) {
   int32_t inv = 1000 - t;
   int64_t inv3 = ((int64_t)inv * inv * inv) / 1000000;
@@ -113,7 +113,7 @@ static void draw_bg_anim_markers_overlay(GContext *ctx, CanvasState *state, cons
   GPoint center = GPoint(bounds.size.w / 2, bounds.size.h / 2);
   GColor bg, main_color, accent_color;
   get_active_color_scheme(d, now, &bg, &main_color, &accent_color);
-  int32_t progress_1000 = ((int32_t)state->bg_anim_elapsed_ms * 1000) / BG_ANIM_MS;
+  int32_t progress_1000 = ((int32_t)state->bg_anim_elapsed_ms * 1000) / BACKGROUND_ANIMATION_DURATION_MS;
   if (progress_1000 > 1000) progress_1000 = 1000;
   marker_layer_draw(ctx, &state->markers, center, bounds, d, main_color, accent_color, bg, true, progress_1000, d->draw_debug);
 }
@@ -154,7 +154,7 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
   // substitution point.
   time_t sky_now = now;
   if (state->bg_anim_active && d->bg_anim_mode == 1) {
-    int32_t progress = ((int32_t)state->bg_anim_elapsed_ms * 1000) / BG_ANIM_MS;
+    int32_t progress = ((int32_t)state->bg_anim_elapsed_ms * 1000) / BACKGROUND_ANIMATION_DURATION_MS;
     if (progress > 1000) progress = 1000;
     int32_t eased = bg_anim_ease_out_1000(progress);
     time_t past = now - 2 * 3600; // "a couple hours ago"

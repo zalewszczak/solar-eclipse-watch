@@ -6,6 +6,7 @@
 #include "input.h"
 #include "time_service.h"
 #include "background_layer.h"
+#include "background_animation.h"
 #include "sky_layer.h"
 #include "features_layer.h"
 #include "font_lookup.h"
@@ -45,13 +46,6 @@ static void comms_data_applied(CommsChangeFlags changes, void *context);
 static char s_countdown_buf[40];
 
 static EclipseData s_data;
-
-// Shared state for the startup background sweep. The hands animation
-// reads this state so the optional planet-sweep time shift follows the
-// same swept observation time as the background.
-#define BG_ANIM_MS 1400
-static bool s_bg_anim_active = false;
-static uint16_t s_bg_anim_elapsed_ms = 0;
 
 // Declare a file-scope variable
 static GFont clock_font;
@@ -362,14 +356,13 @@ static void hands_layer_update_proc(Layer *layer, GContext *ctx) {
     // their already-correct resting position. Falls back to chasing
     // the real current time (same as mode 1, "animate clock") whenever
     // Planets isn't the active background animation, since there's no
-    // time shift to chase in that case. Shares BG_ANIM_MS as its own
-    // total duration (both are 1400ms) and ease_out_cubic_1000
+    // time shift to chase in that case. Shares BACKGROUND_ANIMATION_DURATION_MS as its own
+    // total duration and ease_out_cubic_1000
     // (identical curve to background_layer.c's own
     // bg_anim_ease_out_1000 -- see that function's own comment) so the
     // two sweeps advance in step with each other.
-    if (s_data.startup_clock_anim_mode == 2 && s_bg_anim_active && s_data.bg_anim_mode == 1) {
-      int32_t progress = ((int32_t)s_bg_anim_elapsed_ms * 1000) / BG_ANIM_MS;
-      if (progress > 1000) progress = 1000;
+    if (s_data.startup_clock_anim_mode == 2 && background_animation_is_active() && s_data.bg_anim_mode == 1) {
+      int32_t progress = background_animation_progress_1000();
       int32_t eased = ease_out_cubic_1000(progress);
       time_t past = now - 120 * 60;
       time_t swept_now = past + (time_t)(((int64_t)(now - past) * eased) / 1000);
@@ -709,69 +702,11 @@ static void maybe_start_startup_clock_animation(void) {
 }
 
 // ---- startup background animation ---------------------------------------
-// User setting ("Style" section, off by default): on launch, the Sun/
-// Moon/planets/sky gradient sweep in from where they were a couple
-// hours ago up to their real current state, clouds slide in from the
-// side, and markers/text markers animate in from off-screen/zero --
-// see background_layer.c's canvas_update_proc (the sun/moon/planet/sky
-// sweep itself, driven by eclipse_canvas_set_bg_anim() below) and
-// marker_layer_draw()/draw_text_markers() (the marker/text-marker
-// pieces). A separate timer/state pair from the clock animation above
-// -- the two settings are independent, and either, both, or neither
-// can be on -- but the same "fast timer, bounded duration, played once
-// per session" shape.
-#define BG_ANIM_FRAME_MS 40 // matches STARTUP_ANIM_FRAME_MS -- see its own comment
-
-static AppTimer *s_bg_anim_timer = NULL;
-static bool s_bg_anim_played = false;
-
-static void bg_anim_timer_callback(void *data) {
-  s_bg_anim_elapsed_ms += BG_ANIM_FRAME_MS;
-  if (s_bg_anim_elapsed_ms >= BG_ANIM_MS) {
-    s_bg_anim_active = false;
-    s_bg_anim_timer = NULL;
-  } else {
-    s_bg_anim_timer = app_timer_register(BG_ANIM_FRAME_MS, bg_anim_timer_callback, NULL);
-  }
-  // eclipse_canvas_set_bg_anim() forces the sky canvas to actually
-  // redraw every frame despite its own once-a-minute throttle, same
-  // "explicit force + mark dirty" shape as eclipse_canvas_set_data()/
-  // eclipse_canvas_set_show_labels() already use for their own reasons.
-  if (s_canvas_layer) eclipse_canvas_set_bg_anim(s_canvas_layer, s_bg_anim_active, s_bg_anim_elapsed_ms);
-}
-
+// The timer/state machine lives in background_animation.c. The application
+// only decides when to request the one-shot effect; the animation module
+// owns its timer, progress, and lifetime.
 static void maybe_start_startup_background_animation(void) {
-  if (s_bg_anim_played || s_data.bg_anim_mode == 0) return;
-  if (eclipse_is_active(&s_data, time(NULL))) return; // no startup background animation while an active eclipse is on screen, per request
-  // Marker animation (bg_anim_mode 2) has no actual visual effect for
-  // bitmap marker styles (Modern/Shadow/Tally/Bell/Fancy -- the PNG-
-  // backed marker backgrounds, big_analog_marker_style 3-7):
-  // marker_layer_draw() in marker_layer.c already draws them
-  // immediately regardless of anim_active/anim_progress_1000, since a
-  // real circular-reveal effect for an arbitrary bitmap isn't
-  // implemented (see that function's own comment for why -- Pebble's
-  // graphics API has no per-context clip-rect or arbitrary-shape
-  // compositing to build one from). Running the 35-frame, 25fps
-  // full-canvas redraw burst below anyway -- right at startup, the
-  // same moment the marker bitmap's own first-ever PNG decode is ALSO
-  // happening for the first time, on top of everything else the app
-  // is doing at launch -- was capable of pushing heap pressure high
-  // enough to fail that PNG decode outright ("PNG memory allocation
-  // failed" / "Failed to load PNG" in the logs, marker not drawn at
-  // all as a result). Skipping the animation burst entirely for this
-  // combination avoids that: a bitmap marker style still gets its one
-  // normal, un-animated redraw, exactly as if bg_anim_mode were off --
-  // which is all it was ever visually doing anyway.
-  bool bitmap_marker_active = s_data.big_analog_marker_style >= 3 && s_data.big_analog_marker_style <= 7;
-  if (s_data.bg_anim_mode == 2 && bitmap_marker_active) {
-    s_bg_anim_played = true;
-    return;
-  }
-  s_bg_anim_played = true;
-  s_bg_anim_active = true;
-  s_bg_anim_elapsed_ms = 0;
-  if (s_canvas_layer) eclipse_canvas_set_bg_anim(s_canvas_layer, true, 0);
-  s_bg_anim_timer = app_timer_register(BG_ANIM_FRAME_MS, bg_anim_timer_callback, NULL);
+  background_animation_start(&s_data, s_canvas_layer);
 }
 
 // get_clock_font_height_offset() used to live here as a hand-tuned
@@ -1311,10 +1246,7 @@ static void deinit(void) {
     app_timer_cancel(s_startup_anim_timer);
     s_startup_anim_timer = NULL;
   }
-  if (s_bg_anim_timer) {
-    app_timer_cancel(s_bg_anim_timer);
-    s_bg_anim_timer = NULL;
-  }
+  background_animation_deinit();
   window_destroy(s_window);
 }
 
