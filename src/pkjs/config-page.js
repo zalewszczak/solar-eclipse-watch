@@ -1315,6 +1315,18 @@ cdnFontLinks() +
 '  legend { font-weight: 600; font-size: 14px; padding: 0; color: var(--text-strong); }' +
 '  label { display: block; font-size: 14px; margin: 10px 0 4px; color: var(--text-strong); }' +
 '  input[type=text], input[type=number], select { width: 100%; box-sizing: border-box; padding: 8px; font-size: 15px; border: 1px solid var(--border); border-radius: 5px; background: var(--card-bg); color: var(--text); }' +
+// Time/date-time pickers get their own, larger treatment -- these are
+// effectively buttons (tapping anywhere in the field opens the
+// system's native picker), but a bare unstyled <input type="time">
+// renders quite small and cramped next to everything else on this
+// page, making it an easy target to miss on a phone screen. Bigger
+// padding/min-height/font-size than the plain text/number/select rule
+// above, same border/radius/color language as the rest of the page,
+// and a visibly larger picker glyph (::-webkit-calendar-picker-
+// indicator) since that icon is the actual tap target on most mobile
+// browsers, not just decorative.
+'  input[type=time], input[type=datetime-local] { width: 100%; box-sizing: border-box; padding: 13px 12px; font-size: 18px; font-weight: 600; min-height: 46px; border: 1px solid var(--border); border-radius: 8px; background: var(--card-bg); color: var(--text); }' +
+'  input[type=time]::-webkit-calendar-picker-indicator, input[type=datetime-local]::-webkit-calendar-picker-indicator { transform: scale(1.5); margin-left: 8px; cursor: pointer; }' +
 '  input[disabled], select[disabled] { background: var(--border-light); color: var(--text-disabled); }' +
 '  .checkbox-row { display: flex; align-items: center; gap: 10px; }' +
 '  .radio-row { display: flex; align-items: center; gap: 10px; margin-top: 6px; }' +
@@ -1379,6 +1391,16 @@ cdnFontLinks() +
 // .mode-btn-group-vertical's stacked rows, just with an internal
 // left/right split instead of plain centered text.
 '  .font-picker-btn { display: flex; align-items: stretch; width: 100%; box-sizing: border-box; text-align: left; padding: 0; background: var(--btn-bg); border: 1px solid var(--border); border-radius: 8px; margin-top: 8px; overflow: hidden; }' +
+// Fixed at roughly half the screen regardless of how many fonts the
+// current category/compatibility filters leave standing -- without
+// this the popup shrank down to fit just a couple of rows (or the
+// empty-state message) whenever a filter narrowed the grid, changing
+// size every time you tapped a category and making the sheet feel
+// unstable. #fontPickerModal only, not .modal-box generally -- other
+// pickers using that same class (marker style, hand style, colors...)
+// already size themselves reasonably to their own fixed content and
+// don\'t have this problem.
+'  #fontPickerModal .modal-box { height: 50vh; max-height: 50vh; }' +
 '  .font-picker-btn:active { background: var(--border-light); }' +
 '  .font-picker-btn.selected { border-color: #ff9200; border-width: 2px; }' +
 '  .font-picker-preview { flex: 0 0 34%; display: flex; align-items: center; justify-content: center; padding: 10px 4px; box-sizing: border-box; border-right: 1px solid var(--border); overflow: hidden; white-space: nowrap; color: var(--text-strong); line-height: 1.1; }' +
@@ -1487,9 +1509,18 @@ cdnFontLinks() +
 '  .top-bar-actions { display: flex; gap: 6px; align-items: center; }' +
 '  .back-btn { padding: 6px 10px; font-size: 13px; font-weight: 600; color: var(--text-strong); background: var(--card-bg); border: 1px solid var(--border); border-radius: 6px; }' +
 '  .back-btn:active { background: var(--border-light); }' +
-'  .donate-btn { padding: 6px 10px; font-size: 13px; font-weight: 700; color: #fff; background: linear-gradient(135deg, #ffb347, #ff8c00, #ffb347); background-size: 200% 200%; animation: donateGradientShift 4s ease-in-out infinite; border: none; border-radius: 6px; box-shadow: 0 1px 3px rgba(255,140,0,0.5); }' +
-'  @keyframes donateGradientShift { 0%, 100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }' +
-'  .donate-btn:active { filter: brightness(0.92); }' +
+// Soft, slow pastel cycle rather than the vivid orange pulse this used
+// to be -- 5 gentle hues (pink, peach, buttery yellow, mint, sky blue)
+// so it visibly moves through distinct colors rather than oscillating
+// between two shades of the same one, at a slow, 18s, ease-in-out
+// loop through 4 different background-position corners (not just back
+// and forth between 2 points) for a gentle drifting feel rather than a
+// mechanical ping-pong. Text switches to a soft plum-gray -- white no
+// longer has enough contrast against pastels the way it did against
+// the old saturated orange.
+'  .donate-btn { padding: 6px 10px; font-size: 13px; font-weight: 700; color: #6b5a72; background: linear-gradient(135deg, #ffd6e0, #ffe8c2, #eaf6c8, #c8ecec, #d6d6f5, #ffd6e0); background-size: 300% 300%; animation: donateGradientShift 18s ease-in-out infinite; border: none; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.15); }' +
+'  @keyframes donateGradientShift { 0% { background-position: 0% 50%; } 25% { background-position: 50% 100%; } 50% { background-position: 100% 50%; } 75% { background-position: 50% 0%; } 100% { background-position: 0% 50%; } }' +
+'  .donate-btn:active { filter: brightness(0.94); }' +
 '  .top-bar-title { font-size: 15px; font-weight: 700; margin-top: 6px; color: var(--text); white-space: nowrap; }' +
 '  .top-bar-desc { font-size: 10px; line-height: 1.3; color: var(--text-muted); margin-top: 3px; }' +
 '  .top-bar-preview { flex: 0 1 33%; display: flex; justify-content: center; align-items: center; min-width: 0; height: 100%; max-height: calc(25vh - 20px); padding: 1%; box-sizing: border-box; }' +
@@ -1755,12 +1786,22 @@ cdnFontLinks() +
 // .slot-corner-above-bar has to be applied AFTER that loop, not baked
 // into it) -- a second, independent modifier class on the shared
 // container sidesteps that entirely.
-'  #slotPickerDiagram.top-bar-mode .slot-digital-left1 { bottom: auto; top: 4px; }' +
+// Mirrors the row order too, not just the edge each row anchors to --
+// row 1 (nearest the clock) sits near the BAR'S OWN bottom edge in
+// this layout (the clock is at the bottom of the top panel, not the
+// top of it), so it needs the LARGEST top offset here, and row 3
+// (nearest the screen's real edge) needs the smallest -- the exact
+// reverse of which numeric value each row got in the bar-mode rules
+// above. Getting this backwards (previously: row1 at top:4px, row3 at
+// top:60px) made this diagram disagree with what the watch actually
+// draws -- a feature that looked like it was in the bottom row of the
+// top panel here was really the TOP row on the watch, and vice versa.
+'  #slotPickerDiagram.top-bar-mode .slot-digital-left1 { bottom: auto; top: 60px; }' +
 '  #slotPickerDiagram.top-bar-mode .slot-digital-left2 { bottom: auto; top: 32px; }' +
-'  #slotPickerDiagram.top-bar-mode .slot-digital-left3 { bottom: auto; top: 60px; }' +
-'  #slotPickerDiagram.top-bar-mode .slot-digital-right1 { bottom: auto; top: 4px; }' +
+'  #slotPickerDiagram.top-bar-mode .slot-digital-left3 { bottom: auto; top: 4px; }' +
+'  #slotPickerDiagram.top-bar-mode .slot-digital-right1 { bottom: auto; top: 60px; }' +
 '  #slotPickerDiagram.top-bar-mode .slot-digital-right2 { bottom: auto; top: 32px; }' +
-'  #slotPickerDiagram.top-bar-mode .slot-digital-right3 { bottom: auto; top: 60px; }' +
+'  #slotPickerDiagram.top-bar-mode .slot-digital-right3 { bottom: auto; top: 4px; }' +
 '  #slotPickerDiagram.top-bar-mode .slot-digital-bottom { bottom: auto; top: 2px; }' +
 '</style></head>' +
 '<body>' +
@@ -1905,6 +1946,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    <div class="modal-scroll-body">' +
 '      <div id="fontPickerGrid"></div>' +
 '      <div class="help" id="fontPickerEmptyMsg" style="display:none; text-align:center; margin-top:16px;">No fonts match these filters -- remove some to see results.</div>' +
+'      <button type="button" id="fontPickerResetFiltersBtn" class="secondary-btn" style="display:none; width:auto; margin:10px auto 0; padding:10px 16px;" onclick="resetFontCategoryFilters()">Reset filters</button>' +
 '    </div>' +
 '    <div class="modal-footer">' +
 '      <div class="checkbox-row" id="fontPickerIncompatibleRow" style="margin-top:10px;">' +
@@ -2089,13 +2131,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      <button type="button" class="mode-btn' + (current.skyMode === '2' ? ' active' : '') + '" data-value="2" onclick="selectSkyMode(\'2\')">' + MODE_BTN_ICONS.skySpace + '<span>SPACE</span></button>' +
 '    </div>' +
 '    <input type="hidden" id="skyMode" value="' + esc(current.skyMode || '0') + '">' +
-'    <div class="help">Weather sky shows clouds/rain/snow and the day-night gradient. Clear sky keeps the gradient but never draws weather. Space view drops the gradient entirely for a fixed dark sky, always shows the Sun/Moon/planets when above the horizon regardless of time of day, and (when the checkbox below is on) adds a field of bright named stars (tap/shake to reveal names).</div>' +
-
-'    <div class="checkbox-row" id="showMajorStarsRow" style="' + (current.skyMode === '2' ? '' : 'display:none;') + '">' +
-'      <input type="checkbox" id="showMajorStars" ' + (current.showMajorStars === false ? '' : 'checked') + ' onchange="updatePreview()">' +
-'      <label for="showMajorStars" style="margin:0;">Show major stars</label>' +
-'    </div>' +
-'    <div class="help" id="showMajorStarsHelp" style="' + (current.skyMode === '2' ? '' : 'display:none;') + '">On by default. Turning this off limits Space view to the Sun, Moon, planets, and sky effects (aurora, ISS, meteor showers) -- no star field.</div>' +
+'    <div class="help">Weather sky shows clouds/rain/snow and the day-night gradient. Clear sky keeps the gradient but never draws weather. Space view drops the gradient entirely for a fixed dark sky, always shows the Sun/Moon/planets when above the horizon regardless of time of day, and (see "Show major stars" in the Astronomy section) can add a field of bright named stars (tap/shake to reveal names).</div>' +
 
 '    <div class="subsection">' +
 '      <label>Outline text and icons for contrast</label>' +
@@ -2443,6 +2479,12 @@ handEditorModalHtml('sec', 'Edit second hand') +
         { value: '25', label: 'X-SMALL', icon: MODE_BTN_ICONS.sunMoon25 }
       ], current.sunMoonSize || '75') +
 '    <div class="help">Ignored during an actual eclipse, which sizes the Sun and Moon by their real geometry instead.</div>' +
+
+'    <div class="checkbox-row subsection' + (current.skyMode === '2' ? '' : ' grayed-out') + '" id="showMajorStarsRow">' +
+'      <input type="checkbox" id="showMajorStars" ' + (current.showMajorStars === false ? '' : 'checked') + ' onchange="updatePreview()">' +
+'      <label for="showMajorStars" style="margin:0;">Show major stars</label>' +
+'    </div>' +
+'    <div class="help">Space sky style only (grayed out otherwise, but still remembers your choice for whenever you switch back to it -- see the Style section). On by default; turning it off limits Space view to the Sun, Moon, planets, and sky effects (aurora, ISS, meteor showers) below -- no star field.</div>' +
 
 '    <div class="checkbox-row subsection">' +
 '      <input type="checkbox" id="showIss" ' + (current.showIss ? 'checked' : '') + '>' +
@@ -3101,6 +3143,18 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  });' +
 '  document.getElementById("fontPickerGrid").innerHTML = html;' +
 '  document.getElementById("fontPickerEmptyMsg").style.display = html ? "none" : "block";' +
+'  document.getElementById("fontPickerResetFiltersBtn").style.display = html ? "none" : "block";' +
+'}' +
+// Clears the category filter row back to "All" (and, in case the "All"
+// toggle itself is mid-restore, its own remembered pre-All selection
+// too) -- only ever reachable from the "no results" empty-state
+// button, so there's always at least one active filter combination to
+// clear when this runs.
+'function resetFontCategoryFilters() {' +
+'  fontPickerActiveCategories = ["all"];' +
+'  fontPickerPreAllCategories = [];' +
+'  renderFontCategoryRow();' +
+'  renderFontPickerGrid();' +
 '}' +
 'function chooseFontOption(id) {' +
 '  var cfg = FONT_PICKER_ROLES[currentFontPickerRole];' +
@@ -5409,8 +5463,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '}' +
 'function onSkyModeChange() {' +
 '  var isSpace = document.getElementById("skyMode").value === "2";' +
-'  document.getElementById("showMajorStarsRow").style.display = isSpace ? "" : "none";' +
-'  document.getElementById("showMajorStarsHelp").style.display = isSpace ? "" : "none";' +
+'  document.getElementById("showMajorStarsRow").classList.toggle("grayed-out", !isSpace);' +
 '  updatePreview();' +
 '}' +
 'function updateHandValLabels(kind) {' +
