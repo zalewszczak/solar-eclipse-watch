@@ -1,4 +1,12 @@
 #include "weather_layer.h"
+
+// Treat a weather value as stale only after repeated failed refreshes.
+// Previously valid data remains useful through short-lived fetch failures.
+bool weather_layer_should_show_error(const EclipseData *data) {
+  if (data->weather_error_code == 0) return false;
+  if (!data->weather_ever_valid) return true;
+  return data->weather_error_streak >= 10;
+}
 #include "subpixel.h"
 
 #define GROUND_H 18
@@ -540,7 +548,7 @@ void weather_layer_draw_aurora(GContext *ctx, GRect bounds, uint8_t visibility_p
 
 
 // Short weather-condition word used by the status/corners overlay.
-const char *short_condition_text(uint8_t weather_condition, uint8_t cloud_pct) {
+const char *weather_layer_short_condition_text(uint8_t weather_condition, uint8_t cloud_pct) {
   switch (weather_condition) {
     case 1: return "Fog";
     case 2: return "Rain";

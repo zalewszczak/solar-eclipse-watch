@@ -1,4 +1,5 @@
 #include "background_layer.h"
+#include "eclipse_ui.h"
 #include "subpixel.h"
 #include "features_layer.h"
 #include "marker_layer.h"
@@ -53,10 +54,10 @@ typedef struct {
                                  // instant a flash starts or ends and force a redraw for
                                  // just that transition, without abandoning the normal
                                  // once-a-minute cadence the rest of the time
-  bool bg_anim_active;       // "animate background on start" -- see eclipse_canvas_set_bg_anim()
+  bool bg_anim_active;       // "animate background on start" -- see background_layer_set_background_animation()
   uint16_t bg_anim_elapsed_ms; // and canvas_update_proc's own use of both these fields
   bool planet_seek_active;      // "Planet seek" (shake_anim_mode 2 or 3) -- see
-  uint16_t planet_seek_elapsed_ms; // eclipse_canvas_set_planet_seek() and canvas_update_proc's
+  uint16_t planet_seek_elapsed_ms; // background_layer_set_planet_seek() and canvas_update_proc's
   int32_t planet_seek_heading_deg; // own use of these three fields
   CelestialLayerState celestial;
 
@@ -112,7 +113,7 @@ static void draw_bg_anim_markers_overlay(GContext *ctx, CanvasState *state, cons
   if (d->bottom_style != 1) return;
   GPoint center = GPoint(bounds.size.w / 2, bounds.size.h / 2);
   GColor bg, main_color, accent_color;
-  get_active_color_scheme(d, now, &bg, &main_color, &accent_color);
+  eclipse_ui_get_active_color_scheme(d, now, &bg, &main_color, &accent_color);
   int32_t progress_1000 = ((int32_t)state->bg_anim_elapsed_ms * 1000) / BACKGROUND_ANIMATION_DURATION_MS;
   if (progress_1000 > 1000) progress_1000 = 1000;
   marker_layer_draw(ctx, &state->markers, center, bounds, d, main_color, accent_color, bg, true, progress_1000, d->draw_debug);
@@ -274,7 +275,7 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
   if (!need_full_draw && background_cache_blit(&state->cache, ctx, bounds)) {
     if (state->planet_seek_active) {
       GColor bg, main_color, accent_color;
-      get_active_color_scheme(d, now, &bg, &main_color, &accent_color);
+      eclipse_ui_get_active_color_scheme(d, now, &bg, &main_color, &accent_color);
       celestial_layer_draw_planet_seek(ctx, bounds, d, &state->celestial, now,
                                        state->planet_seek_heading_deg,
                                        shake_anim_eased_t_1000(state->planet_seek_elapsed_ms, d),
@@ -340,7 +341,7 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
     // visibly disagreeing at the seam. Every other layout keeps the
     // virtual span identical to `bounds` itself -- i.e. no change at
     // all from before this existed.
-    bool is_digital_top = bottom_style_is_digital_top(d->bottom_style);
+    bool is_digital_top = features_is_digital_top_layout(d->bottom_style);
     int16_t virtual_top_y = is_digital_top ? DIGITAL_PANEL_H : bounds.origin.y;
     int16_t virtual_total_h = is_digital_top ? (DIGITAL_PANEL_H + bounds.size.h) : bounds.size.h;
 
@@ -458,7 +459,7 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
   // apply in every mode.
   if (state->show_labels) {
     GColor label_bg, label_main_color, label_accent;
-    get_active_color_scheme(d, now, &label_bg, &label_main_color, &label_accent);
+    eclipse_ui_get_active_color_scheme(d, now, &label_bg, &label_main_color, &label_accent);
     // Sun/Moon/planets/stars/ISS only get their plain static label
     // OUTSIDE Planet seek -- during it, draw_planet_seek_overlay()
     // (called separately, above) already drew each one its own live,
@@ -494,7 +495,7 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
   // trick skip_body_paint uses above for bg_anim_mode 1's bodies.
   if (d->bottom_style == 1 && !skip_marker_paint) {
     GColor bg, main_color, accent_color;
-    get_active_color_scheme(d, now, &bg, &main_color, &accent_color);
+    eclipse_ui_get_active_color_scheme(d, now, &bg, &main_color, &accent_color);
     marker_layer_draw(ctx, &state->markers, center, bounds, d, main_color, accent_color, bg, false, 0, d->draw_debug);
   }
 
@@ -506,7 +507,7 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
 
   if (state->planet_seek_active) {
     GColor bg, main_color, accent_color;
-    get_active_color_scheme(d, now, &bg, &main_color, &accent_color);
+    eclipse_ui_get_active_color_scheme(d, now, &bg, &main_color, &accent_color);
     celestial_layer_draw_planet_seek(ctx, bounds, d, &state->celestial, now,
                                        state->planet_seek_heading_deg,
                                        shake_anim_eased_t_1000(state->planet_seek_elapsed_ms, d),
@@ -520,7 +521,7 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
   }
 }
 
-Layer *eclipse_canvas_create(GRect frame) {
+Layer *background_layer_create(GRect frame) {
   Layer *layer = layer_create_with_data(frame, sizeof(CanvasState));
   CanvasState *state = (CanvasState *)layer_get_data(layer);
   state->data = NULL;
@@ -536,28 +537,28 @@ Layer *eclipse_canvas_create(GRect frame) {
   return layer;
 }
 
-void eclipse_canvas_destroy(Layer *layer) {
+void background_layer_destroy(Layer *layer) {
   CanvasState *state = (CanvasState *)layer_get_data(layer);
   background_cache_deinit(&state->cache);
   marker_layer_deinit(&state->markers);
   layer_destroy(layer);
 }
 
-void eclipse_canvas_set_data(Layer *layer, EclipseData *data) {
+void background_layer_set_data(Layer *layer, EclipseData *data) {
   CanvasState *state = (CanvasState *)layer_get_data(layer);
   state->data = data;
   background_cache_invalidate(&state->cache);
   layer_mark_dirty(layer);
 }
 
-void eclipse_canvas_set_show_labels(Layer *layer, bool show) {
+void background_layer_set_labels_visible(Layer *layer, bool show) {
   CanvasState *state = (CanvasState *)layer_get_data(layer);
   state->show_labels = show;
   background_cache_invalidate(&state->cache);
   layer_mark_dirty(layer);
 }
 
-void eclipse_canvas_set_bg_anim(Layer *layer, bool active, uint16_t elapsed_ms) {
+void background_layer_set_background_animation(Layer *layer, bool active, uint16_t elapsed_ms) {
   CanvasState *state = (CanvasState *)layer_get_data(layer);
   bool was_active = state->bg_anim_active;
   state->bg_anim_active = active;
@@ -566,7 +567,7 @@ void eclipse_canvas_set_bg_anim(Layer *layer, bool active, uint16_t elapsed_ms) 
   // (see draw_bg_anim_markers_overlay()'s own comment) on top of an
   // otherwise-unchanging backdrop -- same "full draw once on entering/
   // leaving the mode, cheap overlay every frame in between" shape
-  // eclipse_canvas_set_planet_seek() below already uses -- so only the
+  // background_layer_set_planet_seek() below already uses -- so only the
   // active/inactive TRANSITION needs a genuine full redraw, not every
   // single frame. Mode 1 ("Planets") is different: its sky_now
   // substitution (see canvas_update_proc's own comment) means the
@@ -575,14 +576,14 @@ void eclipse_canvas_set_bg_anim(Layer *layer, bool active, uint16_t elapsed_ms) 
   // frame -- forced unconditionally here whenever it's the active
   // mode, same as every mode used to do. state->data may not be set
   // yet the very first time this is ever called (app launch, before
-  // the first eclipse_canvas_set_data()); forcing in that case too is
+  // the first background_layer_set_data()); forcing in that case too is
   // the safe default.
   uint8_t mode = state->data ? state->data->bg_anim_mode : 1;
   if (mode == 1 || active != was_active) background_cache_invalidate(&state->cache);
   layer_mark_dirty(layer);
 }
 
-// Deliberately does NOT force a full redraw the way eclipse_canvas_set_
+// Deliberately does NOT force a full redraw the way background_layer_set_
 // bg_anim() above does -- Planet seek's whole point is to redraw ONLY
 // the repositioned bodies each frame on top of a cached backdrop
 // (see canvas_update_proc's own "Planet seek" section), so forcing
@@ -590,7 +591,7 @@ void eclipse_canvas_set_bg_anim(Layer *layer, bool active, uint16_t elapsed_ms) 
 // 33ms tick would defeat that entirely. Just updates state and marks
 // the layer dirty so canvas_update_proc runs -- it decides for itself
 // whether that means a full redraw or the lightweight Planet-seek path.
-void eclipse_canvas_set_planet_seek(Layer *layer, bool active, uint16_t elapsed_ms, int32_t heading_deg) {
+void background_layer_set_planet_seek(Layer *layer, bool active, uint16_t elapsed_ms, int32_t heading_deg) {
   CanvasState *state = (CanvasState *)layer_get_data(layer);
   bool was_active = state->planet_seek_active;
   state->planet_seek_active = active;
@@ -605,7 +606,7 @@ void eclipse_canvas_set_planet_seek(Layer *layer, bool active, uint16_t elapsed_
 // canvas's own once-a-minute throttle inside canvas_update_proc
 // decides whether anything actually gets recomputed. Safe to call
 // every second without it costing a full redraw every time.
-void eclipse_canvas_tick(Layer *layer) {
+void background_layer_tick(Layer *layer) {
   layer_mark_dirty(layer);
 }
 
@@ -635,23 +636,6 @@ static void fmt_countdown(char *buf, size_t buf_len, const char *label, time_t t
   } else {
     snprintf(buf, buf_len, "%s %d:%02d", label, m, s);
   }
-}
-
-// Compact enough to fit the corners overlay's box width alongside an
-// icon -- the old full names ("Waxing Gibbous") were fine for a
-// full-width countdown line but don't fit there. Same thresholds as
-// before, just shorter labels.
-const char *moon_phase_short_name(uint8_t pct, bool waxing) {
-  if (pct <= 2) return "New";
-  if (pct >= 98) return "Full";
-  if (waxing) {
-    if (pct < 48) return "WxCr";
-    if (pct <= 52) return "1stQ";
-    return "WxGb";
-  }
-  if (pct > 52) return "WnGb";
-  if (pct >= 48) return "3rdQ";
-  return "WnCr";
 }
 
 EclipsePhase eclipse_get_status_text(const EclipseData *d, time_t now, char *buf, size_t buf_len, bool live_seconds) {

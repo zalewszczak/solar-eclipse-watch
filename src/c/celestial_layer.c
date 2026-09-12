@@ -1,11 +1,6 @@
 #include "celestial_layer.h"
+#include "features_layer.h"
 #include <string.h>
-
-// Shared text-outline primitive implemented by features_layer.c. Kept as a
-// narrow dependency instead of including the entire feature-layer header.
-extern void draw_text_outlined(GContext *ctx, const char *text, GFont font, GRect box,
-                               GTextOverflowMode overflow, GTextAlignment alignment,
-                               GColor color, uint8_t outline_radius);
 
 #define CELESTIAL_ARROW_W 6
 
@@ -208,7 +203,7 @@ static GPoint enforce_min_separation(GPoint a, GPoint b, int32_t min_dist) {
                 (int16_t)(a.y + (dy * min_dist) / dist));
 }
 
-void draw_moon_phase(GContext *ctx, GRect bounds, GPoint center, int16_t radius,
+void celestial_draw_moon_phase(GContext *ctx, GRect bounds, GPoint center, int16_t radius,
                     uint8_t phase_pct, bool waxing, GColor lit_color) {
   int32_t k100 = phase_pct, side = waxing ? 1 : -1;
   int16_t x0 = center.x - radius, x1 = center.x + radius;
@@ -269,6 +264,20 @@ static GPoint moon_offset_px(const EclipseData *d, time_t now, int16_t sun_r, in
   int32_t angle = (dir_deg * TRIG_MAX_ANGLE) / 360;
   return GPoint((offset_px * sin_lookup(angle)) / TRIG_MAX_RATIO,
                 -(offset_px * cos_lookup(angle)) / TRIG_MAX_RATIO);
+}
+
+// Compact labels used by the small corner/edge Moon-phase slots.
+const char *celestial_moon_phase_short_name(uint8_t pct, bool waxing) {
+  if (pct <= 2) return "New";
+  if (pct >= 98) return "Full";
+  if (waxing) {
+    if (pct < 48) return "WxCr";
+    if (pct <= 52) return "1stQ";
+    return "WxGb";
+  }
+  if (pct > 52) return "WnGb";
+  if (pct >= 48) return "3rdQ";
+  return "WnCr";
 }
 
 void celestial_layer_init(CelestialLayerState *state) {
@@ -338,7 +347,7 @@ void celestial_layer_update(CelestialLayerState *state, GContext *ctx, GRect bou
       moon_center = GPoint((bounds.size.w * 2) / 3, moon_y);
       if (sun_up) moon_center = enforce_min_separation(sun_center, moon_center, (sun_r * 3) / 2);
       moon_visible = true;
-      if (!skip_body_paint) draw_moon_phase(ctx, bounds, moon_center, moon_r, d->moon_phase_pct, d->moon_waxing, GColorWhite);
+      if (!skip_body_paint) celestial_draw_moon_phase(ctx, bounds, moon_center, moon_r, d->moon_phase_pct, d->moon_waxing, GColorWhite);
     }
   }
 
@@ -461,7 +470,7 @@ void celestial_layer_draw_bg_anim_planets(GContext *ctx, GRect bounds,
     GColor fill = d->sky_mode == 2 ? GColorFromRGB(255, 190, 60) : state->sun_fill_color;
     graphics_context_set_fill_color(ctx, fill); graphics_fill_circle(ctx, state->sun_center, state->sun_r);
   }
-  if (state->moon_visible) draw_moon_phase(ctx, bounds, state->moon_center, state->moon_r, d->moon_phase_pct, d->moon_waxing, GColorWhite);
+  if (state->moon_visible) celestial_draw_moon_phase(ctx, bounds, state->moon_center, state->moon_r, d->moon_phase_pct, d->moon_waxing, GColorWhite);
   for (int p = 0; p < PLANET_COUNT; p++) {
     if (!state->planet_visible[p]) continue;
     if (p == PLANET_SATURN) draw_saturn(ctx, state->planet_center[p], d->saturn_ring_open_pct);
@@ -481,7 +490,7 @@ static void draw_label_in_box(GContext *ctx, GRect r, const char *text, uint8_t 
   GFont font = fonts_get_system_font(FONT_KEY_GOTHIC_14);
   GRect text_box = GRect(r.origin.x, r.origin.y - 2, r.size.w, r.size.h + 2);
   if (label_style == 1) {
-    draw_text_outlined(ctx, text, font, text_box, GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, main_color, 1);
+    features_draw_text_outlined(ctx, text, font, text_box, GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, main_color, 1);
     return;
   }
   if (label_style == 2) {
@@ -524,7 +533,7 @@ static void draw_planet_seek_body(GContext *ctx, GRect bounds, const char *name,
     int16_t blended_x = (int16_t)(normal_center.x + (((int32_t)compass_x - normal_center.x) * blend_t_1000) / 1000);
     GPoint pos = GPoint(blended_x, normal_center.y);
     if (pos.x >= bounds.origin.x - radius && pos.x <= bounds.origin.x + bounds.size.w + radius) {
-      if (is_moon) draw_moon_phase(ctx, bounds, pos, radius, moon_phase_pct, moon_waxing, fill_color);
+      if (is_moon) celestial_draw_moon_phase(ctx, bounds, pos, radius, moon_phase_pct, moon_waxing, fill_color);
       else { graphics_context_set_fill_color(ctx, fill_color); graphics_fill_circle(ctx, pos, radius); }
       return;
     }

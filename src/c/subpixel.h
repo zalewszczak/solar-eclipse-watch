@@ -11,7 +11,7 @@
 // rotate around the dial exactly the same way, so this got pulled out into
 // its own header rather than staying hand-specific: background_layer.c's
 // marker ring now builds each mark's geometry in this same Q24.8 space
-// (see point_on_ring_fp()/draw_ring_mark_fp() there) instead of rounding
+// (see marker_layer_point_on_ring_fp()/draw_ring_mark_fp() there) instead of rounding
 // each mark's endpoints to whole pixels first and only then computing its
 // thickness -- the same class of precision loss compute_hand_geometry_fp's
 // use of this system already avoids for hands.
@@ -84,7 +84,7 @@ extern const uint8_t BAYER4[4][4];
 // second hand only draws at right angles". Rounding to nearest instead
 // keeps that offset non-zero across the whole sweep (verified
 // numerically for all 60 second positions before this was written).
-int32_t round_div(int32_t num, int32_t denom);
+int32_t subpixel_round_div(int32_t num, int32_t denom);
 
 // Plain integer square root (binary/digit-by-digit method, same
 // approach as background_layer.c's own isqrt32) for 64-bit inputs --

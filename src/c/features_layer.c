@@ -1,4 +1,5 @@
 #include "features_layer.h"
+#include "eclipse_ui.h"
 #include "background_layer.h"
 #include "sky_layer.h"
 #include "marker_layer.h"
@@ -10,8 +11,8 @@
 
 // See features_layer.h for the module-level design note (metadata cache
 // vs. per-redraw layout recompute). This file also owns the shared
-// draw_text_outlined()/contrasting_outline_color() outline primitives and
-// the corner/edge custom-font plumbing (ensure_corner_custom_font() etc.)
+// features_draw_text_outlined()/features_contrasting_outline_color() outline primitives and
+// the corner/edge custom-font plumbing (features_ensure_corner_custom_font() etc.)
 // -- both used outside this module too (the countdown label and the big-
 // analog hands/small-analog panel, respectively), which is why they're
 // declared in features_layer.h rather than kept private.
@@ -35,10 +36,10 @@
 // own comment in eclipse_data.h. Declared in features_layer.h; used
 // throughout this file and by pebble-eclipse-watch.c's own clock-text
 // drawing.
-uint8_t digital_side_mode(uint8_t bottom_style) {
-  return bottom_style_is_digital_top(bottom_style) ? bottom_style - 5 : bottom_style;
+uint8_t features_digital_side_mode(uint8_t bottom_style) {
+  return features_is_digital_top_layout(bottom_style) ? bottom_style - 5 : bottom_style;
 }
-bool bottom_style_is_digital_top(uint8_t bottom_style) {
+bool features_is_digital_top_layout(uint8_t bottom_style) {
   return bottom_style >= 5;
 }
 
@@ -91,7 +92,7 @@ static void get_outline_offsets(uint8_t outline_style, const GPoint **out_offset
 // outline on it looked wrong in practice. Weaker/darker reds (and
 // blue, which is genuinely dark at any saturation) still correctly
 // fall below this and get a white outline.
-GColor contrasting_outline_color(GColor c) {
+GColor features_contrasting_outline_color(GColor c) {
   uint8_t r = (c.argb >> 4) & 0x03;
   uint8_t g = (c.argb >> 2) & 0x03;
   uint8_t b = c.argb & 0x03;
@@ -99,13 +100,13 @@ GColor contrasting_outline_color(GColor c) {
   return (luma >= 9) ? GColorBlack : GColorWhite;
 }
 
-void draw_text_outlined(GContext *ctx, const char *text, GFont font, GRect box,
+void features_draw_text_outlined(GContext *ctx, const char *text, GFont font, GRect box,
                                 GTextOverflowMode overflow, GTextAlignment alignment,
                                 GColor color, uint8_t outline_style) {
   if (outline_style != 0) {
     const GPoint *offsets; int offset_count;
     get_outline_offsets(outline_style, &offsets, &offset_count);
-    graphics_context_set_text_color(ctx, contrasting_outline_color(color));
+    graphics_context_set_text_color(ctx, features_contrasting_outline_color(color));
     for (int i = 0; i < offset_count; i++) {
       GRect shifted = GRect(box.origin.x + offsets[i].x, box.origin.y + offsets[i].y,
                              box.size.w, box.size.h);
@@ -123,7 +124,7 @@ void draw_text_outlined(GContext *ctx, const char *text, GFont font, GRect box,
 // shared table every font-selecting system in this app draws from).
 static FontSlot s_corner_font_slot = FONT_SLOT_EMPTY;
 
-void ensure_corner_custom_font(uint8_t font_id) {
+void features_ensure_corner_custom_font(uint8_t font_id) {
   font_lookup_resolve(&s_corner_font_slot, font_id);
 }
 
@@ -231,7 +232,7 @@ static void draw_tiny_icon(GContext *ctx, GPoint top_left, const uint8_t *patter
 // reliably is the icon regardless of which index it's stored at.
 //
 // Outline support reuses the exact technique already used everywhere
-// else in this file (draw_text_outlined() et al, see OUTLINE_OFFSETS'
+// else in this file (features_draw_text_outlined() et al, see OUTLINE_OFFSETS'
 // comment near the top): call sites draw the icon 4x shifted in a
 // contrasting outline color, then once more in the real fill color --
 // draw_icon_resource() itself doesn't need to know about outlines at
@@ -343,7 +344,7 @@ static void draw_corner_battery_icon(GContext *ctx, GPoint top_left, GColor colo
 // corner content, style-selectable via weather_icon_style) -----------------
 
 // Which of the 7 weather icon categories to show, from the same
-// weather_condition + cloud_cover_pct combination short_condition_text()
+// weather_condition + cloud_cover_pct combination weather_layer_short_condition_text()
 // already uses -- kept in sync with those exact thresholds so the icon
 // and the "Sunny"/"P.Cloudy"/etc. text (when both are visible somewhere)
 // never disagree. 0=sunny, 1=partly cloudy, 2=cloudy/overcast, 3=fog,
@@ -688,7 +689,7 @@ static void draw_compass_icon(GContext *ctx, GPoint top_left, int16_t heading_de
 // The compass's own "sleep mode" replacement icon -- two simple
 // zigzag "Z"/"z" shapes (a bigger one upper-left, a smaller one
 // lower-right, like a comic-strip "sleeping" indicator) rather than
-// the rose above, shown whenever compass_feature_is_asleep() is true.
+// the rose above, shown whenever input_compass_feature_is_asleep() is true.
 static void draw_compass_sleep_icon(GContext *ctx, GPoint top_left, GColor color) {
   graphics_context_set_stroke_color(ctx, color);
   graphics_context_set_stroke_width(ctx, 1);
@@ -1167,7 +1168,7 @@ static void to_upper_str(char *s) {
 // and never get one regardless of the outline_style setting --
 // there's nothing there for it to contrast against.
 
-// Weather-derived corner content (see weather_should_show_error()'s own
+// Weather-derived corner content (see weather_layer_should_show_error()'s own
 // comment in eclipse_data.h for the 10-refresh-streak/never-had-data
 // reasoning) shows "ERR ###" instead of its normal reading once
 // that's true -- checked once here, after the big content switch
@@ -1279,7 +1280,7 @@ typedef struct {
   bool needs_second_refresh; // true if this content must be recomputed every second (time-with-seconds displays)
   // Digital-mode's single bottom feature is wider than a normal 68px
   // slot and needs to shift/resize with the clock itself (see
-  // digital_clock_area()) rather than sit flush against a screen edge
+  // features_digital_clock_area()) rather than sit flush against a screen edge
   // or centered across the full screen width -- when true, box_x/box_w
   // below are used verbatim (relative to bounds.origin) instead of the
   // normal is_left/center_horizontal+CORNER_BOX_W math, and the slot's
@@ -1587,7 +1588,7 @@ static void __attribute__((noinline)) compute_weather_value(FeatureSlot *slot, u
     case 5: { // current conditions
       int16_t temp = convert_temp(data->weather_temp_c, data->temp_unit);
       snprintf(buf, sizeof(buf), "%d %s", temp,
-               short_condition_text(data->weather_condition, data->cloud_cover_pct));
+               weather_layer_short_condition_text(data->weather_condition, data->cloud_cover_pct));
       slot->segment_count = 1;
       set_text_seg(slot, 0, buf, resolve_flat_color(color_mode, cond_color, main_color, accent_color));
       return;
@@ -1917,7 +1918,7 @@ static void __attribute__((noinline)) compute_sky_value(FeatureSlot *slot, uint8
 
   switch (content) {
     case 11: { // Moon phase -- icon + short name, no natural "value" to grade -- always white
-      snprintf(buf, sizeof(buf), "%s", moon_phase_short_name(data->moon_phase_pct, data->moon_waxing));
+      snprintf(buf, sizeof(buf), "%s", celestial_moon_phase_short_name(data->moon_phase_pct, data->moon_waxing));
       GColor c = resolve_flat_color(color_mode, GColorWhite, main_color, accent_color);
       slot->segment_count = 2;
       set_icon_seg(slot, 0, 4, c);
@@ -1935,7 +1936,7 @@ static void __attribute__((noinline)) compute_sky_value(FeatureSlot *slot, uint8
     case 16: { // sunrise/sunset -- same event/icon as the digital/analog info panel's row
       bool is_sunrise = false;
       time_t sun_event_time = 0;
-      if (get_next_sun_event(now, data->sun_rise, data->sun_set, data->sun_rise_tomorrow, &sun_event_time, &is_sunrise)) {
+      if (eclipse_ui_get_next_sun_event(now, data->sun_rise, data->sun_set, data->sun_rise_tomorrow, &sun_event_time, &is_sunrise)) {
         struct tm *event_t = localtime(&sun_event_time);
         strftime(buf, sizeof(buf), clock_is_24h_style() ? "%H:%M" : "%I:%M", event_t);
       } else {
@@ -2049,7 +2050,7 @@ static void __attribute__((noinline)) compute_sky_value(FeatureSlot *slot, uint8
                // Needs 2 colors at once (north arrow vs the other 3) rather than one flat color --
                // "mono"/"accent"/Pill still mean one shared color for the whole icon; only "color"
                // mode splits into accent (north) + main (other 3).
-      bool asleep = compass_feature_is_asleep();
+      bool asleep = input_compass_feature_is_asleep();
       if (asleep) {
         snprintf(buf, sizeof(buf), "---");
       } else {
@@ -2057,7 +2058,7 @@ static void __attribute__((noinline)) compute_sky_value(FeatureSlot *slot, uint8
           "N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE",
           "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"
         };
-        int32_t heading = compass_feature_heading_deg();
+        int32_t heading = input_compass_feature_heading_deg();
         int idx = (int)(((heading * 2 + 22) / 45) % 16);
         if (idx < 0) idx += 16;
         snprintf(buf, sizeof(buf), "%s", COMPASS_DIRS[idx]);
@@ -2065,7 +2066,7 @@ static void __attribute__((noinline)) compute_sky_value(FeatureSlot *slot, uint8
       GColor flat = resolve_flat_color(color_mode, main_color, main_color, accent_color);
       slot->segment_count = 2;
       set_icon_seg(slot, 0, 27, flat);
-      slot->segments[0].icon_extra = (int16_t)(compass_feature_heading_deg() % 360);
+      slot->segments[0].icon_extra = (int16_t)(input_compass_feature_heading_deg() % 360);
       slot->segments[0].icon_flag = asleep;
       if (color_mode == 3) {
         slot->segments[0].color = accent_color;  // north arrow
@@ -2339,7 +2340,7 @@ static void __attribute__((noinline)) compute_combo_value(FeatureSlot *slot, uin
       bool is_sunrise = false;
       time_t sun_event_time = 0;
       char time_buf[8];
-      if (get_next_sun_event(now, data->sun_rise, data->sun_set, data->sun_rise_tomorrow, &sun_event_time, &is_sunrise)) {
+      if (eclipse_ui_get_next_sun_event(now, data->sun_rise, data->sun_set, data->sun_rise_tomorrow, &sun_event_time, &is_sunrise)) {
         struct tm *et = localtime(&sun_event_time);
         strftime(time_buf, sizeof(time_buf), clock_is_24h_style() ? "%H:%M" : "%I:%M", et);
       } else {
@@ -2462,7 +2463,7 @@ static void features_recompute_slot_value(FeatureSlot *slot, const EclipseData *
   // uniformly, regardless of which weather cluster case built it, and
   // regardless of color_mode (an error needs to stay legible, not blend
   // in as a normal reading would).
-  if (content_is_weather_derived(content) && weather_should_show_error(data)) {
+  if (content_is_weather_derived(content) && weather_layer_should_show_error(data)) {
     char err_buf[10];
     snprintf(err_buf, sizeof(err_buf), "ERR %d", data->weather_error_code);
     slot->segment_count = 1;
@@ -2516,7 +2517,7 @@ static void draw_debug_marker_point(GContext *ctx, bool draw_debug, GPoint pos, 
 
 static void draw_render_icon(GContext *ctx, const RenderSegment *seg, int16_t icon_x, int16_t box_y, uint8_t outline_style, uint8_t weather_icon_style, bool draw_debug) {
   GColor color = seg->color;
-  GColor outline_color = contrasting_outline_color(color);
+  GColor outline_color = features_contrasting_outline_color(color);
   bool do_outline = outline_style != 0;
   const GPoint *offs = NULL; int offs_n = 0;
   if (do_outline) get_outline_offsets(outline_style, &offs, &offs_n);
@@ -2554,7 +2555,7 @@ static void draw_render_icon(GContext *ctx, const RenderSegment *seg, int16_t ic
         }
       }
       draw_debug_marker_point(ctx, draw_debug, center, GColorMagenta);
-      draw_moon_phase(ctx, clip, center, moon_r, (uint8_t)seg->icon_extra, seg->icon_flag, color);
+      celestial_draw_moon_phase(ctx, clip, center, moon_r, (uint8_t)seg->icon_extra, seg->icon_flag, color);
       return;
     }
     case 11: { // sunrise/sunset glyph -- now a plain image (see resources/images/
@@ -2745,7 +2746,7 @@ static void features_draw_slot(GContext *ctx, GRect bounds, const FeatureSlot *s
     } else {
       int16_t box_h = font_h + font_offset + 2;
       GRect bounding_box = GRect(seg_x, box_y + (CORNER_ROW_H - box_h) / 2 - 1, seg->width + 2, box_h);
-      draw_text_outlined(ctx, seg->text, font, bounding_box, GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft, seg->color, effective_outline_style);
+      features_draw_text_outlined(ctx, seg->text, font, bounding_box, GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft, seg->color, effective_outline_style);
       
       if (draw_debug){
         graphics_context_set_stroke_width(ctx, 1);
@@ -2779,8 +2780,8 @@ static void features_draw_slot(GContext *ctx, GRect bounds, const FeatureSlot *s
 // (positions the clock text itself) and this file's own
 // features_recompute_layout() (positions the bottom feature to match)
 // so the two can never drift out of sync with each other.
-void digital_clock_area(uint8_t bottom_style, int16_t screen_w, int16_t *out_x, int16_t *out_w) {
-  uint8_t side = digital_side_mode(bottom_style);
+void features_digital_clock_area(uint8_t bottom_style, int16_t screen_w, int16_t *out_x, int16_t *out_w) {
+  uint8_t side = features_digital_side_mode(bottom_style);
   if (side == 2) { // right side only -- shift left
     *out_x = 0;
     *out_w = screen_w - CORNER_BOX_W;
@@ -2800,7 +2801,7 @@ static void features_recompute_layout(FeaturesState *state) {
   if (!d) return;
 
   bool is_analog = d->bottom_style == 1;
-  bool is_digital_top = bottom_style_is_digital_top(d->bottom_style);
+  bool is_digital_top = features_is_digital_top_layout(d->bottom_style);
   uint8_t marker_style = d->big_analog_marker_style;
   bool is_bitmap_style = is_analog && marker_style >= 3 && marker_style != 8 && marker_style != 9;
 
@@ -2818,7 +2819,7 @@ static void features_recompute_layout(FeaturesState *state) {
 
   // Inner-empty-area margins: procedural presets (0/1/2) and "none" (9)
   // are calculated from that style's own marker-ring geometry via
-  // marker_layer_inner_reach() (same point_on_ring() technique
+  // marker_layer_inner_reach() (same marker_layer_point_on_ring() technique
   // custom (8) uses below, just fed a fixed preset instead of a live
   // user config); bitmap styles (3-7) have no ring geometry at all, so
   // they use a fixed per-style table instead, each side independent.
@@ -2862,10 +2863,10 @@ static void features_recompute_layout(FeaturesState *state) {
       }
       h_offset = (font_lookup_height(d->marker_text.font_choice) + font_lookup_y_offset(d->marker_text.font_choice)) / 2;
     }
-    GPoint top_pt = point_on_ring(center, screen, 0, pct, ecc);
-    GPoint right_pt = point_on_ring(center, screen, TRIG_MAX_ANGLE / 4, pct, ecc);
-    GPoint bottom_pt = point_on_ring(center, screen, TRIG_MAX_ANGLE / 2, pct, ecc);
-    GPoint left_pt = point_on_ring(center, screen, (TRIG_MAX_ANGLE * 3) / 4, pct, ecc);
+    GPoint top_pt = marker_layer_point_on_ring(center, screen, 0, pct, ecc);
+    GPoint right_pt = marker_layer_point_on_ring(center, screen, TRIG_MAX_ANGLE / 4, pct, ecc);
+    GPoint bottom_pt = marker_layer_point_on_ring(center, screen, TRIG_MAX_ANGLE / 2, pct, ecc);
+    GPoint left_pt = marker_layer_point_on_ring(center, screen, (TRIG_MAX_ANGLE * 3) / 4, pct, ecc);
     top_pt.y += h_offset;
     right_pt.x -= h_offset; // close enough
     bottom_pt.y -= h_offset;
@@ -2881,10 +2882,10 @@ static void features_recompute_layout(FeaturesState *state) {
     marker_layer_inner_reach(marker_style, &pct, &ecc);
     GRect screen = GRect(0, 0, 200, 228);
     GPoint center = GPoint(screen.size.w / 2, screen.size.h / 2);
-    GPoint top_pt = point_on_ring(center, screen, 0, pct, ecc);
-    GPoint right_pt = point_on_ring(center, screen, TRIG_MAX_ANGLE / 4, pct, ecc);
-    GPoint bottom_pt = point_on_ring(center, screen, TRIG_MAX_ANGLE / 2, pct, ecc);
-    GPoint left_pt = point_on_ring(center, screen, (TRIG_MAX_ANGLE * 3) / 4, pct, ecc);
+    GPoint top_pt = marker_layer_point_on_ring(center, screen, 0, pct, ecc);
+    GPoint right_pt = marker_layer_point_on_ring(center, screen, TRIG_MAX_ANGLE / 4, pct, ecc);
+    GPoint bottom_pt = marker_layer_point_on_ring(center, screen, TRIG_MAX_ANGLE / 2, pct, ecc);
+    GPoint left_pt = marker_layer_point_on_ring(center, screen, (TRIG_MAX_ANGLE * 3) / 4, pct, ecc);
     int16_t margin = 4;
     if (top_pt.y + margin > dyn_upper_offset) dyn_upper_offset = top_pt.y + margin;
     if (screen.size.h - bottom_pt.y + margin > dyn_bottom_shift) dyn_bottom_shift = screen.size.h - bottom_pt.y + margin;
@@ -2990,7 +2991,7 @@ static void features_recompute_layout(FeaturesState *state) {
   // so both columns are just built unconditionally below.
   if (!is_analog) {
     int16_t clock_x, clock_w;
-    digital_clock_area(d->bottom_style, 200, &clock_x, &clock_w);
+    features_digital_clock_area(d->bottom_style, 200, &clock_x, &clock_w);
 
     // 1 = nearest the clock, 3 = nearest the screen's own outer edge --
     // anchored off whichever edge is adjacent to the clock for the
@@ -3058,7 +3059,7 @@ static void features_recompute_layout(FeaturesState *state) {
     // digital-mode role, 7 slots needed against 8 available fields).
     // Shares clock_x/clock_w with the clock text itself
     // (draw_digital_clock_panel() in pebble-eclipse-watch.c uses the
-    // exact same digital_clock_area() call), always centered within
+    // exact same features_digital_clock_area() call), always centered within
     // that band, anchored to the screen's own outer edge -- the true
     // bottom for Digital bar, the true top for Digital top (row 3's own
     // edge in both cases, per the comment above).
@@ -3143,8 +3144,8 @@ static void features_recompute_all_values(FeaturesState *state) {
   time_t now = time(NULL);
   struct tm *t = localtime(&now);
   GColor bg, main_color, accent_color;
-  get_active_color_scheme(state->data, now, &bg, &main_color, &accent_color);
-  ensure_corner_custom_font(state->data->corner_font);
+  eclipse_ui_get_active_color_scheme(state->data, now, &bg, &main_color, &accent_color);
+  features_ensure_corner_custom_font(state->data->corner_font);
   GFont font = font_lookup_resolve(&s_corner_font_slot, state->data->corner_font);
   int16_t font_h = font_lookup_height(state->data->corner_font);
 
@@ -3163,7 +3164,7 @@ static void features_recompute_second_slots(FeaturesState *state) {
   time_t now = time(NULL);
   struct tm *t = localtime(&now);
   GColor bg, main_color, accent_color;
-  get_active_color_scheme(state->data, now, &bg, &main_color, &accent_color);
+  eclipse_ui_get_active_color_scheme(state->data, now, &bg, &main_color, &accent_color);
   GFont font = font_lookup_resolve(&s_corner_font_slot, state->data->corner_font);
   int16_t font_h = font_lookup_height(state->data->corner_font);
 
@@ -3251,7 +3252,7 @@ void features_layer_refresh_content(Layer *layer, uint8_t content) {
   time_t now = time(NULL);
   struct tm *t = localtime(&now);
   GColor bg, main_color, accent_color;
-  get_active_color_scheme(state->data, now, &bg, &main_color, &accent_color);
+  eclipse_ui_get_active_color_scheme(state->data, now, &bg, &main_color, &accent_color);
   GFont font = font_lookup_resolve(&s_corner_font_slot, state->data->corner_font);
   int16_t font_h = font_lookup_height(state->data->corner_font);
   for (int i = 0; i < FEATURES_MAX_SLOTS; i++) {

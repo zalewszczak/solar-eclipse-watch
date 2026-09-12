@@ -23,7 +23,7 @@ static void animation_timer_callback(void *context) {
   }
 
   if (s_canvas_layer) {
-    eclipse_canvas_set_bg_anim(s_canvas_layer, s_active, s_elapsed_ms);
+    background_layer_set_background_animation(s_canvas_layer, s_active, s_elapsed_ms);
   }
 }
 
@@ -44,7 +44,7 @@ void background_animation_start(EclipseData *data, Layer *canvas_layer) {
   s_active = true;
   s_elapsed_ms = 0;
   if (s_canvas_layer) {
-    eclipse_canvas_set_bg_anim(s_canvas_layer, true, 0);
+    background_layer_set_background_animation(s_canvas_layer, true, 0);
   }
   s_timer = app_timer_register(BACKGROUND_ANIMATION_FRAME_MS,
                                animation_timer_callback, NULL);

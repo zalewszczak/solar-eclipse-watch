@@ -1,7 +1,7 @@
 #include "hand_layer.h"
 #include "eclipse_data.h"
 
-// round_div/BAYER4/FGPoint helpers and the fill_polygon_fp()/
+// subpixel_round_div/BAYER4/FGPoint helpers and the fill_polygon_fp()/
 // fill_polygon_dithered_fp()/fill_circle_fp()/stroke_line_fp()/
 // stroke_polygon_fp()/stroke_circle_fp() rasterizers this file relies on
 // all now live in subpixel.h (included via hand_layer.h) -- shared with
@@ -348,7 +348,7 @@ static void compute_hand_geometry_fp(FGPoint center, int32_t angle, const HandCo
       if (have_back) {
         for (int k = 1; k <= LEAF_HALF_SAMPLES; k++) {
           int32_t u_num = k, u_den = LEAF_HALF_SAMPLES + 1; // u in (0,1)
-          int32_t ax = back_fp + round_div((peak_ax - back_fp) * u_num, u_den);
+          int32_t ax = back_fp + subpixel_round_div((peak_ax - back_fp) * u_num, u_den);
           int32_t angle_half_pi_u = (int32_t)(((int64_t)u_num * (TRIG_MAX_ANGLE / 4)) / u_den); // (pi/2)*u
           int32_t w = (int32_t)(((int64_t)half_w_fp * sin_lookup(angle_half_pi_u)) / TRIG_MAX_RATIO);
           FGPoint p = point_at_axial_fp(center, sin_v, cos_v, ax);
@@ -360,7 +360,7 @@ static void compute_hand_geometry_fp(FGPoint center, int32_t angle, const HandCo
       if (have_tip) {
         for (int k = 1; k <= LEAF_HALF_SAMPLES; k++) {
           int32_t u_num = k, u_den = LEAF_HALF_SAMPLES + 1; // v in (0,1), peak->tip
-          int32_t ax = peak_ax + round_div((len_fp - peak_ax) * u_num, u_den);
+          int32_t ax = peak_ax + subpixel_round_div((len_fp - peak_ax) * u_num, u_den);
           int32_t angle_half_pi_v = (int32_t)(((int64_t)u_num * (TRIG_MAX_ANGLE / 4)) / u_den); // (pi/2)*v
           int32_t w = (int32_t)(((int64_t)half_w_fp * cos_lookup(angle_half_pi_v)) / TRIG_MAX_RATIO);
           FGPoint p = point_at_axial_fp(center, sin_v, cos_v, ax);
@@ -490,7 +490,7 @@ static void compute_hand_geometry_fp(FGPoint center, int32_t angle, const HandCo
 
       FGPoint verts[SERP_SEGMENTS + 1];
       for (int i = 0; i <= SERP_SEGMENTS; i++) {
-        int32_t s_rel_fp = round_div(span_fp * i, SERP_SEGMENTS);
+        int32_t s_rel_fp = subpixel_round_div(span_fp * i, SERP_SEGMENTS);
         int32_t ax = back_fp + s_rel_fp;
         int64_t angle_raw = ((int64_t)s_rel_fp * TRIG_MAX_ANGLE) / period_fp;
         int32_t angle = (int32_t)(angle_raw % TRIG_MAX_ANGLE);
@@ -528,8 +528,8 @@ static void compute_hand_geometry_fp(FGPoint center, int32_t angle, const HandCo
           perp_offset_fp(sin_v, cos_v, half_w_fp, &ox, &oy);
         } else {
           int32_t tlen = (int32_t)isqrt64_fp(len_sq);
-          ox = round_div(-ty * half_w_fp, tlen);
-          oy = round_div(tx * half_w_fp, tlen);
+          ox = subpixel_round_div(-ty * half_w_fp, tlen);
+          oy = subpixel_round_div(tx * half_w_fp, tlen);
         }
         HandPoly *poly = &geo->polys[geo->n_polys++];
         poly->n = 4;

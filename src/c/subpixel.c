@@ -19,7 +19,7 @@ static const int32_t SUBPIXEL_AA_OFFSETS3[3] = { -SUBPIXEL_SCALE / 3, 0, SUBPIXE
 
 // ---- small shared helpers -----------------------------------------------
 
-int32_t round_div(int32_t num, int32_t denom) {
+int32_t subpixel_round_div(int32_t num, int32_t denom) {
   if (denom == 0) return 0;
   if (num >= 0) return (num + denom / 2) / denom;
   return -((-num + denom / 2) / denom);
@@ -353,8 +353,8 @@ bool inset_convex_polygon_fp(const FGPoint *pts, int n, int32_t d_fp, FGPoint *o
     int64_t dot = (int64_t)(centroid.x - mx) * nx + (int64_t)(centroid.y - my) * ny;
     if (dot < 0) { nx = -nx; ny = -ny; }
 
-    int32_t off_x = round_div(nx * d_fp, elen);
-    int32_t off_y = round_div(ny * d_fp, elen);
+    int32_t off_x = subpixel_round_div(nx * d_fp, elen);
+    int32_t off_y = subpixel_round_div(ny * d_fp, elen);
     offset_a[i] = fgpoint_new(a.x + off_x, a.y + off_y);
     dir_x[i] = ex; dir_y[i] = ey;
   }

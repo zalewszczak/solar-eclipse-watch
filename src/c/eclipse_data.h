@@ -35,7 +35,7 @@ typedef struct {
                             // Hour: 1-20. Second: 1-10 (clamped by the caller/settings UI).
   uint8_t inner_eccentricity; // 0-100: 0 = the inner edge follows a circle, 100 = it follows
                                // the screen-fitted rectangle (see background_layer.c:
-                               // point_on_ring()) at the inner_border_pct "reach".
+                               // marker_layer_point_on_ring()) at the inner_border_pct "reach".
   uint8_t outer_eccentricity; // same, for the outer edge, at outer_border_pct.
   uint8_t inner_border_pct; // 0-100: how far out the inner edge sits. 0% = the largest circle
                               // guaranteed to stay fully on-screen (min(screen_w,screen_h)/2),
@@ -174,7 +174,7 @@ typedef enum {
 // an enum, since the meaningful range doesn't fit a small one.
 
 // Which slot each planet occupies in the arrays below -- keep this in
-// sync with PLANET_NAMES in eclipse_layer.c and the concatenation
+// sync with PLANET_NAMES in background_layer.c and the concatenation
 // order PKJS uses when building PLANET_ALT_SAMPLES/RISE/SET.
 typedef enum {
   PLANET_MERCURY = 0,
@@ -308,7 +308,7 @@ typedef struct {
                                // skipped, kept free as a spacer rather than implying anything) -- same panel
                                // content, just drawn transparently at the screen's TOP instead of drawn
                                // opaque at its bottom, with the sky/element canvas below it (not above) as
-                               // a result. See digital_side_mode()/bottom_style_is_digital_top() in
+                               // a result. See features_digital_side_mode()/features_is_digital_top_layout() in
                                // features_layer.h for how the two pieces (which sides, top-vs-bottom) get
                                // pulled back apart wherever the code needs one without the other. Any value
                                // other than 1 draws a digital clock somewhere; only 1 is analog.
@@ -548,7 +548,7 @@ typedef struct {
   // with 0), capped well below 255 so it can never wrap around.
   // weather_ever_valid latches true the first time a real weather
   // reading is ever received, and never goes back to false -- see
-  // weather_should_show_error() in pebble-eclipse-watch.c for how the
+  // weather_layer_should_show_error() in weather_layer.c for how the
   // three combine to decide whether a corner slot shows "ERR ###"
   // instead of the (possibly stale, but still real) last-known
   // reading.
@@ -686,7 +686,7 @@ typedef struct {
   time_t sun_rise;
   time_t sun_set;
   time_t sun_rise_tomorrow; // used once `now` is past both sun_rise and sun_set today,
-                             // so get_next_sun_event() has something to fall back to
+                             // so eclipse_ui_get_next_sun_event() has a next event to fall back to
                              // instead of reporting "no event" (which used to show as "--:--").
   time_t moon_rise;
   time_t moon_set;
@@ -751,67 +751,8 @@ typedef struct {
   bool draw_debug;                // drawing the bounding boxes of certain elements for debug purposes
 } EclipseData;
 
-// Defined in pebble-eclipse-watch.c, declared here (rather than a new
-// header) since both that file and background_layer.c need it -- resolves
-// the active day/night color scheme into concrete GColors. Takes `d`
-// explicitly rather than reading a global, so background_layer.c can use
-// its own EclipseData pointer (the same one, via eclipse_canvas_set_data())
-// to get marker colors without duplicating the palette tables.
-void get_active_color_scheme(const EclipseData *d, time_t now, GColor *bg, GColor *text, GColor *accent);
-
-// Also defined in pebble-eclipse-watch.c, declared here for the same reason:
-// unpacks one of the 64 real display colors from the single raw byte the
-// phone/settings page sends for a custom scheme/hand/marker/etc. color --
-// shared with features_layer.c's full-color weather icon rendering and
-// get_active_color_scheme() above, both of which need to do the same
-// unpacking.
-GColor gcolor_from_packed(uint8_t packed);
-
-// Also defined in pebble-eclipse-watch.c, declared here so
-// features_layer.c's weather-derived corner content cases can call it.
-// True when a weather corner slot should show "ERR ###" (see
-// weather_error_code above) instead of its normal reading: either
-// there's been no good weather data at all yet (so there's nothing
-// worth falling back to), or the last 10+ consecutive refreshes have
-// all come back as errors (so this isn't just a blip -- see
-// weather_error_streak's own comment for the reasoning and the
-// request that led to it).
-bool weather_should_show_error(const EclipseData *d);
-
-// Also defined in pebble-eclipse-watch.c -- the watch's current compass
-// heading (0-359, true-north-relative, clockwise -- 0=N, 90=E, 180=S,
-// 270=W, matching every other bearing in this app), as of the most
-// recent reading while planet seek's own compass subscription is
-// active. Meaningless (and not kept fresh) outside that window -- see
-// shake_anim_mode's own comment for what's actually implemented here
-// so far.
-int32_t planet_seek_heading_deg(void);
-
-// Also defined in pebble-eclipse-watch.c -- true whenever the compass
-// backing planet_seek_heading_deg() above isn't (yet) fully calibrated,
-// i.e. CompassStatus is anything other than CompassStatusCalibrated.
-// Meaningless outside planet seek's own compass-subscription window,
-// same as planet_seek_heading_deg() itself.
-bool planet_seek_compass_low_accuracy(void);
-
-// Also defined in pebble-eclipse-watch.c -- the Compass corner/edge
-// content's own compass state, independent of planet_seek_heading_deg
-// above (see compass_feature_is_asleep()'s own comment there for why).
-int32_t compass_feature_heading_deg(void);
-bool compass_feature_is_asleep(void);
-
-// Also defined in pebble-eclipse-watch.c, declared here for the same reason:
-// features_layer.c's "current conditions" and sunrise/sunset corner content
-// reuse the digital bottom panel's own sunrise/sunset row logic rather than
-// duplicating it.
-//
-// Finds whichever of sun_rise/sun_set/sun_rise_tomorrow is the next one to
-// occur after `now`, writing it to *event_time and whether it's a rise
-// (true) or a set (false) to *is_sunrise. Returns false if none of the
-// three are set yet (no data received).
-bool get_next_sun_event(time_t now, time_t sun_rise, time_t sun_set, time_t sun_rise_tomorrow,
-                         time_t *event_time, bool *is_sunrise);
-
+// Rendering/UI helpers live in eclipse_ui.h.
+// Input state accessors live in input.h.
 // draw_sun_time_icon() used to be declared here -- the sunrise/sunset
 // glyph is now a plain image drawn straight from features_layer.c's
 // draw_render_icon() (icon_kind 11), via the shared draw_icon_resource_

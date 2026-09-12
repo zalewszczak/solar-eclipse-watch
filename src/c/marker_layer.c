@@ -27,14 +27,14 @@ static int16_t marker_min(int16_t a, int16_t b) { return a < b ? a : b; }
 static int16_t marker_max(int16_t a, int16_t b) { return a > b ? a : b; }
 
 // Converts a 0-100% "reach" into an actual distance from center, in the
-// same Q24.8 fixed-point units point_on_ring_fp() below works in
+// same Q24.8 fixed-point units marker_layer_point_on_ring_fp() below works in
 // throughout -- this is what actually keeps everything on-screen: 0% =
 // the largest circle that's guaranteed to stay fully within the screen
 // at every angle (the shorter half-dimension), 100% = the far edge the
 // screen-fitted rectangle reaches along its dominant axis (the longer
 // half-dimension). Returns fixed-point directly (rather than rounding
 // to a whole pixel first and re-promoting that) so the sub-pixel
-// precision survives into the rest of point_on_ring_fp()'s math.
+// precision survives into the rest of marker_layer_point_on_ring_fp()'s math.
 static int32_t marker_reach_fp(GRect screen, uint8_t pct) {
   int16_t reach_min = marker_min(screen.size.w / 4, screen.size.h / 4);
   int16_t reach_max = marker_max(screen.size.w / 2, screen.size.h / 2);
@@ -54,7 +54,7 @@ static int32_t marker_reach_fp(GRect screen, uint8_t pct) {
 // version of the same math. sin_v/cos_v are passed in (rather than an
 // angle) since draw_marker_ring() below already looks them up once per
 // mark and reuses them for the mark's thickness offset too.
-static FGPoint point_on_ring_fp(FGPoint center, GRect screen, int32_t sin_v, int32_t cos_v,
+static FGPoint marker_layer_point_on_ring_fp(FGPoint center, GRect screen, int32_t sin_v, int32_t cos_v,
                                  uint8_t pct, uint8_t eccentricity_pct) {
   int16_t screen_hw = screen.size.w / 2, screen_hh = screen.size.h / 2;
   int32_t reach_fp = marker_reach_fp(screen, pct);
@@ -94,12 +94,12 @@ static FGPoint point_on_ring_fp(FGPoint center, GRect screen, int32_t sin_v, int
 // slots can shift inside it -- see that file's own comment near
 // features_recompute_slots() (or wherever the slot layout actually
 // gets built) for how.
-GPoint point_on_ring(GPoint center, GRect screen, int32_t angle,
+GPoint marker_layer_point_on_ring(GPoint center, GRect screen, int32_t angle,
                       uint8_t pct, uint8_t eccentricity_pct) {
   int32_t norm_angle = angle & 0xFFFF; // mask to prevent trig table lookup overflow/underflow
   int32_t sin_v = sin_lookup(norm_angle), cos_v = cos_lookup(norm_angle);
   FGPoint center_fp = fgpoint_from_gpoint(center);
-  return fgpoint_to_gpoint(point_on_ring_fp(center_fp, screen, sin_v, cos_v, pct, eccentricity_pct));
+  return fgpoint_to_gpoint(marker_layer_point_on_ring_fp(center_fp, screen, sin_v, cos_v, pct, eccentricity_pct));
 }
 
 // Draws one mark as a straight quad from inner to outer, with the
@@ -107,7 +107,7 @@ GPoint point_on_ring(GPoint center, GRect screen, int32_t angle,
 // independent (both simply equal for every style except 4, "tapered",
 // which is what actually turns this into a trapezoid instead of a
 // uniform-width quad) -- built directly from sin_v/cos_v (the same
-// radial direction point_on_ring_fp() placed inner/outer along) rather
+// radial direction marker_layer_point_on_ring_fp() placed inner/outer along) rather
 // than re-deriving a direction from the two points via vector
 // subtraction, exactly mirroring how compute_hand_geometry_fp() in
 // hand_layer.c builds a hand's own dot/square body from its own angle.
@@ -242,7 +242,7 @@ static void draw_marker_ring(GContext *ctx, GPoint center, GRect screen, const M
   // hand's half-width -- without it, a thickness of 1 (half_thick_fp
   // rounding down to 0) would collapse the mark's quad to zero area at
   // every angle except the four cardinal ones, same "second hand only
-  // draws at right angles" bug round_div()'s comment in subpixel.h
+  // draws at right angles" bug subpixel_round_div()'s comment in subpixel.h
   // describes.
   int32_t outer_half_thick_fp = ((int32_t)cfg->thickness << SUBPIXEL_BITS) / 2;
   if (outer_half_thick_fp < SUBPIXEL_HALF) outer_half_thick_fp = SUBPIXEL_HALF;
@@ -281,8 +281,8 @@ static void draw_marker_ring(GContext *ctx, GPoint center, GRect screen, const M
       use_outer_ecc = (uint8_t)marker_lerp8(100, cfg->outer_eccentricity, p, 1000);
     }
 
-    FGPoint outer_fp = point_on_ring_fp(center_fp, screen, sin_v, cos_v, use_outer_pct, use_outer_ecc);
-    FGPoint inner_fp = point_on_ring_fp(center_fp, screen, sin_v, cos_v, use_inner_pct, use_inner_ecc);
+    FGPoint outer_fp = marker_layer_point_on_ring_fp(center_fp, screen, sin_v, cos_v, use_outer_pct, use_outer_ecc);
+    FGPoint inner_fp = marker_layer_point_on_ring_fp(center_fp, screen, sin_v, cos_v, use_inner_pct, use_inner_ecc);
     draw_ring_mark_fp(ctx, inner_fp, outer_fp, sin_v, cos_v, inner_half_thick_fp, outer_half_thick_fp,
                        cfg->style, color, cfg->translucent, inner_thickness_px, cfg->thickness);
   }
@@ -398,7 +398,7 @@ static void draw_text_markers(GContext *ctx, GPoint center, GRect screen, Marker
     } else if (offset_text_pct < 0) {
       offset_text_pct = 0;
     }
-    GPoint pos = point_on_ring(center, screen, angle, offset_text_pct, ring->thickness == 0 ? 100 : ring->inner_eccentricity);
+    GPoint pos = marker_layer_point_on_ring(center, screen, angle, offset_text_pct, ring->thickness == 0 ? 100 : ring->inner_eccentricity);
    
 //    int32_t sin_v = sin_lookup(angle), cos_v = cos_lookup(angle);
 //    GPoint pos = GPoint(

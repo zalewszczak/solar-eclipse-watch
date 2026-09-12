@@ -51,7 +51,7 @@ static bool shake_anim_wants_smooth_second(uint8_t mode) {
 // as long as the animation itself runs (compass/magnetometer use has
 // a real, ongoing power cost, unlike a plain timer), storing just the
 // latest heading for whatever future rendering code reads it via
-// planet_seek_heading_deg() below.
+// input_planet_seek_heading_deg() below.
 //
 // Smoothing here follows the same target-angle/presented-angle split
 // Pebble's own compass app uses (github.com/coredevices/pebble-compass,
@@ -104,7 +104,7 @@ static bool s_planet_seek_heading_has_reading = false;
 // Starts true (not false) since there's no reading at all until the
 // first callback fires, and "we don't know the heading yet" is exactly
 // the "don't trust this" state the low-accuracy warning is for.
-static bool s_planet_seek_compass_low_accuracy = true;
+static bool s_input_planet_seek_compass_low_accuracy = true;
 
 static void planet_seek_compass_handler(CompassHeadingData data) {
   // CompassHeading (both magnetic_heading and true_heading -- the
@@ -140,7 +140,7 @@ static void planet_seek_compass_handler(CompassHeadingData data) {
   // reading at all. Anything short of Calibrated is worth flagging to
   // the wearer, per the compass guide's own "tell the user whether
   // this can be trusted" framing.
-  s_planet_seek_compass_low_accuracy = (data.compass_status != CompassStatusCalibrated);
+  s_input_planet_seek_compass_low_accuracy = (data.compass_status != CompassStatusCalibrated);
 }
 
 // Advances the presented heading one animation frame toward whatever
@@ -219,7 +219,7 @@ static void planet_seek_heading_physics_step(void) {
 // assigned, not to shake_anim_mode. Active (compass subscribed,
 // redrawing) for exactly 15s after a shake, then sleeps (unsubscribed,
 // shows "Z z" and three dashes instead of a heading) until the next
-// one -- see compass_feature_is_asleep()/compass_feature_heading_deg()
+// one -- see input_compass_feature_is_asleep()/input_compass_feature_heading_deg()
 // in features_layer.c's own content-85 case for how this gets drawn.
 #define COMPASS_FEATURE_DURATION_MS 15000
 #define COMPASS_FEATURE_FRAME_MS 300 // ~3fps -- plenty for a heading readout; far cheaper than the 30fps shake-gradient system, which needs to look like continuous motion and this doesn't
@@ -227,14 +227,14 @@ static void planet_seek_heading_physics_step(void) {
 static AppTimer *s_compass_feature_timer = NULL;
 static bool s_compass_feature_active = false;
 static uint32_t s_compass_feature_elapsed_ms = 0;
-static int32_t s_compass_feature_heading_deg = 0;
+static int32_t s_input_compass_feature_heading_deg = 0;
 
 static void compass_feature_handler(CompassHeadingData data) {
   if (data.compass_status != CompassStatusDataInvalid) {
     // Same counter-clockwise-vs-clockwise fix as
     // planet_seek_compass_handler() above -- see its comment.
     CompassHeading clockwise = TRIG_MAX_ANGLE - data.true_heading;
-    s_compass_feature_heading_deg = (int32_t)(((int64_t)clockwise * 360) / TRIG_MAX_ANGLE) % 360;
+    s_input_compass_feature_heading_deg = (int32_t)(((int64_t)clockwise * 360) / TRIG_MAX_ANGLE) % 360;
   }
 }
 
@@ -361,7 +361,7 @@ void input_deinit(void) {
 
 bool input_shake_animation_active(void) { return s_shake_anim_active; }
 bool input_shake_animation_wants_smooth_second(uint8_t mode) { return shake_anim_wants_smooth_second(mode); }
-int32_t planet_seek_heading_deg(void) { return s_planet_seek_heading_smoothed_fp >> 8; }
-bool planet_seek_compass_low_accuracy(void) { return s_planet_seek_compass_low_accuracy; }
-int32_t compass_feature_heading_deg(void) { return s_compass_feature_heading_deg; }
-bool compass_feature_is_asleep(void) { return !s_compass_feature_active; }
+int32_t input_planet_seek_heading_deg(void) { return s_planet_seek_heading_smoothed_fp >> 8; }
+bool input_planet_seek_compass_low_accuracy(void) { return s_input_planet_seek_compass_low_accuracy; }
+int32_t input_compass_feature_heading_deg(void) { return s_input_compass_feature_heading_deg; }
+bool input_compass_feature_is_asleep(void) { return !s_compass_feature_active; }

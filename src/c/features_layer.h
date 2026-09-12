@@ -96,24 +96,24 @@ void features_layer_refresh_content(Layer *layer, uint8_t content);
 // See its own comment in features_layer.c -- shared with
 // pebble-eclipse-watch.c so the clock text and the digital-mode bottom
 // feature can never disagree about which horizontal band they share.
-void digital_clock_area(uint8_t bottom_style, int16_t screen_w, int16_t *out_x, int16_t *out_w);
+void features_digital_clock_area(uint8_t bottom_style, int16_t screen_w, int16_t *out_x, int16_t *out_w);
 
 // Pulls bottom_style's two independent pieces -- which side column(s)
 // are on, and whether the panel itself sits at the screen's top or
 // bottom -- back apart (see that field's own 0-9 comment in
 // eclipse_data.h). Shared with pebble-eclipse-watch.c, which needs both
-// (digital_side_mode() for the same single/both-side ellipsis-avoidance
-// shifting digital_clock_area() already handles; bottom_style_is_
+// (features_digital_side_mode() for the same single/both-side ellipsis-avoidance
+// shifting features_digital_clock_area() already handles; features_is_digital_top_layout
 // digital_top() to pick which panel layer/update_proc applies at all)
 // without duplicating the +5 arithmetic in two files.
-uint8_t digital_side_mode(uint8_t bottom_style); // 0=none, 2=right, 3=left, 4=both -- Digital bar's own values, regardless of which layout bottom_style actually is
-bool bottom_style_is_digital_top(uint8_t bottom_style);
+uint8_t features_digital_side_mode(uint8_t bottom_style); // 0=none, 2=right, 3=left, 4=both -- Digital bar's own values, regardless of which layout bottom_style actually is
+bool features_is_digital_top_layout(uint8_t bottom_style);
 
 // Loads/unloads the shared corner/edge custom font on demand -- cheap to
 // call repeatedly (no-ops if the choice hasn't changed since the last
 // call). Used by this module's own value-recompute functions and the
 // big-analog hands layer's date-behind-hands readout.
-void ensure_corner_custom_font(uint8_t choice);
+void features_ensure_corner_custom_font(uint8_t choice);
 
 // Unloads the shared corner/edge custom font, if one is currently
 // loaded -- call once from window_unload() on app exit, mirroring how
@@ -122,7 +122,7 @@ void features_layer_unload_fonts(void);
 
 // Shared outline-drawing primitives -- also used by the countdown/status
 // label in pebble-eclipse-watch.c, not just this module's own content.
-GColor contrasting_outline_color(GColor c);
-void draw_text_outlined(GContext *ctx, const char *text, GFont font, GRect box,
+GColor features_contrasting_outline_color(GColor c);
+void features_draw_text_outlined(GContext *ctx, const char *text, GFont font, GRect box,
                          GTextOverflowMode overflow, GTextAlignment alignment,
                          GColor color, uint8_t outline_style);

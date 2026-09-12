@@ -336,7 +336,7 @@ void sky_layer_compute_wash(const EclipseData *d, time_t now, int16_t virtual_to
 
 // ---- Digital top's own gradient-only strip ------------------------------
 // See this pair's own declaration comment in background_layer.h for
-// the "why a separate tiny module instead of another eclipse_canvas_
+// the "why a separate tiny module instead of another background_layer_
 // create() frame" reasoning. Layer-local state is just the EclipseData
 // pointer -- no cache, no animation/tick bookkeeping, nothing else this
 // needs to remember between redraws (sky_layer_compute_wash() is cheap
