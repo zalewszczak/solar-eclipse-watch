@@ -5,6 +5,7 @@
 #include "marker_layer.h"
 #include "celestial_layer.h"
 #include "weather_layer.h"
+#include "input.h"
 #include "font_lookup.h"
 #include <string.h>
 #include <stdlib.h> // atoi(), for parsing strftime's "%V" week-number string back to an int for grading
