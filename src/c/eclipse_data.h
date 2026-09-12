@@ -112,7 +112,7 @@ typedef struct {
 // per refresh cycle, one at a time (see sendChunk()/pumpSendQueue() in
 // index.js), each tagged with MESSAGE_KEY_MESSAGE_TYPE so the C side
 // (and anyone reading a packet capture) can tell which subset of keys
-// to expect. inbox_received_handler() still just does a dict_find()
+// to expect. comms.c still applies each field with dict_find()
 // per key it cares about -- that's already tolerant of a partial
 // dictionary -- so MESSAGE_TYPE isn't required for correctness, only
 // for logging/validation and so a chunk's *shape* is documented in one
@@ -345,11 +345,11 @@ typedef struct {
                          // of 0=off, 1=planets (Sun/Moon/planets + the sky gradient sweep in from
                          // their position a couple hours ago), 2=markers (big-analog HOUR markers
                          // only -- second markers are excluded and always drawn normally --
-                         // animate in from off-screen, see draw_all_markers()'s own comment on why
+                         // animate in from off-screen, see marker_layer_draw()'s own comment on why
                          // they're not genuinely cached rather than just skipped-from-animation).
                          // Only one kind of element animates at a time -- see canvas_update_proc's
                          // own gating at each of its 2 uses (the sky_now substitution and the
-                         // draw_all_markers() call).
+                         // marker_layer_draw() call).
   uint8_t shake_anim_mode; // user setting ("On shake animation" section, default 0=off): radio-
                              // style, exactly one of 0=off, 1=smooth second hand (continuous
                              // sub-second motion instead of per-second jumps, for as long as
@@ -474,8 +474,8 @@ typedef struct {
   // meaningful when the matching custom_*_marker.style above is 4.
   // Deliberately NOT fields on MarkerRingConfig itself: that struct's
   // size is load-bearing for the MARKER_RINGS wire blob (see
-  // pebble-eclipse-watch.c's own _Static_assert(sizeof(MarkerRingConfig)
-  // == 8, ...) and apply_consolidated_fields()'s memcpy of exactly
+  // comms.c's own _Static_assert(sizeof(MarkerRingConfig)
+  // == 8, ...) and comms.c's memcpy of exactly
   // 2 * sizeof(MarkerRingConfig) bytes) -- growing it here would have
   // needed a matching phone-side wire format change, so these two are
   // sent as their own separate simple fields instead (MK_CUSTOM_HOUR_

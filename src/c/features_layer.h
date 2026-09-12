@@ -80,6 +80,11 @@ void features_layer_refresh_values(Layer *layer);
 // slot is currently showing seconds.
 void features_layer_refresh_second_slots(Layer *layer);
 
+// Returns true when the supplied corner/edge content id is used by any
+// feature slot. Kept here so input/compass and time/tick policy can inspect
+// feature configuration without reaching into private feature-layer state.
+bool features_layer_content_in_use(const EclipseData *data, uint8_t content);
+
 // Re-resolves ONLY the slot(s) currently showing this specific content
 // id, then marks the layer dirty -- for triggers tied to one particular
 // content type rather than the clock (e.g. the compass feature's own

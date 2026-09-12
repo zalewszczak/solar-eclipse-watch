@@ -1,5 +1,6 @@
 #include "features_layer.h"
 #include "background_layer.h"
+#include "marker_layer.h"
 #include "font_lookup.h"
 #include <string.h>
 #include <stdlib.h> // atoi(), for parsing strftime's "%V" week-number string back to an int for grading
@@ -2814,7 +2815,7 @@ static void features_recompute_layout(FeaturesState *state) {
 
   // Inner-empty-area margins: procedural presets (0/1/2) and "none" (9)
   // are calculated from that style's own marker-ring geometry via
-  // background_marker_inner_reach() (same point_on_ring() technique
+  // marker_layer_inner_reach() (same point_on_ring() technique
   // custom (8) uses below, just fed a fixed preset instead of a live
   // user config); bitmap styles (3-7) have no ring geometry at all, so
   // they use a fixed per-style table instead, each side independent.
@@ -2874,7 +2875,7 @@ static void features_recompute_layout(FeaturesState *state) {
     if (right_reach > dyn_right_inset) dyn_right_inset = right_reach;
   } else if (marker_style <= 2 || marker_style == 9) {
     uint8_t pct, ecc;
-    background_marker_inner_reach(marker_style, &pct, &ecc);
+    marker_layer_inner_reach(marker_style, &pct, &ecc);
     GRect screen = GRect(0, 0, 200, 228);
     GPoint center = GPoint(screen.size.w / 2, screen.size.h / 2);
     GPoint top_pt = point_on_ring(center, screen, 0, pct, ecc);
@@ -3222,6 +3223,17 @@ void features_layer_refresh_values(Layer *layer) {
   FeaturesState *state = (FeaturesState *)layer_get_data(layer);
   features_recompute_all_values(state);
   layer_mark_dirty(layer);
+}
+
+bool features_layer_content_in_use(const EclipseData *data, uint8_t content) {
+  if (!data) return false;
+  for (int i = 0; i < 4; i++) {
+    if (data->corner_content[i] == content) return true;
+  }
+  return data->upper_middle_line1_content == content || data->upper_middle_line2_content == content
+      || data->bottom_middle_line1_content == content || data->bottom_middle_line2_content == content
+      || data->middle_left_line1_content == content || data->middle_left_line2_content == content
+      || data->middle_right_line1_content == content || data->middle_right_line2_content == content;
 }
 
 void features_layer_refresh_second_slots(Layer *layer) {
