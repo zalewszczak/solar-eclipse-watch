@@ -40,6 +40,25 @@ var ROMAN_INCOMPATIBLE_FONTS = PRESETS_LOOKUPS.ROMAN_INCOMPATIBLE_FONTS;
 var CORNER_CATEGORIES = PRESETS_LOOKUPS.CORNER_CATEGORIES;
 var HAND_PRESETS = PRESETS_LOOKUPS.HAND_PRESETS;
 
+// The 7 corner/edge base field names that mean something different in
+// Analog vs Digital (bar/top) -- an analog edge line vs. a digital
+// side-column/bottom-feature row -- see the matching SLOT_DEFS entries
+// (client-side, further down) for the full reasoning, and index.js's
+// own dualContextSetting() for how each is persisted as two separate
+// CONFIG_<BASE>_CONTENT/COLOR_ANALOG/_DIGITAL values instead of one.
+// Each name here gets a "Content" and a "Color" field. Used server-
+// side just below to seed DUAL_CONTEXT_SEED from current.*Analog/
+// *Digital; the identical list is also embedded client-side (see
+// DUAL_CONTEXT_FIELD_LIST further down in the emitted <script>) since
+// the swap logic that consumes it runs in the browser, not here --
+// kept in perfect sync with THIS array by copy rather than a second
+// require(), since it's 7 short strings, not a table worth its own
+// module export.
+var DUAL_CONTEXT_FIELD_LIST = [
+  'upperMiddleLine1', 'upperMiddleLine2', 'bottomMiddleLine1',
+  'middleLeftLine1', 'middleLeftLine2', 'middleRightLine1', 'middleRightLine2'
+];
+
 function esc(str) {
   return String(str == null ? '' : str)
     .replace(/&/g, '&amp;')
@@ -1156,13 +1175,22 @@ function buildConfigHtml(current) {
   var secondsUnsupported = isDigital && (fontLookupEntry(clockFontId).allowInlineSeconds === false || clockFontIsWide);
   var secondsChecked = (current.showSeconds && !secondsUnsupported) ? 'checked' : '';
   var secondsDisabled = secondsUnsupported ? 'disabled' : '';
-  var digitalSidesVal = current.digitalSides || 'none';
-  // Belt-and-suspenders, same idea as save()'s own re-checks further
-  // down: a persisted "both" can't survive a font that only allows one
-  // side column at a time (sidesAllowed === 1) -- collapse it to just
-  // "left" rather than rendering two active buttons the font can't
-  // actually support.
-  if (clockSidesAllowed === 1 && digitalSidesVal === 'both') digitalSidesVal = 'left';
+  var digitalSidesPreferredVal = current.digitalSidesPreferred || current.digitalSides || 'none';
+  // The user's actual preference (digitalSidesPreferredVal, persisted
+  // separately -- see index.js's own CONFIG_DIGITAL_SIDES_PREFERRED)
+  // survives a restrictive font/layout untouched; digitalSidesVal is
+  // just this render's EFFECTIVE value given the CURRENT font, and is
+  // what everything else on this page (avail.digitalLeft/Right,
+  // edgeVal, the live preview, and what actually gets sent to the
+  // watch) has always read. Recomputed fresh here and by
+  // updateDigitalSidesVisibility()'s own live copy of this same logic
+  // -- never persisted directly -- so a later switch to a more
+  // permissive font (or out of Analog and back) brings the original
+  // preference back instead of whatever it had collapsed down to.
+  var digitalSidesVal = !isDigital ? 'none'
+    : clockFontIsWide ? 'none'
+    : (clockSidesAllowed === 1 && digitalSidesPreferredVal === 'both') ? 'left'
+    : digitalSidesPreferredVal;
   var digitalLeftOn = digitalSidesVal === 'left' || digitalSidesVal === 'both';
   var digitalRightOn = digitalSidesVal === 'right' || digitalSidesVal === 'both';
   var cornerFontId = parseInt(current.cornerFont || '1', 10);
@@ -2124,6 +2152,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '        <button type="button" class="mode-btn' + (digitalRightOn ? ' active' : '') + '" data-side="right" onclick="toggleDigitalSide(\'right\')">RIGHT SIDE</button>' +
 '      </div>' +
 '      <input type="hidden" id="digitalSides" value="' + esc(digitalSidesVal) + '">' +
+'      <input type="hidden" id="digitalSidesPreferred" value="' + esc(digitalSidesPreferredVal) + '">' +
 '      <div class="help tooltip-warning" id="digitalSidesExclusiveTip" style="display:none;">This font only fits one side at a time -- picking a side turns the other off.</div>' +
 '      <div class="help" id="digitalSidesOneOnlyHelp" style="' + (clockSidesAllowed === 1 ? '' : 'display:none;') + '">This font only has room for one side column at a time -- pick left OR right, not both.</div>' +
 '      <div class="help" id="digitalSidesNormalHelp" style="' + (clockSidesAllowed === 1 ? 'display:none;' : '') + '">Adds up to 3 short info lines down each side of the digital clock, on the clock\'s own panel -- pick their content on the diagram above. Only offered for narrower clock fonts (this one qualifies); picking both sides assumes the font is already narrow enough to share the panel with them without shrinking the clock any further.</div>' +
@@ -2163,22 +2192,22 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      <input type="hidden" id="cornerBLColor" value="' + esc(current.cornerBLColor || '0') + '">' +
 '      <select id="cornerBR">' + cornerContentOptionsHtml(current.cornerBR, current.auroraEnabled) + '</select>' +
 '      <input type="hidden" id="cornerBRColor" value="' + esc(current.cornerBRColor || '0') + '">' +
-'      <select id="upperMiddleLine1Content">' + cornerContentOptionsHtml(current.upperMiddleLine1Content, current.auroraEnabled) + '</select>' +
-'      <input type="hidden" id="upperMiddleLine1Color" value="' + esc(current.upperMiddleLine1Color || '0') + '">' +
-'      <select id="upperMiddleLine2Content">' + cornerContentOptionsHtml(current.upperMiddleLine2Content, current.auroraEnabled) + '</select>' +
-'      <input type="hidden" id="upperMiddleLine2Color" value="' + esc(current.upperMiddleLine2Color || '0') + '">' +
-'      <select id="bottomMiddleLine1Content">' + cornerContentOptionsHtml(current.bottomMiddleLine1Content, current.auroraEnabled) + '</select>' +
-'      <input type="hidden" id="bottomMiddleLine1Color" value="' + esc(current.bottomMiddleLine1Color || '0') + '">' +
+'      <select id="upperMiddleLine1Content">' + cornerContentOptionsHtml(isAnalog ? current.upperMiddleLine1ContentAnalog : current.upperMiddleLine1ContentDigital, current.auroraEnabled) + '</select>' +
+'      <input type="hidden" id="upperMiddleLine1Color" value="' + esc((isAnalog ? current.upperMiddleLine1ColorAnalog : current.upperMiddleLine1ColorDigital) || '0') + '">' +
+'      <select id="upperMiddleLine2Content">' + cornerContentOptionsHtml(isAnalog ? current.upperMiddleLine2ContentAnalog : current.upperMiddleLine2ContentDigital, current.auroraEnabled) + '</select>' +
+'      <input type="hidden" id="upperMiddleLine2Color" value="' + esc((isAnalog ? current.upperMiddleLine2ColorAnalog : current.upperMiddleLine2ColorDigital) || '0') + '">' +
+'      <select id="bottomMiddleLine1Content">' + cornerContentOptionsHtml(isAnalog ? current.bottomMiddleLine1ContentAnalog : current.bottomMiddleLine1ContentDigital, current.auroraEnabled) + '</select>' +
+'      <input type="hidden" id="bottomMiddleLine1Color" value="' + esc((isAnalog ? current.bottomMiddleLine1ColorAnalog : current.bottomMiddleLine1ColorDigital) || '0') + '">' +
 '      <select id="bottomMiddleLine2Content">' + cornerContentOptionsHtml(current.bottomMiddleLine2Content, current.auroraEnabled) + '</select>' +
 '      <input type="hidden" id="bottomMiddleLine2Color" value="' + esc(current.bottomMiddleLine2Color || '0') + '">' +
-'      <select id="middleLeftLine1Content">' + cornerContentOptionsHtml(current.middleLeftLine1Content, current.auroraEnabled) + '</select>' +
-'      <input type="hidden" id="middleLeftLine1Color" value="' + esc(current.middleLeftLine1Color || '0') + '">' +
-'      <select id="middleLeftLine2Content">' + cornerContentOptionsHtml(current.middleLeftLine2Content, current.auroraEnabled) + '</select>' +
-'      <input type="hidden" id="middleLeftLine2Color" value="' + esc(current.middleLeftLine2Color || '0') + '">' +
-'      <select id="middleRightLine1Content">' + cornerContentOptionsHtml(current.middleRightLine1Content, current.auroraEnabled) + '</select>' +
-'      <input type="hidden" id="middleRightLine1Color" value="' + esc(current.middleRightLine1Color || '0') + '">' +
-'      <select id="middleRightLine2Content">' + cornerContentOptionsHtml(current.middleRightLine2Content, current.auroraEnabled) + '</select>' +
-'      <input type="hidden" id="middleRightLine2Color" value="' + esc(current.middleRightLine2Color || '0') + '">' +
+'      <select id="middleLeftLine1Content">' + cornerContentOptionsHtml(isAnalog ? current.middleLeftLine1ContentAnalog : current.middleLeftLine1ContentDigital, current.auroraEnabled) + '</select>' +
+'      <input type="hidden" id="middleLeftLine1Color" value="' + esc((isAnalog ? current.middleLeftLine1ColorAnalog : current.middleLeftLine1ColorDigital) || '0') + '">' +
+'      <select id="middleLeftLine2Content">' + cornerContentOptionsHtml(isAnalog ? current.middleLeftLine2ContentAnalog : current.middleLeftLine2ContentDigital, current.auroraEnabled) + '</select>' +
+'      <input type="hidden" id="middleLeftLine2Color" value="' + esc((isAnalog ? current.middleLeftLine2ColorAnalog : current.middleLeftLine2ColorDigital) || '0') + '">' +
+'      <select id="middleRightLine1Content">' + cornerContentOptionsHtml(isAnalog ? current.middleRightLine1ContentAnalog : current.middleRightLine1ContentDigital, current.auroraEnabled) + '</select>' +
+'      <input type="hidden" id="middleRightLine1Color" value="' + esc((isAnalog ? current.middleRightLine1ColorAnalog : current.middleRightLine1ColorDigital) || '0') + '">' +
+'      <select id="middleRightLine2Content">' + cornerContentOptionsHtml(isAnalog ? current.middleRightLine2ContentAnalog : current.middleRightLine2ContentDigital, current.auroraEnabled) + '</select>' +
+'      <input type="hidden" id="middleRightLine2Color" value="' + esc((isAnalog ? current.middleRightLine2ColorAnalog : current.middleRightLine2ColorDigital) || '0') + '">' +
 '    </div>' +
 
 '    <div class="subsection">' +
@@ -2857,6 +2886,24 @@ handEditorModalHtml('sec', 'Edit second hand') +
 // comment in presets-lookups.js) -- drives the font picker's
 // horizontal category filter row below.
 'var FONT_CATEGORIES = ' + JSON.stringify(FONT_CATEGORIES) + ';' +
+      (function () {
+        // Seeds DUAL_CONTEXT_SHADOW (see that var's own comment further
+        // down) with BOTH the Analog and Digital halves of every dual-
+        // context field, straight from the current.*Analog/*Digital
+        // pairs index.js already sent -- only one half is ever live in
+        // its own shared DOM element at a time (whichever the page
+        // opened into), so the OTHER half has nowhere else to come from
+        // until the user actually switches layouts and triggers a real
+        // swap.
+        var seed = { analog: {}, digital: {} };
+        DUAL_CONTEXT_FIELD_LIST.forEach(function (base) {
+          seed.analog[base + 'Content'] = current[base + 'ContentAnalog'] || '0';
+          seed.analog[base + 'Color'] = current[base + 'ColorAnalog'] || '0';
+          seed.digital[base + 'Content'] = current[base + 'ContentDigital'] || '0';
+          seed.digital[base + 'Color'] = current[base + 'ColorDigital'] || '0';
+        });
+        return '\nvar DUAL_CONTEXT_SEED = ' + JSON.stringify(seed) + ';\n';
+      })() +
 // Runtime copy of the constant controlling how many "Example styles"
 // tiles exist -- used only by the Example styles section's own
 // sub-header (computeExamplesSubheader() below); that count never
@@ -4170,6 +4217,17 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  clearTimeout(tip.__hideTimer);' +
 '  tip.__hideTimer = setTimeout(function () { tip.style.display = "none"; }, 3500);' +
 '}' +
+// Pure re-derivation of what the server-side render above computes
+// once at page load -- see digitalSidesVal's own comment there for
+// why this is never itself persisted. Shared by
+// updateDigitalSidesVisibility() (a font/layout change, no user click
+// involved) and toggleDigitalSide() (an active click, which also
+// updates the preference itself -- see that function's own comment).
+'function computeEffectiveDigitalSides(preferred, sidesAllowedVal, isDigitalNow) {' +
+'  if (!isDigitalNow || sidesAllowedVal === 0) return "none";' +
+'  if (sidesAllowedVal === 1 && preferred === "both") return "left";' +
+'  return preferred;' +
+'}' +
 'function updateDigitalSidesVisibility() {' +
 '  var styleVal = document.getElementById("bottomStyleValue").value;' +
 '  var sidesAllowedVal = currentClockSidesAllowed();' +
@@ -4179,24 +4237,20 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  document.getElementById("digitalSidesWideHelp").style.display = (isDigital && blocked) ? "" : "none";' +
 '  document.getElementById("digitalSidesOneOnlyHelp").style.display = (isDigital && !blocked && sidesAllowedVal === 1) ? "" : "none";' +
 '  document.getElementById("digitalSidesNormalHelp").style.display = (isDigital && !blocked && sidesAllowedVal === 1) ? "none" : "";' +
-'  if (!isDigital || blocked) {' +
-'    document.getElementById("digitalSides").value = "none";' +
-'    var buttons = document.getElementById("digitalSidesGroup").getElementsByClassName("mode-btn");' +
-'    for (var i = 0; i < buttons.length; i++) buttons[i].className = "mode-btn";' +
-'    document.getElementById("digitalSidesExclusiveTip").style.display = "none";' +
-'    return;' +
-'  }' +
-// A font switch away from an unrestricted font can leave a stale
-// "both" selection behind on a font that now only allows one side at
-// a time -- collapse it to "left" (arbitrary but consistent pick)
-// rather than silently keep sending a "both" the watch would still
-// try to honor as far as the digitalSides value itself is concerned.
-'  if (sidesAllowedVal === 1 && document.getElementById("digitalSides").value === "both") {' +
-'    document.getElementById("digitalSides").value = "left";' +
-'    var buttons2 = document.getElementById("digitalSidesGroup").getElementsByClassName("mode-btn");' +
-'    buttons2[0].className = "mode-btn active";' +
-'    buttons2[1].className = "mode-btn";' +
-'  }' +
+// Recomputes the EFFECTIVE digitalSides from the untouched preference
+// every time -- never overwrites digitalSidesPreferred itself, so
+// switching to Analog, or to a font that can't currently fit the
+// preferred side(s), never actually loses that preference; it just
+// stops being reflected in digitalSides (the value everything else on
+// this page -- avail.digitalLeft/Right, edgeVal, the live preview --
+// reads) until a compatible font/layout is picked again.
+'  var preferred = document.getElementById("digitalSidesPreferred").value;' +
+'  var effective = computeEffectiveDigitalSides(preferred, sidesAllowedVal, isDigital);' +
+'  document.getElementById("digitalSides").value = effective;' +
+'  var buttons = document.getElementById("digitalSidesGroup").getElementsByClassName("mode-btn");' +
+'  buttons[0].className = "mode-btn" + ((effective === "left" || effective === "both") ? " active" : "");' +
+'  buttons[1].className = "mode-btn" + ((effective === "right" || effective === "both") ? " active" : "");' +
+'  document.getElementById("digitalSidesExclusiveTip").style.display = "none";' +
 '}' +
 'function toggleDigitalSide(side) {' +
 '  var hidden = document.getElementById("digitalSides");' +
@@ -4220,6 +4274,13 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  }' +
 '  var next = leftOn && rightOn ? "both" : (leftOn ? "left" : (rightOn ? "right" : "none"));' +
 '  hidden.value = next;' +
+// An active click always updates the remembered preference too, even
+// under an exclusive/blocked font -- the click itself only ever
+// expresses a single side (or none) in that case anyway (see the
+// exclusive-mode branch above), so there\'s no "both" being clicked
+// away here that would need protecting the way a passive font change
+// does in updateDigitalSidesVisibility().
+'  document.getElementById("digitalSidesPreferred").value = next;' +
 '  var buttons = document.getElementById("digitalSidesGroup").getElementsByClassName("mode-btn");' +
 '  buttons[0].className = "mode-btn" + (leftOn ? " active" : "");' +
 '  buttons[1].className = "mode-btn" + (rightOn ? " active" : "");' +
@@ -5607,7 +5668,53 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  renderSlotPicker();' +
 '  updatePreview();' +
 '}' +
+// Client-side copy of the server-side DUAL_CONTEXT_FIELD_LIST array
+// (see that one's own comment in config-page.js for why this isn't a
+// single shared source) -- the 7 base names, each with its own
+// "Content" and "Color" field, that mean something different in
+// Analog vs Digital.
+'var DUAL_CONTEXT_FIELD_LIST = ["upperMiddleLine1", "upperMiddleLine2", "bottomMiddleLine1", "middleLeftLine1", "middleLeftLine2", "middleRightLine1", "middleRightLine2"];' +
+// Shadow copy of whichever context ISN'T currently live in the shared
+// DOM elements above -- e.g. while Digital is active, this holds the
+// last-known Analog value for each field, so switching back to Analog
+// can restore it without a round trip to the phone. Seeded from
+// DUAL_CONTEXT_SEED (current.*Analog/*Digital, embedded server-side)
+// at page load, then kept current by swapDualContextFields() every
+// time the layout actually toggles.
+'var DUAL_CONTEXT_SHADOW = { analog: {}, digital: {} };' +
+'(function () {' +
+'  DUAL_CONTEXT_FIELD_LIST.forEach(function (base) {' +
+'    ["Content", "Color"].forEach(function (suffix) {' +
+'      DUAL_CONTEXT_SHADOW.analog[base + suffix] = DUAL_CONTEXT_SEED.analog[base + suffix];' +
+'      DUAL_CONTEXT_SHADOW.digital[base + suffix] = DUAL_CONTEXT_SEED.digital[base + suffix];' +
+'    });' +
+'  });' +
+'})();' +
+// Called right before the layout actually changes (see
+// selectBottomStyle() below) -- stashes every dual-context field's
+// CURRENT (about-to-be-abandoned) value into the context it's leaving,
+// then loads in whatever was last remembered for the context it's
+// entering. A no-op when both contexts resolve the same way (Digital
+// bar <-> Digital top never needs this -- they share one context, see
+// isAnalogCtx()'s own comment) since nothing actually needs to move.
+'function isAnalogCtx(styleVal) { return styleVal === "analog"; }' +
+'function swapDualContextFields(fromStyleVal, toStyleVal) {' +
+'  var fromCtx = isAnalogCtx(fromStyleVal) ? "analog" : "digital";' +
+'  var toCtx = isAnalogCtx(toStyleVal) ? "analog" : "digital";' +
+'  if (fromCtx === toCtx) return;' +
+'  DUAL_CONTEXT_FIELD_LIST.forEach(function (base) {' +
+'    ["Content", "Color"].forEach(function (suffix) {' +
+'      var el = document.getElementById(base + suffix);' +
+'      if (!el) return;' +
+'      DUAL_CONTEXT_SHADOW[fromCtx][base + suffix] = el.value;' +
+'      var restored = DUAL_CONTEXT_SHADOW[toCtx][base + suffix];' +
+'      if (restored !== undefined) el.value = restored;' +
+'    });' +
+'  });' +
+'}' +
 'function selectBottomStyle(val) {' +
+'  var previousVal = document.getElementById("bottomStyleValue").value;' +
+'  swapDualContextFields(previousVal, val);' +
 '  document.getElementById("bottomStyleValue").value = val;' +
 '  var buttons = document.getElementById("bottomStyleGroup").getElementsByClassName("mode-btn");' +
 '  var order = ["digital", "digitalTop", "analog"];' +
@@ -6031,9 +6138,29 @@ handEditorModalHtml('sec', 'Edit second hand') +
 // -- so this is the one and only place that decision gets made.
 '  var avail = computeSlotAvailability();' +
 '  var isAnalogNow = bottomStyleVal === "analog";' +
-'  function edgeVal(id, analogFlag, digitalFlag) {' +
-'    var usable = isAnalogNow ? analogFlag : digitalFlag;' +
-'    return usable ? document.getElementById(id).value : "0";' +
+// Every dual-context field (see DUAL_CONTEXT_FIELD_LIST\'s own
+// comment) sends BOTH its Analog and Digital halves explicitly, one
+// CONFIG_<FIELD>_CONTENT/COLOR_ANALOG/_DIGITAL setting each -- the
+// context matching whatever\'s live right now (isAnalogNow) reads
+// straight from its shared DOM element; the other one has no live
+// element of its own to read (it\'s not the context currently shown),
+// so it comes from DUAL_CONTEXT_SHADOW instead -- kept up to date by
+// swapDualContextFields() every time the user actually switches
+// layouts, and seeded from DUAL_CONTEXT_SEED at page load, so it\'s
+// never actually missing by the time a save happens. Replaces the old
+// edgeVal()/avail-gated zeroing this used to do for these 7 fields --
+// that was the whole bug: a slot being unavailable in whichever
+// context happened to be active AT SAVE TIME (the other layout, or a
+// font/side-count change) used to wipe it instead of just not showing
+// it right now.
+'  function dualCtxVal(base, field, ctx) {' +
+'    var id = base + field;' +
+'    if ((ctx === "analog") === isAnalogNow) {' +
+'      var el = document.getElementById(id);' +
+'      return el ? el.value : "0";' +
+'    }' +
+'    var shadowVal = DUAL_CONTEXT_SHADOW[ctx][id];' +
+'    return shadowVal !== undefined ? shadowVal : "0";' +
 '  }' +
 '  var settings = {' +
 '    CONFIG_AUTO_LOC: document.getElementById("autoLoc").checked,' +
@@ -6065,23 +6192,44 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    CONFIG_BITMAP_MARKER_TRANSPARENT: document.getElementById("bitmapMarkerTransparent").checked,' +
 '    CONFIG_BITMAP_CORNER_OVERRIDE: document.getElementById("bitmapCornerOverride").checked,' +
 '    CONFIG_DRAW_FEATURES_BENEATH_HANDS: document.getElementById("drawFeaturesBeneathHands").checked,' +
-'    CONFIG_UPPER_MIDDLE_LINE1_CONTENT: edgeVal("upperMiddleLine1Content", avail.upper, avail.digitalLeft),' +
-'    CONFIG_UPPER_MIDDLE_LINE1_COLOR: document.getElementById("upperMiddleLine1Color").value,' +
-'    CONFIG_UPPER_MIDDLE_LINE2_CONTENT: edgeVal("upperMiddleLine2Content", avail.upper, avail.digitalRight),' +
-'    CONFIG_UPPER_MIDDLE_LINE2_COLOR: document.getElementById("upperMiddleLine2Color").value,' +
-'    CONFIG_BOTTOM_MIDDLE_LINE1_CONTENT: edgeVal("bottomMiddleLine1Content", avail.bottom, true),' +
-'    CONFIG_BOTTOM_MIDDLE_LINE1_COLOR: document.getElementById("bottomMiddleLine1Color").value,' +
-'    CONFIG_BOTTOM_MIDDLE_LINE2_CONTENT: edgeVal("bottomMiddleLine2Content", avail.bottom, false),' +
+'    CONFIG_UPPER_MIDDLE_LINE1_CONTENT_ANALOG: dualCtxVal("upperMiddleLine1", "Content", "analog"),' +
+'    CONFIG_UPPER_MIDDLE_LINE1_CONTENT_DIGITAL: dualCtxVal("upperMiddleLine1", "Content", "digital"),' +
+'    CONFIG_UPPER_MIDDLE_LINE1_COLOR_ANALOG: dualCtxVal("upperMiddleLine1", "Color", "analog"),' +
+'    CONFIG_UPPER_MIDDLE_LINE1_COLOR_DIGITAL: dualCtxVal("upperMiddleLine1", "Color", "digital"),' +
+'    CONFIG_UPPER_MIDDLE_LINE2_CONTENT_ANALOG: dualCtxVal("upperMiddleLine2", "Content", "analog"),' +
+'    CONFIG_UPPER_MIDDLE_LINE2_CONTENT_DIGITAL: dualCtxVal("upperMiddleLine2", "Content", "digital"),' +
+'    CONFIG_UPPER_MIDDLE_LINE2_COLOR_ANALOG: dualCtxVal("upperMiddleLine2", "Color", "analog"),' +
+'    CONFIG_UPPER_MIDDLE_LINE2_COLOR_DIGITAL: dualCtxVal("upperMiddleLine2", "Color", "digital"),' +
+'    CONFIG_BOTTOM_MIDDLE_LINE1_CONTENT_ANALOG: dualCtxVal("bottomMiddleLine1", "Content", "analog"),' +
+'    CONFIG_BOTTOM_MIDDLE_LINE1_CONTENT_DIGITAL: dualCtxVal("bottomMiddleLine1", "Content", "digital"),' +
+'    CONFIG_BOTTOM_MIDDLE_LINE1_COLOR_ANALOG: dualCtxVal("bottomMiddleLine1", "Color", "analog"),' +
+'    CONFIG_BOTTOM_MIDDLE_LINE1_COLOR_DIGITAL: dualCtxVal("bottomMiddleLine1", "Color", "digital"),' +
+// Analog-only -- a single plain setting, not a dual-context pair (see
+// index.js\'s own bottomMiddleLine2ContentCode() comment). Still zeroed
+// when avail.bottom says THIS marker style has no room for it while
+// Analog is active (unchanged from before) -- just no longer zeroed
+// purely for being in Digital mode, which was never a legitimate
+// "unavailable" in the first place, only a different, irrelevant mode.
+'    CONFIG_BOTTOM_MIDDLE_LINE2_CONTENT: (isAnalogNow && !avail.bottom) ? "0" : document.getElementById("bottomMiddleLine2Content").value,' +
 '    CONFIG_BOTTOM_MIDDLE_LINE2_COLOR: document.getElementById("bottomMiddleLine2Color").value,' +
-'    CONFIG_MIDDLE_LEFT_LINE1_CONTENT: edgeVal("middleLeftLine1Content", avail.left, avail.digitalLeft),' +
-'    CONFIG_MIDDLE_LEFT_LINE1_COLOR: document.getElementById("middleLeftLine1Color").value,' +
-'    CONFIG_MIDDLE_LEFT_LINE2_CONTENT: edgeVal("middleLeftLine2Content", avail.left, avail.digitalLeft),' +
-'    CONFIG_MIDDLE_LEFT_LINE2_COLOR: document.getElementById("middleLeftLine2Color").value,' +
-'    CONFIG_MIDDLE_RIGHT_LINE1_CONTENT: edgeVal("middleRightLine1Content", avail.right, avail.digitalRight),' +
-'    CONFIG_MIDDLE_RIGHT_LINE1_COLOR: document.getElementById("middleRightLine1Color").value,' +
-'    CONFIG_MIDDLE_RIGHT_LINE2_CONTENT: edgeVal("middleRightLine2Content", avail.right, avail.digitalRight),' +
-'    CONFIG_MIDDLE_RIGHT_LINE2_COLOR: document.getElementById("middleRightLine2Color").value,' +
+'    CONFIG_MIDDLE_LEFT_LINE1_CONTENT_ANALOG: dualCtxVal("middleLeftLine1", "Content", "analog"),' +
+'    CONFIG_MIDDLE_LEFT_LINE1_CONTENT_DIGITAL: dualCtxVal("middleLeftLine1", "Content", "digital"),' +
+'    CONFIG_MIDDLE_LEFT_LINE1_COLOR_ANALOG: dualCtxVal("middleLeftLine1", "Color", "analog"),' +
+'    CONFIG_MIDDLE_LEFT_LINE1_COLOR_DIGITAL: dualCtxVal("middleLeftLine1", "Color", "digital"),' +
+'    CONFIG_MIDDLE_LEFT_LINE2_CONTENT_ANALOG: dualCtxVal("middleLeftLine2", "Content", "analog"),' +
+'    CONFIG_MIDDLE_LEFT_LINE2_CONTENT_DIGITAL: dualCtxVal("middleLeftLine2", "Content", "digital"),' +
+'    CONFIG_MIDDLE_LEFT_LINE2_COLOR_ANALOG: dualCtxVal("middleLeftLine2", "Color", "analog"),' +
+'    CONFIG_MIDDLE_LEFT_LINE2_COLOR_DIGITAL: dualCtxVal("middleLeftLine2", "Color", "digital"),' +
+'    CONFIG_MIDDLE_RIGHT_LINE1_CONTENT_ANALOG: dualCtxVal("middleRightLine1", "Content", "analog"),' +
+'    CONFIG_MIDDLE_RIGHT_LINE1_CONTENT_DIGITAL: dualCtxVal("middleRightLine1", "Content", "digital"),' +
+'    CONFIG_MIDDLE_RIGHT_LINE1_COLOR_ANALOG: dualCtxVal("middleRightLine1", "Color", "analog"),' +
+'    CONFIG_MIDDLE_RIGHT_LINE1_COLOR_DIGITAL: dualCtxVal("middleRightLine1", "Color", "digital"),' +
+'    CONFIG_MIDDLE_RIGHT_LINE2_CONTENT_ANALOG: dualCtxVal("middleRightLine2", "Content", "analog"),' +
+'    CONFIG_MIDDLE_RIGHT_LINE2_CONTENT_DIGITAL: dualCtxVal("middleRightLine2", "Content", "digital"),' +
+'    CONFIG_MIDDLE_RIGHT_LINE2_COLOR_ANALOG: dualCtxVal("middleRightLine2", "Color", "analog"),' +
+'    CONFIG_MIDDLE_RIGHT_LINE2_COLOR_DIGITAL: dualCtxVal("middleRightLine2", "Color", "digital"),' +
 '    CONFIG_DIGITAL_SIDES: document.getElementById("digitalSides").value,' +
+'    CONFIG_DIGITAL_SIDES_PREFERRED: document.getElementById("digitalSidesPreferred").value,' +
 '    CONFIG_SHOW_ISS: document.getElementById("showIss").checked,' +
 '    CONFIG_AURORA_ENABLED: document.getElementById("auroraEnabled").checked,' +
 '    CONFIG_VIBRATE_ON_PHASE_CHANGE: document.getElementById("vibrateOnPhaseChange").checked,' +
@@ -6313,9 +6461,12 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  function dot(hex) { return \'<span class="subhead-dot" style="background:\' + hex + \';"></span>\'; }' +
 '  return esc(label) + dot(colors.text) + dot(colors.accent) + dot(colors.bg);' +
 '}' +
-// Mirrors save()\'s own edgeVal()/avail logic exactly (same
-// computeSlotAvailability() call, same per-slot usable checks) so the
-// count here can never disagree with what actually reaches the watch.
+// Independent of save()'s own dualCtxVal()/avail logic (that one
+// decides what gets PERSISTED for each context; this one just counts
+// what's visibly active in the CURRENT one) but built from the same
+// computeSlotAvailability() call and the same per-slot usable checks,
+// so the two can never disagree about which slots count as "on" right
+// now.
 'function countActiveFeatures() {' +
 '  var avail = computeSlotAvailability();' +
 '  var isAnalogNow = document.getElementById("bottomStyleValue").value === "analog";' +

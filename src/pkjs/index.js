@@ -486,6 +486,14 @@ function nightCustomBgByte() { return customColorByte('CONFIG_NIGHT_CUSTOM_BG', 
 function nightCustomTextByte() { return customColorByte('CONFIG_NIGHT_CUSTOM_TEXT', 0xFF); }
 function nightCustomAccentByte() { return customColorByte('CONFIG_NIGHT_CUSTOM_ACCENT', 0xFF); }
 
+// True for Analog (including the retired 'biganalog' value some old
+// persisted configs may still have) -- shared by bottomStyleCode()
+// below and dualContextSetting() (used by every corner/edge field that
+// means something different in Analog vs Digital).
+function isAnalogModeNow() {
+  var v = getSetting('CONFIG_BOTTOM_STYLE', 'digital');
+  return v === 'analog' || v === 'biganalog';
+}
 // Encodes the phone-side layout/side-feature choice into the single
 // EclipseData.bottom_style byte the watch reads (see that field's own
 // comment in eclipse_data.h for the full 0-9 table). Digital top reuses
@@ -497,8 +505,8 @@ function nightCustomAccentByte() { return customColorByte('CONFIG_NIGHT_CUSTOM_A
 // arithmetic instead of a lookup table, and this function itself never
 // has to duplicate the sides 0/2/3/4 mapping for a second layout.
 function bottomStyleCode() {
+  if (isAnalogModeNow()) return 1;
   var v = getSetting('CONFIG_BOTTOM_STYLE', 'digital');
-  if (v === 'analog' || v === 'biganalog') return 1;
   var sides = getSetting('CONFIG_DIGITAL_SIDES', 'none');
   var sideCode = sides === 'right' ? 2 : sides === 'left' ? 3 : sides === 'both' ? 4 : 0;
   return v === 'digitalTop' ? sideCode + 5 : sideCode;
@@ -713,23 +721,41 @@ function handSecHollowThicknessCode() { return handHollowThicknessCode('CONFIG_H
 function centerCircleRadiusCode() { return clampInt(getSetting('CONFIG_CENTER_CIRCLE_RADIUS', '3'), 0, 30, 3); }
 function centerCircleColorCode() { return handColorFieldCode('CONFIG_CENTER_CIRCLE_COLOR', 0); }
 
+// Reads whichever half of a "dual-context" field's two persisted
+// values matches the CURRENT layout (Analog vs Digital/Digital top).
+// upperMiddleLine1/2, middleLeftLine1/2, middleRightLine1/2, and
+// bottomMiddleLine1 (content AND color-mode each) all mean something
+// different depending on which layout is active -- an analog edge
+// line vs. a digital side-column/bottom-feature row, see the matching
+// SLOT_DEFS entries in config-page.js -- so each is persisted as two
+// separate values (baseKey + '_ANALOG' / '_DIGITAL') instead of one,
+// and switching layouts swaps in that layout's own last-set value
+// rather than visibly moving one layout's picks onto the other.
+// Falls back to the plain baseKey (no suffix) when neither half has
+// ever been saved yet -- an existing install updating into this from
+// before the split existed, whose one old value becomes both layouts'
+// starting point until either is changed independently.
+function dualContextSetting(baseKey, fallback) {
+  var suffix = isAnalogModeNow() ? '_ANALOG' : '_DIGITAL';
+  return getSetting(baseKey + suffix, getSetting(baseKey, fallback));
+}
 function upperMiddleLine1ContentCode() {
-  var id = parseInt(getSetting('CONFIG_UPPER_MIDDLE_LINE1_CONTENT', '0'), 10);
+  var id = parseInt(dualContextSetting('CONFIG_UPPER_MIDDLE_LINE1_CONTENT', '0'), 10);
   if (isNaN(id) || id < 0 || id > MAX_FEATURES) id = 0;
   return id;
 }
 function upperMiddleLine1ColorModeCode() {
-  var id = parseInt(getSetting('CONFIG_UPPER_MIDDLE_LINE1_COLOR', '0'), 10);
+  var id = parseInt(dualContextSetting('CONFIG_UPPER_MIDDLE_LINE1_COLOR', '0'), 10);
   if (isNaN(id) || id < 0 || id > 3) id = 0;
   return id;
 }
 function upperMiddleLine2ContentCode() {
-  var id = parseInt(getSetting('CONFIG_UPPER_MIDDLE_LINE2_CONTENT', '0'), 10);
+  var id = parseInt(dualContextSetting('CONFIG_UPPER_MIDDLE_LINE2_CONTENT', '0'), 10);
   if (isNaN(id) || id < 0 || id > MAX_FEATURES) id = 0;
   return id;
 }
 function upperMiddleLine2ColorModeCode() {
-  var id = parseInt(getSetting('CONFIG_UPPER_MIDDLE_LINE2_COLOR', '0'), 10);
+  var id = parseInt(dualContextSetting('CONFIG_UPPER_MIDDLE_LINE2_COLOR', '0'), 10);
   if (isNaN(id) || id < 0 || id > 3) id = 0;
   return id;
 }
@@ -740,15 +766,20 @@ function upperMiddleLine2ColorModeCode() {
 // default is actually tuned for; analog mode's own "Bottom-middle,
 // line 1" slot shares it too since the two never run at once.
 function bottomMiddleLine1ContentCode() {
-  var id = parseInt(getSetting('CONFIG_BOTTOM_MIDDLE_LINE1_CONTENT', '102'), 10);
+  var id = parseInt(dualContextSetting('CONFIG_BOTTOM_MIDDLE_LINE1_CONTENT', '102'), 10);
   if (isNaN(id) || id < 0 || id > MAX_FEATURES) id = 0;
   return id;
 }
 function bottomMiddleLine1ColorModeCode() {
-  var id = parseInt(getSetting('CONFIG_BOTTOM_MIDDLE_LINE1_COLOR', '0'), 10);
+  var id = parseInt(dualContextSetting('CONFIG_BOTTOM_MIDDLE_LINE1_COLOR', '0'), 10);
   if (isNaN(id) || id < 0 || id > 3) id = 0;
   return id;
 }
+// bottomMiddleLine2 is analog-only -- digital mode has no use for a
+// second bottom-middle line (see digitalBottom's own single SLOT_DEFS
+// entry) -- so this one stays a single plain setting, not a dual-
+// context pair; being in Digital mode just means nothing on this page
+// currently reads or writes it, not that it should be cleared.
 function bottomMiddleLine2ContentCode() {
   var id = parseInt(getSetting('CONFIG_BOTTOM_MIDDLE_LINE2_CONTENT', '0'), 10);
   if (isNaN(id) || id < 0 || id > MAX_FEATURES) id = 0;
@@ -760,42 +791,42 @@ function bottomMiddleLine2ColorModeCode() {
   return id;
 }
 function middleLeftLine1ContentCode() {
-  var id = parseInt(getSetting('CONFIG_MIDDLE_LEFT_LINE1_CONTENT', '0'), 10);
+  var id = parseInt(dualContextSetting('CONFIG_MIDDLE_LEFT_LINE1_CONTENT', '0'), 10);
   if (isNaN(id) || id < 0 || id > MAX_FEATURES) id = 0;
   return id;
 }
 function middleLeftLine1ColorModeCode() {
-  var id = parseInt(getSetting('CONFIG_MIDDLE_LEFT_LINE1_COLOR', '0'), 10);
+  var id = parseInt(dualContextSetting('CONFIG_MIDDLE_LEFT_LINE1_COLOR', '0'), 10);
   if (isNaN(id) || id < 0 || id > 3) id = 0;
   return id;
 }
 function middleLeftLine2ContentCode() {
-  var id = parseInt(getSetting('CONFIG_MIDDLE_LEFT_LINE2_CONTENT', '0'), 10);
+  var id = parseInt(dualContextSetting('CONFIG_MIDDLE_LEFT_LINE2_CONTENT', '0'), 10);
   if (isNaN(id) || id < 0 || id > MAX_FEATURES) id = 0;
   return id;
 }
 function middleLeftLine2ColorModeCode() {
-  var id = parseInt(getSetting('CONFIG_MIDDLE_LEFT_LINE2_COLOR', '0'), 10);
+  var id = parseInt(dualContextSetting('CONFIG_MIDDLE_LEFT_LINE2_COLOR', '0'), 10);
   if (isNaN(id) || id < 0 || id > 3) id = 0;
   return id;
 }
 function middleRightLine1ContentCode() {
-  var id = parseInt(getSetting('CONFIG_MIDDLE_RIGHT_LINE1_CONTENT', '0'), 10);
+  var id = parseInt(dualContextSetting('CONFIG_MIDDLE_RIGHT_LINE1_CONTENT', '0'), 10);
   if (isNaN(id) || id < 0 || id > MAX_FEATURES) id = 0;
   return id;
 }
 function middleRightLine1ColorModeCode() {
-  var id = parseInt(getSetting('CONFIG_MIDDLE_RIGHT_LINE1_COLOR', '0'), 10);
+  var id = parseInt(dualContextSetting('CONFIG_MIDDLE_RIGHT_LINE1_COLOR', '0'), 10);
   if (isNaN(id) || id < 0 || id > 3) id = 0;
   return id;
 }
 function middleRightLine2ContentCode() {
-  var id = parseInt(getSetting('CONFIG_MIDDLE_RIGHT_LINE2_CONTENT', '0'), 10);
+  var id = parseInt(dualContextSetting('CONFIG_MIDDLE_RIGHT_LINE2_CONTENT', '0'), 10);
   if (isNaN(id) || id < 0 || id > MAX_FEATURES) id = 0;
   return id;
 }
 function middleRightLine2ColorModeCode() {
-  var id = parseInt(getSetting('CONFIG_MIDDLE_RIGHT_LINE2_COLOR', '0'), 10);
+  var id = parseInt(dualContextSetting('CONFIG_MIDDLE_RIGHT_LINE2_COLOR', '0'), 10);
   if (isNaN(id) || id < 0 || id > 3) id = 0;
   return id;
 }
@@ -1873,6 +1904,7 @@ Pebble.addEventListener('showConfiguration', function () {
     nightCustomAccent: getSetting('CONFIG_NIGHT_CUSTOM_ACCENT', '255'),
     bottomStyle: getSetting('CONFIG_BOTTOM_STYLE', 'digital'),
     digitalSides: getSetting('CONFIG_DIGITAL_SIDES', 'none'),
+    digitalSidesPreferred: getSetting('CONFIG_DIGITAL_SIDES_PREFERRED', getSetting('CONFIG_DIGITAL_SIDES', 'none')),
     sunMoonSize: getSetting('CONFIG_SUN_MOON_SIZE', '75'),
     skyMode: getSetting('CONFIG_SKY_MODE', '0'),
     weatherIconStyle: getSetting('CONFIG_WEATHER_ICON_STYLE', '1'),
@@ -1961,22 +1993,43 @@ Pebble.addEventListener('showConfiguration', function () {
     handSecHollowThickness: getSetting('CONFIG_HAND_SEC_HOLLOW_THICKNESS', '1'),
     centerCircleRadius: getSetting('CONFIG_CENTER_CIRCLE_RADIUS', '3'),
     centerCircleColor: getSetting('CONFIG_CENTER_CIRCLE_COLOR', '0'),
-    upperMiddleLine1Content: getSetting('CONFIG_UPPER_MIDDLE_LINE1_CONTENT', '0'),
-    upperMiddleLine1Color: getSetting('CONFIG_UPPER_MIDDLE_LINE1_COLOR', '0'),
-    upperMiddleLine2Content: getSetting('CONFIG_UPPER_MIDDLE_LINE2_CONTENT', '0'),
-    upperMiddleLine2Color: getSetting('CONFIG_UPPER_MIDDLE_LINE2_COLOR', '0'),
-    bottomMiddleLine1Content: getSetting('CONFIG_BOTTOM_MIDDLE_LINE1_CONTENT', '102'),
-    bottomMiddleLine1Color: getSetting('CONFIG_BOTTOM_MIDDLE_LINE1_COLOR', '0'),
+    // Dual-context fields (see dualContextSetting()'s own comment):
+    // exposes BOTH persisted halves, not just whichever one matches
+    // the CURRENT layout -- config-page.js needs both up front so it
+    // can swap between them live if the user switches layouts while
+    // the page stays open, without a round trip back here.
+    upperMiddleLine1ContentAnalog: getSetting('CONFIG_UPPER_MIDDLE_LINE1_CONTENT_ANALOG', getSetting('CONFIG_UPPER_MIDDLE_LINE1_CONTENT', '0')),
+    upperMiddleLine1ContentDigital: getSetting('CONFIG_UPPER_MIDDLE_LINE1_CONTENT_DIGITAL', getSetting('CONFIG_UPPER_MIDDLE_LINE1_CONTENT', '0')),
+    upperMiddleLine1ColorAnalog: getSetting('CONFIG_UPPER_MIDDLE_LINE1_COLOR_ANALOG', getSetting('CONFIG_UPPER_MIDDLE_LINE1_COLOR', '0')),
+    upperMiddleLine1ColorDigital: getSetting('CONFIG_UPPER_MIDDLE_LINE1_COLOR_DIGITAL', getSetting('CONFIG_UPPER_MIDDLE_LINE1_COLOR', '0')),
+    upperMiddleLine2ContentAnalog: getSetting('CONFIG_UPPER_MIDDLE_LINE2_CONTENT_ANALOG', getSetting('CONFIG_UPPER_MIDDLE_LINE2_CONTENT', '0')),
+    upperMiddleLine2ContentDigital: getSetting('CONFIG_UPPER_MIDDLE_LINE2_CONTENT_DIGITAL', getSetting('CONFIG_UPPER_MIDDLE_LINE2_CONTENT', '0')),
+    upperMiddleLine2ColorAnalog: getSetting('CONFIG_UPPER_MIDDLE_LINE2_COLOR_ANALOG', getSetting('CONFIG_UPPER_MIDDLE_LINE2_COLOR', '0')),
+    upperMiddleLine2ColorDigital: getSetting('CONFIG_UPPER_MIDDLE_LINE2_COLOR_DIGITAL', getSetting('CONFIG_UPPER_MIDDLE_LINE2_COLOR', '0')),
+    bottomMiddleLine1ContentAnalog: getSetting('CONFIG_BOTTOM_MIDDLE_LINE1_CONTENT_ANALOG', getSetting('CONFIG_BOTTOM_MIDDLE_LINE1_CONTENT', '102')),
+    bottomMiddleLine1ContentDigital: getSetting('CONFIG_BOTTOM_MIDDLE_LINE1_CONTENT_DIGITAL', getSetting('CONFIG_BOTTOM_MIDDLE_LINE1_CONTENT', '102')),
+    bottomMiddleLine1ColorAnalog: getSetting('CONFIG_BOTTOM_MIDDLE_LINE1_COLOR_ANALOG', getSetting('CONFIG_BOTTOM_MIDDLE_LINE1_COLOR', '0')),
+    bottomMiddleLine1ColorDigital: getSetting('CONFIG_BOTTOM_MIDDLE_LINE1_COLOR_DIGITAL', getSetting('CONFIG_BOTTOM_MIDDLE_LINE1_COLOR', '0')),
+    // Analog-only -- a single plain value, not a dual-context pair (see
+    // bottomMiddleLine2ContentCode()'s own comment).
     bottomMiddleLine2Content: getSetting('CONFIG_BOTTOM_MIDDLE_LINE2_CONTENT', '0'),
     bottomMiddleLine2Color: getSetting('CONFIG_BOTTOM_MIDDLE_LINE2_COLOR', '0'),
-    middleLeftLine1Content: getSetting('CONFIG_MIDDLE_LEFT_LINE1_CONTENT', '0'),
-    middleLeftLine1Color: getSetting('CONFIG_MIDDLE_LEFT_LINE1_COLOR', '0'),
-    middleLeftLine2Content: getSetting('CONFIG_MIDDLE_LEFT_LINE2_CONTENT', '0'),
-    middleLeftLine2Color: getSetting('CONFIG_MIDDLE_LEFT_LINE2_COLOR', '0'),
-    middleRightLine1Content: getSetting('CONFIG_MIDDLE_RIGHT_LINE1_CONTENT', '0'),
-    middleRightLine1Color: getSetting('CONFIG_MIDDLE_RIGHT_LINE1_COLOR', '0'),
-    middleRightLine2Content: getSetting('CONFIG_MIDDLE_RIGHT_LINE2_CONTENT', '0'),
-    middleRightLine2Color: getSetting('CONFIG_MIDDLE_RIGHT_LINE2_COLOR', '0'),
+    middleLeftLine1ContentAnalog: getSetting('CONFIG_MIDDLE_LEFT_LINE1_CONTENT_ANALOG', getSetting('CONFIG_MIDDLE_LEFT_LINE1_CONTENT', '0')),
+    middleLeftLine1ContentDigital: getSetting('CONFIG_MIDDLE_LEFT_LINE1_CONTENT_DIGITAL', getSetting('CONFIG_MIDDLE_LEFT_LINE1_CONTENT', '0')),
+    middleLeftLine1ColorAnalog: getSetting('CONFIG_MIDDLE_LEFT_LINE1_COLOR_ANALOG', getSetting('CONFIG_MIDDLE_LEFT_LINE1_COLOR', '0')),
+    middleLeftLine1ColorDigital: getSetting('CONFIG_MIDDLE_LEFT_LINE1_COLOR_DIGITAL', getSetting('CONFIG_MIDDLE_LEFT_LINE1_COLOR', '0')),
+    middleLeftLine2ContentAnalog: getSetting('CONFIG_MIDDLE_LEFT_LINE2_CONTENT_ANALOG', getSetting('CONFIG_MIDDLE_LEFT_LINE2_CONTENT', '0')),
+    middleLeftLine2ContentDigital: getSetting('CONFIG_MIDDLE_LEFT_LINE2_CONTENT_DIGITAL', getSetting('CONFIG_MIDDLE_LEFT_LINE2_CONTENT', '0')),
+    middleLeftLine2ColorAnalog: getSetting('CONFIG_MIDDLE_LEFT_LINE2_COLOR_ANALOG', getSetting('CONFIG_MIDDLE_LEFT_LINE2_COLOR', '0')),
+    middleLeftLine2ColorDigital: getSetting('CONFIG_MIDDLE_LEFT_LINE2_COLOR_DIGITAL', getSetting('CONFIG_MIDDLE_LEFT_LINE2_COLOR', '0')),
+    middleRightLine1ContentAnalog: getSetting('CONFIG_MIDDLE_RIGHT_LINE1_CONTENT_ANALOG', getSetting('CONFIG_MIDDLE_RIGHT_LINE1_CONTENT', '0')),
+    middleRightLine1ContentDigital: getSetting('CONFIG_MIDDLE_RIGHT_LINE1_CONTENT_DIGITAL', getSetting('CONFIG_MIDDLE_RIGHT_LINE1_CONTENT', '0')),
+    middleRightLine1ColorAnalog: getSetting('CONFIG_MIDDLE_RIGHT_LINE1_COLOR_ANALOG', getSetting('CONFIG_MIDDLE_RIGHT_LINE1_COLOR', '0')),
+    middleRightLine1ColorDigital: getSetting('CONFIG_MIDDLE_RIGHT_LINE1_COLOR_DIGITAL', getSetting('CONFIG_MIDDLE_RIGHT_LINE1_COLOR', '0')),
+    middleRightLine2ContentAnalog: getSetting('CONFIG_MIDDLE_RIGHT_LINE2_CONTENT_ANALOG', getSetting('CONFIG_MIDDLE_RIGHT_LINE2_CONTENT', '0')),
+    middleRightLine2ContentDigital: getSetting('CONFIG_MIDDLE_RIGHT_LINE2_CONTENT_DIGITAL', getSetting('CONFIG_MIDDLE_RIGHT_LINE2_CONTENT', '0')),
+    middleRightLine2ColorAnalog: getSetting('CONFIG_MIDDLE_RIGHT_LINE2_COLOR_ANALOG', getSetting('CONFIG_MIDDLE_RIGHT_LINE2_COLOR', '0')),
+    middleRightLine2ColorDigital: getSetting('CONFIG_MIDDLE_RIGHT_LINE2_COLOR_DIGITAL', getSetting('CONFIG_MIDDLE_RIGHT_LINE2_COLOR', '0')),
     cornerTL: getSetting('CONFIG_CORNER_TL', '0'),
     cornerTR: getSetting('CONFIG_CORNER_TR', '0'),
     cornerBL: getSetting('CONFIG_CORNER_BL', '0'),
@@ -2122,6 +2175,14 @@ Pebble.addEventListener('webviewclosed', function (e) {
   setSetting('CONFIG_BOTTOM_STYLE', (settings.CONFIG_BOTTOM_STYLE === 'analog' || settings.CONFIG_BOTTOM_STYLE === 'biganalog') ? 'analog'
     : (settings.CONFIG_BOTTOM_STYLE === 'digitalTop' ? 'digitalTop' : 'digital'));
   setSetting('CONFIG_DIGITAL_SIDES', settings.CONFIG_DIGITAL_SIDES || 'none');
+  // The user's underlying preference, independent of whatever the
+  // current font/layout collapsed CONFIG_DIGITAL_SIDES itself down to
+  // -- see config-page.js's own digitalSidesVal/digitalSidesPreferred
+  // split for the full reasoning. Falls back to CONFIG_DIGITAL_SIDES
+  // itself only if the page somehow didn't send this (an old cached
+  // config-page.js bundle, say), rather than silently defaulting to
+  // "none" and losing whatever the effective value already showed.
+  setSetting('CONFIG_DIGITAL_SIDES_PREFERRED', settings.CONFIG_DIGITAL_SIDES_PREFERRED || settings.CONFIG_DIGITAL_SIDES || 'none');
   setSetting('CONFIG_SUN_MOON_SIZE', settings.CONFIG_SUN_MOON_SIZE || '100');
   setSetting('CONFIG_SKY_MODE', settings.CONFIG_SKY_MODE || '0');
   setSetting('CONFIG_WEATHER_ICON_STYLE', settings.CONFIG_WEATHER_ICON_STYLE || '1');
@@ -2203,22 +2264,42 @@ Pebble.addEventListener('webviewclosed', function (e) {
   setSetting('CONFIG_HAND_SEC_HOLLOW_THICKNESS', settings.CONFIG_HAND_SEC_HOLLOW_THICKNESS || '1');
   setSetting('CONFIG_CENTER_CIRCLE_RADIUS', settings.CONFIG_CENTER_CIRCLE_RADIUS || '3');
   setSetting('CONFIG_CENTER_CIRCLE_COLOR', settings.CONFIG_CENTER_CIRCLE_COLOR || '0');
-  setSetting('CONFIG_UPPER_MIDDLE_LINE1_CONTENT', settings.CONFIG_UPPER_MIDDLE_LINE1_CONTENT || '0');
-  setSetting('CONFIG_UPPER_MIDDLE_LINE1_COLOR', settings.CONFIG_UPPER_MIDDLE_LINE1_COLOR || '0');
-  setSetting('CONFIG_UPPER_MIDDLE_LINE2_CONTENT', settings.CONFIG_UPPER_MIDDLE_LINE2_CONTENT || '0');
-  setSetting('CONFIG_UPPER_MIDDLE_LINE2_COLOR', settings.CONFIG_UPPER_MIDDLE_LINE2_COLOR || '0');
-  setSetting('CONFIG_BOTTOM_MIDDLE_LINE1_CONTENT', settings.CONFIG_BOTTOM_MIDDLE_LINE1_CONTENT || '12');
-  setSetting('CONFIG_BOTTOM_MIDDLE_LINE1_COLOR', settings.CONFIG_BOTTOM_MIDDLE_LINE1_COLOR || '0');
+  // Dual-context fields -- see dualContextSetting()'s own comment.
+  // config-page.js's save() now sends both halves explicitly (it has
+  // to: only one of the two is ever live in the shared DOM element at
+  // save time, the other comes from its own in-page shadow copy), so
+  // this just writes each straight through, one setting per half.
+  setSetting('CONFIG_UPPER_MIDDLE_LINE1_CONTENT_ANALOG', settings.CONFIG_UPPER_MIDDLE_LINE1_CONTENT_ANALOG || '0');
+  setSetting('CONFIG_UPPER_MIDDLE_LINE1_CONTENT_DIGITAL', settings.CONFIG_UPPER_MIDDLE_LINE1_CONTENT_DIGITAL || '0');
+  setSetting('CONFIG_UPPER_MIDDLE_LINE1_COLOR_ANALOG', settings.CONFIG_UPPER_MIDDLE_LINE1_COLOR_ANALOG || '0');
+  setSetting('CONFIG_UPPER_MIDDLE_LINE1_COLOR_DIGITAL', settings.CONFIG_UPPER_MIDDLE_LINE1_COLOR_DIGITAL || '0');
+  setSetting('CONFIG_UPPER_MIDDLE_LINE2_CONTENT_ANALOG', settings.CONFIG_UPPER_MIDDLE_LINE2_CONTENT_ANALOG || '0');
+  setSetting('CONFIG_UPPER_MIDDLE_LINE2_CONTENT_DIGITAL', settings.CONFIG_UPPER_MIDDLE_LINE2_CONTENT_DIGITAL || '0');
+  setSetting('CONFIG_UPPER_MIDDLE_LINE2_COLOR_ANALOG', settings.CONFIG_UPPER_MIDDLE_LINE2_COLOR_ANALOG || '0');
+  setSetting('CONFIG_UPPER_MIDDLE_LINE2_COLOR_DIGITAL', settings.CONFIG_UPPER_MIDDLE_LINE2_COLOR_DIGITAL || '0');
+  setSetting('CONFIG_BOTTOM_MIDDLE_LINE1_CONTENT_ANALOG', settings.CONFIG_BOTTOM_MIDDLE_LINE1_CONTENT_ANALOG || '102');
+  setSetting('CONFIG_BOTTOM_MIDDLE_LINE1_CONTENT_DIGITAL', settings.CONFIG_BOTTOM_MIDDLE_LINE1_CONTENT_DIGITAL || '102');
+  setSetting('CONFIG_BOTTOM_MIDDLE_LINE1_COLOR_ANALOG', settings.CONFIG_BOTTOM_MIDDLE_LINE1_COLOR_ANALOG || '0');
+  setSetting('CONFIG_BOTTOM_MIDDLE_LINE1_COLOR_DIGITAL', settings.CONFIG_BOTTOM_MIDDLE_LINE1_COLOR_DIGITAL || '0');
+  // Analog-only -- a single plain setting, not a dual-context pair.
   setSetting('CONFIG_BOTTOM_MIDDLE_LINE2_CONTENT', settings.CONFIG_BOTTOM_MIDDLE_LINE2_CONTENT || '0');
   setSetting('CONFIG_BOTTOM_MIDDLE_LINE2_COLOR', settings.CONFIG_BOTTOM_MIDDLE_LINE2_COLOR || '0');
-  setSetting('CONFIG_MIDDLE_LEFT_LINE1_CONTENT', settings.CONFIG_MIDDLE_LEFT_LINE1_CONTENT || '0');
-  setSetting('CONFIG_MIDDLE_LEFT_LINE1_COLOR', settings.CONFIG_MIDDLE_LEFT_LINE1_COLOR || '0');
-  setSetting('CONFIG_MIDDLE_LEFT_LINE2_CONTENT', settings.CONFIG_MIDDLE_LEFT_LINE2_CONTENT || '0');
-  setSetting('CONFIG_MIDDLE_LEFT_LINE2_COLOR', settings.CONFIG_MIDDLE_LEFT_LINE2_COLOR || '0');
-  setSetting('CONFIG_MIDDLE_RIGHT_LINE1_CONTENT', settings.CONFIG_MIDDLE_RIGHT_LINE1_CONTENT || '0');
-  setSetting('CONFIG_MIDDLE_RIGHT_LINE1_COLOR', settings.CONFIG_MIDDLE_RIGHT_LINE1_COLOR || '0');
-  setSetting('CONFIG_MIDDLE_RIGHT_LINE2_CONTENT', settings.CONFIG_MIDDLE_RIGHT_LINE2_CONTENT || '0');
-  setSetting('CONFIG_MIDDLE_RIGHT_LINE2_COLOR', settings.CONFIG_MIDDLE_RIGHT_LINE2_COLOR || '0');
+  setSetting('CONFIG_MIDDLE_LEFT_LINE1_CONTENT_ANALOG', settings.CONFIG_MIDDLE_LEFT_LINE1_CONTENT_ANALOG || '0');
+  setSetting('CONFIG_MIDDLE_LEFT_LINE1_CONTENT_DIGITAL', settings.CONFIG_MIDDLE_LEFT_LINE1_CONTENT_DIGITAL || '0');
+  setSetting('CONFIG_MIDDLE_LEFT_LINE1_COLOR_ANALOG', settings.CONFIG_MIDDLE_LEFT_LINE1_COLOR_ANALOG || '0');
+  setSetting('CONFIG_MIDDLE_LEFT_LINE1_COLOR_DIGITAL', settings.CONFIG_MIDDLE_LEFT_LINE1_COLOR_DIGITAL || '0');
+  setSetting('CONFIG_MIDDLE_LEFT_LINE2_CONTENT_ANALOG', settings.CONFIG_MIDDLE_LEFT_LINE2_CONTENT_ANALOG || '0');
+  setSetting('CONFIG_MIDDLE_LEFT_LINE2_CONTENT_DIGITAL', settings.CONFIG_MIDDLE_LEFT_LINE2_CONTENT_DIGITAL || '0');
+  setSetting('CONFIG_MIDDLE_LEFT_LINE2_COLOR_ANALOG', settings.CONFIG_MIDDLE_LEFT_LINE2_COLOR_ANALOG || '0');
+  setSetting('CONFIG_MIDDLE_LEFT_LINE2_COLOR_DIGITAL', settings.CONFIG_MIDDLE_LEFT_LINE2_COLOR_DIGITAL || '0');
+  setSetting('CONFIG_MIDDLE_RIGHT_LINE1_CONTENT_ANALOG', settings.CONFIG_MIDDLE_RIGHT_LINE1_CONTENT_ANALOG || '0');
+  setSetting('CONFIG_MIDDLE_RIGHT_LINE1_CONTENT_DIGITAL', settings.CONFIG_MIDDLE_RIGHT_LINE1_CONTENT_DIGITAL || '0');
+  setSetting('CONFIG_MIDDLE_RIGHT_LINE1_COLOR_ANALOG', settings.CONFIG_MIDDLE_RIGHT_LINE1_COLOR_ANALOG || '0');
+  setSetting('CONFIG_MIDDLE_RIGHT_LINE1_COLOR_DIGITAL', settings.CONFIG_MIDDLE_RIGHT_LINE1_COLOR_DIGITAL || '0');
+  setSetting('CONFIG_MIDDLE_RIGHT_LINE2_CONTENT_ANALOG', settings.CONFIG_MIDDLE_RIGHT_LINE2_CONTENT_ANALOG || '0');
+  setSetting('CONFIG_MIDDLE_RIGHT_LINE2_CONTENT_DIGITAL', settings.CONFIG_MIDDLE_RIGHT_LINE2_CONTENT_DIGITAL || '0');
+  setSetting('CONFIG_MIDDLE_RIGHT_LINE2_COLOR_ANALOG', settings.CONFIG_MIDDLE_RIGHT_LINE2_COLOR_ANALOG || '0');
+  setSetting('CONFIG_MIDDLE_RIGHT_LINE2_COLOR_DIGITAL', settings.CONFIG_MIDDLE_RIGHT_LINE2_COLOR_DIGITAL || '0');
   setSetting('CONFIG_CORNER_TL', settings.CONFIG_CORNER_TL || '0');
   setSetting('CONFIG_CORNER_TR', settings.CONFIG_CORNER_TR || '0');
   setSetting('CONFIG_CORNER_BL', settings.CONFIG_CORNER_BL || '0');
