@@ -26,7 +26,7 @@
  * class of bug structurally impossible: there's nowhere left for a
  * new id to be added to one list and forgotten in another.
  *
- * Every content id features_layer.c actually implements (0-114,
+ * Every content id features_layer.c actually implements (0-115,
  * minus the retired id 33) must appear in exactly one category's
  * items list, with an id matching its case in draw_corner_item()'s
  * switch exactly and be reflected in MAX_FEATURES in index.js
@@ -889,6 +889,11 @@ var CORNER_CATEGORIES = [
         "id": 114,
         "label": "Battery + Bluetooth + Quiet Time + Hourly Vibrations (icon + ON/OFF or % each)",
         "preview": "82% (bt)ON (spkr)OFF (vibe)ON"
+      },
+      {
+        "id": 115,
+        "label": "Battery + Bluetooth + Quiet Time + Hourly Vibrations (% for battery only)",
+        "preview": "82% (bt)(spkr)(vibe)"
       }
     ]
   }

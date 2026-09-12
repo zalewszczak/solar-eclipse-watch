@@ -2075,7 +2075,7 @@ static void __attribute__((noinline)) compute_sky_value(FeatureSlot *slot, uint8
   }
 }
 
-// ---- combo cluster: multi-icon/multi-value content (97-102, 109-114) --
+// ---- combo cluster: multi-icon/multi-value content (97-102, 109-115) --
 //
 // Per request, these share ONE flat color (always main_color, not
 // accent -- there's no single sensible "accent" reading across a
@@ -2211,6 +2211,33 @@ static void __attribute__((noinline)) compute_combo_value(FeatureSlot *slot, uin
       slot->segments[2].icon_flag = quiet_active;
       set_icon_seg(slot, 3, 30, vibe_c);
       slot->segments[3].icon_flag = !vibe_on;
+      return;
+    }
+    case 115: { // battery (icon + %) + BT + Quiet Time + Hourly Vibrations (icons only) --
+               // same as 111, except battery is the one icon that also shows its own
+               // percentage text (matching how battery already behaves everywhere
+               // else -- see compute_health_value's own case 10 comment); the other
+               // 3 stay icon-only, same as 111.
+      BatteryChargeState bs = battery_state_service_peek();
+      GColor batt_c = dynamic ? (bs.is_charging ? GColorGreen : red_green_gradient((uint8_t)bs.charge_percent)) : flat;
+      bool connected = connection_service_peek_pebble_app_connection();
+      GColor bt_c = dynamic ? (connected ? GColorFromRGB(64, 224, 208) : GColorFromRGB(255, 0, 0)) : flat;
+      bool quiet_active = quiet_time_is_active();
+      GColor quiet_c = dynamic ? (quiet_active ? GColorRed : GColorWhite) : flat;
+      bool vibe_on = hourly_vibe_is_scheduled_now(data, now);
+      GColor vibe_c = dynamic ? (vibe_on ? GColorGreen : GColorLightGray) : flat;
+
+      snprintf(buf1, sizeof(buf1), "%d%%", bs.charge_percent);
+      slot->segment_count = 5;
+      set_icon_seg(slot, 0, 3, batt_c);
+      slot->segments[0].icon_extra = bs.charge_percent;
+      slot->segments[0].icon_flag = bs.is_charging;
+      set_text_seg(slot, 1, buf1, batt_c);
+      set_icon_seg(slot, 2, 13, bt_c);
+      set_icon_seg(slot, 3, 29, quiet_c);
+      slot->segments[3].icon_flag = quiet_active;
+      set_icon_seg(slot, 4, 30, vibe_c);
+      slot->segments[4].icon_flag = !vibe_on;
       return;
     }
     case 112: { // Quiet Time + Hourly Vibrations, icons only
@@ -2402,7 +2429,7 @@ static void features_recompute_slot_value(FeatureSlot *slot, const EclipseData *
   uint8_t content = slot->content, color_mode = slot->color_mode;
   switch (content) {
     case 97: case 98: case 99: case 100: case 101: case 102:
-    case 109: case 110: case 111: case 112: case 113: case 114:
+    case 109: case 110: case 111: case 112: case 113: case 114: case 115:
       compute_combo_value(slot, content, data, color_mode, main_color, now);
       break;
     case 44: case 45: case 46: case 47: case 48: case 49: case 50: case 51: case 52: case 53:
