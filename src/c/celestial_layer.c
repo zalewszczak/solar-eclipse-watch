@@ -535,6 +535,16 @@ static void draw_planet_seek_body(GContext *ctx, GRect bounds, const char *name,
     if (pos.x >= bounds.origin.x - radius && pos.x <= bounds.origin.x + bounds.size.w + radius) {
       if (is_moon) celestial_draw_moon_phase(ctx, bounds, pos, radius, moon_phase_pct, moon_waxing, fill_color);
       else { graphics_context_set_fill_color(ctx, fill_color); graphics_fill_circle(ctx, pos, radius); }
+      // On-screen case: the body itself is drawn above, but the label was
+      // missing here entirely -- only the off-screen/edge-arrow branch
+      // below ever called a label draw, so a shake-revealed body that
+      // stayed in FOV throughout its Planet-seek animation never got a
+      // name label, and one only appeared once the body's blended
+      // position crossed off-screen and hit draw_planet_seek_edge_label()
+      // instead. Reuse the same near-point label helper the non-Planet-
+      // seek path uses (celestial_layer_draw_labels() above); it already
+      // clamps itself to bounds.
+      celestial_layer_draw_label(ctx, bounds, pos, name, label_style, main_color);
       return;
     }
   }
