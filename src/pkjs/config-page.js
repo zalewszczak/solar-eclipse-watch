@@ -37,6 +37,7 @@ var FONT_CATEGORIES = PRESETS_LOOKUPS.FONT_CATEGORIES;
 var COLOR_SCHEMES = PRESETS_LOOKUPS.COLOR_SCHEMES;
 var CORNER_COLOR_MODE_LABELS = PRESETS_LOOKUPS.CORNER_COLOR_MODE_LABELS;
 var ROMAN_INCOMPATIBLE_FONTS = PRESETS_LOOKUPS.ROMAN_INCOMPATIBLE_FONTS;
+var SECONDS_WITH_ONE_SIDE_FONTS = PRESETS_LOOKUPS.SECONDS_WITH_ONE_SIDE_FONTS;
 var CORNER_CATEGORIES = PRESETS_LOOKUPS.CORNER_CATEGORIES;
 var HAND_PRESETS = PRESETS_LOOKUPS.HAND_PRESETS;
 
@@ -496,6 +497,26 @@ function fontLookupEntry(id) {
     if (FONT_LOOKUP[i].id === id) return FONT_LOOKUP[i];
   }
   return FONT_LOOKUP[0];
+}
+
+// Whether "Show seconds" can be offered at all for a mainClock font,
+// given which digital side column(s) (if any) are currently active --
+// side features compete for the same horizontal space seconds would
+// need, so any side being on can knock this out, with a short
+// allowlist (SECONDS_WITH_ONE_SIDE_FONTS) of fonts narrow/short enough
+// to keep it with exactly one side (not both) active. Checked in
+// addition to, not instead of, the font's own baseline eligibility
+// (sidesAllowed 0 / allowInlineSeconds false -- see fontOptionsHtml()'s
+// own comment on those two, still handled by the caller). Has a
+// client-side twin further down (used by onBottomStyleChange() and
+// toggleDigitalSide() for live updates as the user actually toggles a
+// side) kept in exact sync with this one -- both read the same
+// SECONDS_WITH_ONE_SIDE_FONTS table, so there's nothing for the two
+// copies to disagree about even if their surrounding code differs.
+function secondsAvailableForDigital(fontEntry, digitalSidesVal) {
+  if (!digitalSidesVal || digitalSidesVal === 'none') return true;
+  if (digitalSidesVal === 'both') return false;
+  return !!SECONDS_WITH_ONE_SIDE_FONTS[fontEntry.id];
 }
 
 // Renders <option>s for one of the four font pickers. `onlyMainClock`
@@ -1172,13 +1193,6 @@ function buildConfigHtml(current) {
   // stale/hand-edited clockFont value points at a non-mainClock entry.
   var clockSidesAllowed = typeof fontLookupEntry(clockFontId).sidesAllowed === 'number' ? fontLookupEntry(clockFontId).sidesAllowed : 2;
   var clockFontIsWide = clockSidesAllowed === 0;
-  // A font whose sidesAllowed is 0 can't show seconds at all (no room),
-  // and a font marked allowInlineSeconds:false can't either (its own
-  // numerals clip/read badly with one) -- see fontOptionsHtml()'s own
-  // comment on why data-seconds folds both of those together too.
-  var secondsUnsupported = isDigital && (fontLookupEntry(clockFontId).allowInlineSeconds === false || clockFontIsWide);
-  var secondsChecked = (current.showSeconds && !secondsUnsupported) ? 'checked' : '';
-  var secondsDisabled = secondsUnsupported ? 'disabled' : '';
   var digitalSidesPreferredVal = current.digitalSidesPreferred || current.digitalSides || 'none';
   // The user's actual preference (digitalSidesPreferredVal, persisted
   // separately -- see index.js's own CONFIG_DIGITAL_SIDES_PREFERRED)
@@ -1197,6 +1211,18 @@ function buildConfigHtml(current) {
     : digitalSidesPreferredVal;
   var digitalLeftOn = digitalSidesVal === 'left' || digitalSidesVal === 'both';
   var digitalRightOn = digitalSidesVal === 'right' || digitalSidesVal === 'both';
+  // A font whose sidesAllowed is 0 can't show seconds at all (no room),
+  // and a font marked allowInlineSeconds:false can't either (its own
+  // numerals clip/read badly with one) -- see fontOptionsHtml()'s own
+  // comment on why data-seconds folds both of those together too.
+  // Beyond that baseline, any digital side column being on on ALSO
+  // knocks seconds out (same space competition, just from the side
+  // features instead of the font itself) unless this font is one of
+  // the few narrow/short enough to keep both with exactly one side
+  // active -- see secondsAvailableForDigital()'s own comment.
+  var secondsUnsupported = isDigital && !secondsAvailableForDigital(fontLookupEntry(clockFontId), digitalSidesVal);
+  var secondsChecked = (current.showSeconds && !secondsUnsupported) ? 'checked' : '';
+  var secondsDisabled = secondsUnsupported ? 'disabled' : '';
   var cornerFontId = parseInt(current.cornerFont || '1', 10);
 
   // Client-side copy of CORNER_CATEGORIES (see presets-lookups.js's
@@ -2961,6 +2987,15 @@ handEditorModalHtml('sec', 'Edit second hand') +
 // comment in presets-lookups.js) -- drives the font picker's
 // horizontal category filter row below.
 'var FONT_CATEGORIES = ' + JSON.stringify(FONT_CATEGORIES) + ';' +
+// Runtime copy of SECONDS_WITH_ONE_SIDE_FONTS (see its own comment in
+// presets-lookups.js) -- used by secondsAvailableForDigital() below,
+// the client-side twin of the same-named server-side function.
+'var SECONDS_WITH_ONE_SIDE_FONTS = ' + JSON.stringify(SECONDS_WITH_ONE_SIDE_FONTS) + ';' +
+'function secondsAvailableForDigital(fontId, digitalSidesVal) {' +
+'  if (!digitalSidesVal || digitalSidesVal === "none") return true;' +
+'  if (digitalSidesVal === "both") return false;' +
+'  return !!SECONDS_WITH_ONE_SIDE_FONTS[fontId];' +
+'}' +
       (function () {
         // Seeds DUAL_CONTEXT_SHADOW (see that var's own comment further
         // down) with BOTH the Analog and Digital halves of every dual-
@@ -4269,16 +4304,28 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  document.getElementById("digitalOnlySettings").style.display = !isAnalog ? "block" : "none";' +
 '  document.getElementById("bigAnalogSettings").style.display = isAnalog ? "block" : "none";' +
 '  updateDigitalSidesVisibility();' +
+'  updateSecondsAvailability();' +
+'  renderSlotPicker();' +
+'  updatePreview();' +
+'}' +
+// Shared by onBottomStyleChange() (font or Analog/Digital changed) and
+// toggleDigitalSide() (a side just got turned on/off) -- either one can
+// change whether "Show seconds" is currently offered, per
+// secondsAvailableForDigital()'s own rule (font\'s own baseline
+// eligibility, data-seconds, folded together with whichever side
+// column(s) digitalSides says are effective right now).
+'function updateSecondsAvailability() {' +
+'  var isAnalog = document.getElementById("bottomStyleValue").value === "analog";' +
 '  var secondsBox = document.getElementById("showSeconds");' +
 '  var fontSel = document.getElementById("clockFont");' +
 '  var opt = fontSel.options[fontSel.selectedIndex];' +
 '  var fontOk = opt.getAttribute("data-seconds") === "1";' +
-'  var secondsUnavailable = !isAnalog && !fontOk;' +
+'  var digitalSidesVal = document.getElementById("digitalSides").value;' +
+'  var fontId = parseInt(fontSel.value, 10);' +
+'  var secondsUnavailable = !isAnalog && (!fontOk || !secondsAvailableForDigital(fontId, digitalSidesVal));' +
 '  secondsBox.disabled = secondsUnavailable;' +
 '  if (secondsUnavailable) secondsBox.checked = false;' +
 '  document.getElementById("secondsHelp").style.display = secondsUnavailable ? "block" : "none";' +
-'  renderSlotPicker();' +
-'  updatePreview();' +
 '}' +
 // A font switch can turn side features on/off (the "too wide" check
 // depends on the clock font, not just digital-vs-analog), so both this
@@ -4371,6 +4418,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  var buttons = document.getElementById("digitalSidesGroup").getElementsByClassName("mode-btn");' +
 '  buttons[0].className = "mode-btn" + (leftOn ? " active" : "");' +
 '  buttons[1].className = "mode-btn" + (rightOn ? " active" : "");' +
+'  updateSecondsAvailability();' +
 '  renderSlotPicker();' +
 '  updatePreview();' +
 '}' +
@@ -6278,7 +6326,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 // selection directly rather than trusted to already be correct.
 '  var clockFontSel = document.getElementById("clockFont");' +
 '  var clockFontOpt = clockFontSel.options[clockFontSel.selectedIndex];' +
-'  var secondsOverriddenOff = bottomStyleVal !== "analog" && clockFontOpt.getAttribute("data-seconds") === "0";' +
+'  var secondsOverriddenOff = bottomStyleVal !== "analog" && (clockFontOpt.getAttribute("data-seconds") === "0" || !secondsAvailableForDigital(parseInt(clockFontOpt.value, 10), document.getElementById("digitalSides").value));' +
 '  var showSecondsVal = !secondsOverriddenOff && document.getElementById("showSeconds").checked;' +
 // Same "re-derive at save time rather than trust the DOM already
 // reflects it" belt-and-suspenders principle as showSecondsVal above,

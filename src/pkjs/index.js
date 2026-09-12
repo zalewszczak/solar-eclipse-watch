@@ -4,11 +4,18 @@ var configPage = require('./config-page');
 var geocode = require('./geocode');
 var iss = require('./iss');
 var servicelog = require('./servicelog');
+var presetsLookups = require('./presets-lookups');
 
 var TYPE_CODE = { none: 0, partial: 1, total: 2, annular: 3 };
 
-var MAX_FEATURES = 115; // highest corner/edge content id -- see CORNER_CONTENT_OPTIONS in config-page.js
-var FONT_MAX_CONTENT_ID = 55;
+// Both derived from their own source-of-truth arrays in presets-
+// lookups.js (CORNER_CATEGORIES / FONT_LOOKUP) rather than hand-
+// maintained here -- see that file's own comments on both constants
+// for why a hardcoded copy of either is exactly the kind of thing that
+// silently goes stale the moment someone adds a new font or content
+// id without remembering this file also has a copy to bump.
+var MAX_FEATURES = presetsLookups.MAX_FEATURES;
+var FONT_MAX_CONTENT_ID = presetsLookups.FONT_MAX_CONTENT_ID;
 
 // ---- migration: settings-key wire-format schema version ------------------
 //
@@ -739,24 +746,68 @@ function dualContextSetting(baseKey, fallback) {
   var suffix = isAnalogModeNow() ? '_ANALOG' : '_DIGITAL';
   return getSetting(baseKey + suffix, getSetting(baseKey, fallback));
 }
+// Whether the CURRENT layout would actually show a given dual-context
+// edge/side slot right now -- mirrors computeSlotAvailability() in
+// config-page.js (kept in sync by hand, matching the client-side twin
+// several other functions in this file already have) so the value
+// actually sent to the WATCH can be zeroed independently of the
+// PERSISTED setting dualContextSetting() reads just above. Before this
+// existed, the only place that ever zeroed an unavailable slot was
+// config-page.js's own save() -- which zeroed the STORED value itself,
+// the exact bug the whole dual-context/digitalSidesPreferred split was
+// built to fix (see both those comments) -- so zeroing had to move
+// down here, at transmission time, instead of ever touching storage.
+// Analog's own availability depends on the marker style (and, for a
+// couple of bitmap styles, the corner-override toggle); Digital's
+// depends only on which side(s) are currently active.
+function analogEdgeAvailability() {
+  var markerStyle = parseInt(getSetting('CONFIG_BIG_ANALOG_MARKER_STYLE', '0'), 10);
+  var override = getSetting('CONFIG_BITMAP_CORNER_OVERRIDE', 'false') === 'true';
+  if (markerStyle < 3 || markerStyle === 5 || markerStyle === 8 || markerStyle === 9) {
+    return { upper: true, bottom: true, left: true, right: true };
+  }
+  if (markerStyle === 7) {
+    return { upper: true, bottom: true, left: true, right: true };
+  }
+  if (markerStyle === 3 || markerStyle === 4 || markerStyle === 6) {
+    return { upper: true, bottom: true, left: override, right: override };
+  }
+  return { upper: true, bottom: override, left: override, right: override };
+}
+function digitalSideActive(side) {
+  var sides = getSetting('CONFIG_DIGITAL_SIDES', 'none');
+  return sides === side || sides === 'both';
+}
+// edgeKey: which of analogEdgeAvailability()'s 4 booleans applies in
+// Analog. digitalGate: 'left'/'right' (gated on that side being active)
+// or true (Digital's own bottom feature -- always on, no side to gate).
+function dualContextVisible(edgeKey, digitalGate) {
+  if (isAnalogModeNow()) return analogEdgeAvailability()[edgeKey];
+  return digitalGate === true ? true : digitalSideActive(digitalGate);
+}
+
 function upperMiddleLine1ContentCode() {
   var id = parseInt(dualContextSetting('CONFIG_UPPER_MIDDLE_LINE1_CONTENT', '0'), 10);
   if (isNaN(id) || id < 0 || id > MAX_FEATURES) id = 0;
+  if (!dualContextVisible('upper', 'left')) return 0;
   return id;
 }
 function upperMiddleLine1ColorModeCode() {
   var id = parseInt(dualContextSetting('CONFIG_UPPER_MIDDLE_LINE1_COLOR', '0'), 10);
   if (isNaN(id) || id < 0 || id > 3) id = 0;
+  if (!dualContextVisible('upper', 'left')) return 0;
   return id;
 }
 function upperMiddleLine2ContentCode() {
   var id = parseInt(dualContextSetting('CONFIG_UPPER_MIDDLE_LINE2_CONTENT', '0'), 10);
   if (isNaN(id) || id < 0 || id > MAX_FEATURES) id = 0;
+  if (!dualContextVisible('upper', 'right')) return 0;
   return id;
 }
 function upperMiddleLine2ColorModeCode() {
   var id = parseInt(dualContextSetting('CONFIG_UPPER_MIDDLE_LINE2_COLOR', '0'), 10);
   if (isNaN(id) || id < 0 || id > 3) id = 0;
+  if (!dualContextVisible('upper', 'right')) return 0;
   return id;
 }
 // Bottom-middle line 1 (the upper of its own pair) defaults to "Long
@@ -764,70 +815,86 @@ function upperMiddleLine2ColorModeCode() {
 // always-on bottom-bar feature (see the digitalBottom SLOT_DEFS entry
 // in config-page.js) reuses this same field, and that's the one this
 // default is actually tuned for; analog mode's own "Bottom-middle,
-// line 1" slot shares it too since the two never run at once.
+// line 1" slot shares it too since the two never run at once. Digital's
+// own gate is always true here (no side to turn it off) -- see
+// dualContextVisible()'s own comment.
 function bottomMiddleLine1ContentCode() {
   var id = parseInt(dualContextSetting('CONFIG_BOTTOM_MIDDLE_LINE1_CONTENT', '102'), 10);
   if (isNaN(id) || id < 0 || id > MAX_FEATURES) id = 0;
+  if (!dualContextVisible('bottom', true)) return 0;
   return id;
 }
 function bottomMiddleLine1ColorModeCode() {
   var id = parseInt(dualContextSetting('CONFIG_BOTTOM_MIDDLE_LINE1_COLOR', '0'), 10);
   if (isNaN(id) || id < 0 || id > 3) id = 0;
+  if (!dualContextVisible('bottom', true)) return 0;
   return id;
 }
 // bottomMiddleLine2 is analog-only -- digital mode has no use for a
 // second bottom-middle line (see digitalBottom's own single SLOT_DEFS
 // entry) -- so this one stays a single plain setting, not a dual-
 // context pair; being in Digital mode just means nothing on this page
-// currently reads or writes it, not that it should be cleared.
+// currently reads or writes it, not that it should be cleared. Its own
+// analog availability (avail.bottom) still applies, same as any other
+// analog edge.
 function bottomMiddleLine2ContentCode() {
   var id = parseInt(getSetting('CONFIG_BOTTOM_MIDDLE_LINE2_CONTENT', '0'), 10);
   if (isNaN(id) || id < 0 || id > MAX_FEATURES) id = 0;
+  if (isAnalogModeNow() && !analogEdgeAvailability().bottom) return 0;
   return id;
 }
 function bottomMiddleLine2ColorModeCode() {
   var id = parseInt(getSetting('CONFIG_BOTTOM_MIDDLE_LINE2_COLOR', '0'), 10);
   if (isNaN(id) || id < 0 || id > 3) id = 0;
+  if (isAnalogModeNow() && !analogEdgeAvailability().bottom) return 0;
   return id;
 }
 function middleLeftLine1ContentCode() {
   var id = parseInt(dualContextSetting('CONFIG_MIDDLE_LEFT_LINE1_CONTENT', '0'), 10);
   if (isNaN(id) || id < 0 || id > MAX_FEATURES) id = 0;
+  if (!dualContextVisible('left', 'left')) return 0;
   return id;
 }
 function middleLeftLine1ColorModeCode() {
   var id = parseInt(dualContextSetting('CONFIG_MIDDLE_LEFT_LINE1_COLOR', '0'), 10);
   if (isNaN(id) || id < 0 || id > 3) id = 0;
+  if (!dualContextVisible('left', 'left')) return 0;
   return id;
 }
 function middleLeftLine2ContentCode() {
   var id = parseInt(dualContextSetting('CONFIG_MIDDLE_LEFT_LINE2_CONTENT', '0'), 10);
   if (isNaN(id) || id < 0 || id > MAX_FEATURES) id = 0;
+  if (!dualContextVisible('left', 'left')) return 0;
   return id;
 }
 function middleLeftLine2ColorModeCode() {
   var id = parseInt(dualContextSetting('CONFIG_MIDDLE_LEFT_LINE2_COLOR', '0'), 10);
   if (isNaN(id) || id < 0 || id > 3) id = 0;
+  if (!dualContextVisible('left', 'left')) return 0;
   return id;
 }
 function middleRightLine1ContentCode() {
   var id = parseInt(dualContextSetting('CONFIG_MIDDLE_RIGHT_LINE1_CONTENT', '0'), 10);
   if (isNaN(id) || id < 0 || id > MAX_FEATURES) id = 0;
+  if (!dualContextVisible('right', 'right')) return 0;
   return id;
 }
 function middleRightLine1ColorModeCode() {
   var id = parseInt(dualContextSetting('CONFIG_MIDDLE_RIGHT_LINE1_COLOR', '0'), 10);
   if (isNaN(id) || id < 0 || id > 3) id = 0;
+  if (!dualContextVisible('right', 'right')) return 0;
   return id;
 }
 function middleRightLine2ContentCode() {
   var id = parseInt(dualContextSetting('CONFIG_MIDDLE_RIGHT_LINE2_CONTENT', '0'), 10);
   if (isNaN(id) || id < 0 || id > MAX_FEATURES) id = 0;
+  if (!dualContextVisible('right', 'right')) return 0;
   return id;
 }
 function middleRightLine2ColorModeCode() {
   var id = parseInt(dualContextSetting('CONFIG_MIDDLE_RIGHT_LINE2_COLOR', '0'), 10);
   if (isNaN(id) || id < 0 || id > 3) id = 0;
+  if (!dualContextVisible('right', 'right')) return 0;
   return id;
 }
 

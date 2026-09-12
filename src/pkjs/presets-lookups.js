@@ -195,7 +195,16 @@ var FONT_LOOKUP = [
   { id: 54, label: 'LCD',                 height: 48, preview: "font-family: 'Press Start 2P', 'Courier New', monospace;", small: false, mainClock: true, google: 'Press Start 2P', weight: 400, sizePx: 48, approx: true, categories: ['digital', 'pixelated', 'large'], sidesAllowed: 2 }, // see id 50
   { id: 55, label: 'Rebel Redux',         height: 48, preview: "font-family: 'RebelRedux', 'Arial Narrow', 'Impact', sans-serif; font-weight: 500;", small: false, mainClock: true, cdn: 'rebelredux', sizePx: 48, categories: ['stylish', 'funky', 'modern', 'bold', 'large'], sidesAllowed: 1 } // RebelRedux (dafont-only) is hosted on cdnfonts.com as a webfont -- see cdnFontLinks() in config-page.js.
 
-]; // remember to bump FONT_MAX_CONTENT_ID in index.js!!!
+]; // FONT_MAX_CONTENT_ID below is derived from this array's own ids --
+   // no more "remember to bump" comment needed.
+
+// The highest FONT_LOOKUP id currently in use -- used wherever a font
+// choice (clock font, corner/edge font, marker text font) gets
+// validated/clamped, e.g. clampFontId() in index.js. Computed from
+// FONT_LOOKUP itself rather than hand-maintained as a separate number,
+// so adding a new font entry above can never leave this stale the way
+// a hardcoded copy repeatedly has.
+var FONT_MAX_CONTENT_ID = FONT_LOOKUP.reduce(function (max, f) { return Math.max(max, f.id); }, 0);
 
 // Font picker category filter row -- 'all' is a special case handled
 // entirely client-side (see fontMatchesCategoryFilters() in
@@ -246,6 +255,17 @@ var COLOR_SCHEMES = [
 // glyphs for some of the letters int_to_roman() needs) -- keyed by
 // FONT_LOOKUP id.
 var ROMAN_INCOMPATIBLE_FONTS = { 6: true, 7: true, 13: true };
+
+// Fonts narrow/short enough to still show seconds with exactly ONE
+// digital side column active (left or right, not both -- see
+// secondsAvailableForDigital()'s own comment in config-page.js for the
+// full rule this backs). Every other mainClock font loses "Show
+// seconds" the moment any side feature turns on, matching how a font
+// with sidesAllowed 0 already loses it outright. Leco Small/Medium/
+// Large (ids 5/6/7), Bitham Light (14), and Bebas (24, NOT the smaller
+// "Bebas Small" id 23, which isn't a mainClock font in the first
+// place).
+var SECONDS_WITH_ONE_SIDE_FONTS = { 5: true, 6: true, 7: true, 14: true, 24: true };
 
 // Must match draw_corner_item()'s color_mode switch exactly.
 var CORNER_COLOR_MODE_LABELS = ['MONO', 'ACC', 'PILL', 'COLOR'];
@@ -897,7 +917,21 @@ var CORNER_CATEGORIES = [
       }
     ]
   }
-]; // Remember to bump MAX_FEATURES in index.js when adding features here!
+];
+
+// The highest corner/edge content id currently in use -- every content
+// id features_layer.c implements (see this file's own comment above
+// CORNER_CATEGORIES) must appear somewhere in that array, so its
+// highest id IS this number; computed here rather than hand-maintained
+// as a separate constant, since a stale hardcoded copy (index.js's own
+// MAX_FEATURES sat at 104 for a while after content ids up to 115 were
+// added elsewhere in this same file, silently rejecting every one of
+// them back down to "None" until this was caught) is exactly the
+// failure mode FONT_MAX_CONTENT_ID's own comment already flagged for
+// FONT_LOOKUP.
+var MAX_FEATURES = CORNER_CATEGORIES.reduce(function (max, cat) {
+  return cat.items.reduce(function (m, item) { return Math.max(m, item.id); }, max);
+}, 0);
 
 // Starter hand-style presets for the Style section's "Hand style"
 // picker -- keyed "1"."9" to match HAND_STYLE_IMAGES/
@@ -1229,10 +1263,13 @@ var HAND_PRESETS = {
 
 module.exports = {
   FONT_LOOKUP: FONT_LOOKUP,
+  FONT_MAX_CONTENT_ID: FONT_MAX_CONTENT_ID,
   FONT_CATEGORIES: FONT_CATEGORIES,
   COLOR_SCHEMES: COLOR_SCHEMES,
   ROMAN_INCOMPATIBLE_FONTS: ROMAN_INCOMPATIBLE_FONTS,
+  SECONDS_WITH_ONE_SIDE_FONTS: SECONDS_WITH_ONE_SIDE_FONTS,
   CORNER_COLOR_MODE_LABELS: CORNER_COLOR_MODE_LABELS,
   CORNER_CATEGORIES: CORNER_CATEGORIES,
+  MAX_FEATURES: MAX_FEATURES,
   HAND_PRESETS: HAND_PRESETS
 };
