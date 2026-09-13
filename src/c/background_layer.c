@@ -412,7 +412,8 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
   GColor sun_fill_color;
   GColor sun_outline_color;
   bool fullscreen_sun = (d->bottom_style == 1) && d->has_eclipse && now >= d->c1 && now <= d->c4;
-  SkyRgb sun_rgb = fullscreen_sun
+  bool is_space_view = fullscreen_sun || d->sky_mode == 2;
+  SkyRgb sun_rgb = is_space_view
     ? sky_layer_space_sun_color()
     : sky_layer_sun_color_for_altitude(alt);
   sun_fill_color = GColorFromRGB(sun_rgb.r, sun_rgb.g, sun_rgb.b);
