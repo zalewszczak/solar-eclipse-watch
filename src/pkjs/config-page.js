@@ -373,7 +373,7 @@ function subsectionLegendHtml(id, title, previewHtml) {
 // page ends up as one self-contained data: URI with no server behind
 // it). Missing entries (a style with no PNG provided yet) are handled
 // gracefully wherever this is used below, not treated as an error.
-var MARKER_PREVIEW_IMAGES = require('./marker-preview-images');
+var MARKER_PREVIEW_IMAGES = require('./data/generated/marker-preview-images');
 
 // Base64 data: URIs for the hand style picker popup's 9 buttons
 // (resources/infographics/hands<n>.png -- see
@@ -382,26 +382,26 @@ var MARKER_PREVIEW_IMAGES = require('./marker-preview-images');
 // same script) -- same "generated at build time, embedded gracefully
 // missing-or-not" story as MARKER_PREVIEW_IMAGES/EXAMPLE_STYLE_IMAGES
 // above and below.
-var HAND_STYLE_IMAGES = require('./hand-style-images');
-var MARKER_PRESET_IMAGES = require('./marker-preset-images');
+var HAND_STYLE_IMAGES = require('./data/generated/hand-style-images');
+var MARKER_PRESET_IMAGES = require('./data/generated/marker-preset-images');
 
 // Base64 data: URIs for the hand editor popup's own full-width
 // explainer diagram, one per HandConfig.style value (see
 // scripts/generate-infographics.js and its own comment) -- distinct
 // from HAND_STYLE_IMAGES above, which is the style PICKER popup's
 // thumbnail grid, not the editor's in-popup diagram.
-var HAND_STYLE_DIAGRAM_IMAGES = require('./hand-style-diagram-images');
+var HAND_STYLE_DIAGRAM_IMAGES = require('./data/generated/hand-style-diagram-images');
 // Small unlabeled silhouette icons for the hand-style PICKER's own
 // button list (see scripts/generate_hand_style_icons.py and
 // scripts/generate-hand-style-icons.js) -- a different image set from
 // HAND_STYLE_DIAGRAM_IMAGES just above, which is the full-width
 // labeled explainer diagram at the top of the editor popup instead.
 // Both are keyed the same way: HandConfig.style id as a string.
-var HAND_STYLE_ICON_IMAGES = require('./hand-style-icon-images');
+var HAND_STYLE_ICON_IMAGES = require('./data/generated/hand-style-icon-images');
 // One representative ("partly cloudy") icon per weather_icon_style
 // value, nearest-neighbor upscaled to stay crisp -- see
 // scripts/generate-weather-icon-previews.js for how these get made.
-var WEATHER_ICON_STYLE_PREVIEWS = require('./weather-icon-style-previews');
+var WEATHER_ICON_STYLE_PREVIEWS = require('./data/generated/weather-icon-style-previews');
 
 // "Example styles" grid (first section on the settings page) -- each
 // numbered slot pairs a screenshot (resources/example-styles/<n>.png,
@@ -413,7 +413,7 @@ var WEATHER_ICON_STYLE_PREVIEWS = require('./weather-icon-style-previews');
 // re-running the generator script, and adding a "10" entry to
 // example-style-presets.js -- nothing else here needs to change.
 var EXAMPLE_STYLE_COUNT = 9;
-var EXAMPLE_STYLE_IMAGES = require('./example-style-images');
+var EXAMPLE_STYLE_IMAGES = require('./data/generated/example-style-images');
 var EXAMPLE_STYLE_PRESETS = require('./example-style-presets');
 
 // Sun..Sat, matching struct tm's own tm_wday (0=Sunday) so the watch
@@ -441,7 +441,7 @@ var QUIET_TIME_API_AVAILABLE = true;
 // HAND_STYLE_IMAGES above -- a font/role with no PNG yet just falls
 // back to the existing CSS-approximation text preview for that one
 // button.
-var FONT_PREVIEW_IMAGES = require('./font-preview-images');
+var FONT_PREVIEW_IMAGES = require('./data/generated/font-preview-images');
 
 // FONT_LOOKUP (required up top, alongside PRESETS_LOOKUPS itself) --
 // see presets-lookups.js's own header/FONT_LOOKUP comment for what
@@ -3023,7 +3023,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 'var EXAMPLE_STYLE_COUNT = ' + EXAMPLE_STYLE_COUNT + ';' +
 // Same reasoning as FONT_LOOKUP just above -- serialized straight from
 // the generator-side FONT_PREVIEW_IMAGES (itself just require()'d from
-// the generated src/pkjs/font-preview-images.js) rather than
+// the generated src/pkjs/data/generated/font-preview-images.js) rather than
 // hand-duplicated. Empty ({}) whenever no font-preview PNGs have been
 // added yet -- every lookup against it below already handles that
 // gracefully.

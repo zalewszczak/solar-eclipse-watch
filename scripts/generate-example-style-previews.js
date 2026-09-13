@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Reads the "Example styles" section's screenshot PNGs --
 // resources/example-styles/<n>.png, one per numbered example-style
-// slot -- and generates src/pkjs/example-style-images.js as a lookup
+// slot -- and generates src/pkjs/data/generated/example-style-images.js as a lookup
 // table of data: URIs the settings page can embed directly. Same
 // reasoning and same generated-file shape as
 // generate-marker-previews.js right next to this file (see that
@@ -28,7 +28,7 @@ var fs = require('fs');
 var path = require('path');
 
 var SOURCE_DIR = path.join(__dirname, '..', 'resources', 'example-styles');
-var OUTPUT_FILE = path.join(__dirname, '..', 'src', 'pkjs', 'example-style-images.js');
+var OUTPUT_FILE = path.join(__dirname, '..', 'src', 'pkjs', 'data', 'generated', 'example-style-images.js');
 var SUFFIX = '.png';
 
 var entries = {};
@@ -63,6 +63,7 @@ lines.push('// changing any example-style screenshot, before `pebble build`.');
 lines.push('module.exports = ' + JSON.stringify(entries, null, 2) + ';');
 lines.push('');
 
+if (!fs.existsSync(path.dirname(OUTPUT_FILE))) fs.mkdirSync(path.dirname(OUTPUT_FILE), { recursive: true });
 fs.writeFileSync(OUTPUT_FILE, lines.join('\n'));
 
 console.log('generate-example-style-previews: wrote ' + OUTPUT_FILE);

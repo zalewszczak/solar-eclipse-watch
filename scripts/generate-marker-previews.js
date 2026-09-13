@@ -2,7 +2,7 @@
 // Reads the big-analog bitmap marker styles' own resource PNGs --
 // resources/images/<name>_background.png, the same files already
 // declared in package.json and used on the watch itself -- and
-// generates src/pkjs/marker-preview-images.js as a lookup table of
+// generates src/pkjs/data/generated/marker-preview-images.js as a lookup table of
 // data: URIs the settings page can embed directly. No separate
 // preview-only files needed: whatever art you're already using for a
 // given marker style on the watch is exactly what shows as its
@@ -27,7 +27,7 @@ var fs = require('fs');
 var path = require('path');
 
 var SOURCE_DIR = path.join(__dirname, '..', 'resources', 'images');
-var OUTPUT_FILE = path.join(__dirname, '..', 'src', 'pkjs', 'marker-preview-images.js');
+var OUTPUT_FILE = path.join(__dirname, '..', 'src', 'pkjs', 'data', 'generated', 'marker-preview-images.js');
 var SUFFIX = '_background.png';
 
 // Must match the big-analog bitmap marker style IDs used throughout
@@ -86,6 +86,7 @@ lines.push('// changing any marker style\'s PNG, before `pebble build`.');
 lines.push('module.exports = ' + JSON.stringify(entries, null, 2) + ';');
 lines.push('');
 
+if (!fs.existsSync(path.dirname(OUTPUT_FILE))) fs.mkdirSync(path.dirname(OUTPUT_FILE), { recursive: true });
 fs.writeFileSync(OUTPUT_FILE, lines.join('\n'));
 
 console.log('generate-marker-previews: wrote ' + OUTPUT_FILE);

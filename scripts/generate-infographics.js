@@ -3,7 +3,7 @@
 //   resources/infographics/hands<n>.png       (n = 1..HAND_PRESETS slot count)
 //   resources/infographics/marker_preset_<name>.png  (none/minimal/small/big)
 //   resources/infographics/<style name>.png   (one per HandConfig.style value)
-// -- and generates src/pkjs/hand-style-images.js, marker-preset-images.js,
+// -- and generates src/pkjs/data/generated/hand-style-images.js, marker-preset-images.js,
 // and hand-style-diagram-images.js as lookup tables of data: URIs the
 // settings page can embed directly. Same reasoning and same
 // generated-file shape as generate-example-style-previews.js and
@@ -16,7 +16,7 @@
 // The first two are the HAND STYLE PICKER popup's own image set -- the
 // 5 existing bitmap MARKER styles (modern/shadow/tally/bell/fancy)
 // already have their own preview pipeline in generate-marker-previews.js
-// and src/pkjs/marker-preview-images.js; this script only covers the 4
+// and src/pkjs/data/generated/marker-preview-images.js; this script only covers the 4
 // procedural marker PRESETS (none/minimal/small/big) that sit
 // alongside those 5 bitmaps in the marker style picker popup. The
 // third is a completely separate feature: the full-width explainer
@@ -52,7 +52,7 @@ if (fs.existsSync(SOURCE_DIR)) {
 // hardcode a count, so adding a 10th hands10.png + a matching
 // HAND_PRESETS["10"] entry needs no change here.
 (function () {
-  var OUTPUT_FILE = path.join(__dirname, '..', 'src', 'pkjs', 'hand-style-images.js');
+  var OUTPUT_FILE = path.join(__dirname, '..', 'src', 'pkjs', 'data', 'generated', 'hand-style-images.js');
   var HAND_RE = /^hands([0-9]+)\.png$/;
   var entries = {};
   var found = [];
@@ -74,6 +74,7 @@ if (fs.existsSync(SOURCE_DIR)) {
   lines.push('// changing any hand-style picture, before `pebble build`.');
   lines.push('module.exports = ' + JSON.stringify(entries, null, 2) + ';');
   lines.push('');
+  if (!fs.existsSync(path.dirname(OUTPUT_FILE))) fs.mkdirSync(path.dirname(OUTPUT_FILE), { recursive: true });
   fs.writeFileSync(OUTPUT_FILE, lines.join('\n'));
 
   console.log('generate-infographics: wrote ' + OUTPUT_FILE);
@@ -87,7 +88,7 @@ if (fs.existsSync(SOURCE_DIR)) {
 // the 5 bitmap marker styles keep using generate-marker-previews.js's
 // own output (marker-preview-images.js), unchanged.
 (function () {
-  var OUTPUT_FILE = path.join(__dirname, '..', 'src', 'pkjs', 'marker-preset-images.js');
+  var OUTPUT_FILE = path.join(__dirname, '..', 'src', 'pkjs', 'data', 'generated', 'marker-preset-images.js');
   var PREFIX = 'marker_preset_';
   var KNOWN_NAMES = ['none', 'minimal', 'small', 'big'];
   var entries = {};
@@ -113,6 +114,7 @@ if (fs.existsSync(SOURCE_DIR)) {
   lines.push('// adding or changing any marker-preset picture, before `pebble build`.');
   lines.push('module.exports = ' + JSON.stringify(entries, null, 2) + ';');
   lines.push('');
+  if (!fs.existsSync(path.dirname(OUTPUT_FILE))) fs.mkdirSync(path.dirname(OUTPUT_FILE), { recursive: true });
   fs.writeFileSync(OUTPUT_FILE, lines.join('\n'));
 
   console.log('generate-infographics: wrote ' + OUTPUT_FILE);
@@ -135,7 +137,7 @@ if (fs.existsSync(SOURCE_DIR)) {
 // matching the slider labels) meant to be redrawn to actually match
 // each style's real silhouette.
 (function () {
-  var OUTPUT_FILE = path.join(__dirname, '..', 'src', 'pkjs', 'hand-style-diagram-images.js');
+  var OUTPUT_FILE = path.join(__dirname, '..', 'src', 'pkjs', 'data', 'generated', 'hand-style-diagram-images.js');
   var STYLE_IDS_BY_NAME = {
     baton: '0', galba: '1', pencil: '2', dauphine: '3', sword: '4',
     pomme: '5', spade: '6', arrow: '7', leaf: '8', syringe: '9', serpentine: '10'
@@ -163,6 +165,7 @@ if (fs.existsSync(SOURCE_DIR)) {
   lines.push('// or changing any hand shape diagram, before `pebble build`.');
   lines.push('module.exports = ' + JSON.stringify(entries, null, 2) + ';');
   lines.push('');
+  if (!fs.existsSync(path.dirname(OUTPUT_FILE))) fs.mkdirSync(path.dirname(OUTPUT_FILE), { recursive: true });
   fs.writeFileSync(OUTPUT_FILE, lines.join('\n'));
 
   console.log('generate-infographics: wrote ' + OUTPUT_FILE);

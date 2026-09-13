@@ -7,7 +7,7 @@ var path = require('path');
 var sharp = require('sharp');
 
 var SOURCE_DIR = path.join(__dirname, '..', 'resources', 'font-previews');
-var OUTPUT_FILE = path.join(__dirname, '..', 'src', 'pkjs', 'font-preview-images.js');
+var OUTPUT_FILE = path.join(__dirname, '..', 'src', 'pkjs', 'data', 'generated', 'font-preview-images.js');
 var VALID_ROLES = ['clock', 'clockFontSmall', 'cornerFont', 'markerTextFont'];
 var FILE_RE = /^([0-9]+)_(clock|clockFontSmall|cornerFont|markerTextFont)\.png$/;
 
@@ -96,6 +96,7 @@ async function buildPreviews() {
   lines.push('module.exports = ' + JSON.stringify(entries, null, 2) + ';');
   lines.push('');
 
+  if (!fs.existsSync(path.dirname(OUTPUT_FILE))) fs.mkdirSync(path.dirname(OUTPUT_FILE), { recursive: true });
   fs.writeFileSync(OUTPUT_FILE, lines.join('\n'));
 
   console.log('generate-font-previews: wrote ' + OUTPUT_FILE);

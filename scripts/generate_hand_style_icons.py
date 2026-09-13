@@ -20,7 +20,7 @@ Usage:
 
 (the first renders resources/hand-style-icons/<style>.png from the
 geometry below; the second bakes those PNGs into
-src/pkjs/hand-style-icon-images.js the same way every other
+src/pkjs/data/generated/hand-style-icon-images.js the same way every other
 generate-*.js script here bakes its own resources/ folder -- see
 that script's own comment. Run both, in that order, whenever you
 change a shape's parameters below.)

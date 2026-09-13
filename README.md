@@ -125,7 +125,7 @@ button) rather than applying it immediately:
 3. Take a screenshot of that look (emulator or a real watch) and save
    it as `resources/example-styles/<n>.png`, matching the slot number.
 4. Run `node scripts/generate-example-style-previews.js` to bake that
-   PNG into `src/pkjs/example-style-images.js` as the button's preview
+   PNG into `src/pkjs/data/generated/example-style-images.js` as the button's preview
    image -- the settings page can't load an external image at
    runtime, so this has to happen before `pebble build`.
 5. A slot left as `null`, or with no matching PNG generated yet, just
@@ -237,7 +237,7 @@ node scripts/generate-marker-previews.js
 Run this **before** `pebble build`, any time you add or change one of
 the `*_background.png` files in `resources/images/`. It reads
 whatever's there, base64-encodes it, and writes
-`src/pkjs/marker-preview-images.js` -- a generated file the settings
+`src/pkjs/data/generated/marker-preview-images.js` -- a generated file the settings
 page requires and embeds directly. No separate preview-only files are
 needed: whatever art a marker style already uses on the watch is
 exactly what shows as its preview in settings.
@@ -246,7 +246,7 @@ You don't need every style's PNG to exist for this to work -- any
 style missing a `*_background.png` simply shows no preview image in
 settings (not an error, and it doesn't affect that style working on
 the watch itself). The committed placeholder
-(`src/pkjs/marker-preview-images.js` with no entries) means the app
+(`src/pkjs/data/generated/marker-preview-images.js` with no entries) means the app
 also builds fine before you've added any of these images at all.
 
 ### Running it automatically
@@ -340,7 +340,7 @@ node scripts/generate-font-previews.js
 ```
 
 which reads `resources/font-previews/*.png` and writes
-`src/pkjs/font-preview-images.js`.
+`src/pkjs/data/generated/font-preview-images.js`.
 
 ### Keep it themed
 
@@ -384,7 +384,7 @@ Requires Pillow (`pip install pillow`, or `pip install pillow
 outside a virtualenv). It writes PNGs straight into
 `resources/hand-style-icons/`.
 
-The second bakes those PNGs into `src/pkjs/hand-style-icon-images.js`,
+The second bakes those PNGs into `src/pkjs/data/generated/hand-style-icon-images.js`,
 the same shape every other generate-*.js script here uses.
 
 ### Tweaking a shape

@@ -4,7 +4,7 @@
 // (see scripts/generate_hand_style_icons.py, which renders these from
 // this project's own compute_hand_geometry_fp() geometry; run that
 // script first if you've changed a shape) -- and generates
-// src/pkjs/hand-style-icon-images.js as a lookup table of data: URIs
+// src/pkjs/data/generated/hand-style-icon-images.js as a lookup table of data: URIs
 // keyed by HandConfig.style id, the same shape config-page.js's other
 // generate-*.js scripts already use (see generate-infographics.js's
 // own top-of-file comment for why this has to happen at build time:
@@ -30,7 +30,7 @@ var fs = require('fs');
 var path = require('path');
 
 var SOURCE_DIR = path.join(__dirname, '..', 'resources', 'hand-style-icons');
-var OUTPUT_FILE = path.join(__dirname, '..', 'src', 'pkjs', 'hand-style-icon-images.js');
+var OUTPUT_FILE = path.join(__dirname, '..', 'src', 'pkjs', 'data', 'generated', 'hand-style-icon-images.js');
 
 // Matches HandConfig.style (see hand_layer.h) and the Shape picker's
 // own <option value> -- same numbering generate-infographics.js's own
@@ -71,6 +71,7 @@ lines.push('// changing any hand style\'s icon, before `pebble build`.');
 lines.push('module.exports = ' + JSON.stringify(entries, null, 2) + ';');
 lines.push('');
 
+if (!fs.existsSync(path.dirname(OUTPUT_FILE))) fs.mkdirSync(path.dirname(OUTPUT_FILE), { recursive: true });
 fs.writeFileSync(OUTPUT_FILE, lines.join('\n'));
 
 console.log('generate-hand-style-icons: wrote ' + OUTPUT_FILE);

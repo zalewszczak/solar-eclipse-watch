@@ -8,7 +8,7 @@
 // nearest-neighbor sampling (never smooth/bilinear interpolation,
 // which would blur these into a soft smudge instead of preserving
 // their actual on-watch blocky/pixel-art look), and generates
-// src/pkjs/weather-icon-style-previews.js as a lookup table of data:
+// src/pkjs/data/generated/weather-icon-style-previews.js as a lookup table of data:
 // URIs keyed by weather_icon_style id, the same shape config-page.js's
 // other generate-*.js scripts already use (see generate-infographics.js's
 // own top-of-file comment for why this has to happen at build time
@@ -54,7 +54,7 @@ try {
 }
 
 var SOURCE_DIR = path.join(__dirname, '..', 'resources', 'images');
-var OUTPUT_FILE = path.join(__dirname, '..', 'src', 'pkjs', 'weather-icon-style-previews.js');
+var OUTPUT_FILE = path.join(__dirname, '..', 'src', 'pkjs', 'data', 'generated', 'weather-icon-style-previews.js');
 
 // Target pixel HEIGHT of the scaled-up preview -- chosen to roughly
 // match this popup's own button row text size (see .weather-icon-
@@ -121,6 +121,7 @@ lines.push('// changing any of those 3 source icons, before `pebble build`.');
 lines.push('module.exports = ' + JSON.stringify(entries, null, 2) + ';');
 lines.push('');
 
+if (!fs.existsSync(path.dirname(OUTPUT_FILE))) fs.mkdirSync(path.dirname(OUTPUT_FILE), { recursive: true });
 fs.writeFileSync(OUTPUT_FILE, lines.join('\n'));
 
 console.log('generate-weather-icon-previews: wrote ' + OUTPUT_FILE);
