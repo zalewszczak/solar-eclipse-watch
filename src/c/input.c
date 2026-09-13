@@ -280,9 +280,30 @@ static void maybe_start_compass_feature(void) {
 // needs attention rather than a normal static label.
 static void shake_anim_timer_callback(void *data) {
   (void)data;
+  uint32_t elapsed_before = s_shake_anim_elapsed_ms;
   s_shake_anim_elapsed_ms += SHAKE_ANIM_FRAME_MS;
   bool planet_seek_wanted = shake_anim_wants_planet_seek(s_data->shake_anim_mode);
-  bool still_active = s_labels_visible && s_shake_anim_elapsed_ms < s_shake_anim_duration_ms;
+  // The tick that first crosses the duration threshold still reports
+  // "active" (and so still renders through Planet seek's own eased-blend
+  // draw path -- see shake_anim_eased_t_1000(), which clamps its
+  // `remaining` to 0 once elapsed reaches/overshoots the duration) rather
+  // than flipping to inactive the same instant it crosses. Without this,
+  // the LAST frame actually drawn via the eased path always still had
+  // some nonzero blend left (frames only land every SHAKE_ANIM_FRAME_MS,
+  // never exactly at the duration boundary), and the very next redraw
+  // switched straight to the plain non-blended position -- an abrupt
+  // final snap regardless of how gentle the ease-out curve itself is.
+  // This one extra settling frame (blend already eased to 0 by then) is
+  // what actually makes the transition to the normal draw path invisible.
+  // Checked ahead of (not combined with, via &&) s_labels_visible: the
+  // separate hide_labels_callback() below is its own independent AppTimer
+  // armed for this same nominal duration, so it can easily fire and flip
+  // s_labels_visible false a tick or two before this one -- ANDing it in
+  // here would silently skip the one settling frame this all depends on.
+  bool just_reached_duration = elapsed_before < s_shake_anim_duration_ms &&
+                               s_shake_anim_elapsed_ms >= s_shake_anim_duration_ms;
+  bool still_active = just_reached_duration ||
+                     (s_labels_visible && s_shake_anim_elapsed_ms < s_shake_anim_duration_ms);
   if (!still_active) {
     s_shake_anim_active = false;
     s_shake_anim_timer = NULL;

@@ -100,10 +100,15 @@ static int32_t bg_anim_ease_out_1000(int32_t t) {
 static int32_t shake_anim_eased_t_1000(uint16_t elapsed, const EclipseData *d) {
   uint32_t duration_ms = (uint32_t)(d->shake_label_seconds > 0 ? d->shake_label_seconds : 3) * 1000;
   if (elapsed < 500) return bg_anim_ease_out_1000(((int32_t)elapsed * 1000) / 500);
-  if (duration_ms > 500 && elapsed > duration_ms - 500) {
+  // Ease back out over the last 1s so Planet seek's bodies glide back to
+  // their normal positions rather than snapping -- capped to half the
+  // total duration for anyone who's set shake_label_seconds short enough
+  // that a full 1s exit window would overlap the 500ms entry ease above.
+  uint32_t ease_out_window_ms = duration_ms > 2000 ? 1000 : duration_ms / 2;
+  if (ease_out_window_ms > 0 && elapsed > duration_ms - ease_out_window_ms) {
     int32_t remaining = (int32_t)duration_ms - (int32_t)elapsed;
     if (remaining < 0) remaining = 0;
-    return bg_anim_ease_out_1000((remaining * 1000) / 500);
+    return bg_anim_ease_out_1000((remaining * 1000) / (int32_t)ease_out_window_ms);
   }
   return 1000;
 }
