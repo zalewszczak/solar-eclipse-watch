@@ -10,6 +10,7 @@
 #include "sky_layer.h"
 #include "features_layer.h"
 #include "feature_layout.h"
+#include "feature_render.h"
 #include "font_lookup.h"
 #include "message_key_index.h" // MK_* is used for the startup key-index consistency check.
 #include "eclipse_ui.h"
@@ -472,7 +473,7 @@ static void draw_digital_clock_panel(Layer *layer, GContext *ctx) {
   // 0 there (via features_draw_text_outlined's own no-op-at-0 handling) keeps
   // its look pixel-identical to before.
   if (is_top) {
-    features_draw_text_outlined(ctx, time_buf, clock_font, clock_rect, GTextOverflowModeTrailingEllipsis, alignment, text_color, s_data.outline_style);
+    feature_render_draw_text_outlined(ctx, time_buf, clock_font, clock_rect, GTextOverflowModeTrailingEllipsis, alignment, text_color, s_data.outline_style);
   } else {
     graphics_context_set_text_color(ctx, text_color);
     graphics_draw_text(ctx, time_buf, clock_font, clock_rect, GTextOverflowModeTrailingEllipsis, alignment, NULL);
@@ -499,12 +500,12 @@ static void countdown_layer_update_proc(Layer *layer, GContext *ctx) {
   // This label floats directly over the busy sky view in Analog mode
   // and (since its own panel is transparent) Digital top too -- both
   // have real sky right behind it at this label's fixed position (near
-  // the screen's top edge). Normally features_draw_text_outlined()'s 4-shifted-
+  // the screen's top edge). Normally feature_render_draw_text_outlined()'s 4-shifted-
   // copy outline keeps it legible against any background there, but
   // with that setting off there's nothing else backing the text, so it
   // can disappear into a similarly-colored patch of sky. Give it a
   // solid pill background in that specific case instead
-  // (features_contrasting_outline_color() picks black or white, whichever
+  // (feature_render_contrasting_outline_color() picks black or white, whichever
   // contrasts with the text color) -- outline mode already handles
   // legibility fine on its own, and Digital bar's own panel is already
   // a solid color the text sits on, so neither of those needs this
@@ -515,11 +516,11 @@ static void countdown_layer_update_proc(Layer *layer, GContext *ctx) {
     int16_t pad_x = 6;
     GRect bg_rect = GRect(bounds.origin.x + (bounds.size.w - text_size.w) / 2 - pad_x,
                            bounds.origin.y, text_size.w + pad_x * 2, bounds.size.h);
-    graphics_context_set_fill_color(ctx, features_contrasting_outline_color(s_countdown_text_color));
+    graphics_context_set_fill_color(ctx, feature_render_contrasting_outline_color(s_countdown_text_color));
     graphics_fill_rect(ctx, bg_rect, 4, GCornersAll);
   }
 
-  features_draw_text_outlined(ctx, s_countdown_buf, font, bounds,
+  feature_render_draw_text_outlined(ctx, s_countdown_buf, font, bounds,
                       GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter,
                       s_countdown_text_color, s_data.outline_style);
 }

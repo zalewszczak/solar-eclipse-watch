@@ -104,9 +104,3 @@ void features_ensure_corner_custom_font(uint8_t choice);
 // pebble-eclipse-watch.c already frees its own clock_font.
 void features_layer_unload_fonts(void);
 
-// Shared outline-drawing primitives -- also used by the countdown/status
-// label in pebble-eclipse-watch.c, not just this module's own content.
-GColor features_contrasting_outline_color(GColor c);
-void features_draw_text_outlined(GContext *ctx, const char *text, GFont font, GRect box,
-                         GTextOverflowMode overflow, GTextAlignment alignment,
-                         GColor color, uint8_t outline_style);

@@ -1,6 +1,6 @@
 #include "feature_icons.h"
+#include "feature_render.h"
 #include "eclipse_ui.h"
-#include "features_layer.h"
 #include "celestial_layer.h"
 
 #define ICON_WIDTH 16
@@ -375,7 +375,7 @@ void feature_icons_draw_render_icon(GContext *ctx, uint8_t icon_kind, int16_t ic
                                     bool icon_flag, GColor color, GColor color2,
                                     int16_t icon_x, int16_t box_y, int16_t row_height,
                                     uint8_t outline_style, uint8_t weather_icon_style, bool draw_debug) {
-  GColor outline_color = features_contrasting_outline_color(color);
+  GColor outline_color = feature_render_contrasting_outline_color(color);
   bool do_outline = outline_style != 0;
   const GPoint *offs = NULL; int offs_n = 0;
   if (do_outline) get_icon_outline_offsets(outline_style, &offs, &offs_n);

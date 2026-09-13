@@ -1,5 +1,5 @@
 #include "celestial_layer.h"
-#include "features_layer.h"
+#include "feature_render.h"
 #include <string.h>
 
 #define CELESTIAL_ARROW_W 6
@@ -523,7 +523,7 @@ static void draw_label_in_box(GContext *ctx, GRect r, const char *text, uint8_t 
   GFont font = fonts_get_system_font(FONT_KEY_GOTHIC_14);
   GRect text_box = GRect(r.origin.x, r.origin.y - 2, r.size.w, r.size.h + 2);
   if (label_style == 1) {
-    features_draw_text_outlined(ctx, text, font, text_box, GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, main_color, 1);
+    feature_render_draw_text_outlined(ctx, text, font, text_box, GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, main_color, 1);
     return;
   }
   if (label_style == 2) {
