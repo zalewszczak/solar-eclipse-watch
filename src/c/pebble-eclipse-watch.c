@@ -424,7 +424,7 @@ static void draw_digital_clock_panel(Layer *layer, GContext *ctx) {
   // Digital top (mirrored -- the sky is right below it instead), so
   // the two layouts read as a literal vertical flip of one another
   // rather than each being independently tuned.
-  int16_t clock_y = is_top ? (bounds.size.h - 24 - font_h / 2) : (24 - font_h / 2);
+  int16_t clock_y =  (is_top ? 44 : 24) - font_h / 2;
   GRect clock_rect = GRect(bounds.origin.x + clock_x, bounds.origin.y + clock_y, clock_w, font_h);
   GTextAlignment alignment = GTextAlignmentCenter;
 

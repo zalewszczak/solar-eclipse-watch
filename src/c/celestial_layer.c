@@ -5,7 +5,6 @@
 #define CELESTIAL_ARROW_W 6
 
 static const char *PLANET_NAMES[PLANET_COUNT] = { "Mercury", "Venus", "Mars", "Jupiter", "Saturn" };
-static const int16_t PLANET_COLUMN_PCT[PLANET_COUNT] = { 15, 85, 42, 58, 33 };
 static const char *STAR_NAMES[STAR_COUNT] = {
   "Sirius", "Canopus", "Arcturus", "Vega", "Capella", "Rigel", "Procyon", "Betelgeuse",
   "Altair", "Aldebaran", "Antares", "Spica", "Pollux", "Fomalhaut", "Deneb", "Regulus"
@@ -151,6 +150,20 @@ int16_t celestial_alt_to_y(int16_t alt_decideg, int16_t scale_max_decideg, int16
   if (y > canvas_h + 60) y = canvas_h + 60;
   if (y < -60) y = -60;
   return (int16_t)y;
+}
+
+// Linear azimuth-to-x mapping the star field and ISS already used --
+// the full 0-360 deg compass circle unrolled across the screen's own
+// width, so x=0 is due north and x=canvas_w is back around to north
+// again. The Sun/Moon/planets used to ignore this entirely and sit in
+// fixed horizontal "lanes" instead (screen-center, 2/3-across, and a
+// handful of hardcoded per-planet percentages) with only their Y
+// reflecting real altitude -- harmless as a stylized layout, but
+// inconsistent with stars/ISS already moving with real bearing, and
+// not what a "sky view" reads as to someone expecting compass-accurate
+// positions. Sun/Moon/planets now share this same mapping.
+static int16_t celestial_az_decideg_to_x(uint16_t az_decideg, int16_t canvas_w) {
+  return (int16_t)(((int32_t)canvas_w * az_decideg) / 3600);
 }
 
 static bool body_screen_y(int16_t alt_based_y, time_t rise, time_t set, time_t now,
@@ -316,7 +329,10 @@ void celestial_layer_update(CelestialLayerState *state, GContext *ctx, GRect bou
     int16_t sun_y;
     sun_up = body_screen_y(sun_alt_y, d->sun_rise, d->sun_set, now,
                            bounds.size.h - CELESTIAL_GROUND_H, sun_r, &sun_y);
-    sun_center = GPoint(bounds.size.w / 2, sun_y);
+    // sky_now (not now) matches alt above -- keeps X and Y sweeping
+    // together during the startup "animate background" substitution.
+    uint16_t sun_az = celestial_interp_sun_az_decideg(d, sky_now);
+    sun_center = GPoint(celestial_az_decideg_to_x(sun_az, bounds.size.w), sun_y);
   }
   if (sun_up && !skip_body_paint) {
     graphics_context_set_fill_color(ctx, sun_fill_color);
@@ -344,7 +360,8 @@ void celestial_layer_update(CelestialLayerState *state, GContext *ctx, GRect bou
     bool moon_up = body_screen_y(moon_alt_y, d->moon_rise, d->moon_set, now,
                                  bounds.size.h - CELESTIAL_GROUND_H, moon_r, &moon_y);
     if (moon_up) {
-      moon_center = GPoint((bounds.size.w * 2) / 3, moon_y);
+      uint16_t moon_az = celestial_interp_moon_az_decideg(d, sky_now);
+      moon_center = GPoint(celestial_az_decideg_to_x(moon_az, bounds.size.w), moon_y);
       if (sun_up) moon_center = enforce_min_separation(sun_center, moon_center, (sun_r * 3) / 2);
       moon_visible = true;
       if (!skip_body_paint) celestial_draw_moon_phase(ctx, bounds, moon_center, moon_r, d->moon_phase_pct, d->moon_waxing, GColorWhite);
@@ -362,7 +379,8 @@ void celestial_layer_update(CelestialLayerState *state, GContext *ctx, GRect bou
       int16_t p_y;
       if (!body_screen_y(p_alt_y, d->planet_rise[p], d->planet_set[p], now,
                          bounds.size.h - CELESTIAL_GROUND_H, CELESTIAL_PLANET_R, &p_y)) continue;
-      GPoint c = GPoint((bounds.size.w * PLANET_COLUMN_PCT[p]) / 100, p_y);
+      uint16_t p_az = celestial_interp_planet_az_decideg(d, (PlanetId)p, sky_now);
+      GPoint c = GPoint(celestial_az_decideg_to_x(p_az, bounds.size.w), p_y);
       planet_visible[p] = true; planet_center[p] = c;
       if (!skip_body_paint) {
         if (p == PLANET_SATURN) draw_saturn(ctx, c, d->saturn_ring_open_pct);
@@ -378,7 +396,7 @@ void celestial_layer_update(CelestialLayerState *state, GContext *ctx, GRect bou
     for (int s = 0; s < STAR_COUNT; s++) {
       if (d->star_alt_decideg[s] <= 0) continue;
       int16_t y = celestial_alt_to_y(d->star_alt_decideg[s], d->sky_scale_max_alt_decideg, bounds.size.h, STAR_RADIUS[s]);
-      int16_t x = (bounds.size.w * (int32_t)d->star_az_decideg[s]) / 3600;
+      int16_t x = celestial_az_decideg_to_x(d->star_az_decideg[s], bounds.size.w);
       star_visible[s] = true; star_center[s] = GPoint(x, y);
       if (!skip_body_paint) {
         graphics_context_set_fill_color(ctx, GColorWhite);
@@ -393,7 +411,7 @@ void celestial_layer_update(CelestialLayerState *state, GContext *ctx, GRect bou
     time_t age = now - d->iss_computed_at;
     if (age >= 0 && age < 900) {
       int16_t y = celestial_alt_to_y(d->iss_alt_deg * 10, d->sky_scale_max_alt_decideg, bounds.size.h, CELESTIAL_ISS_R);
-      int16_t x = (bounds.size.w * (int32_t)d->iss_az_deg) / 360;
+      int16_t x = celestial_az_decideg_to_x(d->iss_az_deg * 10, bounds.size.w);
       iss_visible = true; iss_center = GPoint(x, y);
       if (!skip_body_paint) {
         graphics_context_set_fill_color(ctx, GColorWhite); graphics_fill_circle(ctx, iss_center, CELESTIAL_ISS_R);
