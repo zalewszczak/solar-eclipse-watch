@@ -756,8 +756,8 @@ cdnFontLinks() +
 // "pausing to let you read, then sliding to reveal the rest" instead
 // of a distracting nonstop marquee.
 '  .subhead-sub-inner { display: inline-block; white-space: nowrap; }' +
-'  .subhead-sub-inner.subhead-sliding { animation: subheadSlide 6s ease-in-out infinite; }' +
-'  @keyframes subheadSlide { 0%, 15% { transform: translateX(0); } 50%, 65% { transform: translateX(var(--slide-dist, 0)); } 100% { transform: translateX(0); } }' +
+'  .subhead-sub-inner.subhead-sliding { animation-name: subheadSlide; animation-timing-function: linear; animation-iteration-count: infinite; }' +
+'  @keyframes subheadSlide { 0% { transform: translateX(var(--slide-start, 0)); } 100% { transform: translateX(var(--slide-end, 0)); } }' +
 // Colors section sub-header's own "3 dots" (current main/accent/
 // background) -- see computeColorsSubheaderHtml() further down.
 '  .subhead-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-left: 3px; border: 1px solid rgba(0,0,0,0.25); vertical-align: middle; }' +
@@ -1143,14 +1143,6 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    <div class="help" id="secondsHelp" style="' + (secondsUnsupported ? '' : 'display:none;') + '">This font doesn\'t support showing seconds.</div>' +
 '    <div class="help" id="help-showSeconds" style="display:none;">Used by both layouts -- the digital clock\'s own seconds digits, and whether analog draws a second hand at all (gates the Custom style\'s "Edit second hand" below, too).</div>' +
 
-'    <div class="field-label-row"><label style="margin-top:12px;">Label style</label><button type="button" class="help-btn" onclick="toggleHelp(\'help-labelStyle\')">?</button></div>' +
-      modeButtonGroupHtml('labelStyleGroup', 'labelStyle', [
-        { value: '0', label: 'BOXED', icon: MODE_BTN_ICONS.labelBoxed },
-        { value: '1', label: 'OUTLINED', icon: MODE_BTN_ICONS.labelOutlined },
-        { value: '2', label: 'SOFT', icon: MODE_BTN_ICONS.labelSoft }
-      ], current.labelStyle || '0') +
-'    <div class="help" id="help-labelStyle" style="display:none;">Boxed is an opaque rounded box with white text (the original look). Outlined uses your main color with a contrasting outline. Soft is plain light-gray text with no background or outline. Used for the shake-to-reveal Sun/Moon/ISS/Aurora name labels, in both layouts.</div>' +
-
 '    <div id="bigAnalogSettings" class="subsection" style="' + (isAnalog ? '' : 'display:none;') + '">' +
 
       subsectionLegendHtml('hands', 'Hands style') +
@@ -1209,6 +1201,14 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    <input type="hidden" id="skyMode" value="' + esc(current.skyMode || '0') + '">' +
 '    <div class="help" id="help-skyMode" style="display:none;">Weather sky shows clouds/rain/snow and the day-night gradient. Clear sky keeps the gradient but never draws weather. Space view drops the gradient entirely for a fixed dark sky, always shows the Sun/Moon/planets when above the horizon regardless of time of day, and (see "Show major stars" in the Astronomy section) can add a field of bright named stars (tap/shake to reveal names).</div>' +
 
+'    <div class="field-label-row"><label style="margin-top:12px;">Label style</label><button type="button" class="help-btn" onclick="toggleHelp(\'help-labelStyle\')">?</button></div>' +
+      modeButtonGroupHtml('labelStyleGroup', 'labelStyle', [
+        { value: '0', label: 'BOXED', icon: MODE_BTN_ICONS.labelBoxed },
+        { value: '1', label: 'OUTLINED', icon: MODE_BTN_ICONS.labelOutlined },
+        { value: '2', label: 'SOFT', icon: MODE_BTN_ICONS.labelSoft }
+      ], current.labelStyle || '0') +
+'    <div class="help" id="help-labelStyle" style="display:none;">Boxed is an opaque rounded box with white text (the original look). Outlined uses your main color with a contrasting outline. Soft is plain light-gray text with no background or outline. Used for the shake-to-reveal Sun/Moon/ISS/Aurora name labels, in both layouts.</div>' +
+
 '    <div class="subsection">' +
 '      <div class="field-label-row"><label>Outline text and icons for contrast</label><button type="button" class="help-btn" onclick="toggleHelp(\'help-outlineStyle\')">?</button></div>' +
       modeButtonGroupHtml('outlineStyleGroup', 'outlineStyle', [
@@ -1254,11 +1254,12 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    <div class="checkbox-row" id="bitmapCornerOverrideRow" style="margin-top:12px;' + ((isBitmapMarkerStyle && markerStyleNum !== 5) ? '' : ' display:none;') + '">' +
 '      <input type="checkbox" id="bitmapCornerOverride" ' + (current.bitmapCornerOverride ? 'checked' : '') + ' onchange="onBitmapCornerOverrideChange()">' +
 '      <label for="bitmapCornerOverride" style="margin:0;">Incompatible features (may overlap the design)</label>' +
+'      <button type="button" class="help-btn" onclick="toggleHelp(\'help-bitmapCornerOverride\')">?</button>' +
 '    </div>' +
-'    <div class="help" id="bitmapCornerOverrideHelp" style="' + ((isBitmapMarkerStyle && markerStyleNum !== 5) ? '' : 'display:none;') + '">Your current bitmap marker style\'s artwork doesn\'t leave room for every feature slot -- corners and side edges are grayed out above by default so they don\'t overlap it. Check this box to enable all of them anyway.</div>' +
+'    <div class="help" id="help-bitmapCornerOverride" style="display:none;">Your current bitmap marker style\'s artwork doesn\'t leave room for every feature slot -- corners and side edges are grayed out above by default so they don\'t overlap it. Check this box to enable all of them anyway.</div>' +
 
 '    <div class="subsection" id="digitalSidesSection" style="' + ((isDigital && !clockFontIsWide) ? '' : 'display:none;') + '">' +
-'      <label>Side features</label>' +
+'      <div class="field-label-row"><label>Side features</label><button type="button" class="help-btn" onclick="toggleHelp(\'help-digitalSides\')">?</button></div>' +
 '      <div class="mode-btn-group" id="digitalSidesGroup">' +
 '        <button type="button" class="mode-btn' + (digitalLeftOn ? ' active' : '') + '" data-side="left" onclick="toggleDigitalSide(\'left\')">LEFT SIDE</button>' +
 '        <button type="button" class="mode-btn' + (digitalRightOn ? ' active' : '') + '" data-side="right" onclick="toggleDigitalSide(\'right\')">RIGHT SIDE</button>' +
@@ -1266,8 +1267,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      <input type="hidden" id="digitalSides" value="' + esc(digitalSidesVal) + '">' +
 '      <input type="hidden" id="digitalSidesPreferred" value="' + esc(digitalSidesPreferredVal) + '">' +
 '      <div class="help tooltip-warning" id="digitalSidesExclusiveTip" style="display:none;">This font only fits one side at a time -- picking a side turns the other off.</div>' +
-'      <div class="help" id="digitalSidesOneOnlyHelp" style="' + (clockSidesAllowed === 1 ? '' : 'display:none;') + '">This font only has room for one side column at a time -- pick left OR right, not both.</div>' +
-'      <div class="help" id="digitalSidesNormalHelp" style="' + (clockSidesAllowed === 1 ? 'display:none;' : '') + '">Adds up to 3 short info lines down each side of the digital clock, on the clock\'s own panel -- pick their content on the diagram above. Only offered for narrower clock fonts (this one qualifies); picking both sides assumes the font is already narrow enough to share the panel with them without shrinking the clock any further.</div>' +
+'      <div class="help" id="help-digitalSides" style="display:none;">' + (clockSidesAllowed === 1 ? 'This font only has room for one side column at a time -- pick left OR right, not both.' : 'Adds up to 3 short info lines down each side of the digital clock, on the clock\'s own panel -- pick their content on the diagram above. Only offered for narrower clock fonts (this one qualifies); picking both sides assumes the font is already narrow enough to share the panel with them without shrinking the clock any further.') + '</div>' +
 '    </div>' +
 '    <div class="help" id="digitalSidesWideHelp" style="' + ((isDigital && clockFontIsWide) ? '' : 'display:none;') + '">This font runs too wide for side features -- pick a narrower one in the Style section to use them.</div>' +
 
@@ -1356,7 +1356,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '          <span class="color-role-label">Background</span>' +
 '        </button>' +
 '      </div>' +
-'      <label style="margin-top:12px;">Or pick a preset</label>' +
+'      <div class="field-label-row"><label style="margin-top:12px;">Or pick a preset</label><button type="button" class="help-btn" onclick="toggleHelp(\'help-colorSchemePreset\')">?</button></div>' +
 '      <button type="button" class="color-preset-btn color-preset-trigger" id="colorSchemePresetTrigger" onclick="openColorPresetPicker(\'day\')">' +
 '        <span class="color-preset-trigger-text">' +
 '          <span class="color-preset-main-line"></span>' +
@@ -1364,7 +1364,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '        </span>' +
 '        <span class="color-preset-chevron">&rsaquo;</span>' +
 '      </button>' +
-'      <div class="help">Applies that preset\'s three colors immediately -- picking one is the same as tapping each swatch above and choosing that exact color.</div>' +
+'      <div class="help" id="help-colorSchemePreset" style="display:none;">Applies that preset\'s three colors immediately -- picking one is the same as tapping each swatch above and choosing that exact color.</div>' +
 '      <input type="hidden" id="customBgValue" value="' + esc(current.customBg || '255') + '">' +
 '      <input type="hidden" id="customTextValue" value="' + esc(current.customText || '192') + '">' +
 '      <input type="hidden" id="customAccentValue" value="' + esc(current.customAccent || '192') + '">' +
@@ -1413,7 +1413,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '          <span class="color-role-label">Background</span>' +
 '        </button>' +
 '      </div>' +
-'      <label style="margin-top:12px;">Or pick a preset</label>' +
+'      <div class="field-label-row"><label style="margin-top:12px;">Or pick a preset</label><button type="button" class="help-btn" onclick="toggleHelp(\'help-nightSchemePreset\')">?</button></div>' +
 '      <button type="button" class="color-preset-btn color-preset-trigger" id="nightSchemePresetTrigger" onclick="openColorPresetPicker(\'night\')">' +
 '        <span class="color-preset-trigger-text">' +
 '          <span class="color-preset-main-line"></span>' +
@@ -1421,7 +1421,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '        </span>' +
 '        <span class="color-preset-chevron">&rsaquo;</span>' +
 '      </button>' +
-'      <div class="help">Applies that preset\'s three colors immediately -- picking one is the same as tapping each swatch above and choosing that exact color.</div>' +
+'      <div class="help" id="help-nightSchemePreset" style="display:none;">Applies that preset\'s three colors immediately -- picking one is the same as tapping each swatch above and choosing that exact color.</div>' +
 '      <input type="hidden" id="nightCustomBgValue" value="' + esc(current.nightCustomBg || '192') + '">' +
 '      <input type="hidden" id="nightCustomTextValue" value="' + esc(current.nightCustomText || '255') + '">' +
 '      <input type="hidden" id="nightCustomAccentValue" value="' + esc(current.nightCustomAccent || '255') + '">' +
@@ -2342,8 +2342,9 @@ require('./config/config-preview') +
 '  var blocked = sidesAllowedVal === 0;' +
 '  document.getElementById("digitalSidesSection").style.display = (isDigital && !blocked) ? "" : "none";' +
 '  document.getElementById("digitalSidesWideHelp").style.display = (isDigital && blocked) ? "" : "none";' +
-'  document.getElementById("digitalSidesOneOnlyHelp").style.display = (isDigital && !blocked && sidesAllowedVal === 1) ? "" : "none";' +
-'  document.getElementById("digitalSidesNormalHelp").style.display = (isDigital && !blocked && sidesAllowedVal === 1) ? "none" : "";' +
+'  document.getElementById("help-digitalSides").textContent = (sidesAllowedVal === 1) ?' +
+'    "This font only has room for one side column at a time -- pick left OR right, not both." :' +
+'    "Adds up to 3 short info lines down each side of the digital clock, on the clock\'s own panel -- pick their content on the diagram above. Only offered for narrower clock fonts (this one qualifies); picking both sides assumes the font is already narrow enough to share the panel with them without shrinking the clock any further.";' +
 // Recomputes the EFFECTIVE digitalSides from the untouched preference
 // every time -- never overwrites digitalSidesPreferred itself, so
 // switching to Analog, or to a font that can't currently fit the
@@ -2784,7 +2785,6 @@ require('./config/config-preview') +
 '  var isBitmap = (val === "3" || val === "4" || val === "5" || val === "6" || val === "7");' +
 '  document.getElementById("bitmapMarkerTransparentRow").style.display = isBitmap ? "" : "none";' +
 '  document.getElementById("bitmapCornerOverrideRow").style.display = (isBitmap && val !== "5") ? "" : "none";' +
-'  document.getElementById("bitmapCornerOverrideHelp").style.display = (isBitmap && val !== "5") ? "" : "none";' +
 '  updateMarkerStyleButtonLabel();' +
 '  clearGrayedSlotsIfUnavailable();' +
 '  renderSlotPicker();' +
@@ -4334,14 +4334,30 @@ require('./config/config-runtime') +
 // DOM fields every other part of this page already treats as the
 // source of truth (hidden inputs, checkboxes, selects), so a
 // sub-header can never show something Save wouldn\'t actually send.
+// Classic marquee, not a there-and-back bounce: starts fully off the
+// right edge of the (clipped, overflow:hidden) container, slides left
+// at a constant speed until it's fully exited past the left edge, then
+// jumps back to its starting (off-screen right) position and repeats.
+// Both ends of that jump are off-screen/invisible, so the loop point
+// itself is never visibly seen -- unlike resetting mid-slide (which
+// would pop the text back into view instantly), there's nothing to see
+// change at 100%->0%. Duration is distance/speed rather than a fixed
+// number, so a longer subheader scrolls for longer at the same
+// reading pace instead of the same total time (which would make long
+// ones race by).
 'function applySubheadSlide(outerEl) {' +
 '  var inner = outerEl.firstElementChild;' +
 '  if (!inner) return;' +
 '  inner.classList.remove("subhead-sliding");' +
-'  inner.style.removeProperty("--slide-dist");' +
+'  inner.style.removeProperty("--slide-start");' +
+'  inner.style.removeProperty("--slide-end");' +
+'  inner.style.removeProperty("animation-duration");' +
 '  var overflow = inner.scrollWidth - outerEl.clientWidth;' +
 '  if (overflow > 2) {' +
-'    inner.style.setProperty("--slide-dist", (-overflow - 6) + "px");' +
+'    var distance = outerEl.clientWidth + inner.scrollWidth;' +
+'    inner.style.setProperty("--slide-start", outerEl.clientWidth + "px");' +
+'    inner.style.setProperty("--slide-end", (-inner.scrollWidth) + "px");' +
+'    inner.style.setProperty("animation-duration", Math.max(4, distance / 45) + "s");' +
 '    inner.classList.add("subhead-sliding");' +
 '  }' +
 '}' +

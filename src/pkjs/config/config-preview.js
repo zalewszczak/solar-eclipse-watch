@@ -29,7 +29,16 @@ module.exports =
 // drawn over it. The plain gradient/flat-black wash itself is still
 // drawn either way, so the two bands (this one and the real sky area
 // below it) read as one continuous sky rather than a flat void.' +
-'function drawSkyLayer(ctx, x, y, w, h, skyMode, phase, skipElements) {' +
+// gradTop/gradH let a caller draw a fragment of a taller logical
+// gradient than the rect actually being filled -- Digital top's panel
+// band and the sky area below it are two separate fillRect calls (the
+// panel has to be drawn and filled independently, in draw order,
+// before the corner/clock text that sits on top of it) but need to
+// read as ONE continuous gradient spanning both, not two independent
+// top-to-bottom fades restarting at each rect's own height. Default
+// to this call's own (y, h) when omitted, which is exactly the old
+// behavior for every single-rect caller (bar/analog/plain-digital).
+'function drawSkyLayer(ctx, x, y, w, h, skyMode, phase, skipElements, gradTop, gradH) {' +
 '  if (skyMode === "2") {' +
 '    ctx.fillStyle = "#000000";' +
 '    ctx.fillRect(x, y, w, h);' +
@@ -37,7 +46,9 @@ module.exports =
 '    return;' +
 '  }' +
 '  var g = SKY_PHASE_COLORS[phase] || SKY_PHASE_COLORS.day;' +
-'  var grad = ctx.createLinearGradient(0, y, 0, y + h);' +
+'  var top = (gradTop === undefined) ? y : gradTop;' +
+'  var span = gradH || h;' +
+'  var grad = ctx.createLinearGradient(0, top, 0, top + span);' +
 '  grad.addColorStop(0, g.top);' +
 '  grad.addColorStop(1, g.bottom);' +
 '  ctx.fillStyle = grad;' +
@@ -1109,9 +1120,9 @@ module.exports =
 '    var panelH = Math.round(h * 76 / 228);' +
 '    var skyTop = panelH;' +
 '    var skyH = h - panelH;' +
-'    drawSkyLayer(ctx, 0, skyTop, w, skyH, skyMode, phase);' +
+'    drawSkyLayer(ctx, 0, skyTop, w, skyH, skyMode, phase, false, 0, h);' +
 '    drawCelestialPreview(ctx, 0, skyTop, w, skyH, skyMode, phase, colors, now);' +
-'    drawSkyLayer(ctx, 0, 0, w, panelH, skyMode, phase, true);' +
+'    drawSkyLayer(ctx, 0, 0, w, panelH, skyMode, phase, true, 0, h);' +
 '    drawCornersAndEdges(ctx, w, h, colors, h, panelH);' +
 '    var digitalSidesValTop = document.getElementById("digitalSides").value;' +
 '    var clockAreaTop = digitalClockArea(digitalSidesValTop, w);' +
