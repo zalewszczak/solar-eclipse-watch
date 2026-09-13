@@ -367,6 +367,29 @@ cdnFontLinks() +
 '  input[type=checkbox][disabled] { background: var(--border-light); border-color: var(--border-lighter); }' +
 '  input[type=checkbox][disabled]:checked { background: #f0c785; border-color: #f0c785; }' +
 '  .help { color: var(--text-faint); font-size: 12px; margin-top: 4px; }' +
+// Label row + the small round "?" toggle button used throughout this
+// page: every toggle/checkbox/button-group's own longer explanation
+// (the .help div right after it) starts hidden, and this button is
+// the only way to reveal it -- tapping again re-hides it. Deliberately
+// its own sibling element rather than living inside the control it
+// describes, so it stays tappable even while that control itself is
+// disabled (grayed-out font pickers, unavailable side-feature
+// checkboxes, etc. -- the description of why it\\'s unavailable is
+// often exactly what you want in that state). See toggleHelp() near
+// toggleSection()/toggleSubsection() for the JS side.
+'  .field-label-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 10px 0 4px; }' +
+'  .field-label-row > label { margin: 0; }' +
+'  .field-label-row > .secondary-btn { width: auto; flex: 1 1 auto; margin-top: 0; }' +
+'  .help-btn { flex: 0 0 auto; width: 20px; height: 20px; border-radius: 50%; border: 1px solid var(--border); background: var(--btn-bg); color: var(--text-faint); font-size: 12px; font-weight: 700; line-height: 18px; text-align: center; padding: 0; cursor: pointer; -webkit-appearance: none; }' +
+'  .checkbox-row .help-btn, .radio-row .help-btn { margin-left: auto; }' +
+// The 4 section-level intro blurbs (Example styles/Features/My Style
+// Presets/Weather -- the ones with no specific toggle of their own to
+// attach a help-btn to) get a lighter-weight version of the same idea:
+// clipped to one line with a trailing ellipsis by default, and tapping
+// the text itself (there\\'s no separate button here -- the truncated
+// line IS the tap target) expands it in place. See toggleSectionIntro().
+'  .section-intro { cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }' +
+'  .section-intro.expanded { white-space: normal; overflow: visible; text-overflow: clip; }' +
 '  .tooltip-warning { color: #ff9200; font-weight: 600; }' +
 '  .radio-row { display: flex; gap: 16px; margin-top: 8px; flex-wrap: wrap; }' +
 '  .radio-row label { display: flex; align-items: center; gap: 6px; margin: 0; font-weight: normal; }' +
@@ -1085,7 +1108,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
     sectionLegendHtml('examples', 'Example styles') +
 '    <div class="section-body" id="section-examples" style="display:none;">' +
 '    <div class="subsection"></div>' +
-'    <div class="help">Tap a design below to preview it -- each one sets every Style, Colors, and Features setting to match once you confirm, the same as pasting its JSON into "Style Presets" further down.</div>' +
+'    <div class="help section-intro" onclick="toggleSectionIntro(this)">Tap a design below to preview it -- each one sets every Style, Colors, and Features setting to match once you confirm, the same as pasting its JSON into "Style Presets" further down.</div>' +
 '    <div class="example-style-grid">' + exampleStylesButtonsHtml + '</div>' +
 '    </div>' +
 '  </fieldset>' +
@@ -1094,14 +1117,14 @@ handEditorModalHtml('sec', 'Edit second hand') +
     sectionLegendHtml('style', 'Style') +
 '    <div class="section-body" id="section-style" style="display:none;">' +
 '    <div class="subsection"></div>' +
-'    <label>Layout</label>' +
+'    <div class="field-label-row"><label>Layout</label><button type="button" class="help-btn" onclick="toggleHelp(\'help-bottomStyle\')">?</button></div>' +
 '    <div class="mode-btn-group" id="bottomStyleGroup">' +
 '      <button type="button" class="mode-btn' + (bottomStyleVal === 'digital' ? ' active' : '') + '" onclick="selectBottomStyle(\'digital\')">' + MODE_BTN_ICONS.digital + '<span>DIGITAL BAR</span></button>' +
 '      <button type="button" class="mode-btn' + (bottomStyleVal === 'digitalTop' ? ' active' : '') + '" onclick="selectBottomStyle(\'digitalTop\')">' + MODE_BTN_ICONS.digitalTop + '<span>DIGITAL TOP</span></button>' +
 '      <button type="button" class="mode-btn' + (isAnalog ? ' active' : '') + '" onclick="selectBottomStyle(\'analog\')">' + MODE_BTN_ICONS.analog + '<span>ANALOG</span></button>' +
 '    </div>' +
 '    <input type="hidden" id="bottomStyleValue" value="' + esc(bottomStyleVal) + '">' +
-'    <div class="help">Digital bar puts the clock in a solid panel at the bottom of the screen. Digital top puts that same panel at the TOP instead, but transparent -- the sky gradient shows through behind the clock, and the panel\'s own area is otherwise left empty of sky elements (sun/moon/stars/clouds), mirroring the bar\'s own reserved space flipped to the top; the outline setting below can also help the clock text stay readable over it. Analog fills the whole screen with fullscreen hands over the sky/eclipse view -- no panel at all.</div>' +
+'    <div class="help" id="help-bottomStyle" style="display:none;">Digital bar puts the clock in a solid panel at the bottom of the screen. Digital top puts that same panel at the TOP instead, but transparent -- the sky gradient shows through behind the clock, and the panel\'s own area is otherwise left empty of sky elements (sun/moon/stars/clouds), mirroring the bar\'s own reserved space flipped to the top; the outline setting below can also help the clock text stay readable over it. Analog fills the whole screen with fullscreen hands over the sky/eclipse view -- no panel at all.</div>' +
 
 '    <div id="digitalOnlySettings" class="subsection" style="' + (isDigitalBar || isDigitalTop ? '' : 'display:none;') + '">' +
 '      <label for="clockFont">Clock font</label>' +
@@ -1115,25 +1138,26 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    <div class="checkbox-row subsection">' +
 '      <input type="checkbox" id="showSeconds" ' + secondsChecked + ' ' + secondsDisabled + ' onchange="onShowSecondsChange()">' +
 '      <label for="showSeconds" style="margin:0;">Show seconds</label>' +
+'      <button type="button" class="help-btn" onclick="toggleHelp(\'help-showSeconds\')">?</button>' +
 '    </div>' +
 '    <div class="help" id="secondsHelp" style="' + (secondsUnsupported ? '' : 'display:none;') + '">This font doesn\'t support showing seconds.</div>' +
-'    <div class="help">Used by both layouts -- the digital clock\'s own seconds digits, and whether analog draws a second hand at all (gates the Custom style\'s "Edit second hand" below, too).</div>' +
+'    <div class="help" id="help-showSeconds" style="display:none;">Used by both layouts -- the digital clock\'s own seconds digits, and whether analog draws a second hand at all (gates the Custom style\'s "Edit second hand" below, too).</div>' +
 
-'    <label style="margin-top:12px;">Label style</label>' +
+'    <div class="field-label-row"><label style="margin-top:12px;">Label style</label><button type="button" class="help-btn" onclick="toggleHelp(\'help-labelStyle\')">?</button></div>' +
       modeButtonGroupHtml('labelStyleGroup', 'labelStyle', [
         { value: '0', label: 'BOXED', icon: MODE_BTN_ICONS.labelBoxed },
         { value: '1', label: 'OUTLINED', icon: MODE_BTN_ICONS.labelOutlined },
         { value: '2', label: 'SOFT', icon: MODE_BTN_ICONS.labelSoft }
       ], current.labelStyle || '0') +
-'    <div class="help">Boxed is an opaque rounded box with white text (the original look). Outlined uses your main color with a contrasting outline. Soft is plain light-gray text with no background or outline. Used for the shake-to-reveal Sun/Moon/ISS/Aurora name labels, in both layouts.</div>' +
+'    <div class="help" id="help-labelStyle" style="display:none;">Boxed is an opaque rounded box with white text (the original look). Outlined uses your main color with a contrasting outline. Soft is plain light-gray text with no background or outline. Used for the shake-to-reveal Sun/Moon/ISS/Aurora name labels, in both layouts.</div>' +
 
 '    <div id="bigAnalogSettings" class="subsection" style="' + (isAnalog ? '' : 'display:none;') + '">' +
 
       subsectionLegendHtml('hands', 'Hands style') +
 '      <div class="subsection-body" id="subsec-hands" style="display:none;">' +
-'      <label>Hand style</label>' +
+'      <div class="field-label-row"><label>Hand style</label><button type="button" class="help-btn" onclick="toggleHelp(\'help-handStyle\')">?</button></div>' +
 '      <button type="button" class="marker-edit-btn" id="handStyleTriggerBtn" style="margin-top:8px;" onclick="openHandStyleModal()">Hand style: <span id="handStyleTriggerLabel"></span> &rsaquo;</button>' +
-'      <div class="help">To show the date behind the hands, pick "Short date" as a line in the Features section below (bottom-middle line 1 does this by default).</div>' +
+'      <div class="help" id="help-handStyle" style="display:none;">To show the date behind the hands, pick "Short date" as a line in the Features section below (bottom-middle line 1 does this by default).</div>' +
 
 '      <div id="customHandSection">' +
 '        <button type="button" class="marker-edit-btn" onclick="openHandEditor(\'hour\')">Edit hour hand: <span id="handHourStatusLabel"></span> &rsaquo;</button>' +
@@ -1147,7 +1171,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 
       subsectionLegendHtml('indices', 'Indices style') +
 '      <div class="subsection-body" id="subsec-indices" style="display:none;">' +
-'      <label>Hour/seconds indices style</label>' +
+'      <div class="field-label-row"><label>Hour/seconds indices style</label><button type="button" class="help-btn" onclick="toggleHelp(\'help-indicesStyle\')">?</button></div>' +
 '      <button type="button" class="marker-edit-btn" id="markerStyleTriggerBtn" style="margin-top:8px;" onclick="openMarkerStyleModal()">Indices style: <span id="markerStyleTriggerLabel"></span> &rsaquo;</button>' +
 '      <select id="bigAnalogMarkerStyle" style="display:none;" onchange="onMarkerStyleChange()">' +
 '        <option value="9"' + (current.bigAnalogMarkerStyle === '9' ? ' selected' : '') + '>None</option>' +
@@ -1165,8 +1189,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '        <input type="checkbox" id="bitmapMarkerTransparent" ' + (current.bitmapMarkerTransparent ? 'checked' : '') + ' onchange="updatePreview()">' +
 '        <label for="bitmapMarkerTransparent" style="margin:0;">Semi transparent markers (see the sky through them)</label>' +
 '      </div>' +
-'      <div class="help">Bitmap styles are tinted with your main color (see the preview above) and their mask art shows behind the hands there once you\'ve added a resource PNG for that style. Which edge-middle info slots they support varies by style -- some are off by default so they don\'t overlap the artwork; see "Incompatible features" in the Features section below if you want them anyway.</div>' +
-'      <div class="help">When an eclipse is actually happening, the Sun fills the whole screen as a background behind the hands.</div>' +
+'      <div class="help" id="help-indicesStyle" style="display:none;">Bitmap styles are tinted with your main color (see the preview above) and their mask art shows behind the hands there once you\'ve added a resource PNG for that style. Which edge-middle info slots they support varies by style -- some are off by default so they don\'t overlap the artwork; see "Incompatible features" in the Features section below if you want them anyway. When an eclipse is actually happening, the Sun fills the whole screen as a background behind the hands.</div>' +
 
 '      <div id="customMarkerSection" style="' + (current.bigAnalogMarkerStyle === '8' ? '' : 'display:none;') + '">' +
 '        <button type="button" class="marker-edit-btn" onclick="openCustomMarkerEditor(\'hour\')">Edit hour indices: <span id="cmHourStatusLabel"></span> &rsaquo;</button>' +
@@ -1177,24 +1200,24 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      </div>' +
 '    </div>' +
 
-'    <label style="margin-top:12px;">Sky style</label>' +
+'    <div class="field-label-row"><label style="margin-top:12px;">Sky style</label><button type="button" class="help-btn" onclick="toggleHelp(\'help-skyMode\')">?</button></div>' +
 '    <div class="mode-btn-group" id="skyModeGroup">' +
 '      <button type="button" class="mode-btn' + ((current.skyMode === '0' || !current.skyMode) ? ' active' : '') + '" data-value="0" onclick="selectSkyMode(\'0\')">' + MODE_BTN_ICONS.skyWeather + '<span>WEATHER</span></button>' +
 '      <button type="button" class="mode-btn' + (current.skyMode === '1' ? ' active' : '') + '" data-value="1" onclick="selectSkyMode(\'1\')">' + MODE_BTN_ICONS.skyClear + '<span>CLEAR</span></button>' +
 '      <button type="button" class="mode-btn' + (current.skyMode === '2' ? ' active' : '') + '" data-value="2" onclick="selectSkyMode(\'2\')">' + MODE_BTN_ICONS.skySpace + '<span>SPACE</span></button>' +
 '    </div>' +
 '    <input type="hidden" id="skyMode" value="' + esc(current.skyMode || '0') + '">' +
-'    <div class="help">Weather sky shows clouds/rain/snow and the day-night gradient. Clear sky keeps the gradient but never draws weather. Space view drops the gradient entirely for a fixed dark sky, always shows the Sun/Moon/planets when above the horizon regardless of time of day, and (see "Show major stars" in the Astronomy section) can add a field of bright named stars (tap/shake to reveal names).</div>' +
+'    <div class="help" id="help-skyMode" style="display:none;">Weather sky shows clouds/rain/snow and the day-night gradient. Clear sky keeps the gradient but never draws weather. Space view drops the gradient entirely for a fixed dark sky, always shows the Sun/Moon/planets when above the horizon regardless of time of day, and (see "Show major stars" in the Astronomy section) can add a field of bright named stars (tap/shake to reveal names).</div>' +
 
 '    <div class="subsection">' +
-'      <label>Outline text and icons for contrast</label>' +
+'      <div class="field-label-row"><label>Outline text and icons for contrast</label><button type="button" class="help-btn" onclick="toggleHelp(\'help-outlineStyle\')">?</button></div>' +
       modeButtonGroupHtml('outlineStyleGroup', 'outlineStyle', [
         { value: '0', label: 'None' },
         { value: '1', label: 'Thin' },
         { value: '2', label: 'Thick' }
       ], current.outlineStyle || '1', 'onOutlineStyleChange') +
 '    </div>' +
-'    <div class="help">Adds an outline (in your color scheme\'s background color) behind corner/edge text and icons, the analog date, the eclipse phase text, and (Digital top layout only, since that\'s the one clock with sky visible right behind it) the main clock digits themselves -- so they stay readable over any part of the sky. Thick adds a wider 2px cardinal shift plus 1px diagonal shifts on top of Thin\'s own 1px cardinal outline. Icons only get it outside translucent/transparent mode. Hands have their own separate outline setting, per hand, in the Style section.</div>' +
+'    <div class="help" id="help-outlineStyle" style="display:none;">Adds an outline (in your color scheme\'s background color) behind corner/edge text and icons, the analog date, the eclipse phase text, and (Digital top layout only, since that\'s the one clock with sky visible right behind it) the main clock digits themselves -- so they stay readable over any part of the sky. Thick adds a wider 2px cardinal shift plus 1px diagonal shifts on top of Thin\'s own 1px cardinal outline. Icons only get it outside translucent/transparent mode. Hands have their own separate outline setting, per hand, in the Style section.</div>' +
 
 '  </fieldset>' +
 
@@ -1202,7 +1225,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
     sectionLegendHtml('corners', 'Features') +
 '    <div class="section-body" id="section-corners" style="display:none;">' +
 '    <div class="subsection"></div>' +
-'    <div class="help">Features are small info readouts (weather, health, date/time, and more) placed around your watch face. Tap a slot on the diagram below to pick what it shows and how it\'s colored -- grayed-out slots aren\'t available for your current style.</div>' +
+'    <div class="help section-intro" onclick="toggleSectionIntro(this)">Features are small info readouts (weather, health, date/time, and more) placed around your watch face. Tap a slot on the diagram below to pick what it shows and how it\'s colored -- grayed-out slots aren\'t available for your current style.</div>' +
 
 '    <div id="slotPickerDiagram">' +
 '      <div id="slotDiagramClockBar"><span id="slotDiagramClockText">12:34</span></div>' +
@@ -1248,7 +1271,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    </div>' +
 '    <div class="help" id="digitalSidesWideHelp" style="' + ((isDigital && clockFontIsWide) ? '' : 'display:none;') + '">This font runs too wide for side features -- pick a narrower one in the Style section to use them.</div>' +
 
-'    <label for="cornerFont">Font</label>' +
+'    <div class="field-label-row"><label for="cornerFont">Font</label><button type="button" class="help-btn" onclick="toggleHelp(\'help-cornerFont\')">?</button></div>' +
 
 
 '    <select id="cornerFont" onchange="onCornerFontChange()" style="display:none;">' + fontOptionsHtml(cornerFontId, false) + '</select>' +
@@ -1256,10 +1279,10 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      <span class="font-picker-preview" id="cornerFontTriggerPreview"></span>' +
 '      <span class="font-picker-name" id="cornerFontTriggerName"></span>' +
 '    </button>' +
-'    <div class="help">Applies to corner/edge feature text and the analog date. Bigger display fonts are hidden by default in the picker -- see "Show incompatible fonts" there.</div>' +
+'    <div class="help" id="help-cornerFont" style="display:none;">Applies to corner/edge feature text and the analog date. Bigger display fonts are hidden by default in the picker -- see "Show incompatible fonts" there.</div>' +
 
 '    <div id="weatherIconStyleRow">' +
-'      <label>Weather icon style</label>' +
+'      <div class="field-label-row"><label>Weather icon style</label><button type="button" class="help-btn" onclick="toggleHelp(\'help-weatherIconStyle\')">?</button></div>' +
 '      <select id="weatherIconStyle" style="display:none;">' +
 '        <option value="0"' + (current.weatherIconStyle === '0' ? ' selected' : '') + '>Simple</option>' +
 '        <option value="1"' + (current.weatherIconStyle === '1' || !current.weatherIconStyle ? ' selected' : '') + '>Hollow</option>' +
@@ -1269,7 +1292,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '        <span class="font-picker-preview weather-icon-style-preview"></span>' +
 '        <span class="font-picker-name"></span>' +
 '      </button>' +
-'      <div class="help">"Simple" is a placeholder for now. Hollow follows the slot\'s own color mode like any other icon; Full color is a genuine multi-color image with its own baked-in colors (see README.md), so it ignores the slot\'s color mode entirely. Applies wherever a Weather icon feature is picked below.</div>' +
+'      <div class="help" id="help-weatherIconStyle" style="display:none;">"Simple" is a placeholder for now. Hollow follows the slot\'s own color mode like any other icon; Full color is a genuine multi-color image with its own baked-in colors (see README.md), so it ignores the slot\'s color mode entirely. Applies wherever a Weather icon feature is picked below.</div>' +
 '    </div>' +
 
 '    <div style="display:none;" id="slotDataStore">' +
@@ -1300,16 +1323,17 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    </div>' +
 
 '    <div class="subsection">' +
-'      <label for="stepGoal">Daily step goal (used by "Step goal %")</label>' +
+'      <div class="field-label-row"><label for="stepGoal">Daily step goal (used by "Step goal %")</label><button type="button" class="help-btn" onclick="toggleHelp(\'help-stepGoal\')">?</button></div>' +
 '      <input type="number" id="stepGoal" min="1000" max="60000" step="500" value="' + esc(current.stepGoal || '10000') + '">' +
-'      <div class="help">Pebble doesn\'t expose a system step goal, so this app keeps its own -- same as every other Pebble health app.</div>' +
+'      <div class="help" id="help-stepGoal" style="display:none;">Pebble doesn\'t expose a system step goal, so this app keeps its own -- same as every other Pebble health app.</div>' +
 '    </div>' +
 
 '    <div class="checkbox-row subsection" id="drawFeaturesBeneathHandsRow">' +
 '      <input type="checkbox" id="drawFeaturesBeneathHands" ' + (current.drawFeaturesBeneathHands ? 'checked' : '') + ' onchange="updatePreview()">' +
 '      <label for="drawFeaturesBeneathHands" style="margin:0;">Draw features beneath hands</label>' +
+'      <button type="button" class="help-btn" onclick="toggleHelp(\'help-drawFeaturesBeneathHands\')">?</button>' +
 '    </div>' +
-'    <div class="help">Big-analog mode only -- corners/edges info here normally draws on top of the hands; enable this to tuck it underneath instead.</div>' +
+'    <div class="help" id="help-drawFeaturesBeneathHands" style="display:none;">Big-analog mode only -- corners/edges info here normally draws on top of the hands; enable this to tuck it underneath instead.</div>' +
 '    </div>' +
 '  </fieldset>' +
 '  <fieldset>' +
@@ -1402,7 +1426,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      <input type="hidden" id="nightCustomTextValue" value="' + esc(current.nightCustomText || '255') + '">' +
 '      <input type="hidden" id="nightCustomAccentValue" value="' + esc(current.nightCustomAccent || '255') + '">' +
 '    </div>' +
-'    <div class="help">Battery and Moon phase are now pickable as Features content below, with their own color style.</div>' +
+'    <div class="help section-intro" onclick="toggleSectionIntro(this)">Battery and Moon phase are now pickable as Features content below, with their own color style.</div>' +
 '    </div>' +
 '  </fieldset>' +
 
@@ -1410,27 +1434,27 @@ handEditorModalHtml('sec', 'Edit second hand') +
     sectionLegendHtml('animation', 'Animation') +
 '    <div class="section-body" id="section-animation" style="display:none;">' +
 '    <div class="subsection">' +
-'      <label>Startup clock animation</label>' +
+'      <div class="field-label-row"><label>Startup clock animation</label><button type="button" class="help-btn" onclick="toggleHelp(\'help-startupClockAnim\')">?</button></div>' +
       verticalButtonGroupHtml('startupClockAnimModeGroup', 'startupClockAnimMode', [
         { value: '0', label: 'Off' },
         { value: '1', label: 'Animate clock' },
         { value: '2', label: 'Planet sweep time shift' }
       ], current.startupClockAnimMode || '1') +
 '    </div>' +
-'    <div class="help">On launch, the hands/digits sweep in from a cold-start position up to the current time, under 1.5s, instead of just appearing already showing it. "Planet sweep time shift" plays the same sweep but chases the same couple-hours-ago starting point the "Planets" background animation below is itself sweeping through, so the hands and the sky advance together -- if that background animation isn\'t also set to Planets, this behaves the same as "Animate clock" since there\'s no time shift to follow.</div>' +
+'    <div class="help" id="help-startupClockAnim" style="display:none;">On launch, the hands/digits sweep in from a cold-start position up to the current time, under 1.5s, instead of just appearing already showing it. "Planet sweep time shift" plays the same sweep but chases the same couple-hours-ago starting point the "Planets" background animation below is itself sweeping through, so the hands and the sky advance together -- if that background animation isn\'t also set to Planets, this behaves the same as "Animate clock" since there\'s no time shift to follow.</div>' +
 
 '    <div class="subsection">' +
-'      <label>Animate background on start</label>' +
+'      <div class="field-label-row"><label>Animate background on start</label><button type="button" class="help-btn" onclick="toggleHelp(\'help-bgAnimMode\')">?</button></div>' +
       verticalButtonGroupHtml('bgAnimModeGroup', 'bgAnimMode', [
         { value: '0', label: 'Off' },
         { value: '1', label: 'Planets (Sun/Moon/planets + sky sweep in from a couple hours ago)' },
         { value: '2', label: 'Indices (analog hour indices animate in; seconds draw normally)' }
       ], current.bgAnimMode || '0') +
 '    </div>' +
-'    <div class="help">Off by default: exactly one of the above sweeps into place on launch, under 1.5s.</div>' +
+'    <div class="help" id="help-bgAnimMode" style="display:none;">Off by default: exactly one of the above sweeps into place on launch, under 1.5s.</div>' +
 
 '    <div class="subsection">' +
-'      <label>On shake animation</label>' +
+'      <div class="field-label-row"><label>On shake animation</label><button type="button" class="help-btn" onclick="toggleHelp(\'help-shakeAnimMode\')">?</button></div>' +
       verticalButtonGroupHtml('shakeAnimModeGroup', 'shakeAnimMode', [
         { value: '0', label: 'Off' },
         { value: '1', label: 'Smooth second hand' },
@@ -1438,11 +1462,11 @@ handEditorModalHtml('sec', 'Edit second hand') +
         { value: '3', label: 'Both' }
       ], current.shakeAnimMode || '0') +
 '    </div>' +
-'    <div class="help">Off by default: runs for as long as the shake labels stay up (see the duration slider just below). "Planet seek" points the sky view at whichever 90&deg; slice of the horizon your compass currently faces, repositioning the Sun/Moon/planets to match as you turn -- weather is hidden for the duration, and it never runs on a day with an eclipse. "Both" runs Smooth second hand and Planet seek together; picking just one of the two runs only that one.</div>' +
+'    <div class="help" id="help-shakeAnimMode" style="display:none;">Off by default: runs for as long as the shake labels stay up (see the duration slider just below). "Planet seek" points the sky view at whichever 90&deg; slice of the horizon your compass currently faces, repositioning the Sun/Moon/planets to match as you turn -- weather is hidden for the duration, and it never runs on a day with an eclipse. "Both" runs Smooth second hand and Planet seek together; picking just one of the two runs only that one.</div>' +
 
 '    <div class="subsection">' +
 '      <div class="slider-row">' +
-'        <label for="shakeLabelSeconds">Shake animations duration <span class="val" id="shakeLabelSecondsVal">' + esc(current.shakeLabelSeconds || '3') + 's</span></label>' +
+'        <div class="field-label-row"><label for="shakeLabelSeconds">Shake animations duration <span class="val" id="shakeLabelSecondsVal">' + esc(current.shakeLabelSeconds || '3') + 's</span></label><button type="button" class="help-btn" onclick="toggleHelp(\'help-shakeLabelSeconds\')">?</button></div>' +
 '        <div class="slider-with-buttons">' +
 '        <button type="button" class="slider-step-btn" onclick="stepSlider(\'shakeLabelSeconds\', -1)">&minus;</button>' +
 '          <input type="range" id="shakeLabelSeconds" min="0" max="30" step="1" value="' + esc(current.shakeLabelSeconds || '3') + '" oninput="document.getElementById(\'shakeLabelSecondsVal\').textContent = this.value + \'s\';">' +
@@ -1450,7 +1474,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '        </div>' +
 '      </div>' +
 '    </div>' +
-'    <div class="help">How long a shake keeps "Smooth second hand"/"Planet seek" above running, and how long shake-revealed star name labels stay on screen -- both share this one window.</div>' +
+'    <div class="help" id="help-shakeLabelSeconds" style="display:none;">How long a shake keeps "Smooth second hand"/"Planet seek" above running, and how long shake-revealed star name labels stay on screen -- both share this one window.</div>' +
 '    </div>' +
 
 '    </div>' +
@@ -1460,7 +1484,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
     sectionLegendHtml('presets', 'My Style Presets') +
 '    <div class="section-body" id="section-presets" style="display:none;">' +
 '    <div class="subsection"></div>' +
-'    <div class="help">Save up to 6 quick-recall snapshots of your whole Style + Colors + Features design below, or export/import it as JSON to back it up or share it.</div>' +
+'    <div class="help section-intro" onclick="toggleSectionIntro(this)">Save up to 6 quick-recall snapshots of your whole Style + Colors + Features design below, or export/import it as JSON to back it up or share it.</div>' +
 
 '    ' + [1, 2, 3, 4, 5, 6].map(function (n) { return presetSlotHtml(current, n); }).join('') +
 
@@ -1482,40 +1506,40 @@ handEditorModalHtml('sec', 'Edit second hand') +
     sectionLegendHtml('weather', 'Weather') +
 '    <div class="section-body" id="section-weather" style="display:none;">' +
 '    <div class="subsection"></div>' +
-'    <div class="help">Cloud cover is always pulled from Open-Meteo (no signup needed). Optionally add an OpenWeatherMap API key to average in a second forecast.</div>' +
+'    <div class="help section-intro" onclick="toggleSectionIntro(this)">Cloud cover is always pulled from Open-Meteo (no signup needed). Optionally add an OpenWeatherMap API key to average in a second forecast.</div>' +
 '    <label for="owmKey">OpenWeatherMap API key (optional)</label>' +
 '    <input type="text" id="owmKey" placeholder="leave blank to skip" value="' + esc(current.owmKey) + '">' +
 
-'    <label style="margin-top:10px;">Temperature unit</label>' +
+'    <div class="field-label-row"><label style="margin-top:10px;">Temperature unit</label><button type="button" class="help-btn" onclick="toggleHelp(\'help-tempUnit\')">?</button></div>' +
       modeButtonGroupHtml('tempUnitGroup', 'tempUnit', [
         { value: 'C', label: '\u00b0C' },
         { value: 'F', label: '\u00b0F' },
         { value: 'K', label: 'K' }
       ], current.tempUnit || 'C') +
-'    <div class="help">Used everywhere temperature is shown, including the Features section below.</div>' +
+'    <div class="help" id="help-tempUnit" style="display:none;">Used everywhere temperature is shown, including the Features section below.</div>' +
 
-'    <label style="margin-top:10px;">Wind speed unit</label>' +
+'    <div class="field-label-row"><label style="margin-top:10px;">Wind speed unit</label><button type="button" class="help-btn" onclick="toggleHelp(\'help-windSpeedUnit\')">?</button></div>' +
       modeButtonGroupHtml('windSpeedUnitGroup', 'windSpeedUnit', [
         { value: 'kmh', label: 'KM/H' },
         { value: 'mph', label: 'MPH' },
         { value: 'ms', label: 'M/S' },
         { value: 'kn', label: 'KNOTS' }
       ], current.windSpeedUnit || 'kmh') +
-'    <div class="help">Used by the "Wind" corner content.</div>' +
+'    <div class="help" id="help-windSpeedUnit" style="display:none;">Used by the "Wind" corner content.</div>' +
 
-'    <label style="margin-top:10px;">Air quality index scale</label>' +
+'    <div class="field-label-row"><label style="margin-top:10px;">Air quality index scale</label><button type="button" class="help-btn" onclick="toggleHelp(\'help-aqiUnit\')">?</button></div>' +
       modeButtonGroupHtml('aqiUnitGroup', 'aqiUnit', [
         { value: '0', label: 'US AQI' },
         { value: '1', label: 'EUROPEAN' }
       ], current.aqiUnit || '0') +
-'    <div class="help">Used by the "Air quality" corner content.</div>' +
+'    <div class="help" id="help-aqiUnit" style="display:none;">Used by the "Air quality" corner content.</div>' +
 
-'    <label style="margin-top:10px;">Altitude unit</label>' +
+'    <div class="field-label-row"><label style="margin-top:10px;">Altitude unit</label><button type="button" class="help-btn" onclick="toggleHelp(\'help-altitudeUnit\')">?</button></div>' +
       modeButtonGroupHtml('altitudeUnitGroup', 'altitudeUnit', [
         { value: '0', label: 'METERS' },
         { value: '1', label: 'FEET' }
       ], current.altitudeUnit || '0') +
-'    <div class="help">Used by the "Altitude" corner content. Comes from GPS, so it needs "Use GPS automatically" turned on in Location below, and not every phone reports it -- shows "N/A" when it\'s not available.</div>' +
+'    <div class="help" id="help-altitudeUnit" style="display:none;">Used by the "Altitude" corner content. Comes from GPS, so it needs "Use GPS automatically" turned on in Location below, and not every phone reports it -- shows "N/A" when it\'s not available.</div>' +
 
 '    </div>' +
 '  </fieldset>' +
@@ -1524,38 +1548,42 @@ handEditorModalHtml('sec', 'Edit second hand') +
     sectionLegendHtml('astronomy', 'Astronomy') +
 '    <div class="section-body" id="section-astronomy" style="display:none;">' +
 '    <div class="subsection"></div>' +
-'    <label>Sun &amp; Moon size</label>' +
+'    <div class="field-label-row"><label>Sun &amp; Moon size</label><button type="button" class="help-btn" onclick="toggleHelp(\'help-sunMoonSize\')">?</button></div>' +
       modeButtonGroupHtml('sunMoonSizeGroup', 'sunMoonSize', [
         { value: '100', label: 'LARGE', icon: MODE_BTN_ICONS.sunMoon100 },
         { value: '75', label: 'MEDIUM', icon: MODE_BTN_ICONS.sunMoon75 },
         { value: '50', label: 'SMALL', icon: MODE_BTN_ICONS.sunMoon50 },
         { value: '25', label: 'X-SMALL', icon: MODE_BTN_ICONS.sunMoon25 }
       ], current.sunMoonSize || '75') +
-'    <div class="help">Ignored during an actual eclipse, which sizes the Sun and Moon by their real geometry instead.</div>' +
+'    <div class="help" id="help-sunMoonSize" style="display:none;">Ignored during an actual eclipse, which sizes the Sun and Moon by their real geometry instead.</div>' +
 
 '    <div class="checkbox-row subsection' + (current.skyMode === '2' ? '' : ' grayed-out') + '" id="showMajorStarsRow">' +
 '      <input type="checkbox" id="showMajorStars" ' + (current.showMajorStars === false ? '' : 'checked') + ' onchange="updatePreview()">' +
 '      <label for="showMajorStars" style="margin:0;">Show major stars</label>' +
+'      <button type="button" class="help-btn" onclick="toggleHelp(\'help-showMajorStars\')">?</button>' +
 '    </div>' +
-'    <div class="help">Space sky style only (grayed out otherwise, but still remembers your choice for whenever you switch back to it -- see the Style section). On by default; turning it off limits Space view to the Sun, Moon, planets, and sky effects (aurora, ISS, meteor showers) below -- no star field.</div>' +
+'    <div class="help" id="help-showMajorStars" style="display:none;">Space sky style only (grayed out otherwise, but still remembers your choice for whenever you switch back to it -- see the Style section). On by default; turning it off limits Space view to the Sun, Moon, planets, and sky effects (aurora, ISS, meteor showers) below -- no star field.</div>' +
 
 '    <div class="checkbox-row subsection">' +
 '      <input type="checkbox" id="showIss" ' + (current.showIss ? 'checked' : '') + '>' +
 '      <label for="showIss" style="margin:0;">Show the ISS when overhead (experimental)</label>' +
+'      <button type="button" class="help-btn" onclick="toggleHelp(\'help-showIss\')">?</button>' +
 '    </div>' +
-'    <div class="help">Fetches live orbital data each refresh. Position is a snapshot, not continuously tracked, and doesn\'t account for the station being in Earth\'s shadow -- it can occasionally show when it wouldn\'t really be visible.</div>' +
+'    <div class="help" id="help-showIss" style="display:none;">Fetches live orbital data each refresh. Position is a snapshot, not continuously tracked, and doesn\'t account for the station being in Earth\'s shadow -- it can occasionally show when it wouldn\'t really be visible.</div>' +
 
 '    <div class="checkbox-row subsection">' +
 '      <input type="checkbox" id="auroraEnabled" ' + (current.auroraEnabled ? 'checked' : '') + ' onchange="onAuroraEnabledChange()">' +
 '      <label for="auroraEnabled" style="margin:0;">Show auroras (experimental)</label>' +
+'      <button type="button" class="help-btn" onclick="toggleHelp(\'help-auroraEnabled\')">?</button>' +
 '    </div>' +
-'    <div class="help">Fetches NOAA\'s current planetary Kp index each refresh and estimates whether it\'s bright enough to reach your latitude -- a rough approximation (real aurora visibility also depends on local weather/light pollution), not a precise forecast. When on, an "Aurora Kp index" option becomes available in the Features section below, and the sky itself paints a faint aurora glow when conditions and darkness line up. Turning this off removes that option from every feature slot it might currently be set to.</div>' +
+'    <div class="help" id="help-auroraEnabled" style="display:none;">Fetches NOAA\'s current planetary Kp index each refresh and estimates whether it\'s bright enough to reach your latitude -- a rough approximation (real aurora visibility also depends on local weather/light pollution), not a precise forecast. When on, an "Aurora Kp index" option becomes available in the Features section below, and the sky itself paints a faint aurora glow when conditions and darkness line up. Turning this off removes that option from every feature slot it might currently be set to.</div>' +
 
 '    <div class="checkbox-row subsection">' +
 '      <input type="checkbox" id="vibrateOnPhaseChange" ' + (current.vibrateOnPhaseChange ? 'checked' : '') + '>' +
 '      <label for="vibrateOnPhaseChange" style="margin:0;">Vibrate when the eclipse reaches its next phase</label>' +
+'      <button type="button" class="help-btn" onclick="toggleHelp(\'help-vibrateOnPhaseChange\')">?</button>' +
 '    </div>' +
-'    <div class="help">A brief double buzz right as C1/C2/C3/C4 happens -- not on ordinary day-to-day changes.</div>' +
+'    <div class="help" id="help-vibrateOnPhaseChange" style="display:none;">A brief double buzz right as C1/C2/C3/C4 happens -- not on ordinary day-to-day changes.</div>' +
 
 '    </div>' +
 '  </fieldset>' +
@@ -1574,11 +1602,11 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      <button type="button" id="locationSearchBtn" class="secondary-btn" style="width:auto; margin-top:0; padding:8px 14px;" onclick="searchLocation()" ' + manualDisabled + '>Find</button>' +
 '    </div>' +
 '    <div class="help" id="locationSearchStatus"></div>' +
-'    <label for="lat">Manual latitude (decimal degrees)</label>' +
+'    <div class="field-label-row"><label for="lat">Manual latitude (decimal degrees)</label><button type="button" class="help-btn" onclick="toggleHelp(\'help-manualCoords\')">?</button></div>' +
 '    <input type="number" step="any" id="lat" ' + manualDisabled + ' placeholder="e.g. 40.7128" value="' + esc(current.lat) + '" oninput="onManualCoordsInput()" onblur="onManualCoordsBlur()">' +
 '    <label for="lon">Manual longitude (decimal degrees)</label>' +
 '    <input type="number" step="any" id="lon" ' + manualDisabled + ' placeholder="e.g. -74.0060" value="' + esc(current.lon) + '" oninput="onManualCoordsInput()" onblur="onManualCoordsBlur()">' +
-'    <div class="help">Only used when GPS is turned off above.</div>' +
+'    <div class="help" id="help-manualCoords" style="display:none;">Only used when GPS is turned off above.</div>' +
 // Cached resolved display name for the coordinates above -- see the
 // Location sub-header's own compute function and
 // reverseGeocodeAndCacheLocationName() further down for how this gets
@@ -1594,21 +1622,26 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    <div class="checkbox-row">' +
 '      <input type="checkbox" id="batterySaverEnabled" ' + (current.batterySaverEnabled ? 'checked' : '') + '>' +
 '      <label for="batterySaverEnabled" style="margin:0;">Preserve battery when watch is not in use</label>' +
+'      <button type="button" class="help-btn" onclick="toggleHelp(\'help-batterySaverEnabled\')">?</button>' +
 '    </div>' +
-'    <div class="help">If the watch goes 2 hours without being shaken, it redraws only once a minute and shows "Zzz" where the eclipse status normally sits; after 4 hours that drops further to once every 5 minutes ("Zzzzzzz"), and the phone holds off on its own periodic refresh until the next full hour too. Any shake wakes it back up immediately. Off by default.</div>' +
+'    <div class="help" id="help-batterySaverEnabled" style="display:none;">If the watch goes 2 hours without being shaken, it redraws only once a minute and shows "Zzz" where the eclipse status normally sits; after 4 hours that drops further to once every 5 minutes ("Zzzzzzz"), and the phone holds off on its own periodic refresh until the next full hour too. Any shake wakes it back up immediately. Off by default.</div>' +
 '    <div class="slider-row">' +
-'      <label for="updateMins">Refresh interval <span class="val" id="updateMinsVal">' + esc(current.updateMins) + ' min</span></label>' +
+'      <div class="field-label-row"><label for="updateMins">Refresh interval <span class="val" id="updateMinsVal">' + esc(current.updateMins) + ' min</span></label><button type="button" class="help-btn" onclick="toggleHelp(\'help-updateMins\')">?</button></div>' +
 '      <div class="slider-with-buttons">' +
 '      <button type="button" class="slider-step-btn" onclick="stepSlider(\'updateMins\', -5)">&minus;</button>' +
 '        <input type="range" id="updateMins" min="5" max="60" step="5" value="' + esc(current.updateMins) + '" oninput="document.getElementById(\'updateMinsVal\').textContent = this.value + \' min\';">' +
 '      <button type="button" class="slider-step-btn" onclick="stepSlider(\'updateMins\', 5)">+</button>' +
 '      </div>' +
 '    </div>' +
-'    <div class="help">The watch won\'t re-fetch more often than this unless your location changes by more than ~10km.</div>' +
-'    <button type="button" class="secondary-btn" onclick="save(true)">Force refresh now</button>' +
-'    <div class="help">Fetches fresh data on the same terms as a normal refresh, bypassing the "don\'t refetch if recent and unmoved" skip. See the Debug section below to inspect exactly what gets sent.</div>' +
+'    <div class="help" id="help-updateMins" style="display:none;">The watch won\'t re-fetch more often than this unless your location changes by more than ~10km.</div>' +
+'    <div class="field-label-row">' +
+'      <button type="button" class="secondary-btn" onclick="save(true)">Force refresh now</button>' +
+'      <button type="button" class="help-btn" onclick="toggleHelp(\'help-forceRefresh\')">?</button>' +
+'    </div>' +
+'    <div class="help" id="help-forceRefresh" style="display:none;">Fetches fresh data on the same terms as a normal refresh, bypassing the "don\'t refetch if recent and unmoved" skip. See the Debug section below to inspect exactly what gets sent.</div>' +
 
-'    <div class="help" style="margin-top:14px;">Service status, as of when this page was opened -- gray: never used yet; green: last fetch worked; yellow: last fetch failed but some of the last 10 worked; red: last 10 all failed. Tap the (i) on yellow/red for details.</div>' +
+'    <div class="field-label-row" style="margin-top:14px;"><label style="margin:0;">Service status</label><button type="button" class="help-btn" onclick="toggleHelp(\'help-serviceStatus\')">?</button></div>' +
+'    <div class="help" id="help-serviceStatus" style="display:none;">Service status, as of when this page was opened -- gray: never used yet; green: last fetch worked; yellow: last fetch failed but some of the last 10 worked; red: last 10 all failed. Tap the (i) on yellow/red for details.</div>' +
       serviceStatusRowsHtml(current) +
 '    <input type="hidden" id="serviceLogsJson" value="' + esc(JSON.stringify(current.serviceLogs || {})) + '">' +
 '    </div>' +
@@ -1644,11 +1677,11 @@ handEditorModalHtml('sec', 'Edit second hand') +
         { value: '2', label: 'Long' }
       ], current.hourlyVibePattern || '0') +
 
-'    <label style="margin-top:12px;" for="hourlyVibeStartTime">Start time</label>' +
+'    <div class="field-label-row"><label style="margin-top:12px;" for="hourlyVibeStartTime">Start time</label><button type="button" class="help-btn" onclick="toggleHelp(\'help-hourlyVibeTimeRange\')">?</button></div>' +
 '    <input type="time" id="hourlyVibeStartTime" value="' + esc(current.hourlyVibeStartTime || '00:00') + '" onchange="onHourlyVibeTimeChange(\'hourlyVibeStartTime\')">' +
 '    <label for="hourlyVibeEndTime">End time</label>' +
 '    <input type="time" id="hourlyVibeEndTime" value="' + esc(current.hourlyVibeEndTime || '00:00') + '" onchange="onHourlyVibeTimeChange(\'hourlyVibeEndTime\')">' +
-'    <div class="help">Both ends included -- e.g. 8:00 to 22:00 vibrates at 8:00 and at 22:00, not just in between. Leave both at 00:00 (the default) for all 24 hours. "On full hours" mode rounds these to the nearest whole hour automatically.</div>' +
+'    <div class="help" id="help-hourlyVibeTimeRange" style="display:none;">Both ends included -- e.g. 8:00 to 22:00 vibrates at 8:00 and at 22:00, not just in between. Leave both at 00:00 (the default) for all 24 hours. "On full hours" mode rounds these to the nearest whole hour automatically.</div>' +
 
 '    <label style="margin-top:12px;">Active days</label>' +
 '    <div class="day-toggle-group" id="hourlyVibeDaysGroup">' +
@@ -1664,8 +1697,9 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    <div class="checkbox-row' + ((current.hourlyVibeMode || '0') === '0' ? ' grayed-out' : '') + '" style="margin-top:12px;" id="hourlyVibeOverrideQuietRow">' +
 '      <input type="checkbox" id="hourlyVibeOverrideQuiet" ' + (current.hourlyVibeOverrideQuiet === false ? '' : 'checked') + '>' +
 '      <label for="hourlyVibeOverrideQuiet" style="margin:0;">Override quiet time</label>' +
+'      <button type="button" class="help-btn" onclick="toggleHelp(\'help-hourlyVibeOverrideQuiet\')">?</button>' +
 '    </div>' +
-'    <div class="help">On (default): hourly vibrations still happen even while your watch\'s Quiet Time is active. Turn off to let Quiet Time suppress them like any other notification.</div>'
+'    <div class="help" id="help-hourlyVibeOverrideQuiet" style="display:none;">On (default): hourly vibrations still happen even while your watch\'s Quiet Time is active. Turn off to let Quiet Time suppress them like any other notification.</div>'
     ) : '') +
 
 '    </div>' +
@@ -1678,17 +1712,18 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    <div class="checkbox-row">' +
 '      <input type="checkbox" id="testMode" ' + testModeChecked + ' onchange="toggleTestMode()">' +
 '      <label for="testMode" style="margin:0;">Use a custom test date/time</label>' +
+'      <button type="button" class="help-btn" onclick="toggleHelp(\'help-testMode\')">?</button>' +
 '    </div>' +
 '    <label for="testDateTime">Test date &amp; time</label>' +
 '    <input type="datetime-local" id="testDateTime" ' + testDisabled + ' value="' + esc(current.testDateTime) + '">' +
-'    <div class="help">Overrides "now" for the eclipse calculation only (e.g. a known historical/future eclipse date), so you can preview the watchface without waiting for one. Set your watch\'s own clock to this same date/time too, so the countdown on-screen lines up with the data sent over.</div>' +
+'    <div class="help" id="help-testMode" style="display:none;">Overrides "now" for the eclipse calculation only (e.g. a known historical/future eclipse date), so you can preview the watchface without waiting for one. Set your watch\'s own clock to this same date/time too, so the countdown on-screen lines up with the data sent over.</div>' +
 '    <div class="checkbox-row subsection">' +
 '      <input type="checkbox" id="drawDebug" ' + (current.drawDebug ? 'checked' : '') + '>' +
 '      <label for="drawDebug" style="margin:0;">Draw debug bounding boxes</label>' +
 '    </div>' +
 '    <div class="subsection">' +
-'      <label>Last 10 raw messages sent to watch</label>' +
-'      <div class="help">Chunking (see AppMessage chunking) means one refresh/save now sends several small messages instead of one big one -- these are the individual chunks, most recent first. Tap one to load it below.</div>' +
+'      <div class="field-label-row"><label>Last 10 raw messages sent to watch</label><button type="button" class="help-btn" onclick="toggleHelp(\'help-rawMessageLog\')">?</button></div>' +
+'      <div class="help" id="help-rawMessageLog" style="display:none;">Chunking (see AppMessage chunking) means one refresh/save now sends several small messages instead of one big one -- these are the individual chunks, most recent first. Tap one to load it below.</div>' +
       rawMessageLogButtonsHtml(current) +
 '      <input type="hidden" id="rawMessageLogJson" value="' + esc(JSON.stringify(current.rawMessageLog || [])) + '">' +
 '      <label for="debugData" style="margin-top:10px;">Raw data (editable)</label>' +
@@ -1697,13 +1732,14 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      <div class="checkbox-row" style="margin-top:8px;">' +
 '        <input type="checkbox" id="debugOverrideEnabled" ' + (current.debugOverrideEnabled ? 'checked' : '') + '>' +
 '        <label for="debugOverrideEnabled" style="margin:0;">Override data sent to watch with the text above</label>' +
+'        <button type="button" class="help-btn" onclick="toggleHelp(\'help-debugOverrideEnabled\')">?</button>' +
 '      </div>' +
-'      <div class="help">Pick a chunk above to load its exact JSON payload here, or edit it freely. Enabling the checkbox sends exactly this text (as one message, unchunked) instead of the normally-computed data on every future refresh, useful for testing specific values without needing real conditions to match. Invalid JSON is ignored and the app falls back to normal data rather than failing to send anything.</div>' +
+'      <div class="help" id="help-debugOverrideEnabled" style="display:none;">Pick a chunk above to load its exact JSON payload here, or edit it freely. Enabling the checkbox sends exactly this text (as one message, unchunked) instead of the normally-computed data on every future refresh, useful for testing specific values without needing real conditions to match. Invalid JSON is ignored and the app falls back to normal data rather than failing to send anything.</div>' +
 '    </div>' +
 
 '    <div class="subsection">' +
-'      <label>Full keyset (every current value)</label>' +
-'      <div class="help">Regenerated fresh every time this page opens: every key the watch could receive, filled in with whatever\'s actually configured right now (settings) plus the last real eclipse/weather/astronomy data that was computed (may be blank/zeroed fields if nothing\'s been fetched yet). Edit anything below, then send it as-is -- this bypasses your other settings and the normal data sources entirely for this one send; nothing here gets saved, and Save above is unaffected by it.</div>' +
+'      <div class="field-label-row"><label>Full keyset (every current value)</label><button type="button" class="help-btn" onclick="toggleHelp(\'help-fullKeyset\')">?</button></div>' +
+'      <div class="help" id="help-fullKeyset" style="display:none;">Regenerated fresh every time this page opens: every key the watch could receive, filled in with whatever\'s actually configured right now (settings) plus the last real eclipse/weather/astronomy data that was computed (may be blank/zeroed fields if nothing\'s been fetched yet). Edit anything below, then send it as-is -- this bypasses your other settings and the normal data sources entirely for this one send; nothing here gets saved, and Save above is unaffected by it.</div>' +
 '      <textarea id="fullKeysetData" rows="16" style="width:100%; box-sizing:border-box; font-family:monospace; font-size:11px;">' + esc(current.fullKeysetJson || '{}') + '</textarea>' +
 '      <button type="button" class="secondary-btn" id="copyFullKeysetBtn" style="width:auto; margin-top:6px; padding:6px 12px;" onclick="copyTextareaContent(\'fullKeysetData\', \'copyFullKeysetBtn\')">Copy</button>' +
 '      <button type="button" class="secondary-btn" style="width:auto; margin-top:6px; margin-left:6px; padding:6px 12px;" onclick="sendFullKeysetToWatch()">Send to watch now</button>' +
@@ -2670,6 +2706,23 @@ require('./config/config-preview') +
 '  body.style.display = isOpen ? "none" : "";' +
 '  if (chev) chev.className = isOpen ? "chevron" : "chevron open";' +
 '  if (sub) sub.style.display = isOpen ? "" : "none";' +
+'}' +
+// Every longer per-toggle explanation on this page starts hidden;
+// this is the only way to reveal (or re-hide) one. The .help-btn is
+// always its own separate sibling element, never inside the control
+// it explains, specifically so it keeps working -- same onclick,
+// same toggleHelp(id) -- even while that control is disabled.
+'function toggleHelp(id) {' +
+'  var el = document.getElementById(id);' +
+'  if (!el) return;' +
+'  el.style.display = (el.style.display === "none") ? "" : "none";' +
+'}' +
+// Companion to toggleHelp() above, for the 4 section-level intro
+// blurbs instead of per-toggle ones -- see .section-intro\\'s own CSS
+// comment. No id/lookup needed here since the element tapped IS the
+// element whose class changes.
+'function toggleSectionIntro(el) {' +
+'  el.classList.toggle("expanded");' +
 '}' +
 'function stepSlider(id, delta) {' +
 '  var el = document.getElementById(id);' +
