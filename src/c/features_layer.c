@@ -10,6 +10,8 @@
 #include "font_lookup.h"
 #include "feature_timezone.h"
 #include "feature_colors.h"
+#include "feature_health.h"
+#include "feature_rules.h"
 #include <string.h>
 #include <stdlib.h> // atoi(), for parsing strftime's "%V" week-number string back to an int for grading
 
@@ -147,152 +149,7 @@ void features_layer_unload_fonts(void) {
 // feature_colors_overcast_gray_gradient() at their own call sites further
 // down -- no separate wrapper needed here.
 
-// temp_unit: 0=Celsius (input is already Celsius, passed through),
-// 1=Fahrenheit, 2=Kelvin (whole-degree precision throughout this app,
-// so +273 rather than +273.15 -- the .15 essentially never changes
-// the rounded result at this precision).
-static int16_t convert_temp(int16_t celsius, uint8_t temp_unit) {
-  if (temp_unit == 1) return (int16_t)((celsius * 9) / 5 + 32);
-  if (temp_unit == 2) return (int16_t)(celsius + 273);
-  return celsius;
-}
-
-// ---- sleep data (Pebble HealthService, entirely on-watch -- no phone
-// involvement, unlike the weather/location features above) ---------------
-
-// "Xh Ym" -- shared by the sleep-duration and restful-sleep-duration
-// corner content types.
-static void format_duration_hm(char *buf, size_t buf_size, int32_t total_seconds) {
-  if (total_seconds < 0) total_seconds = 0;
-  int hours = (int)(total_seconds / 3600);
-  int minutes = (int)((total_seconds % 3600) / 60);
-  snprintf(buf, buf_size, "%dh %dm", hours, minutes);
-}
-
-typedef struct {
-  time_t earliest_start;
-  time_t latest_end;
-  bool found;
-} SleepSpan;
-
-static bool sleep_span_iterator_cb(HealthActivity activity, time_t time_start, time_t time_end, void *context) {
-  SleepSpan *span = (SleepSpan *)context;
-  if (!span->found || time_start < span->earliest_start) span->earliest_start = time_start;
-  if (!span->found || time_end > span->latest_end) span->latest_end = time_end;
-  span->found = true;
-  return true; // keep going -- want the full extent, not just the first segment
-}
-
-// Earliest sleep-activity start and latest end within the last 24
-// hours, used for the "Bed time"/"Wake time" corner content types.
-// Segments (there can be more than one per night, e.g. brief wake-ups)
-// are merged into one overall span rather than tracked individually.
-static SleepSpan get_sleep_span(void) {
-  SleepSpan span = { 0, 0, false };
-  time_t now = time(NULL);
-  time_t day_ago = now - 24 * 3600;
-  // HealthActivitySleep is already a single-bit mask value (see the
-  // HealthActivityMaskAll macro in the SDK docs, and the SDK's own
-  // "if (activities & HealthActivitySleep)" example) -- no extra
-  // shifting needed, unlike some other Pebble bitmask enums.
-  health_service_activities_iterate(HealthActivitySleep, day_ago, now, HealthIterationDirectionPast,
-                                     sleep_span_iterator_cb, &span);
-  return span;
-}
-
-// Shared by every HealthService-backed content (heart rate, steps,
-// the 3 sleep readouts, sleep times) -- replaces each one's own
-// "HealthServiceAccessibilityMask mask = ...; if (mask & ...Available)"
-// pair with a single boolean call.
-static bool health_metric_available(HealthMetric metric) {
-  time_t now = time(NULL);
-  return (health_service_metric_accessible(metric, now - 86400, now) & HealthServiceAccessibilityMaskAvailable) != 0;
-}
-
-// Shared by the heart-rate content (1) and the heart-rate segment of
-// "heart rate + steps" (97) -- both used to repeat the exact same
-// "check accessibility right now, then peek the value" pair. Point-in-
-// time window (not the 24h one health_metric_available() above uses),
-// since a heart-rate reading from anywhere in the last day would
-// still read as "available" long after it's gone stale.
-static int peek_current_bpm(void) {
-  HealthServiceAccessibilityMask mask = health_service_metric_accessible(HealthMetricHeartRateBPM, time(NULL), time(NULL));
-  if (!(mask & HealthServiceAccessibilityMaskAvailable)) return 0;
-  return (int)health_service_peek_current_value(HealthMetricHeartRateBPM);
-}
-
-// Whether Hourly Vibrations would actually go off right now -- mode
-// on, today's weekday enabled in the day mask, and the current time
-// falling within the configured start/end window -- for the Hourly
-// Vibrations status content types below. Deliberately excludes the
-// exact-minute "should_fire" edge (on the hour / every N minutes) and
-// the Quiet-Time-override check maybe_do_hourly_vibe() in
-// pebble-eclipse-watch.c also applies: those two decide whether a
-// buzz fires on THIS tick, not whether the feature is "on" in any
-// sense a glanceable status icon should reflect, which is closer to
-// "is a reminder due to still ring at some point in the next hour"
-// than "is a buzz happening this exact second." A small, deliberate
-// re-derivation of hourly_vibe_time_in_range()'s own start/end-wrap
-// logic rather than a shared call across files -- see this app's
-// features_layer.c/pebble-eclipse-watch.c split: the corner/edge
-// content system here never calls back into the main app file, so a
-// few lines of genuinely tiny, unlikely-to-drift logic (the field
-// values themselves are the single source of truth either way) is
-// simpler than introducing that dependency for it.
-static bool hourly_vibe_is_scheduled_now(const EclipseData *d, time_t now) {
-  if (d->hourly_vibe_mode == 0) return false;
-  struct tm *t = localtime(&now);
-  if (!((d->hourly_vibe_days_mask >> t->tm_wday) & 1)) return false; // tm_wday: 0=Sunday..6=Saturday, matches the mask's own bit order
-  int minute_of_day = t->tm_hour * 60 + t->tm_min;
-  int start = d->hourly_vibe_start_min, end = d->hourly_vibe_end_min;
-  if (start == end) return true; // "all 24 hours" -- see that field's own comment in eclipse_data.h
-  if (start < end) return minute_of_day >= start && minute_of_day <= end;
-  return minute_of_day >= start || minute_of_day <= end; // wraps past midnight
-}
-
-// Simple apparent-temperature ("feels like") estimate, computed
-// entirely on-watch from data already being sent (temperature, wind,
-// humidity) rather than plumbing a whole new field through the
-// phone-side fetch pipeline. Applies a simplified wind-chill
-// adjustment when it's cold and windy, and a simplified humidity
-// adjustment when it's warm and humid -- deliberately approximate
-// integer arithmetic, not an exact NWS/Rothfusz regression. "Feels
-// like" readings are inherently fuzzy even on dedicated weather
-// services.
-static int16_t apparent_temp_c(int16_t temp_c, int16_t wind_kmh, uint8_t humidity_pct) {
-  if (temp_c <= 10 && wind_kmh > 4) {
-    int16_t chill = (int16_t)((wind_kmh - 4) / 5);
-    if (chill > 12) chill = 12;
-    return temp_c - chill;
-  }
-  if (temp_c >= 27 && humidity_pct > 40) {
-    int16_t bump = (int16_t)(((int32_t)(humidity_pct - 40) * 3) / 20);
-    if (bump > 8) bump = 8;
-    return temp_c + bump;
-  }
-  return temp_c;
-}
-
-// wind_speed_unit: 0=km/h (input is already km/h, passed through),
-// 1=mph, 2=m/s, 3=knots.
-static int16_t convert_wind(int16_t kmh, uint8_t wind_speed_unit) {
-  if (wind_speed_unit == 1) return (int16_t)((kmh * 621) / 1000);  // mph
-  if (wind_speed_unit == 2) return (int16_t)((kmh * 1000) / 3600); // m/s
-  if (wind_speed_unit == 3) return (int16_t)((kmh * 540) / 1000);  // knots
-  return kmh;
-}
-
-
-// Renders one corner's chosen content type in one of the four color
-// In-place uppercase -- used by the short weekday/month date formats
-// below, since strftime's %a/%b give "Mon"/"Sep" (title case) and these
-// are deliberately styled ALL CAPS instead (matching the long forms,
-// which stay in strftime's natural title case: "Monday"/"September").
-static void to_upper_str(char *s) {
-  for (; *s; s++) {
-    if (*s >= 'a' && *s <= 'z') *s -= 32;
-  }
-}
+// HealthService access is isolated in feature_health.c.
 
 // Renders one corner's chosen content type in one of the four color
 // modes. The icon+text group is measured and positioned as a unit:
@@ -312,39 +169,6 @@ static void to_upper_str(char *s) {
 // on their own solid-color background instead, so they pass false
 // and never get one regardless of the outline_style setting --
 // there's nothing there for it to contrast against.
-
-// Weather-derived corner content (see weather_layer_should_show_error()'s own
-// comment in eclipse_data.h for the 10-refresh-streak/never-had-data
-// reasoning) shows "ERR ###" instead of its normal reading once
-// that's true -- checked once here, after the big content switch
-// above has already built its normal buf/dynamic_color/icon_kind,
-// rather than duplicating the check in all 16 cases that touch
-// weather data below.
-static bool content_is_weather_derived(uint8_t content) {
-  switch (content) {
-    case 4:  // high/low temperature
-    case 5:  // current conditions
-    case 6:  // UV index
-    case 104: // current UV index
-    case 7:  // rain chance
-    case 8:  // humidity
-    case 9:  // wind speed
-    case 14: // visibility score
-    case 15: // cloud cover
-    case 31: // weather icon only
-    case 32: // temp + weather icon
-    case 34: // pressure
-    case 35: // wind direction
-    case 37: // dew point
-    case 73: // current temp only
-    case 76: // weather icon + current/high/low
-    case 77: // feels-like temp
-    case 87: case 88: case 89: case 90: case 91: case 92: // weather in 1-6h
-      return true;
-    default:
-      return false;
-  }
-}
 
 // =========================================================================
 // TABLE-DRIVEN FEATURE SLOTS
@@ -456,22 +280,6 @@ enum {
 
 // ---- content classification -------------------------------------------
 
-// Only the "Time"/full-clock-with-seconds and the standalone second
-// components actually need re-resolving every single second -- every
-// other content type (weather, health, dates, astronomy, timezones)
-// only changes on its own slower schedule (the periodic refresh
-// already covers it) or on a settings change.
-static bool content_needs_second_refresh(uint8_t content) {
-  switch (content) {
-    case 63: // full time with seconds
-    case 69: case 70: case 71: case 72: // second components
-      return true;
-    default:
-      return false;
-  }
-}
-
-
 // Resolves the shared "one flat color" every content type not doing
 // its own per-segment gradient split uses: mono (0) -> main, accent
 // (1) -> accent, Pill (2) -> main (drawn over its own solid-bg-color
@@ -534,7 +342,7 @@ static void __attribute__((noinline)) compute_health_value(FeatureSlot *slot, ui
   char buf[24];
   switch (content) {
     case 1: { // heart rate -- pink(low)->red->violet(dangerously high) gradient by actual BPM
-      int bpm = peek_current_bpm();
+      int bpm = feature_health_peek_current_bpm();
       GColor dyn = (bpm > 0) ? feature_colors_heart_rate_gradient(bpm) : GColorLightGray;
       snprintf(buf, sizeof(buf), bpm > 0 ? "%d" : "N/A", bpm);
       slot->segment_count = 2;
@@ -543,7 +351,7 @@ static void __attribute__((noinline)) compute_health_value(FeatureSlot *slot, ui
       return;
     }
     case 2: { // steps today
-      HealthValue steps = health_service_sum_today(HealthMetricStepCount);
+      HealthValue steps = feature_health_sum_today(HealthMetricStepCount);
       uint16_t goal = data->daily_step_goal > 0 ? data->daily_step_goal : 10000;
       int32_t pct = (steps * 100) / goal;
       if (pct > 100) pct = 100;
@@ -555,7 +363,7 @@ static void __attribute__((noinline)) compute_health_value(FeatureSlot *slot, ui
       return;
     }
     case 3: { // step goal %
-      HealthValue steps = health_service_sum_today(HealthMetricStepCount);
+      HealthValue steps = feature_health_sum_today(HealthMetricStepCount);
       uint16_t goal = data->daily_step_goal > 0 ? data->daily_step_goal : 10000;
       int32_t pct = (steps * 100) / goal;
       if (pct > 999) pct = 999;
@@ -624,7 +432,7 @@ static void __attribute__((noinline)) compute_health_value(FeatureSlot *slot, ui
       return;
     }
     case 107: { // Hourly Vibrations status, icon only -- watch+buzz (on) / crossed-out (off)
-      bool on = hourly_vibe_is_scheduled_now(data, time(NULL));
+      bool on = feature_rules_hourly_vibe_is_scheduled_now(data, time(NULL));
       GColor dyn = on ? GColorGreen : GColorLightGray;
       GColor c = resolve_flat_color(color_mode, dyn, main_color, accent_color);
       slot->segment_count = 1;
@@ -633,7 +441,7 @@ static void __attribute__((noinline)) compute_health_value(FeatureSlot *slot, ui
       return;
     }
     case 108: { // Hourly Vibrations status, icon (always plain watch+buzz) + "ON"/"OFF" text
-      bool on = hourly_vibe_is_scheduled_now(data, time(NULL));
+      bool on = feature_rules_hourly_vibe_is_scheduled_now(data, time(NULL));
       GColor dyn = on ? GColorGreen : GColorLightGray;
       GColor c = resolve_flat_color(color_mode, dyn, main_color, accent_color);
       slot->segment_count = 2;
@@ -647,9 +455,9 @@ static void __attribute__((noinline)) compute_health_value(FeatureSlot *slot, ui
       int32_t range_secs = (content == 39) ? 9 * 3600 : 3 * 3600;
       uint8_t icon_kind = (content == 39) ? 21 : 22;
       GColor c;
-      if (health_metric_available(metric)) {
-        HealthValue secs = health_service_sum_today(metric);
-        format_duration_hm(buf, sizeof(buf), (int32_t)secs);
+      if (feature_health_metric_available(metric)) {
+        HealthValue secs = feature_health_sum_today(metric);
+        feature_health_format_duration_hm(buf, sizeof(buf), (int32_t)secs);
         c = resolve_flat_color(color_mode, feature_colors_seven_stop_gradient_reversed((int32_t)secs, 0, range_secs), main_color, accent_color);
       } else {
         snprintf(buf, sizeof(buf), "N/A");
@@ -660,9 +468,9 @@ static void __attribute__((noinline)) compute_health_value(FeatureSlot *slot, ui
     }
     case 41: { // sleep quality -- restful / total, as a percentage
       GColor c;
-      if (health_metric_available(HealthMetricSleepSeconds)) {
-        HealthValue total = health_service_sum_today(HealthMetricSleepSeconds);
-        HealthValue restful = health_service_sum_today(HealthMetricSleepRestfulSeconds);
+      if (feature_health_metric_available(HealthMetricSleepSeconds)) {
+        HealthValue total = feature_health_sum_today(HealthMetricSleepSeconds);
+        HealthValue restful = feature_health_sum_today(HealthMetricSleepRestfulSeconds);
         int pct = (total > 0) ? (int)((restful * 100) / total) : 0;
         if (pct > 100) pct = 100;
         snprintf(buf, sizeof(buf), "%d%%", pct);
@@ -675,7 +483,7 @@ static void __attribute__((noinline)) compute_health_value(FeatureSlot *slot, ui
       return;
     }
     case 42: case 43: { // bed time (42) / wake time (43) -- day/night graded
-      SleepSpan span = get_sleep_span();
+      FeatureSleepSpan span = feature_health_get_sleep_span();
       time_t event = (content == 42) ? span.earliest_start : span.latest_end;
       uint8_t icon_kind = (content == 42) ? 18 : 19;
       GColor c;
@@ -698,7 +506,7 @@ static void __attribute__((noinline)) compute_health_value(FeatureSlot *slot, ui
 
 // ---- weather cluster: temperature, conditions, UV, rain/wind/humidity,
 // pressure/AQI/visibility/cloud cover, and the "last weather update"
-// readouts. All of these (per content_is_weather_derived() below) can
+// readouts. All of these (per feature_rules_content_is_weather_derived() below) can
 // be overridden wholesale to a red "ERR ###" by
 // features_recompute_slot_value()'s shared tail once this function
 // returns, so nothing in here needs to check for a fetch error itself.
@@ -712,8 +520,8 @@ static void __attribute__((noinline)) compute_weather_value(FeatureSlot *slot, u
 
   switch (content) {
     case 4: { // high/low temperature
-      int16_t hi = convert_temp(data->temp_high_c, data->temp_unit);
-      int16_t lo = convert_temp(data->temp_low_c, data->temp_unit);
+      int16_t hi = feature_rules_convert_temp(data->temp_high_c, data->temp_unit);
+      int16_t lo = feature_rules_convert_temp(data->temp_low_c, data->temp_unit);
       if (color_mode == 3) {
         // "color" mode splits high and low into their own independently
         // gradient-colored segments instead of sharing one flat color.
@@ -731,7 +539,7 @@ static void __attribute__((noinline)) compute_weather_value(FeatureSlot *slot, u
       return;
     }
     case 5: { // current conditions
-      int16_t temp = convert_temp(data->weather_temp_c, data->temp_unit);
+      int16_t temp = feature_rules_convert_temp(data->weather_temp_c, data->temp_unit);
       snprintf(buf, sizeof(buf), "%d %s", temp,
                weather_layer_short_condition_text(data->weather_condition, data->cloud_cover_pct));
       slot->segment_count = 1;
@@ -765,7 +573,7 @@ static void __attribute__((noinline)) compute_weather_value(FeatureSlot *slot, u
       return;
     }
     case 9: { // wind speed
-      snprintf(buf, sizeof(buf), "%d", convert_wind(data->wind_speed_kmh, data->wind_speed_unit));
+      snprintf(buf, sizeof(buf), "%d", feature_rules_convert_wind(data->wind_speed_kmh, data->wind_speed_unit));
       GColor c = resolve_flat_color(color_mode, feature_colors_white_to_turquoise_gradient(data->wind_speed_kmh, 0, 60), main_color, accent_color);
       slot_set(slot, 7, buf, c);
       return;
@@ -793,7 +601,7 @@ static void __attribute__((noinline)) compute_weather_value(FeatureSlot *slot, u
       return;
     }
     case 32: { // temp + weather icon -- condition-based color, same as 5/31
-      int16_t temp = convert_temp(data->weather_temp_c, data->temp_unit);
+      int16_t temp = feature_rules_convert_temp(data->weather_temp_c, data->temp_unit);
       snprintf(buf, sizeof(buf), "%d", temp);
       GColor c = resolve_flat_color(color_mode, cond_color, main_color, accent_color);
       slot->segment_count = 2;
@@ -833,7 +641,7 @@ static void __attribute__((noinline)) compute_weather_value(FeatureSlot *slot, u
       return;
     }
     case 37: { // dew point -- reuses the humidity feature's droplet icon
-      int16_t dew = convert_temp(data->dew_point_c, data->temp_unit);
+      int16_t dew = feature_rules_convert_temp(data->dew_point_c, data->temp_unit);
       snprintf(buf, sizeof(buf), "%d", dew);
       GColor c = resolve_flat_color(color_mode, main_color, main_color, accent_color);
       slot_set(slot, 6, buf, c);
@@ -859,10 +667,10 @@ static void __attribute__((noinline)) compute_weather_value(FeatureSlot *slot, u
     case 73: case 74: case 75: case 77: { // current/high/low/feels-like temp only -- all 7-stop, -10..40C
       int16_t temp_c, shown;
       const char *prefix = "";
-      if (content == 73) { temp_c = data->weather_temp_c; shown = convert_temp(temp_c, data->temp_unit); }
-      else if (content == 74) { temp_c = data->temp_high_c; shown = convert_temp(temp_c, data->temp_unit); prefix = "H "; }
-      else if (content == 75) { temp_c = data->temp_low_c; shown = convert_temp(temp_c, data->temp_unit); prefix = "L "; }
-      else { temp_c = apparent_temp_c(data->weather_temp_c, data->wind_speed_kmh, data->humidity_pct); shown = convert_temp(temp_c, data->temp_unit); prefix = "FL "; }
+      if (content == 73) { temp_c = data->weather_temp_c; shown = feature_rules_convert_temp(temp_c, data->temp_unit); }
+      else if (content == 74) { temp_c = data->temp_high_c; shown = feature_rules_convert_temp(temp_c, data->temp_unit); prefix = "H "; }
+      else if (content == 75) { temp_c = data->temp_low_c; shown = feature_rules_convert_temp(temp_c, data->temp_unit); prefix = "L "; }
+      else { temp_c = feature_rules_apparent_temp_c(data->weather_temp_c, data->wind_speed_kmh, data->humidity_pct); shown = feature_rules_convert_temp(temp_c, data->temp_unit); prefix = "FL "; }
       snprintf(buf, sizeof(buf), "%s%d", prefix, shown);
       GColor c = resolve_flat_color(color_mode, feature_colors_seven_stop_gradient(temp_c, -10, 40), main_color, accent_color);
       slot->segment_count = 1;
@@ -870,9 +678,9 @@ static void __attribute__((noinline)) compute_weather_value(FeatureSlot *slot, u
       return;
     }
     case 76: { // weather icon + current/high/low all in one line -- "mixed" value, condition-based color
-      int16_t cur = convert_temp(data->weather_temp_c, data->temp_unit);
-      int16_t hi = convert_temp(data->temp_high_c, data->temp_unit);
-      int16_t lo = convert_temp(data->temp_low_c, data->temp_unit);
+      int16_t cur = feature_rules_convert_temp(data->weather_temp_c, data->temp_unit);
+      int16_t hi = feature_rules_convert_temp(data->temp_high_c, data->temp_unit);
+      int16_t lo = feature_rules_convert_temp(data->temp_low_c, data->temp_unit);
       snprintf(buf, sizeof(buf), "%d H%d L%d", cur, hi, lo);
       GColor c = resolve_flat_color(color_mode, cond_color, main_color, accent_color);
       slot->segment_count = 2;
@@ -892,7 +700,7 @@ static void __attribute__((noinline)) compute_weather_value(FeatureSlot *slot, u
         set_text_seg(slot, 0, buf, c);
         return;
       }
-      int16_t shown = convert_temp(data->forecast_temp_c[idx], data->temp_unit);
+      int16_t shown = feature_rules_convert_temp(data->forecast_temp_c[idx], data->temp_unit);
       snprintf(buf, sizeof(buf), "+%dh %d", hrs_ahead, shown);
       // Same shape as "temp + weather icon" (32): plain 7-stop gradient,
       // not the condition-based color -- per the "Temperature readouts
@@ -969,15 +777,15 @@ static void __attribute__((noinline)) compute_date_value(FeatureSlot *slot, uint
     case 21: { // month + day (multi-value), e.g. "SEP 11"
       char mon_buf[4];
       strftime(mon_buf, sizeof(mon_buf), "%b", t);
-      to_upper_str(mon_buf);
+      feature_rules_to_upper_str(mon_buf);
       snprintf(buf, sizeof(buf), "%s %d", mon_buf, t->tm_mday);
       dyn = feature_colors_date_year_progress_gradient(t);
       break;
     }
     case 22: snprintf(buf, sizeof(buf), "%d", t->tm_mday); dyn = feature_colors_seven_stop_gradient(t->tm_mday, 1, 31); break;
-    case 23: strftime(buf, sizeof(buf), "%a", t); to_upper_str(buf); dyn = feature_colors_seven_stop_gradient(t->tm_wday, 0, 6); break;
+    case 23: strftime(buf, sizeof(buf), "%a", t); feature_rules_to_upper_str(buf); dyn = feature_colors_seven_stop_gradient(t->tm_wday, 0, 6); break;
     case 24: strftime(buf, sizeof(buf), "%A", t); dyn = feature_colors_seven_stop_gradient(t->tm_wday, 0, 6); break;
-    case 25: strftime(buf, sizeof(buf), "%b", t); to_upper_str(buf); dyn = feature_colors_seven_stop_gradient(t->tm_mon, 0, 11); break;
+    case 25: strftime(buf, sizeof(buf), "%b", t); feature_rules_to_upper_str(buf); dyn = feature_colors_seven_stop_gradient(t->tm_mon, 0, 11); break;
     case 26: strftime(buf, sizeof(buf), "%B", t); dyn = feature_colors_seven_stop_gradient(t->tm_mon, 0, 11); break;
     case 27: snprintf(buf, sizeof(buf), "%d/%d", t->tm_mday, t->tm_mon + 1); dyn = feature_colors_date_year_progress_gradient(t); break;
     case 28: snprintf(buf, sizeof(buf), "%d/%d", t->tm_mon + 1, t->tm_mday); dyn = feature_colors_date_year_progress_gradient(t); break;
@@ -1004,14 +812,14 @@ static void __attribute__((noinline)) compute_date_value(FeatureSlot *slot, uint
     case 86: snprintf(buf, sizeof(buf), "%s", t->tm_hour < 12 ? "AM" : "PM"); dyn = (t->tm_hour < 12) ? GColorBlack : GColorWhite; break;
     case 95: { // weekday + day/month (multi-value), e.g. "MON 24/9"
       char day_buf[4];
-      strftime(day_buf, sizeof(day_buf), "%a", t); to_upper_str(day_buf);
+      strftime(day_buf, sizeof(day_buf), "%a", t); feature_rules_to_upper_str(day_buf);
       snprintf(buf, sizeof(buf), "%s %d/%d", day_buf, t->tm_mday, t->tm_mon + 1);
       dyn = feature_colors_date_year_progress_gradient(t);
       break;
     }
     case 96: { // weekday + month/day (multi-value), e.g. "MON 9/24"
       char day_buf[4];
-      strftime(day_buf, sizeof(day_buf), "%a", t); to_upper_str(day_buf);
+      strftime(day_buf, sizeof(day_buf), "%a", t); feature_rules_to_upper_str(day_buf);
       snprintf(buf, sizeof(buf), "%s %d/%d", day_buf, t->tm_mon + 1, t->tm_mday);
       dyn = feature_colors_date_year_progress_gradient(t);
       break;
@@ -1241,11 +1049,11 @@ static void __attribute__((noinline)) compute_combo_value(FeatureSlot *slot, uin
 
   switch (content) {
     case 97: { // heart rate + steps
-      int bpm = peek_current_bpm();
+      int bpm = feature_health_peek_current_bpm();
       GColor hr_c = dynamic ? (bpm > 0 ? feature_colors_heart_rate_gradient(bpm) : GColorLightGray) : flat;
       snprintf(buf1, sizeof(buf1), bpm > 0 ? "%d" : "N/A", bpm);
 
-      HealthValue steps = health_service_sum_today(HealthMetricStepCount);
+      HealthValue steps = feature_health_sum_today(HealthMetricStepCount);
       uint16_t goal = data->daily_step_goal > 0 ? data->daily_step_goal : 10000;
       int32_t pct = (steps * 100) / goal;
       if (pct > 100) pct = 100;
@@ -1260,7 +1068,7 @@ static void __attribute__((noinline)) compute_combo_value(FeatureSlot *slot, uin
       return;
     }
     case 98: { // bed time + wake time, day/night graded independently
-      SleepSpan span = get_sleep_span();
+      FeatureSleepSpan span = feature_health_get_sleep_span();
       GColor bed_c = flat, wake_c = flat;
       if (span.found) {
         struct tm *bt = localtime(&span.earliest_start);
@@ -1350,7 +1158,7 @@ static void __attribute__((noinline)) compute_combo_value(FeatureSlot *slot, uin
       GColor bt_c = dynamic ? (connected ? GColorFromRGB(64, 224, 208) : GColorFromRGB(255, 0, 0)) : flat;
       bool quiet_active = quiet_time_is_active();
       GColor quiet_c = dynamic ? (quiet_active ? GColorRed : GColorWhite) : flat;
-      bool vibe_on = hourly_vibe_is_scheduled_now(data, now);
+      bool vibe_on = feature_rules_hourly_vibe_is_scheduled_now(data, now);
       GColor vibe_c = dynamic ? (vibe_on ? GColorGreen : GColorLightGray) : flat;
 
       slot->segment_count = 4;
@@ -1375,7 +1183,7 @@ static void __attribute__((noinline)) compute_combo_value(FeatureSlot *slot, uin
       GColor bt_c = dynamic ? (connected ? GColorFromRGB(64, 224, 208) : GColorFromRGB(255, 0, 0)) : flat;
       bool quiet_active = quiet_time_is_active();
       GColor quiet_c = dynamic ? (quiet_active ? GColorRed : GColorWhite) : flat;
-      bool vibe_on = hourly_vibe_is_scheduled_now(data, now);
+      bool vibe_on = feature_rules_hourly_vibe_is_scheduled_now(data, now);
       GColor vibe_c = dynamic ? (vibe_on ? GColorGreen : GColorLightGray) : flat;
 
       snprintf(buf1, sizeof(buf1), "%d%%", bs.charge_percent);
@@ -1394,7 +1202,7 @@ static void __attribute__((noinline)) compute_combo_value(FeatureSlot *slot, uin
     case 112: { // Quiet Time + Hourly Vibrations, icons only
       bool quiet_active = quiet_time_is_active();
       GColor quiet_c = dynamic ? (quiet_active ? GColorRed : GColorWhite) : flat;
-      bool vibe_on = hourly_vibe_is_scheduled_now(data, now);
+      bool vibe_on = feature_rules_hourly_vibe_is_scheduled_now(data, now);
       GColor vibe_c = dynamic ? (vibe_on ? GColorGreen : GColorLightGray) : flat;
 
       slot->segment_count = 2;
@@ -1407,7 +1215,7 @@ static void __attribute__((noinline)) compute_combo_value(FeatureSlot *slot, uin
     case 113: { // Quiet Time + Hourly Vibrations, icons + "ON"/"OFF" texts
       bool quiet_active = quiet_time_is_active();
       GColor quiet_c = dynamic ? (quiet_active ? GColorRed : GColorWhite) : flat;
-      bool vibe_on = hourly_vibe_is_scheduled_now(data, now);
+      bool vibe_on = feature_rules_hourly_vibe_is_scheduled_now(data, now);
       GColor vibe_c = dynamic ? (vibe_on ? GColorGreen : GColorLightGray) : flat;
 
       slot->segment_count = 4;
@@ -1426,7 +1234,7 @@ static void __attribute__((noinline)) compute_combo_value(FeatureSlot *slot, uin
       GColor bt_c = dynamic ? (connected ? GColorFromRGB(64, 224, 208) : GColorFromRGB(255, 0, 0)) : flat;
       bool quiet_active = quiet_time_is_active();
       GColor quiet_c = dynamic ? (quiet_active ? GColorRed : GColorWhite) : flat;
-      bool vibe_on = hourly_vibe_is_scheduled_now(data, now);
+      bool vibe_on = feature_rules_hourly_vibe_is_scheduled_now(data, now);
       GColor vibe_c = dynamic ? (vibe_on ? GColorGreen : GColorLightGray) : flat;
 
       snprintf(buf1, sizeof(buf1), "%d%%", bs.charge_percent);
@@ -1446,12 +1254,12 @@ static void __attribute__((noinline)) compute_combo_value(FeatureSlot *slot, uin
       return;
     }
     case 101: { // sleep times: sleep icon, total duration, (restful duration), quality%
-      if (health_metric_available(HealthMetricSleepSeconds)) {
-        HealthValue total = health_service_sum_today(HealthMetricSleepSeconds);
-        HealthValue restful = health_service_sum_today(HealthMetricSleepRestfulSeconds);
+      if (feature_health_metric_available(HealthMetricSleepSeconds)) {
+        HealthValue total = feature_health_sum_today(HealthMetricSleepSeconds);
+        HealthValue restful = feature_health_sum_today(HealthMetricSleepRestfulSeconds);
         char total_buf[12], restful_buf[12], quality_buf[6];
-        format_duration_hm(total_buf, sizeof(total_buf), (int32_t)total);
-        format_duration_hm(restful_buf, sizeof(restful_buf), (int32_t)restful);
+        feature_health_format_duration_hm(total_buf, sizeof(total_buf), (int32_t)total);
+        feature_health_format_duration_hm(restful_buf, sizeof(restful_buf), (int32_t)restful);
         int pct = (total > 0) ? (int)((restful * 100) / total) : 0;
         if (pct > 100) pct = 100;
         snprintf(quality_buf, sizeof(quality_buf), "%d%%", pct);
@@ -1608,7 +1416,7 @@ static void features_recompute_slot_value(FeatureSlot *slot, const EclipseData *
   // uniformly, regardless of which weather cluster case built it, and
   // regardless of color_mode (an error needs to stay legible, not blend
   // in as a normal reading would).
-  if (content_is_weather_derived(content) && weather_layer_should_show_error(data)) {
+  if (feature_rules_content_is_weather_derived(content) && weather_layer_should_show_error(data)) {
     char err_buf[10];
     snprintf(err_buf, sizeof(err_buf), "ERR %d", data->weather_error_code);
     slot->segment_count = 1;
@@ -1821,7 +1629,7 @@ static void features_recompute_layout(FeaturesState *state) {
       .is_top = true, .is_left = true, .is_middle = false, .is_edge = false,
       .top_offset = line1_offset, .bottom_shift = 0, .middle_inset = 0,
       .center_horizontal = true, .center_vertical = false, .allow_outline = true,
-      .needs_second_refresh = content_needs_second_refresh(d->upper_middle_line1_content),
+      .needs_second_refresh = feature_rules_content_needs_second_refresh(d->upper_middle_line1_content),
     };
     if (has_line2) {
       state->slots[SLOT_UPPER_L2] = (FeatureSlot){
@@ -1829,7 +1637,7 @@ static void features_recompute_layout(FeaturesState *state) {
         .is_top = true, .is_left = true, .is_middle = false, .is_edge = false,
         .top_offset = dyn_upper_offset + CORNER_ROW_H, .bottom_shift = 0, .middle_inset = 0,
         .center_horizontal = true, .center_vertical = false, .allow_outline = true,
-        .needs_second_refresh = content_needs_second_refresh(d->upper_middle_line2_content),
+        .needs_second_refresh = feature_rules_content_needs_second_refresh(d->upper_middle_line2_content),
       };
     }
 
@@ -1840,7 +1648,7 @@ static void features_recompute_layout(FeaturesState *state) {
       .is_top = false, .is_left = true, .is_middle = false, .is_edge = false,
       .top_offset = 0, .bottom_shift = line1_shift, .middle_inset = 0,
       .center_horizontal = true, .center_vertical = false, .allow_outline = true,
-      .needs_second_refresh = content_needs_second_refresh(d->bottom_middle_line1_content),
+      .needs_second_refresh = feature_rules_content_needs_second_refresh(d->bottom_middle_line1_content),
     };
     if (has_line2) {
       state->slots[SLOT_BOTTOM_L2] = (FeatureSlot){
@@ -1848,7 +1656,7 @@ static void features_recompute_layout(FeaturesState *state) {
         .is_top = false, .is_left = true, .is_middle = false, .is_edge = false,
         .top_offset = 0, .bottom_shift = dyn_bottom_shift, .middle_inset = 0,
         .center_horizontal = true, .center_vertical = false, .allow_outline = true,
-        .needs_second_refresh = content_needs_second_refresh(d->bottom_middle_line2_content),
+        .needs_second_refresh = feature_rules_content_needs_second_refresh(d->bottom_middle_line2_content),
       };
     }
 
@@ -1859,7 +1667,7 @@ static void features_recompute_layout(FeaturesState *state) {
       .is_top = false, .is_left = true, .is_middle = true, .is_edge = false,
       .top_offset = line1_offset, .bottom_shift = 0, .middle_inset = dyn_left_inset,
       .center_horizontal = false, .center_vertical = true, .allow_outline = true,
-      .needs_second_refresh = content_needs_second_refresh(d->middle_left_line1_content),
+      .needs_second_refresh = feature_rules_content_needs_second_refresh(d->middle_left_line1_content),
     };
     if (has_line2) {
       state->slots[SLOT_LEFT_L2] = (FeatureSlot){
@@ -1867,7 +1675,7 @@ static void features_recompute_layout(FeaturesState *state) {
         .is_top = false, .is_left = true, .is_middle = true, .is_edge = false,
         .top_offset = CORNER_ROW_H / 2, .bottom_shift = 0, .middle_inset = dyn_left_inset,
         .center_horizontal = false, .center_vertical = true, .allow_outline = true,
-        .needs_second_refresh = content_needs_second_refresh(d->middle_left_line2_content),
+        .needs_second_refresh = feature_rules_content_needs_second_refresh(d->middle_left_line2_content),
       };
     }
 
@@ -1878,7 +1686,7 @@ static void features_recompute_layout(FeaturesState *state) {
       .is_top = false, .is_left = false, .is_middle = true, .is_edge = false,
       .top_offset = line1_offset, .bottom_shift = 0, .middle_inset = dyn_right_inset,
       .center_horizontal = false, .center_vertical = true, .allow_outline = true,
-      .needs_second_refresh = content_needs_second_refresh(d->middle_right_line1_content),
+      .needs_second_refresh = feature_rules_content_needs_second_refresh(d->middle_right_line1_content),
     };
     if (has_line2) {
       state->slots[SLOT_RIGHT_L2] = (FeatureSlot){
@@ -1886,7 +1694,7 @@ static void features_recompute_layout(FeaturesState *state) {
         .is_top = false, .is_left = false, .is_middle = true, .is_edge = false,
         .top_offset = CORNER_ROW_H / 2, .bottom_shift = 0, .middle_inset = dyn_right_inset,
         .center_horizontal = false, .center_vertical = true, .allow_outline = true,
-        .needs_second_refresh = content_needs_second_refresh(d->middle_right_line2_content),
+        .needs_second_refresh = feature_rules_content_needs_second_refresh(d->middle_right_line2_content),
       };
     }
   }
@@ -1934,21 +1742,21 @@ static void features_recompute_layout(FeaturesState *state) {
       .is_top = is_digital_top, .is_left = true, .is_middle = false, .is_edge = true,
       .top_offset = is_digital_top ? row1_off : 0, .bottom_shift = is_digital_top ? 0 : row1_off, .middle_inset = 0,
       .center_horizontal = false, .center_vertical = false, .allow_outline = true,
-      .needs_second_refresh = content_needs_second_refresh(d->middle_left_line1_content),
+      .needs_second_refresh = feature_rules_content_needs_second_refresh(d->middle_left_line1_content),
     };
     state->slots[SLOT_LEFT_L2] = (FeatureSlot){
       .active = true, .content = d->middle_left_line2_content, .color_mode = d->middle_left_line2_color_mode,
       .is_top = is_digital_top, .is_left = true, .is_middle = false, .is_edge = true,
       .top_offset = is_digital_top ? row2_off : 0, .bottom_shift = is_digital_top ? 0 : row2_off, .middle_inset = 0,
       .center_horizontal = false, .center_vertical = false, .allow_outline = true,
-      .needs_second_refresh = content_needs_second_refresh(d->middle_left_line2_content),
+      .needs_second_refresh = feature_rules_content_needs_second_refresh(d->middle_left_line2_content),
     };
     state->slots[SLOT_UPPER_L1] = (FeatureSlot){ // reused: digital left column, row 3 -- reads upper_middle_line1
       .active = true, .content = d->upper_middle_line1_content, .color_mode = d->upper_middle_line1_color_mode,
       .is_top = is_digital_top, .is_left = true, .is_middle = false, .is_edge = true,
       .top_offset = row3_off, .bottom_shift = row3_off, .middle_inset = 0,
       .center_horizontal = false, .center_vertical = false, .allow_outline = true,
-      .needs_second_refresh = content_needs_second_refresh(d->upper_middle_line1_content),
+      .needs_second_refresh = feature_rules_content_needs_second_refresh(d->upper_middle_line1_content),
     };
 
     state->slots[SLOT_RIGHT_L1] = (FeatureSlot){
@@ -1956,21 +1764,21 @@ static void features_recompute_layout(FeaturesState *state) {
       .is_top = is_digital_top, .is_left = false, .is_middle = false, .is_edge = true,
       .top_offset = is_digital_top ? row1_off : 0, .bottom_shift = is_digital_top ? 0 : row1_off, .middle_inset = 0,
       .center_horizontal = false, .center_vertical = false, .allow_outline = true,
-      .needs_second_refresh = content_needs_second_refresh(d->middle_right_line1_content),
+      .needs_second_refresh = feature_rules_content_needs_second_refresh(d->middle_right_line1_content),
     };
     state->slots[SLOT_RIGHT_L2] = (FeatureSlot){
       .active = true, .content = d->middle_right_line2_content, .color_mode = d->middle_right_line2_color_mode,
       .is_top = is_digital_top, .is_left = false, .is_middle = false, .is_edge = true,
       .top_offset = is_digital_top ? row2_off : 0, .bottom_shift = is_digital_top ? 0 : row2_off, .middle_inset = 0,
       .center_horizontal = false, .center_vertical = false, .allow_outline = true,
-      .needs_second_refresh = content_needs_second_refresh(d->middle_right_line2_content),
+      .needs_second_refresh = feature_rules_content_needs_second_refresh(d->middle_right_line2_content),
     };
     state->slots[SLOT_UPPER_L2] = (FeatureSlot){ // reused: digital right column, row 3 -- reads upper_middle_line2
       .active = true, .content = d->upper_middle_line2_content, .color_mode = d->upper_middle_line2_color_mode,
       .is_top = is_digital_top, .is_left = false, .is_middle = false, .is_edge = true,
       .top_offset = row3_off, .bottom_shift = row3_off, .middle_inset = 0,
       .center_horizontal = false, .center_vertical = false, .allow_outline = true,
-      .needs_second_refresh = content_needs_second_refresh(d->upper_middle_line2_content),
+      .needs_second_refresh = feature_rules_content_needs_second_refresh(d->upper_middle_line2_content),
     };
 
     // Single bottom feature -- reuses bottom_middle_line1 (analog's
@@ -1988,7 +1796,7 @@ static void features_recompute_layout(FeaturesState *state) {
       .top_offset = 0, .bottom_shift = 0, .middle_inset = 0,
       .center_horizontal = false, .center_vertical = false, .allow_outline = true,
       .custom_box = true, .box_x = clock_x, .box_w = clock_w,
-      .needs_second_refresh = content_needs_second_refresh(d->bottom_middle_line1_content),
+      .needs_second_refresh = feature_rules_content_needs_second_refresh(d->bottom_middle_line1_content),
     };
   }
 
@@ -2013,14 +1821,14 @@ static void features_recompute_layout(FeaturesState *state) {
     .is_top = true, .is_left = true, .is_middle = false, .is_edge = true,
     .top_offset = CORNER_INSET_PX + top_corner_shift, .bottom_shift = 0,
     .center_horizontal = false, .center_vertical = false, .allow_outline = true,
-    .needs_second_refresh = content_needs_second_refresh(d->corner_content[0]),
+    .needs_second_refresh = feature_rules_content_needs_second_refresh(d->corner_content[0]),
   };
   state->slots[SLOT_CORNER_TR] = (FeatureSlot){
     .active = true, .content = d->corner_content[1], .color_mode = d->corner_color_mode[1],
     .is_top = true, .is_left = false, .is_middle = false, .is_edge = true,
     .top_offset = CORNER_INSET_PX + top_corner_shift, .bottom_shift = 0,
     .center_horizontal = false, .center_vertical = false, .allow_outline = true,
-    .needs_second_refresh = content_needs_second_refresh(d->corner_content[1]),
+    .needs_second_refresh = feature_rules_content_needs_second_refresh(d->corner_content[1]),
   };
   // Bottom corners (BL/BR): stay anchored to the SKY's own bottom
   // edge, not the full screen's -- meaningfully different only in
@@ -2041,14 +1849,14 @@ static void features_recompute_layout(FeaturesState *state) {
     .is_top = false, .is_left = true, .is_middle = false, .is_edge = true,
     .top_offset = 0, .bottom_shift = bottom_corner_shift,
     .center_horizontal = false, .center_vertical = false, .allow_outline = true,
-    .needs_second_refresh = content_needs_second_refresh(d->corner_content[2]),
+    .needs_second_refresh = feature_rules_content_needs_second_refresh(d->corner_content[2]),
   };
   state->slots[SLOT_CORNER_BR] = (FeatureSlot){
     .active = true, .content = d->corner_content[3], .color_mode = d->corner_color_mode[3],
     .is_top = false, .is_left = false, .is_middle = false, .is_edge = true,
     .top_offset = 0, .bottom_shift = bottom_corner_shift,
     .center_horizontal = false, .center_vertical = false, .allow_outline = true,
-    .needs_second_refresh = content_needs_second_refresh(d->corner_content[3]),
+    .needs_second_refresh = feature_rules_content_needs_second_refresh(d->corner_content[3]),
   };
 }
 
