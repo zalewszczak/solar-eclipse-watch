@@ -105,11 +105,11 @@ typedef struct {
 // length_scale_1000 (0-1000, 1000 = normal/full length) shrinks the
 // hand's own length (not its width) proportionally -- used only by
 // the startup animation's "grows out from a center dot" phase, see
-// compute_startup_hand_anim() in pebble-eclipse-watch.c. Pass 1000
+// compute_startup_hand_anim() in hands_controller.c. Pass 1000
 // for a normal, non-animated draw. The "on shake" outline gradient
 // (if active) is applied automatically, per pixel, whenever
 // cfg->outline_enabled -- see shake_gradient_active() in
-// eclipse_data.h/pebble-eclipse-watch.c and draw_hand_outline_from_geometry()
+// eclipse_data.h/hands_controller.c and draw_hand_outline_from_geometry()
 // in hand_layer.c; no separate parameter needed for it here.
 void hand_layer_draw(GContext *ctx, GPoint center, int32_t angle, const HandConfig *cfg,
                       GColor main_color, GColor accent_color, GColor bg_color,
