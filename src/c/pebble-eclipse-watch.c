@@ -9,6 +9,7 @@
 #include "background_animation.h"
 #include "sky_layer.h"
 #include "features_layer.h"
+#include "feature_layout.h"
 #include "font_lookup.h"
 #include "message_key_index.h" // MK_* is used for the startup key-index consistency check.
 #include "eclipse_ui.h"
@@ -341,7 +342,7 @@ static void hands_layer_update_proc(Layer *layer, GContext *ctx) {
 // bar (bottom_style 0/2/3/4) and Digital top's transparent top strip
 // (5/7/8/9) share this one draw function (see s_panel_layer's own
 // comment for why one Layer variable now covers both): is_top (derived
-// from features_is_digital_top_layout()) picks which -- false fills
+// from feature_layout_is_digital_top_layout()) picks which -- false fills
 // `bounds` solid first, exactly Digital bar's original always-had-a-
 // solid-backing look; true leaves the frame buffer alone so whatever
 // s_top_gradient_layer/the sky canvas already painted underneath
@@ -355,7 +356,7 @@ static void hands_layer_update_proc(Layer *layer, GContext *ctx) {
 // canvas underneath it.
 static void draw_digital_clock_panel(Layer *layer, GContext *ctx) {
   GRect bounds = layer_get_bounds(layer);
-  bool is_top = features_is_digital_top_layout(s_data.bottom_style);
+  bool is_top = feature_layout_is_digital_top_layout(s_data.bottom_style);
   time_t now = time(NULL);
   struct tm *t = localtime(&now);
 
@@ -407,16 +408,16 @@ static void draw_digital_clock_panel(Layer *layer, GContext *ctx) {
   }
 
   // Shifts away from whichever single side-feature column is active
-  // (features_digital_side_mode() 2 or 3, regardless of which layout), or stays
+  // (feature_layout_digital_side_mode() 2 or 3, regardless of which layout), or stays
   // centered/full-width otherwise (0, or 4 with both columns on -- see
-  // features_digital_clock_area()'s own comment for why "both" doesn't shrink
+  // feature_layout_digital_clock_area()'s own comment for why "both" doesn't shrink
   // the clock further). The features_layer overlay draws the side
   // columns themselves and the single bottom feature (which used to be
   // the fixed date/sun-time row directly below, now a user-selectable
   // content slot instead) -- this layer only ever draws the clock
   // digits.
   int16_t clock_x, clock_w;
-  features_digital_clock_area(s_data.bottom_style, bounds.size.w, &clock_x, &clock_w);
+  feature_layout_digital_clock_area(s_data.bottom_style, bounds.size.w, &clock_x, &clock_w);
   int16_t font_h = font_lookup_height(s_data.clock_font) + font_lookup_y_offset(s_data.clock_font);
   // Centered 24px from whichever edge of the panel sits next to the
   // clock's own "inner" boundary with the sky -- the panel's own top
@@ -429,7 +430,7 @@ static void draw_digital_clock_panel(Layer *layer, GContext *ctx) {
   GTextAlignment alignment = GTextAlignmentCenter;
 
   // Trick to avoid clipping of shifted clocks and not having text trimmed (...) or having clock outside of the screen in extreme cases
-  uint8_t side = features_digital_side_mode(s_data.bottom_style);
+  uint8_t side = feature_layout_digital_side_mode(s_data.bottom_style);
   if (side == 2) { // right side only -- shift left
     int16_t initial_allowed_area = clock_rect.size.w;
     clock_rect.size.w += 30;
@@ -508,7 +509,7 @@ static void countdown_layer_update_proc(Layer *layer, GContext *ctx) {
   // legibility fine on its own, and Digital bar's own panel is already
   // a solid color the text sits on, so neither of those needs this
   // extra background.
-  if (s_data.outline_style == 0 && (s_data.bottom_style == 1 || features_is_digital_top_layout(s_data.bottom_style)) && s_countdown_buf[0] != '\0') {
+  if (s_data.outline_style == 0 && (s_data.bottom_style == 1 || feature_layout_is_digital_top_layout(s_data.bottom_style)) && s_countdown_buf[0] != '\0') {
     GSize text_size = graphics_text_layout_get_content_size(s_countdown_buf, font, bounds,
                                                               GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter);
     int16_t pad_x = 6;
@@ -875,7 +876,7 @@ static void unobstructed_change_handler(AnimationProgress progress, void *contex
   // obstruction, so it has nothing to shift here (see the plain
   // Digital-top canvas-shrink case further down instead, which mirrors
   // analog's own handling).
-  if (s_data.bottom_style != 1 && !features_is_digital_top_layout(s_data.bottom_style) && s_panel_layer) {
+  if (s_data.bottom_style != 1 && !feature_layout_is_digital_top_layout(s_data.bottom_style) && s_panel_layer) {
     // 152 -- the panel's own always-unobstructed top, fixed by
     // apply_layout() -- not read from the layer's current frame,
     // since that may already be shifted up from a previous
@@ -911,9 +912,9 @@ static void unobstructed_change_handler(AnimationProgress progress, void *contex
   // room by shrinking from the edge nearest the obstruction" idea --
   // neither has a panel down there that would need to move out of the
   // way the way Digital bar's own does above.
-  bool canvas_tracks_unobstructed_bottom = s_data.bottom_style == 1 || features_is_digital_top_layout(s_data.bottom_style);
+  bool canvas_tracks_unobstructed_bottom = s_data.bottom_style == 1 || feature_layout_is_digital_top_layout(s_data.bottom_style);
   if (canvas_tracks_unobstructed_bottom && s_canvas_layer) {
-    int16_t canvas_top = features_is_digital_top_layout(s_data.bottom_style) ? DIGITAL_PANEL_H : 0;
+    int16_t canvas_top = feature_layout_is_digital_top_layout(s_data.bottom_style) ? DIGITAL_PANEL_H : 0;
     int16_t new_h = unobstructed.size.h - canvas_top;
     if (new_h < 0) new_h = 0; // clamp -- matches the panel-side clamp above for the same reason
     GRect frame = layer_get_frame(s_canvas_layer);
@@ -991,7 +992,7 @@ static void apply_layout(void) {
     } else {
       layer_add_child(root, s_hands_layer);
     }
-  } else if (features_is_digital_top_layout(style)) {
+  } else if (feature_layout_is_digital_top_layout(style)) {
     // Digital top: the sky canvas is exactly Digital bar's own 152px-
     // tall panel-less canvas (below, unchanged), just relocated to the
     // screen's BOTTOM instead of its top -- none of its own internal
@@ -1000,7 +1001,7 @@ static void apply_layout(void) {
     // freed-up DIGITAL_PANEL_H strip at the real top with a plain
     // continuation of that same gradient (see its own header comment),
     // and s_panel_layer -- same Layer variable and draw function
-    // Digital bar itself uses, just told via features_is_digital_top_layout()
+    // Digital bar itself uses, just told via feature_layout_is_digital_top_layout()
     // to skip its own opaque background fill -- sits on top of THAT,
     // transparent, so the gradient shows through behind the clock text.
     // Added in exactly this bottom-to-top z-order for that to work.
@@ -1026,7 +1027,7 @@ static void apply_layout(void) {
   // Overlays the FULL screen in every layout now -- not just reusing
   // the sky canvas's own frame the way this used to, since that frame
   // is only DIGITAL_PANEL_H-shrunk-from-one-side in either digital
-  // layout (see the branches above) and features_recompute_layout()'s
+  // layout (see the branches above) and feature_layout_recompute()'s
   // digital-only slots (the 3-line side columns + single bottom
   // feature) need the real screen edge their own layout actually
   // anchors off -- not the sky's -- to land in the right place at all.

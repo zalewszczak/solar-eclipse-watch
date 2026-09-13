@@ -2,6 +2,7 @@
 #include "eclipse_ui.h"
 #include "subpixel.h"
 #include "features_layer.h"
+#include "feature_layout.h"
 #include "marker_layer.h"
 #include "weather_layer.h"
 #include "celestial_layer.h"
@@ -346,7 +347,7 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
     // visibly disagreeing at the seam. Every other layout keeps the
     // virtual span identical to `bounds` itself -- i.e. no change at
     // all from before this existed.
-    bool is_digital_top = features_is_digital_top_layout(d->bottom_style);
+    bool is_digital_top = feature_layout_is_digital_top_layout(d->bottom_style);
     int16_t virtual_top_y = is_digital_top ? DIGITAL_PANEL_H : bounds.origin.y;
     int16_t virtual_total_h = is_digital_top ? (DIGITAL_PANEL_H + bounds.size.h) : bounds.size.h;
 

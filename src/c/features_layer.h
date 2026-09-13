@@ -17,13 +17,13 @@
 //   - LAYOUT (which of the 12 slots are active, and where each one's box
 //     sits) depends only on settings (bottom_style, big_analog_marker_style,
 //     the corner/edge content+color-mode fields) -- resolved by
-//     features_recompute_layout() (features_layer.c, private), only ever
+//     feature_layout_recompute() (feature_layout.c), only ever
 //     called from features_layer_set_data() below.
 //
 //   - VALUE (the actual text/icon/color for a slot's current content --
 //     a health reading, the weather, the clock, a compass heading) changes
 //     far more often, and is resolved separately by
-//     features_recompute_slot_value() (features_layer.c, private), grouped
+//     feature_values_compute_slot() (feature_values.c), grouped
 //     into a handful of per-category functions rather than one giant
 //     per-content switch. features_layer_refresh_values() re-runs this for
 //     every active slot (the periodic ~1-minute tick); refresh_second_slots()
@@ -47,7 +47,6 @@
 // duplicated in the main .c file.
 #define FEATURES_REFRESH_MS 60000
 
-#define CORNER_ROW_H 24
 
 Layer *features_layer_create(GRect frame);
 void features_layer_destroy(Layer *layer);
@@ -93,21 +92,6 @@ bool features_layer_content_in_use(const EclipseData *data, uint8_t content);
 // showing the compass).
 void features_layer_refresh_content(Layer *layer, uint8_t content);
 
-// See its own comment in features_layer.c -- shared with
-// pebble-eclipse-watch.c so the clock text and the digital-mode bottom
-// feature can never disagree about which horizontal band they share.
-void features_digital_clock_area(uint8_t bottom_style, int16_t screen_w, int16_t *out_x, int16_t *out_w);
-
-// Pulls bottom_style's two independent pieces -- which side column(s)
-// are on, and whether the panel itself sits at the screen's top or
-// bottom -- back apart (see that field's own 0-9 comment in
-// eclipse_data.h). Shared with pebble-eclipse-watch.c, which needs both
-// (features_digital_side_mode() for the same single/both-side ellipsis-avoidance
-// shifting features_digital_clock_area() already handles; features_is_digital_top_layout
-// digital_top() to pick which panel layer/update_proc applies at all)
-// without duplicating the +5 arithmetic in two files.
-uint8_t features_digital_side_mode(uint8_t bottom_style); // 0=none, 2=right, 3=left, 4=both -- Digital bar's own values, regardless of which layout bottom_style actually is
-bool features_is_digital_top_layout(uint8_t bottom_style);
 
 // Loads/unloads the shared corner/edge custom font on demand -- cheap to
 // call repeatedly (no-ops if the choice hasn't changed since the last

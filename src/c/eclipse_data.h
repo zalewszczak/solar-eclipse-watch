@@ -271,7 +271,7 @@ typedef struct {
   // whichever one isn't active leaves these fields completely dormant,
   // and reusing them saves both the extra bytes and the extra
   // AppMessage keys/traffic a second set would cost. The mapping (see
-  // features_recompute_layout()'s digital branch in features_layer.c
+  // feature_layout_recompute()'s digital branch in features_layer.c
   // for where this is actually applied): middle_left_line1/2 -> left
   // column rows 1/2, upper_middle_line1 -> left column row 3,
   // middle_right_line1/2 -> right column rows 1/2, upper_middle_line2
@@ -308,7 +308,7 @@ typedef struct {
                                // skipped, kept free as a spacer rather than implying anything) -- same panel
                                // content, just drawn transparently at the screen's TOP instead of drawn
                                // opaque at its bottom, with the sky/element canvas below it (not above) as
-                               // a result. See features_digital_side_mode()/features_is_digital_top_layout() in
+                               // a result. See feature_layout_digital_side_mode()/feature_layout_is_digital_top_layout() in
                                // features_layer.h for how the two pieces (which sides, top-vs-bottom) get
                                // pulled back apart wherever the code needs one without the other. Any value
                                // other than 1 draws a digital clock somewhere; only 1 is analog.

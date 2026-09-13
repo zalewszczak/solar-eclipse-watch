@@ -3,6 +3,9 @@
 #include <pebble.h>
 #include "eclipse_data.h"
 
+// Shared feature-row geometry used by both layout and rendering.
+#define CORNER_ROW_H 24
+
 // Internal feature-layer data model shared by the value and layout/drawing
 // modules. These types are deliberately not part of features_layer.h: they
 // describe the implementation's cached slot representation.
