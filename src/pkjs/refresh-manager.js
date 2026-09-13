@@ -14,7 +14,7 @@
 // than reaching into this module's private state directly.
 
 var astro = require('./astro');
-var weather = require('./weather');
+var weather = require('./weather/weather');
 var geocode = require('./geocode');
 var iss = require('./iss');
 var servicelog = require('./servicelog');

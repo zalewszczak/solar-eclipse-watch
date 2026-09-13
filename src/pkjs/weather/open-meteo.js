@@ -1,48 +1,12 @@
-/**
- * weather.js -- cloud cover / eclipse-visibility lookup.
- *
- * Primary source: Open-Meteo (https://open-meteo.com), free, no API
- * key, global hourly cloud-cover forecast. Used unconditionally.
- *
- * Optional second source: OpenWeatherMap, if the user pastes an API
- * key into the settings page. When both are available we average
- * them, which smooths over the biggest single-model errors -- cloud
- * cover forecasts, especially cumulus/convective cover, are notably
- * model-dependent.
- *
- * Everything here is XHR-based (PKJS has no fetch()).
- */
+// ---- Open-Meteo provider ---------------------------------------------
+//
+// Moved out of weather.js (weather providers extraction). Primary
+// weather source: free, no API key, global hourly forecast. Used
+// unconditionally, unlike OpenWeatherMap (opt-in, needs a user-supplied
+// key) -- see weather.js's getEclipseWeather() for how the two combine.
 
-function xhrGetJSON(url, timeoutMs, cb) {
-  var xhr = new XMLHttpRequest();
-  var done = false;
-  xhr.timeout = timeoutMs || 8000;
-  xhr.onload = function () {
-    if (done) return;
-    done = true;
-    if (xhr.status >= 200 && xhr.status < 300) {
-      try {
-        cb(null, JSON.parse(xhr.responseText));
-      } catch (e) {
-        cb(e);
-      }
-    } else {
-      cb(new Error('HTTP ' + xhr.status));
-    }
-  };
-  xhr.onerror = function () {
-    if (done) return;
-    done = true;
-    cb(new Error('network error'));
-  };
-  xhr.ontimeout = function () {
-    if (done) return;
-    done = true;
-    cb(new Error('timeout'));
-  };
-  xhr.open('GET', url, true);
-  xhr.send();
-}
+var xhrGetJSON = require('./http').xhrGetJSON;
+var conditionFromWmoCode = require('./weather-normalize').conditionFromWmoCode;
 
 // Average hourly cloud-cover (%) across the hours spanning
 // [fromDate, toDate], from Open-Meteo's hourly forecast.
@@ -74,103 +38,13 @@ function fetchOpenMeteo(lat, lon, fromDate, toDate, cb) {
   });
 }
 
-// OpenWeatherMap "One Call" style hourly cloud-cover, only used if
-// the user supplied an API key in settings.
-function fetchOpenWeatherMap(lat, lon, apiKey, fromDate, toDate, cb) {
-  var url = 'https://api.openweathermap.org/data/2.5/forecast' +
-            '?lat=' + encodeURIComponent(lat) +
-            '&lon=' + encodeURIComponent(lon) +
-            '&appid=' + encodeURIComponent(apiKey);
-  xhrGetJSON(url, 8000, function (err, json) {
-    if (err) return cb(err);
-    try {
-      var list = json.list || [];
-      var sum = 0, n = 0;
-      for (var i = 0; i < list.length; i++) {
-        var t = list[i].dt * 1000;
-        if (t >= fromDate.getTime() - 5400000 && t <= toDate.getTime() + 5400000) {
-          sum += list[i].clouds.all;
-          n++;
-        }
-      }
-      if (n === 0) return cb(new Error('no matching hours'));
-      cb(null, Math.round(sum / n));
-    } catch (e) {
-      cb(e);
-    }
-  });
-}
-
-/**
- * Combines available sources into a single cloud-cover % and a
- * derived 0-100 "visibility score" (simply 100 - cloud%, but kept as
- * its own field in case we want to fold in humidity/haze later).
- *
- * @param {number} lat
- * @param {number} lon
- * @param {string|null} owmApiKey
- * @param {Date} fromDate  start of the window worth checking (e.g. C1)
- * @param {Date} toDate    end of the window (e.g. C4)
- * @param {function(object)} cb  called with {cloudCoverPct, visScorePct, sourceCount}
- * @param {function(string, Error|null)} [onSourceResult]  optional,
- *   called once per source actually attempted ('openmeteo' always,
- *   'openweathermap' only if owmApiKey is set) with that source's own
- *   error (or null on success) -- lets callers log/report each
- *   upstream service individually rather than just the merged result.
- */
-function getEclipseWeather(lat, lon, owmApiKey, fromDate, toDate, cb, onSourceResult) {
-  var results = [];
-  var pending = owmApiKey ? 2 : 1;
-
-  function finish() {
-    pending--;
-    if (pending > 0) return;
-    if (results.length === 0) {
-      // Both sources failed (e.g. offline) -- report "unknown" rather
-      // than a misleading 0/100.
-      cb({ cloudCoverPct: 255, visScorePct: 255, sourceCount: 0 });
-      return;
-    }
-    var sum = 0;
-    for (var i = 0; i < results.length; i++) sum += results[i];
-    var avg = Math.round(sum / results.length);
-    cb({ cloudCoverPct: avg, visScorePct: 100 - avg, sourceCount: results.length });
-  }
-
-  fetchOpenMeteo(lat, lon, fromDate, toDate, function (err, pct) {
-    if (onSourceResult) onSourceResult('openmeteo', err);
-    if (!err) results.push(pct);
-    finish();
-  });
-
-  if (owmApiKey) {
-    fetchOpenWeatherMap(lat, lon, owmApiKey, fromDate, toDate, function (err, pct) {
-      if (onSourceResult) onSourceResult('openweathermap', err);
-      if (!err) results.push(pct);
-      finish();
-    });
-  }
-}
-
-// Maps an Open-Meteo/WMO weather code to our simplified on-watch
-// condition enum. Plain clear/cloudy states need no special effect
-// beyond the cloud-cover puffs already driven by CLOUD_SAMPLES, so
-// they (and anything unrecognized) fall through to 0.
-function conditionFromWmoCode(code) {
-  if (code === 45 || code === 48) return 1; // fog
-  if ((code >= 51 && code <= 67) || (code >= 80 && code <= 82)) return 2; // drizzle/rain/showers
-  if ((code >= 71 && code <= 77) || code === 85 || code === 86) return 3; // snow
-  if (code === 95 || code === 96 || code === 99) return 4; // thunderstorm
-  return 0;
-}
-
 /**
  * Cloud cover matched to an arbitrary array of Date times (used to
  * align with astro.js's computeDaySkySamples() grid, so the sky
  * gradient and the cloud puffs are driven by the same timeline).
  * Open-Meteo only -- its hourly resolution is what we actually need
  * here, whereas a second source mainly earns its keep for the single
- * "eclipse window" headline stat (see getEclipseWeather above).
+ * "eclipse window" headline stat (see weather.js's getEclipseWeather()).
  *
  * Also pulls today's sunrise/sunset from the same call (Open-Meteo's
  * `daily` parameter, essentially free alongside the hourly request)
@@ -351,72 +225,7 @@ function getDailyCloudGrid(lat, lon, times, nowDate, cb) {
   });
 }
 
-// Separate Open-Meteo service (different subdomain, no signup needed,
-// same as the main forecast call) -- both AQI standards come back in
-// one request, so which one to actually display is purely a
-// settings-page/on-watch choice (CONFIG_AQI_UNIT), not a second fetch.
-function fetchAirQuality(lat, lon, cb) {
-  var url = 'https://air-quality-api.open-meteo.com/v1/air-quality' +
-            '?latitude=' + encodeURIComponent(lat) +
-            '&longitude=' + encodeURIComponent(lon) +
-            '&current=us_aqi,european_aqi' +
-            '&timezone=auto';
-  xhrGetJSON(url, 8000, function (err, json) {
-    if (err || !json || !json.current) return cb(err, { aqiUs: null, aqiEu: null });
-    var aqiUs = (typeof json.current.us_aqi === 'number') ? Math.round(json.current.us_aqi) : null;
-    var aqiEu = (typeof json.current.european_aqi === 'number') ? Math.round(json.current.european_aqi) : null;
-    cb(null, { aqiUs: aqiUs, aqiEu: aqiEu });
-  });
-}
-
-// Current planetary Kp index (geomagnetic activity, 0-9 in thirds --
-// e.g. 4.33/4.67) from NOAA's Space Weather Prediction Center -- free,
-// no API key, same "no signup needed" bar as Open-Meteo above. This
-// endpoint publishes the 3-hourly definitive/estimated planetary Kp
-// series; the last row is the most recent value. Kp alone doesn't say
-// whether aurora is actually visible from any particular place (that
-// also depends on geomagnetic latitude -- see astro.js's
-// geomagneticLatitudeDeg()/auroraVisibilityScore()), just how
-// geomagnetically active the whole planet currently is.
-//
-// NOAA has served two different shapes for this specific endpoint's
-// rows over time -- most other SWPC JSON products use a header row
-// (an array of column-name strings) followed by data rows that are
-// themselves plain arrays of stringified values in that column order
-// (e.g. row = ["2026-09-03 18:00:00", "2.00", "7", "8"], Kp always at
-// index 1); this one switched at some point to a plain array of
-// objects instead, one per reading, with named fields directly (e.g.
-// {"time_tag":"2026-09-03T18:00:00","Kp":2.00,"a_running":7,
-// "station_count":8}) -- no header row at all, since none is needed
-// when every row already names its own fields. Confirmed directly
-// against the live endpoint. Handles both shapes below (object first,
-// since that's what NOAA actually serves for this product now) rather
-// than assuming either permanently -- this exact mismatch (still only
-// ever checking Array.isArray(last) and reading last[1], which is
-// never true for a plain object) is what "malformed Kp row" meant:
-// every row failed that shape check and got rejected, regardless of
-// its actual Kp value.
-function fetchAuroraKp(cb) {
-  var url = 'https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json';
-  xhrGetJSON(url, 8000, function (err, json) {
-    if (err || !Array.isArray(json) || json.length < 2) return cb(err || new Error('empty Kp response'), null);
-    var last = json[json.length - 1];
-    var kp;
-    if (last && typeof last === 'object' && !Array.isArray(last)) {
-      kp = parseFloat(last.Kp);
-    } else if (Array.isArray(last) && last.length >= 2) {
-      kp = parseFloat(last[1]);
-    } else {
-      return cb(new Error('malformed Kp row'), null);
-    }
-    if (isNaN(kp)) return cb(new Error('bad Kp value'), null);
-    cb(null, kp);
-  });
-}
-
 module.exports = {
-  getEclipseWeather: getEclipseWeather,
-  getDailyCloudGrid: getDailyCloudGrid,
-  fetchAirQuality: fetchAirQuality,
-  fetchAuroraKp: fetchAuroraKp
+  fetchOpenMeteo: fetchOpenMeteo,
+  getDailyCloudGrid: getDailyCloudGrid
 };

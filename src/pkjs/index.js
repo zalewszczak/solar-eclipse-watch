@@ -1,10 +1,10 @@
-var astro = require('./astro');
-var weather = require('./weather');
 var configPage = require('./config-page');
-var geocode = require('./geocode');
-var iss = require('./iss');
 var servicelog = require('./servicelog');
 var presetsLookups = require('./presets-lookups');
+
+// astro/weather/geocode/iss requires removed here -- refreshAndSend() was
+// their only caller in this file, and it moved to refresh-manager.js
+// (refresh manager extraction); that module requires them directly now.
 
 // TYPE_CODE moved to comms/message-encoder.js (its only callers).
 
