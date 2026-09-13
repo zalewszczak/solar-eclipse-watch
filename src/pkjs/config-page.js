@@ -25,7 +25,9 @@
  * what you see here is exactly what you'll get.
  */
 
-var servicelog = require('./servicelog.js');
+// servicelog require removed here -- serviceStatusRowsHtml() (its
+// only user in this file) moved to config/config-debug.js, which
+// requires it directly now.
 // See presets-lookups.js's own header comment for what lives there and
 // why (font metadata, color scheme presets, the corner/edge feature
 // content catalogue, hand-style presets) -- required once up top since
@@ -643,229 +645,57 @@ function handEditorModalHtml(kind, title) {
 // called for n = 1..6 from buildConfigHtml below, same "templated, not
 // copy-pasted per slot" pattern as handEditorModalHtml() uses for the
 // 3 hands.
-function presetSlotHtml(current, n) {
-  var name = current['presetSlot' + n + 'Name'] || ('Preset ' + n);
-  var json = current['presetSlot' + n + 'Json'] || '';
-  var image = current['presetSlot' + n + 'Image'] || '';
-  return (
-'    <div class="preset-slot-row">' +
-'      <button type="button" class="preset-apply-btn" id="presetApplyBtn' + n + '" onclick="applyPresetSlot(' + n + ')" ' + (json ? '' : 'disabled') + '>' + esc(name) + '</button>' +
-'      <input type="text" class="preset-name-input" id="presetNameInput' + n + '" style="display:none;" onblur="commitRenamePresetSlot(' + n + ')" onkeydown="if (event.key === \'Enter\') this.blur();">' +
-'      <button type="button" class="preset-icon-btn" onclick="savePresetSlot(' + n + ')" title="Save current design here">&#128190;</button>' +
-'      <button type="button" class="preset-icon-btn" onclick="startRenamePresetSlot(' + n + ')" title="Rename">&#9998;</button>' +
-'      <button type="button" class="preset-icon-btn" onclick="deletePresetSlot(' + n + ')" title="Delete" id="presetDeleteBtn' + n + '" ' + (json ? '' : 'disabled') + '>&#128465;</button>' +
-'    </div>' +
-'    <input type="hidden" id="presetSlot' + n + 'Name" value="' + esc(name) + '">' +
-'    <input type="hidden" id="presetSlot' + n + 'Json" value="' + esc(json) + '">' +
-'    <input type="hidden" id="presetSlot' + n + 'Image" value="' + esc(image) + '">'
-  );
-}
-// One "Update section" status row (colored dot + service name + an
-// info button when there's something worth showing) per external
-// service servicelog.js tracks -- gray/never attempted, green/last
-// attempt worked, yellow/red per serviceStatus()'s own comment. The
-// info button (only shown for yellow/red, where there's an actual
-// problem worth digging into) opens the shared #serviceLogModal via
-// openServiceLog(), passing this service's own last-10-attempts log
-// baked in as JSON at page-build time -- see serviceLogsJson below and
-// this file's own top comment for why that has to be a snapshot
-// rather than a live link into PKJS's servicelog.js.
-function serviceStatusRowsHtml(current) {
-  var logs = (current && current.serviceLogs) || {};
-  return servicelog.SERVICES.map(function (service) {
-    var label = servicelog.SERVICE_LABELS[service] || service;
-    var status = (logs[service] && logs[service].status) || 'gray';
-    var infoBtn = (status === 'yellow' || status === 'red')
-      ? '<button type="button" class="service-info-btn" onclick="openServiceLog(\'' + service + '\', \'' + esc(label) + '\')" title="Last 10 results">i</button>'
-      : '';
-    return (
-'    <div class="service-status-row">' +
-'      <span class="service-dot service-dot-' + status + '"></span>' +
-'      <span class="service-name">' + esc(label) + '</span>' +
-      infoBtn +
-'    </div>'
-    );
-  }).join('');
-}
+// presetSlotHtml moved to config/config-presets.js (configuration
+// architecture extraction, JS8 fourth slice).
+var configPresets = require('./config/config-presets');
+var presetSlotHtml = configPresets.presetSlotHtml;
 
-// One button per logged raw AppMessage chunk (see recordRawMessage()
-// in index.js -- newest first here, though they're stored oldest-
-// first), labeled "HH:MM:SS.mmm chunk X/Y" -- X/Y being that chunk's
-// 1-based position and total count within whichever enqueueFlatDict()
-// batch produced it (e.g. a full refresh's STATUS/ECLIPSE/WEATHER/
-// ASTRONOMY/SKY_EFFECTS/FEATURES/SETTINGS chunks show as 1/6..6/6, a
-// cosmetic-only settings push's smaller FEATURES/SETTINGS batch as
-// 1/2 and 2/2). Clicking one loads that exact chunk's JSON into the
-// "Raw data (editable)" textarea below via loadRawMessage().
-function rawMessageLogButtonsHtml(current) {
-  var entries = (current && current.rawMessageLog) || [];
-  if (entries.length === 0) {
-    return '<div class="help">Nothing sent yet this session -- send/save something first.</div>';
-  }
-  var buttons = entries.map(function (e, i) {
-    var d = new Date(e.t);
-    function pad(n, len) { var s = String(n); while (s.length < (len || 2)) s = '0' + s; return s; }
-    var label = pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds()) + '.' + pad(d.getMilliseconds(), 3) +
-      ' chunk ' + e.batchIndex + '/' + e.batchTotal;
-    return { i: i, label: label };
-  }).reverse(); // newest first
-  return '<div class="raw-log-btn-grid" id="rawLogBtnGrid">' +
-    buttons.map(function (b) {
-      return '<button type="button" class="raw-log-btn" id="rawLogBtn' + b.i + '" onclick="loadRawMessage(' + b.i + ')">' + esc(b.label) + '</button>';
-    }).join('') +
-    '</div>';
-}
+// serviceStatusRowsHtml/rawMessageLogButtonsHtml moved to
+// config/config-debug.js (configuration architecture extraction, JS8
+// fourth slice).
+var configDebug = require('./config/config-debug');
+var serviceStatusRowsHtml = configDebug.serviceStatusRowsHtml;
+var rawMessageLogButtonsHtml = configDebug.rawMessageLogButtonsHtml;
 
 function buildConfigHtml(current) {
-  var autoLocChecked = current.autoLoc ? 'checked' : '';
-  var manualDisabled = current.autoLoc ? 'disabled' : '';
-  var testModeChecked = current.testMode ? 'checked' : '';
-  var testDisabled = current.testMode ? '' : 'disabled';
-  // Falls back to the most recently sent raw chunk (see
-  // rawMessageLogButtonsHtml() above) rather than the old single
-  // LAST_COMPUTED_DICT snapshot -- same as clicking the newest of the
-  // buttons below would load, just done automatically on page open.
-  var rawLogEntries = current.rawMessageLog || [];
-  var mostRecentRawChunk = rawLogEntries.length ? rawLogEntries[rawLogEntries.length - 1].dict : null;
-  var debugTextareaInitial = (current.debugOverrideEnabled && current.debugOverrideData)
-    ? current.debugOverrideData
-    : (mostRecentRawChunk ? JSON.stringify(mostRecentRawChunk, null, 2) : '');
-  var bottomStyleVal = (current.bottomStyle === 'analog' || current.bottomStyle === 'biganalog') ? 'analog'
-    : (current.bottomStyle === 'digitalTop' ? 'digitalTop' : 'digital');
-  var isAnalog = bottomStyleVal === 'analog';
-  // isDigitalBar/isDigitalTop split what used to be a single "not
-  // analog" case into the two digital layouts (opaque panel at the
-  // bottom vs transparent panel at the top -- see DIGITAL TOP's own
-  // help text below) -- isDigital (either one) covers everywhere the
-  // two behave identically (clock font choice, seconds availability,
-  // side-feature availability), which is most call sites; the split
-  // ones are only where the two layouts actually differ (which panel
-  // icon/label is active, and the live preview/slot diagram further
-  // down, which really do need to draw the panel in a different place).
-  var isDigitalBar = bottomStyleVal === 'digital';
-  var isDigitalTop = bottomStyleVal === 'digitalTop';
-  var isDigital = isDigitalBar || isDigitalTop;
-  var clockFontId = parseInt(current.clockFont || '8', 10);
-  // sidesAllowed only ever appears on mainClock fonts (see FONT_LOOKUP's
-  // own comment) -- default to 2 (unrestricted) for the rare case a
-  // stale/hand-edited clockFont value points at a non-mainClock entry.
-  var clockSidesAllowed = typeof fontLookupEntry(clockFontId).sidesAllowed === 'number' ? fontLookupEntry(clockFontId).sidesAllowed : 2;
-  var clockFontIsWide = clockSidesAllowed === 0;
-  var digitalSidesPreferredVal = current.digitalSidesPreferred || current.digitalSides || 'none';
-  // The user's actual preference (digitalSidesPreferredVal, persisted
-  // separately -- see index.js's own CONFIG_DIGITAL_SIDES_PREFERRED)
-  // survives a restrictive font/layout untouched; digitalSidesVal is
-  // just this render's EFFECTIVE value given the CURRENT font, and is
-  // what everything else on this page (avail.digitalLeft/Right,
-  // edgeVal, the live preview, and what actually gets sent to the
-  // watch) has always read. Recomputed fresh here and by
-  // updateDigitalSidesVisibility()'s own live copy of this same logic
-  // -- never persisted directly -- so a later switch to a more
-  // permissive font (or out of Analog and back) brings the original
-  // preference back instead of whatever it had collapsed down to.
-  var digitalSidesVal = !isDigital ? 'none'
-    : clockFontIsWide ? 'none'
-    : (clockSidesAllowed === 1 && digitalSidesPreferredVal === 'both') ? 'left'
-    : digitalSidesPreferredVal;
-  var digitalLeftOn = digitalSidesVal === 'left' || digitalSidesVal === 'both';
-  var digitalRightOn = digitalSidesVal === 'right' || digitalSidesVal === 'both';
-  // A font whose sidesAllowed is 0 can't show seconds at all (no room),
-  // and a font marked allowInlineSeconds:false can't either (its own
-  // numerals clip/read badly with one) -- see fontOptionsHtml()'s own
-  // comment on why data-seconds folds both of those together too.
-  // Beyond that baseline, any digital side column being on on ALSO
-  // knocks seconds out (same space competition, just from the side
-  // features instead of the font itself) unless this font is one of
-  // the few narrow/short enough to keep both with exactly one side
-  // active -- see secondsAvailableForDigital()'s own comment.
-  var secondsUnsupported = isDigital && !secondsAvailableForDigital(fontLookupEntry(clockFontId), digitalSidesVal);
-  var secondsChecked = (current.showSeconds && !secondsUnsupported) ? 'checked' : '';
-  var secondsDisabled = secondsUnsupported ? 'disabled' : '';
-  var cornerFontId = parseInt(current.cornerFont || '1', 10);
-
-  // Client-side copy of CORNER_CATEGORIES (see presets-lookups.js's
-  // own header comment), filtered the same way the old hand-typed
-  // version was: id 84 ("Aurora Kp index") only present when auroras
-  // are actually on -- onAuroraEnabledChange() handles adding/removing
-  // it live client-side if that checkbox changes without a reload.
-  var cornerCategoriesForClient = CORNER_CATEGORIES.map(function (cat) {
-    if (cat.id !== 'astro' || current.auroraEnabled) return cat;
-    return { id: cat.id, label: cat.label, icon: cat.icon, items: cat.items.filter(function (it) { return it.id !== 84; }) };
-  });
-
-  // One <button> per example-style slot (see EXAMPLE_STYLE_COUNT's own
-  // comment above) -- a screenshot if one's been generated for that
-  // slot, otherwise just its number as an empty placeholder tile;
-  // disabled (not clickable) until that slot has an actual preset.
-  var exampleStylesButtonsHtml = '';
-  for (var exStyleI = 1; exStyleI <= EXAMPLE_STYLE_COUNT; exStyleI++) {
-    var exStyleImg = EXAMPLE_STYLE_IMAGES[String(exStyleI)];
-    var exStyleHasPreset = EXAMPLE_STYLE_PRESETS[String(exStyleI)] != null;
-    exampleStylesButtonsHtml +=
-      '<button type="button" class="example-style-btn" onclick="openExampleStyleModal(' + exStyleI + ')"' +
-      (exStyleHasPreset ? '' : ' disabled') + '>' +
-      (exStyleImg
-        ? '<img src="' + exStyleImg + '" alt="Example style ' + exStyleI + '">'
-        : '<span class="example-style-btn-empty">' + exStyleI + '</span>') +
-      '</button>';
-  }
-
-  // Which edge-middle slots (upper/bottom/left/right-middle) does the
-  // current mode/style support, and are the 4 corners themselves
-  // suppressed? Must match computeSlotAvailability()'s client-side
-  // logic (and features_recompute_slots's rules in features_layer.c)
-  // exactly, or the settings page would show slots as available that
-  // the watch itself won't actually draw. (Not currently read by
-  // anything below -- computeSlotAvailability() is what actually
-  // drives the rendered page -- but kept in sync anyway since this
-  // comment already promises it matches, and a future reader/caller
-  // shouldn't inherit a silently-stale copy.)
-  var markerStyleNum = parseInt(current.bigAnalogMarkerStyle || '0', 10);
-  var isBitmapMarkerStyle = markerStyleNum >= 3 && markerStyleNum !== 8 && markerStyleNum !== 9;
-  var bitmapCornerOverride = !!current.bitmapCornerOverride;
-  var edgeAvail = { upper: false, bottom: false, left: false, right: false, cornersGrayed: false };
-  if (isAnalog) {
-    if (markerStyleNum < 3 || markerStyleNum === 8 || markerStyleNum === 9) {
-      edgeAvail = { upper: true, bottom: true, left: true, right: true, cornersGrayed: false };
-    } else if (markerStyleNum === 3 || markerStyleNum === 4 || markerStyleNum === 6) {
-      edgeAvail = { upper: true, bottom: true, left: bitmapCornerOverride, right: bitmapCornerOverride, cornersGrayed: !bitmapCornerOverride };
-    } else if (markerStyleNum === 5) {
-      // Tally -- its own mask art leaves all 4 corners clear (unlike
-      // every other bitmap style), so it alone keeps them active
-      // regardless of the override checkbox.
-      edgeAvail = { upper: true, bottom: true, left: true, right: true, cornersGrayed: false };
-    } else if (markerStyleNum === 7) {
-      edgeAvail = { upper: true, bottom: true, left: true, right: true, cornersGrayed: !bitmapCornerOverride };
-    } else {
-      edgeAvail = { upper: true, bottom: bitmapCornerOverride, left: bitmapCornerOverride, right: bitmapCornerOverride, cornersGrayed: !bitmapCornerOverride };
-    }
-  }
-  var fontOptions = fontOptionsHtml(clockFontId, true);
-
-  function hexFromPackedByte(byte) {
-    var b = parseInt(byte, 10);
-    if (isNaN(b)) return '#000000';
-    var r2 = (b >> 4) & 3, g2 = (b >> 2) & 3, b2 = b & 3;
-    function ch(v) { var h = (v * 85).toString(16); return h.length < 2 ? '0' + h : h; }
-    return '#' + ch(r2) + ch(g2) + ch(b2);
-  }
-  // Colors are always three concrete packed bytes now -- there's no
-  // "preset vs custom" mode stored anywhere. Picking a preset (see
-  // chooseColorPreset() below) just writes its RGB straight into these
-  // same three hidden fields, same as tapping each swatch individually
-  // would, so the page only ever has one representation of "current
-  // colors" to read back on load -- whether that happens to currently
-  // match one of COLOR_SCHEMES is worked out fresh each time by
-  // matchingPresetId(), not tracked as its own separate state.
-  function resolveInitialColors(bgByte, textByte, accentByte) {
-    return {
-      bg: hexFromPackedByte(bgByte),
-      text: hexFromPackedByte(textByte),
-      accent: hexFromPackedByte(accentByte)
-    };
-  }
-  var initialColors = resolveInitialColors(current.customBg || '255', current.customText || '192', current.customAccent || '192');
-  var initialNightColors = resolveInitialColors(current.nightCustomBg || '192', current.nightCustomText || '255', current.nightCustomAccent || '255');
+  // autoLocChecked through initialNightColors all moved to
+  // config/config-state.js (configuration architecture extraction, JS8
+  // third slice) as deriveConfigState() -- one call, then aliased back
+  // to the same local names so every reference further down in this
+  // function is unchanged.
+  var configState = require('./config/config-state').deriveConfigState(current);
+  var autoLocChecked = configState.autoLocChecked;
+  var manualDisabled = configState.manualDisabled;
+  var testModeChecked = configState.testModeChecked;
+  var testDisabled = configState.testDisabled;
+  var rawLogEntries = configState.rawLogEntries;
+  var mostRecentRawChunk = configState.mostRecentRawChunk;
+  var debugTextareaInitial = configState.debugTextareaInitial;
+  var bottomStyleVal = configState.bottomStyleVal;
+  var isAnalog = configState.isAnalog;
+  var isDigitalBar = configState.isDigitalBar;
+  var isDigitalTop = configState.isDigitalTop;
+  var isDigital = configState.isDigital;
+  var clockFontId = configState.clockFontId;
+  var clockSidesAllowed = configState.clockSidesAllowed;
+  var clockFontIsWide = configState.clockFontIsWide;
+  var digitalSidesPreferredVal = configState.digitalSidesPreferredVal;
+  var digitalSidesVal = configState.digitalSidesVal;
+  var digitalLeftOn = configState.digitalLeftOn;
+  var digitalRightOn = configState.digitalRightOn;
+  var secondsUnsupported = configState.secondsUnsupported;
+  var secondsChecked = configState.secondsChecked;
+  var secondsDisabled = configState.secondsDisabled;
+  var cornerFontId = configState.cornerFontId;
+  var cornerCategoriesForClient = configState.cornerCategoriesForClient;
+  var exampleStylesButtonsHtml = configState.exampleStylesButtonsHtml;
+  var markerStyleNum = configState.markerStyleNum;
+  var isBitmapMarkerStyle = configState.isBitmapMarkerStyle;
+  var bitmapCornerOverride = configState.bitmapCornerOverride;
+  var edgeAvail = configState.edgeAvail;
+  var fontOptions = configState.fontOptions;
+  var initialColors = configState.initialColors;
+  var initialNightColors = configState.initialNightColors;
 
   return '<!DOCTYPE html>' +
 '<html><head><meta charset="utf-8">' +
