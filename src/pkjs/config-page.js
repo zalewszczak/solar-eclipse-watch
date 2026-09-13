@@ -311,7 +311,7 @@ function buildConfigHtml(current) {
 '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>' +
 '<link rel="stylesheet" href="' + googleFontsHref() + '">' +
 cdnFontLinks() +
-'<style>' +
+'<style id="mainStyle">' +
 '  :root { --page-bg: #f4f4f4; --card-bg: #fff; --text: #222; --text-strong: #333; --text-muted: #666; --text-faint: #888; --text-faint2: #555; --text-disabled: #999; --border: #ccc; --border-light: #eee; --border-lighter: #ddd; --btn-bg: #fafafa; }' +
 '  @media (prefers-color-scheme: dark) {' +
 '    :root { --page-bg: #1c1c1e; --card-bg: #2c2c2e; --text: #f2f2f2; --text-strong: #e5e5e5; --text-muted: #aaa; --text-faint: #999; --text-faint2: #bbb; --text-disabled: #777; --border: #48484a; --border-light: #3a3a3c; --border-lighter: #545456; --btn-bg: #3a3a3c; }' +
@@ -749,15 +749,14 @@ cdnFontLinks() +
 '  .subsection-body { border: 1px solid var(--border); border-top: none; border-radius: 0 0 8px 8px; padding: 10px 8px 4px; margin-top: -1px; margin-bottom: 4px; }' +
 // Sliding-overflow inner span for .section-legend-sub -- see
 // applySubheadSlide()/setSubheaderText()/setSubheaderHtml() further
-// down for when subhead-sliding actually gets added (only once the
-// text is measured as genuinely too wide for the collapsed row, not
-// unconditionally). Ease in/out and a long-ish pause at each end
-// (15% and 65%) rather than a constant scroll, so it reads as
-// "pausing to let you read, then sliding to reveal the rest" instead
-// of a distracting nonstop marquee.
+// down for when the sliding animation actually gets applied (only
+// once the text is measured as genuinely too wide for the collapsed
+// row, not unconditionally). Rests at its normal readable position
+// for a several-second pause, then scrolls left at a constant speed
+// until it's fully exited, then jumps back and repeats -- not a
+// constant nonstop marquee, so it reads as "pausing to let you read,
+// then sliding to reveal the rest" each cycle.
 '  .subhead-sub-inner { display: inline-block; white-space: nowrap; }' +
-'  .subhead-sub-inner.subhead-sliding { animation-name: subheadSlide; animation-timing-function: linear; animation-iteration-count: infinite; }' +
-'  @keyframes subheadSlide { 0% { transform: translateX(var(--slide-start, 0)); } 100% { transform: translateX(var(--slide-end, 0)); } }' +
 // Colors section sub-header's own "3 dots" (current main/accent/
 // background) -- see computeColorsSubheaderHtml() further down.
 '  .subhead-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-left: 3px; border: 1px solid rgba(0,0,0,0.25); vertical-align: middle; }' +
@@ -4334,31 +4333,49 @@ require('./config/config-runtime') +
 // DOM fields every other part of this page already treats as the
 // source of truth (hidden inputs, checkboxes, selects), so a
 // sub-header can never show something Save wouldn\'t actually send.
-// Classic marquee, not a there-and-back bounce: starts fully off the
-// right edge of the (clipped, overflow:hidden) container, slides left
-// at a constant speed until it's fully exited past the left edge, then
-// jumps back to its starting (off-screen right) position and repeats.
-// Both ends of that jump are off-screen/invisible, so the loop point
-// itself is never visibly seen -- unlike resetting mid-slide (which
-// would pop the text back into view instantly), there's nothing to see
-// change at 100%->0%. Duration is distance/speed rather than a fixed
-// number, so a longer subheader scrolls for longer at the same
-// reading pace instead of the same total time (which would make long
-// ones race by).
+// Rests at the normal, fully-readable (untranslated) position first --
+// long enough to actually read it -- then scrolls left at a constant
+// speed until the text has fully exited past the left edge of the
+// (clipped, overflow:hidden) container, then jumps straight back to
+// that same readable resting position and repeats. Every subheader's
+// pause is the same 5s regardless of how long its text is or how far
+// it has to travel to fully exit, but CSS keyframe percentages are
+// static, not computable from a duration -- so one shared keyframes
+// rule can't give elements with different total durations the same
+// 5s pause out of each one's own 100%. Each call that actually needs
+// to (re)start sliding therefore gets its own freshly-generated
+// @keyframes rule sized to its own pause-fraction, named uniquely via
+// a simple counter -- old rules from a subheader whose text later
+// changes are just never referenced again rather than being cleaned
+// up, which for at most a few dozen short-lived rules across a whole
+// settings-page session is not worth the bookkeeping to avoid.
+'var s_slideKeyframeCounter = 0;' +
 'function applySubheadSlide(outerEl) {' +
 '  var inner = outerEl.firstElementChild;' +
 '  if (!inner) return;' +
-'  inner.classList.remove("subhead-sliding");' +
-'  inner.style.removeProperty("--slide-start");' +
-'  inner.style.removeProperty("--slide-end");' +
-'  inner.style.removeProperty("animation-duration");' +
+'  inner.style.animation = "none";' +
 '  var overflow = inner.scrollWidth - outerEl.clientWidth;' +
 '  if (overflow > 2) {' +
-'    var distance = outerEl.clientWidth + inner.scrollWidth;' +
-'    inner.style.setProperty("--slide-start", outerEl.clientWidth + "px");' +
-'    inner.style.setProperty("--slide-end", (-inner.scrollWidth) + "px");' +
-'    inner.style.setProperty("animation-duration", Math.max(4, distance / 45) + "s");' +
-'    inner.classList.add("subhead-sliding");' +
+'    var pauseSec = 5;' +
+'    var scrollSec = Math.max(2, inner.scrollWidth / 45);' +
+'    var totalSec = pauseSec + scrollSec;' +
+'    var pausePct = (pauseSec / totalSec * 100).toFixed(2);' +
+// document.getElementById("mainStyle").sheet, not
+// document.styleSheets[0] -- the Google Fonts <link rel="stylesheet">
+// above this page's own <style id="mainStyle"> tag is a real
+// stylesheet at index 0 once it loads, and a cross-origin stylesheet's
+// cssRules throws a SecurityError under the same-origin policy even
+// when it loaded successfully, so reaching for "whichever sheet is
+// first" would work by accident locally and break for real users.
+'    var name = "subheadSlide" + (s_slideKeyframeCounter++);' +
+'    var sheet = document.getElementById("mainStyle").sheet;' +
+'    sheet.insertRule(' +
+'      "@keyframes " + name + " { 0% { transform: translateX(0); } " +' +
+'      pausePct + "% { transform: translateX(0); } " +' +
+'      "100% { transform: translateX(" + (-inner.scrollWidth) + "px); } }",' +
+'      sheet.cssRules.length' +
+'    );' +
+'    inner.style.animation = name + " " + totalSec.toFixed(2) + "s linear infinite";' +
 '  }' +
 '}' +
 // elId-based core, shared by setSubheaderText()/setSubheaderHtml()
@@ -4374,12 +4391,12 @@ require('./config/config-runtime') +
 // slide animation) alone. refreshAllSectionSubheaders() recomputes
 // every section's text once a second regardless of whether anything
 // actually changed; without this check, applySubheadSlide() below
-// would strip and re-add .subhead-sliding on every single call, which
-// restarts a CSS animation from its 0% keyframe the same as recreating
-// the element would -- with a 6s animation and a 1s refresh interval,
-// that reset was firing 6x faster than the animation could ever
-// progress, so it only ever showed the first ~1px of its own slide
-// before jumping back to the start again.
+// would tear down and recreate the animation on every single call,
+// which restarts it from its own 0% keyframe (a fresh 5s readable
+// pause) the same as recreating the element would -- with a ~1s
+// refresh interval, that reset would fire far faster than the
+// animation could ever get past its own opening pause, so it would
+// never actually be seen sliding at all.
 '  if (inner && inner.textContent === text) return;' +
 '  el.innerHTML = "";' +
 '  inner = document.createElement("span");' +
