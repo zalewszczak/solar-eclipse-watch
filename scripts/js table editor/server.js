@@ -3,7 +3,7 @@ const http = require('http');
 const PORT = 3000;
 
 const HTML_PAGE = `<!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <title>JS Source Table Editor</title>
@@ -21,6 +21,7 @@ const HTML_PAGE = `<!DOCTYPE html>
       --btn-red-hover: #f85149;
       --muted: #6272a4;
       --input-bg: #181825;
+      --highlight-bg: #383a59;
     }
 
     :root[data-theme="light"] {
@@ -36,6 +37,7 @@ const HTML_PAGE = `<!DOCTYPE html>
       --btn-red-hover: #c0392b;
       --muted: #95a5a6;
       --input-bg: #ffffff;
+      --highlight-bg: #e3e8f8;
     }
 
     * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace; }
@@ -116,6 +118,11 @@ const HTML_PAGE = `<!DOCTYPE html>
       white-space: normal;
       word-break: break-word;
       background: var(--card-bg);
+    }
+
+    /* Active Row Highlight */
+    tr.active-row td {
+      background-color: var(--highlight-bg) !important;
     }
 
     th {
@@ -345,48 +352,97 @@ const HTML_PAGE = `<!DOCTYPE html>
   </div>
 
   <script>
+    const STORAGE_KEY_SRC = 'js_table_editor_src';
+    const STORAGE_KEY_COLS = 'js_table_editor_cols';
+    const STORAGE_KEY_STICKY = 'js_table_editor_sticky';
+
     let rowsData = [];
     let columnsConfig = [];
     let stickyColCount = 1;
+    let selectedRowIdx = null;
     let currentResizingCol = null;
     let startX = 0;
     let startWidth = 0;
 
-    document.getElementById('srcInput').value = 's';
-
-    // --- SWIPE BACK & NAVIGATION PROTECTION ---
-    // Push dummy state to trap swipe back / history back gestures
-    history.pushState({ page: 'editor' }, '', location.href);
-
-    window.addEventListener('popstate', (e) => {
-      const src = document.getElementById('srcInput').value;
-      if (src && src.trim().length > 0) {
-        const confirmLeave = confirm("You have unsaved changes in your table editor. Are you sure you want to leave?");
-        if (!confirmLeave) {
-          // Re-push state to keep trapping back/swipe actions
-          history.pushState({ page: 'editor' }, '', location.href);
-        } else {
-          // Allow leaving
-          history.back();
-        }
+    // --- AUTO THEME DETECTION ---
+    function applyTheme(theme) {
+      document.documentElement.setAttribute('data-theme', theme);
+      const themeBtn = document.getElementById('themeBtn');
+      if (themeBtn) {
+        themeBtn.innerText = theme === 'light' ? '🌙 Night Mode' : '☀️ Day Mode';
       }
-    });
+    }
 
-    // Native Tab Close / Refresh protection
-    window.addEventListener('beforeunload', (e) => {
-      const src = document.getElementById('srcInput').value;
-      if (src && src.trim().length > 0) {
-        e.preventDefault();
-        e.returnValue = '';
+    function initTheme() {
+      const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+      applyTheme(prefersDark ? 'dark' : 'light');
+
+      if (window.matchMedia) {
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+          applyTheme(e.matches ? 'dark' : 'light');
+        });
       }
-    });
+    }
 
     function toggleTheme() {
       const current = document.documentElement.getAttribute('data-theme');
-      const next = current === 'light' ? 'dark' : 'light';
-      document.documentElement.setAttribute('data-theme', next);
-      document.getElementById('themeBtn').innerText = next === 'light' ? '🌙 Night Mode' : '☀️ Day Mode';
+      applyTheme(current === 'light' ? 'dark' : 'light');
     }
+
+    initTheme();
+
+    // --- ROW HIGHLIGHT SELECTION ---
+    function selectRow(rIdx) {
+      selectedRowIdx = rIdx;
+      document.querySelectorAll('#tableBody tr').forEach((tr, idx) => {
+        tr.classList.toggle('active-row', idx === rIdx);
+      });
+    }
+
+    // --- CONTINUOUS LOCALSTORAGE PERSISTENCE ---
+    function saveToLocalStorage() {
+      const srcVal = document.getElementById('srcInput').value;
+      localStorage.setItem(STORAGE_KEY_SRC, srcVal);
+      localStorage.setItem(STORAGE_KEY_COLS, JSON.stringify(columnsConfig));
+      localStorage.setItem(STORAGE_KEY_STICKY, stickyColCount);
+    }
+
+    function loadFromLocalStorage() {
+      const savedSrc = localStorage.getItem(STORAGE_KEY_SRC);
+      const savedCols = localStorage.getItem(STORAGE_KEY_COLS);
+      const savedSticky = localStorage.getItem(STORAGE_KEY_STICKY);
+
+      if (savedSticky !== null) {
+        stickyColCount = parseInt(savedSticky, 10) || 1;
+        const stickyInput = document.getElementById('stickyColInput');
+        if (stickyInput) stickyInput.value = stickyColCount;
+      }
+
+      if (savedCols) {
+        try {
+          columnsConfig = JSON.parse(savedCols);
+        } catch (e) {
+          console.error('Failed to parse columns config from storage', e);
+        }
+      }
+
+      if (savedSrc !== null && savedSrc.trim().length > 0) {
+        document.getElementById('srcInput').value = savedSrc;
+      } else {
+        document.getElementById('srcInput').value = "[{description:'Paste your table here'}]";
+      }
+    }
+
+    // Auto-save on direct source code input changes
+    document.getElementById('srcInput').addEventListener('input', () => {
+      saveToLocalStorage();
+    });
+
+    // Auto-restore state on page load and BFCache restores (e.g., swipe forward/back)
+    window.addEventListener('pageshow', () => {
+      loadFromLocalStorage();
+      parseTextToTable();
+    });
 
     function toggleSourcePanel() {
       const content = document.getElementById('srcPanelContent');
@@ -403,11 +459,13 @@ const HTML_PAGE = `<!DOCTYPE html>
     function updateStickyCols(val) {
       stickyColCount = Math.max(0, parseInt(val, 10) || 0);
       renderTable();
+      saveToLocalStorage();
     }
 
     function toggleColumnVisibility(cIdx) {
       columnsConfig[cIdx].hidden = !columnsConfig[cIdx].hidden;
       renderTable();
+      saveToLocalStorage();
     }
 
     function parseTextToTable() {
@@ -572,7 +630,8 @@ const HTML_PAGE = `<!DOCTYPE html>
 
       let bodyHTML = '';
       rowsData.forEach((row, rIdx) => {
-        bodyHTML += '<tr>';
+        const isActive = (rIdx === selectedRowIdx);
+        bodyHTML += \`<tr class="\${isActive ? 'active-row' : ''}" onclick="selectRow(\${rIdx})">\`;
         let rowVisibleIdx = 0;
 
         columnsConfig.forEach((col, cIdx) => {
@@ -693,6 +752,7 @@ const HTML_PAGE = `<!DOCTYPE html>
         currentResizingCol = null;
         document.removeEventListener('mousemove', handleMouseMove);
         document.removeEventListener('mouseup', handleMouseUp);
+        saveToLocalStorage();
       }
     }
 
@@ -703,21 +763,13 @@ const HTML_PAGE = `<!DOCTYPE html>
 
     function toggleBoolValue(rIdx, key) {
       const current = rowsData[rIdx][key];
-      if (current === true) {
-        rowsData[rIdx][key] = false;
-      } else {
-        rowsData[rIdx][key] = true;
-      }
+      rowsData[rIdx][key] = (current !== true);
       renderTable();
     }
 
     function toggleBoolNull(rIdx, key) {
       const current = rowsData[rIdx][key];
-      if (current === null || current === undefined) {
-        rowsData[rIdx][key] = false;
-      } else {
-        rowsData[rIdx][key] = null;
-      }
+      rowsData[rIdx][key] = (current === null || current === undefined) ? false : null;
       renderTable();
     }
 
@@ -770,6 +822,7 @@ const HTML_PAGE = `<!DOCTYPE html>
       const opts = val.split(',').map(s => s.trim()).filter(Boolean);
       columnsConfig[cIdx].categoryOptions = opts;
       renderTable();
+      saveToLocalStorage();
     }
 
     function addRow() {
@@ -782,11 +835,17 @@ const HTML_PAGE = `<!DOCTYPE html>
         else newRow[c.key] = '';
       });
       rowsData.push(newRow);
+      selectRow(rowsData.length - 1);
       renderTable();
     }
 
     function deleteRow(rIdx) {
       rowsData.splice(rIdx, 1);
+      if (selectedRowIdx === rIdx) {
+        selectedRowIdx = null;
+      } else if (selectedRowIdx > rIdx) {
+        selectedRowIdx--;
+      }
       renderTable();
     }
 
@@ -824,9 +883,8 @@ const HTML_PAGE = `<!DOCTYPE html>
       });
 
       document.getElementById('srcInput').value = \`[\n\${lines.join('\\n')}\n]\`;
+      saveToLocalStorage();
     }
-
-    parseTextToTable();
   </script>
 </body>
 </html>`;
