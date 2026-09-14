@@ -274,7 +274,7 @@ module.exports =
 '  }' +
 '}' +
 
-'function drawCornerSlot(ctx, contentId, colorId, x, y, textAlign, colors) {' +
+'function drawCornerSlot(ctx, contentId, colorId, x, y, textAlign, colors, fontCss) {' +
 '  var contentEl = document.getElementById(contentId);' +
 '  var colorEl = document.getElementById(colorId);' +
 '  if (!contentEl || !colorEl) return;' +
@@ -286,7 +286,7 @@ module.exports =
 '  if (mode === 1) { color = colors.accent; }' +
 '  else if (mode === 2) { color = colors.accent; alpha = 0.55; }' +
 '  else if (mode === 3) { color = "#4caf50"; }' +
-'  ctx.font = "bold 9px sans-serif";' +
+'  ctx.font = fontCss;' +
 '  ctx.textAlign = textAlign;' +
 '  ctx.textBaseline = "top";' +
 '  ctx.globalAlpha = alpha;' +
@@ -344,35 +344,59 @@ module.exports =
 // corners sit at the sky's own top edge instead -- right below the
 // transparent clock panel -- mirroring skyBottom\'s existing job of
 // pulling BL/BR up above Digital bar\'s own panel the other way.
+// Corner/edge feature text used to always render as a flat "bold 9px
+// sans-serif" regardless of whatever font was actually picked in the
+// Features section's own Font control -- misleading the same way the
+// old flat-26px clock preview was, just for the corner readouts
+// instead. Now mirrors that same fix: pulls the currently-selected
+// cornerFont's real family/weight (via canvasFontFor(), same helper
+// the clock preview uses) and its FONT_LOOKUP `height` -- not
+// `sizePx`, which is specifically the *big/mainClock* bake size; corner
+// text uses the small/row-height reading `height` already represents
+// (see font_lookup.c's own font_lookup_height(), "for sizing/
+// vertically-centering text boxes", the exact same job this preview
+// text is doing) -- scaled into this canvas's own pixel space by the
+// same w/200 ratio computeMiddleFeatureMargins() already uses. Loosely
+// clamped (7-22px) since a user CAN pick one of the 48px-bake big
+// fonts here too (cornerFont's own picker isn't mainClock-restricted),
+// and letting a corner readout balloon to a near-clock-sized readout
+// would blow out these small, fixed-position boxes rather than just
+// looking accurately big.
 'function drawCornersAndEdges(ctx, w, h, colors, skyBottom, skyTop) {' +
 '  var bottomY = (typeof skyBottom === "number") ? skyBottom : h;' +
 '  var topY = (typeof skyTop === "number") ? skyTop : 0;' +
-'  var lineH = 14;' +
-'  if (slotAvailable("cornerTLWrap")) drawCornerSlot(ctx, "cornerTL", "cornerTLColor", 5, topY + 5, "left", colors);' +
-'  if (slotAvailable("cornerTRWrap")) drawCornerSlot(ctx, "cornerTR", "cornerTRColor", w - 5, topY + 5, "right", colors);' +
-'  if (slotAvailable("cornerBLWrap")) drawCornerSlot(ctx, "cornerBL", "cornerBLColor", 5, bottomY - 14, "left", colors);' +
-'  if (slotAvailable("cornerBRWrap")) drawCornerSlot(ctx, "cornerBR", "cornerBRColor", w - 5, bottomY - 14, "right", colors);' +
+'  var cornerFontSel = document.getElementById("cornerFont");' +
+'  var cornerOpt = cornerFontSel.options[cornerFontSel.selectedIndex];' +
+'  var cornerEntry = fontLookupEntry(cornerFontSel.value);' +
+'  var cornerScale = w / 200;' +
+'  var cornerPx = Math.max(7, Math.min(22, Math.round(cornerEntry.height * cornerScale)));' +
+'  var cornerFontCss = canvasFontFor(cornerOpt.getAttribute("data-preview") || "", cornerPx);' +
+'  var lineH = Math.round(cornerPx * 1.4);' +
+'  if (slotAvailable("cornerTLWrap")) drawCornerSlot(ctx, "cornerTL", "cornerTLColor", 5, topY + 5, "left", colors, cornerFontCss);' +
+'  if (slotAvailable("cornerTRWrap")) drawCornerSlot(ctx, "cornerTR", "cornerTRColor", w - 5, topY + 5, "right", colors, cornerFontCss);' +
+'  if (slotAvailable("cornerBLWrap")) drawCornerSlot(ctx, "cornerBL", "cornerBLColor", 5, bottomY - 14, "left", colors, cornerFontCss);' +
+'  if (slotAvailable("cornerBRWrap")) drawCornerSlot(ctx, "cornerBR", "cornerBRColor", w - 5, bottomY - 14, "right", colors, cornerFontCss);' +
 '  var needMiddleMargins = slotAvailable("upperMiddleWrap") || slotAvailable("bottomMiddleWrap") || slotAvailable("middleLeftWrap") || slotAvailable("middleRightWrap");' +
 '  var mm = needMiddleMargins ? computeMiddleFeatureMargins(w, h) : null;' +
 '  if (slotAvailable("upperMiddleWrap")) {' +
 '    var upperHasLine2 = hasPreviewContent("upperMiddleLine2Content");' +
-'    drawCornerSlot(ctx, "upperMiddleLine1Content", "upperMiddleLine1Color", w / 2, upperHasLine2 ? mm.top : mm.top + lineH / 2, "center", colors);' +
-'    if (upperHasLine2) drawCornerSlot(ctx, "upperMiddleLine2Content", "upperMiddleLine2Color", w / 2, mm.top + lineH, "center", colors);' +
+'    drawCornerSlot(ctx, "upperMiddleLine1Content", "upperMiddleLine1Color", w / 2, upperHasLine2 ? mm.top : mm.top + lineH / 2, "center", colors, cornerFontCss);' +
+'    if (upperHasLine2) drawCornerSlot(ctx, "upperMiddleLine2Content", "upperMiddleLine2Color", w / 2, mm.top + lineH, "center", colors, cornerFontCss);' +
 '  }' +
 '  if (slotAvailable("bottomMiddleWrap")) {' +
 '    var bottomHasLine2 = hasPreviewContent("bottomMiddleLine2Content");' +
-'    drawCornerSlot(ctx, "bottomMiddleLine1Content", "bottomMiddleLine1Color", w / 2, bottomHasLine2 ? bottomY - mm.bottom - lineH : bottomY - mm.bottom - lineH / 2, "center", colors);' +
-'    if (bottomHasLine2) drawCornerSlot(ctx, "bottomMiddleLine2Content", "bottomMiddleLine2Color", w / 2, bottomY - mm.bottom, "center", colors);' +
+'    drawCornerSlot(ctx, "bottomMiddleLine1Content", "bottomMiddleLine1Color", w / 2, bottomHasLine2 ? bottomY - mm.bottom - lineH : bottomY - mm.bottom - lineH / 2, "center", colors, cornerFontCss);' +
+'    if (bottomHasLine2) drawCornerSlot(ctx, "bottomMiddleLine2Content", "bottomMiddleLine2Color", w / 2, bottomY - mm.bottom, "center", colors, cornerFontCss);' +
 '  }' +
 '  if (slotAvailable("middleLeftWrap")) {' +
 '    var midLeftHasLine2 = hasPreviewContent("middleLeftLine2Content");' +
-'    drawCornerSlot(ctx, "middleLeftLine1Content", "middleLeftLine1Color", mm.left, midLeftHasLine2 ? h / 2 - 4 - lineH / 2 : h / 2 - 4, "left", colors);' +
-'    if (midLeftHasLine2) drawCornerSlot(ctx, "middleLeftLine2Content", "middleLeftLine2Color", mm.left, h / 2 - 4 + lineH / 2, "left", colors);' +
+'    drawCornerSlot(ctx, "middleLeftLine1Content", "middleLeftLine1Color", mm.left, midLeftHasLine2 ? h / 2 - 4 - lineH / 2 : h / 2 - 4, "left", colors, cornerFontCss);' +
+'    if (midLeftHasLine2) drawCornerSlot(ctx, "middleLeftLine2Content", "middleLeftLine2Color", mm.left, h / 2 - 4 + lineH / 2, "left", colors, cornerFontCss);' +
 '  }' +
 '  if (slotAvailable("middleRightWrap")) {' +
 '    var midRightHasLine2 = hasPreviewContent("middleRightLine2Content");' +
-'    drawCornerSlot(ctx, "middleRightLine1Content", "middleRightLine1Color", w - mm.right, midRightHasLine2 ? h / 2 - 4 - lineH / 2 : h / 2 - 4, "right", colors);' +
-'    if (midRightHasLine2) drawCornerSlot(ctx, "middleRightLine2Content", "middleRightLine2Color", w - mm.right, h / 2 - 4 + lineH / 2, "right", colors);' +
+'    drawCornerSlot(ctx, "middleRightLine1Content", "middleRightLine1Color", w - mm.right, midRightHasLine2 ? h / 2 - 4 - lineH / 2 : h / 2 - 4, "right", colors, cornerFontCss);' +
+'    if (midRightHasLine2) drawCornerSlot(ctx, "middleRightLine2Content", "middleRightLine2Color", w - mm.right, h / 2 - 4 + lineH / 2, "right", colors, cornerFontCss);' +
 '  }' +
 '}' +
 
@@ -1015,23 +1039,31 @@ module.exports =
 '  var innerEdgeY = isTop ? panelH : 152 * scale;' +
 '  var stepDir = isTop ? -1 : 1;' +
 '  var row1Y = innerEdgeY, row2Y = innerEdgeY + stepDir * 24 * scale, row3Y = innerEdgeY + stepDir * 48 * scale;' +
+// Same real-font/real-size fix as drawCornersAndEdges() (Analog/Digital
+// bottom layouts) below -- see that function's own comment for why
+// `height` (not `sizePx`) and this same clamp/scale.
+'  var cornerFontSel = document.getElementById("cornerFont");' +
+'  var cornerOpt = cornerFontSel.options[cornerFontSel.selectedIndex];' +
+'  var cornerEntry = fontLookupEntry(cornerFontSel.value);' +
+'  var cornerPx = Math.max(7, Math.min(22, Math.round(cornerEntry.height * scale)));' +
+'  var cornerFontCss = canvasFontFor(cornerOpt.getAttribute("data-preview") || "", cornerPx);' +
 '  if (avail.digitalLeft) {' +
-'    drawCornerSlot(ctx, "middleLeftLine1Content", "middleLeftLine1Color", xInset, row1Y, "left", colors);' +
-'    drawCornerSlot(ctx, "middleLeftLine2Content", "middleLeftLine2Color", xInset, row2Y, "left", colors);' +
+'    drawCornerSlot(ctx, "middleLeftLine1Content", "middleLeftLine1Color", xInset, row1Y, "left", colors, cornerFontCss);' +
+'    drawCornerSlot(ctx, "middleLeftLine2Content", "middleLeftLine2Color", xInset, row2Y, "left", colors, cornerFontCss);' +
 '  }' +
 '  if (avail.digitalRight) {' +
-'    drawCornerSlot(ctx, "middleRightLine1Content", "middleRightLine1Color", w - xInset, row1Y, "right", colors);' +
-'    drawCornerSlot(ctx, "middleRightLine2Content", "middleRightLine2Color", w - xInset, row2Y, "right", colors);' +
+'    drawCornerSlot(ctx, "middleRightLine1Content", "middleRightLine1Color", w - xInset, row1Y, "right", colors, cornerFontCss);' +
+'    drawCornerSlot(ctx, "middleRightLine2Content", "middleRightLine2Color", w - xInset, row2Y, "right", colors, cornerFontCss);' +
 '  }' +
 // Row 3 is independent of whether rows 1/2 (avail.digitalLeft/Right,
 // font-width-limited) are even on -- see avail.digitalBottomRow's own
 // comment in computeSlotAvailability() -- so it\'s drawn unconditionally
 // here rather than nested inside either block above.
 '  if (avail.digitalBottomRow) {' +
-'    drawCornerSlot(ctx, "upperMiddleLine1Content", "upperMiddleLine1Color", xInset, row3Y, "left", colors);' +
-'    drawCornerSlot(ctx, "upperMiddleLine2Content", "upperMiddleLine2Color", w - xInset, row3Y, "right", colors);' +
+'    drawCornerSlot(ctx, "upperMiddleLine1Content", "upperMiddleLine1Color", xInset, row3Y, "left", colors, cornerFontCss);' +
+'    drawCornerSlot(ctx, "upperMiddleLine2Content", "upperMiddleLine2Color", w - xInset, row3Y, "right", colors, cornerFontCss);' +
 '  }' +
-'  drawCornerSlot(ctx, "bottomMiddleLine1Content", "bottomMiddleLine1Color", clockArea.x + clockArea.w / 2, row3Y, "center", colors);' +
+'  drawCornerSlot(ctx, "bottomMiddleLine1Content", "bottomMiddleLine1Color", clockArea.x + clockArea.w / 2, row3Y, "center", colors, cornerFontCss);' +
 '}' +
 
 // isTop mirrors the 42%-down-the-panel placement into 42%-UP-from-the-
@@ -1048,6 +1080,19 @@ module.exports =
 '  var txt = (hh < 10 ? "0" : "") + hh + ":" + (mm < 10 ? "0" : "") + mm;' +
 '  if (showSeconds) { var ss = now.getSeconds(); txt += ":" + (ss < 10 ? "0" : "") + ss; }' +
 '  var clockY = panelTop + (panelBottom - panelTop) * (isTop ? 0.58 : 0.42);' +
+// Used to always draw at a flat 26px no matter which clock font was
+// selected -- every font looked the same size here despite genuinely
+// ranging ~17-49px on the actual watch (fontPickerPreviewPx()'s own
+// comment, just above where it\'s defined, calls this out directly:
+// "real on-watch bake size (12-48px)"), which is exactly the
+// FONT_LOOKUP `sizePx` field -- not `height`, which for a mainClock
+// font is a rough visual-cap-height guess rather than the font\'s real
+// export size (see fontLookupEntry() for how the two diverge; drawCornerSlot()\'s
+// small-text callers below use `height` instead, for exactly that
+// distinction). Scaled into this canvas\'s own pixel space by the same
+// w/200 ratio every other geometry helper on this page already uses.
+'  var entry = fontLookupEntry(fontSel.value);' +
+'  var fontPx = Math.max(10, Math.round(entry.sizePx * (w / 200)));' +
 // A real on-watch rendering of this font, when one exists, takes over
 // the main preview too -- same FONT_PREVIEW_IMAGES asset the font
 // PICKER buttons already use (see fontPreviewInnerHtml()), recolored
@@ -1057,20 +1102,23 @@ module.exports =
 // not a DOM element a mask-image could apply to). Only used when
 // seconds aren\'t shown -- the baked image is a fixed "12:34", nothing
 // it could show a live seconds count with -- the plain font-
-// approximation text path below covers that case instead.
+// approximation text path below covers that case instead. Sized off
+// the same fontPx as the text path (rather than its own flat
+// constant) so toggling Show Seconds -- which flips which of these two
+// paths draws -- can\'t make the clock visibly jump size.
 '  var images = FONT_PREVIEW_IMAGES[fontSel.value];' +
 '  var clockImgSrc = images && images.clock;' +
 '  var drewImage = false;' +
 '  if (clockImgSrc && !showSeconds) {' +
 '    var tinted = getTintedFontImageCanvas(clockImgSrc, colors.text);' +
 '    if (tinted) {' +
-'      var targetH = 26, targetW = targetH * (tinted.width / tinted.height);' +
+'      var targetH = fontPx, targetW = targetH * (tinted.width / tinted.height);' +
 '      ctx.drawImage(tinted, cx - targetW / 2, clockY - targetH / 2, targetW, targetH);' +
 '      drewImage = true;' +
 '    }' +
 '  }' +
 '  if (!drewImage) {' +
-'    ctx.font = canvasFontFor(opt.getAttribute("data-preview") || "", 26);' +
+'    ctx.font = canvasFontFor(opt.getAttribute("data-preview") || "", fontPx);' +
 '    ctx.fillStyle = colors.text;' +
 '    ctx.textAlign = "center"; ctx.textBaseline = "middle";' +
 '    ctx.fillText(txt, cx, clockY);' +
