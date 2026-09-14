@@ -15,6 +15,7 @@
 #include "eclipse_ui.h"
 #include "hourly_vibration.h"
 #include "layout_controller.h"
+#include "watchface_ui.h"
 
 static Window *s_window;
 static void hands_controller_invalidate(void *context) {
@@ -26,7 +27,6 @@ static void hands_controller_invalidate(void *context) {
 
 static EclipseData s_data;
 
-static void refresh_status_and_maybe_canvas(bool force_canvas);
 static void battery_saver_sync_phase_to_phone(void);
 
 // Battery-saver tick policy and Pebble tick subscription live in
@@ -49,7 +49,7 @@ static void time_service_tick_handler(struct tm *tick_time, TimeUnits units_chan
   // between five-minute boundaries.
   bool deep_sleep_skip = (battery_saver_phase() == BATTERY_SAVER_DEEP_SLEEP) && (tick_time->tm_min % 5 != 0);
   if (!deep_sleep_skip) {
-    refresh_status_and_maybe_canvas(false);
+    watchface_ui_refresh_status(false);
     if (battery_saver_phase() != BATTERY_SAVER_AWAKE && layout_controller_features_layer()) {
       features_layer_refresh_values(layout_controller_features_layer());
     }
@@ -67,100 +67,6 @@ static void time_service_tick_handler(struct tm *tick_time, TimeUnits units_chan
   time_service_update();
 }
 
-static void update_planet_seek_accuracy_label(bool active) {
-  if (!clock_display_countdown_layer()) return;
-  if (active && input_planet_seek_compass_low_accuracy()) {
-    time_t now = time(NULL);
-    bool flash_visible = (now % 2) != 0; // on for odd seconds, off for even seconds
-    if (flash_visible) {
-      char text[40];
-      snprintf(text, sizeof(text), "Low compass accuracy");
-      clock_display_set_countdown(text, sky_layer_is_bright(&s_data, now) ? GColorBlack : GColorWhite, false);
-    } else {
-      clock_display_set_countdown("", sky_layer_is_bright(&s_data, now) ? GColorBlack : GColorWhite, true);
-    }
-  } else {
-    // Same condition countdown_layer_update_proc/refresh_status_and_maybe_canvas
-    // already use elsewhere: hidden whenever there's confirmed to be
-    // no eclipse today. Planet seek only ever runs on a non-eclipse
-    // day, so this always resolves to "hidden" in practice here, but
-    // spelling it out the same way keeps this in sync if that ever
-    // changes.
-    char text[40];
-    eclipse_get_status_text(&s_data, time(NULL), text, sizeof(text), time_service_live_seconds_now(time(NULL)));
-    clock_display_set_countdown(text, sky_layer_is_bright(&s_data, time(NULL)) ? GColorBlack : GColorWhite, s_data.valid && !s_data.has_eclipse);
-  }
-}
-
-
-static void refresh_status_and_maybe_canvas(bool force_canvas) {
-  time_t now = time(NULL);
-  char text[40];
-  EclipsePhase phase = eclipse_get_status_text(&s_data, now, text, sizeof(text),
-                                               time_service_live_seconds_now(now));
-  GColor text_color = sky_layer_is_bright(&s_data, now) ? GColorBlack : GColorWhite;
-  bool hide_label = s_data.valid && !s_data.has_eclipse;
-
-  if (phase == PHASE_TOTAL && (now % 2) == 0) {
-    text[0] = '\0';
-    hide_label = true;
-  }
-
-  if (battery_saver_phase() == BATTERY_SAVER_DEEP_SLEEP) {
-    snprintf(text, sizeof(text), "Zzzzzzz");
-    hide_label = false;
-  } else if (battery_saver_phase() == BATTERY_SAVER_SLEEP) {
-    snprintf(text, sizeof(text), "Zzz");
-    hide_label = false;
-  }
-
-  clock_display_set_countdown(text, text_color, hide_label);
-  clock_display_mark_panel_dirty();
-  if (layout_controller_hands_layer()) layer_mark_dirty(layout_controller_hands_layer());
-
-  if (force_canvas) {
-    if (layout_controller_canvas_layer()) background_layer_set_data(layout_controller_canvas_layer(), &s_data);
-  } else if (layout_controller_canvas_layer()) {
-    background_layer_tick(layout_controller_canvas_layer());
-  }
-}
-
-// ---- input integration ---------------------------------------------------
-
-static void input_wake_handler(void *context) {
-  (void)context;
-  refresh_status_and_maybe_canvas(true);
-}
-
-static void input_labels_changed(bool visible, void *context) {
-  (void)context;
-  if (layout_controller_canvas_layer()) background_layer_set_labels_visible(layout_controller_canvas_layer(), visible);
-}
-
-static void input_animation_frame_handler(bool active, uint32_t elapsed_ms, bool planet_seek, void *context) {
-  (void)context;
-  if (planet_seek) update_planet_seek_accuracy_label(active);
-  if (layout_controller_hands_layer()) layer_mark_dirty(layout_controller_hands_layer());
-  if (layout_controller_features_layer()) layer_mark_dirty(layout_controller_features_layer());
-  clock_display_mark_countdown_dirty();
-  if (layout_controller_canvas_layer() && planet_seek) background_layer_set_planet_seek(layout_controller_canvas_layer(), active, elapsed_ms, input_planet_seek_heading_deg());
-}
-
-static void input_compass_feature_refresh_handler(void *context) {
-  (void)context;
-  if (layout_controller_features_layer()) features_layer_refresh_content(layout_controller_features_layer(), 85);
-}
-
-static void input_init_services(void) {
-  input_init(&s_data, (InputCallbacks){
-    .wake = input_wake_handler,
-    .labels_changed = input_labels_changed,
-    .animation_frame = input_animation_frame_handler,
-    .compass_feature_refresh = input_compass_feature_refresh_handler,
-  }, NULL);
-}
-
-// ---- corners overlay's own independent refresh cycle ----------------------
 
 // Once a minute, matching the time service's normal MINUTE_UNIT baseline
 // for anything that doesn't need to be genuinely live -- used to be a
@@ -258,7 +164,7 @@ static void window_load(Window *window) {
   layout_controller_apply();
   clock_display_apply_font(); // uses whatever was loaded from persistent storage
 
-  refresh_status_and_maybe_canvas(true);
+  watchface_ui_refresh_status(true);
   hands_controller_start_startup_animation();
   background_animation_start(&s_data, layout_controller_canvas_layer());
 }
@@ -288,7 +194,7 @@ static void comms_data_applied(CommsChangeFlags changes, void *context) {
   // battery-saver/tick policy is not re-evaluated until valid data exists.
   if (!s_data.valid) {
     persistence_save(&s_data);
-    refresh_status_and_maybe_canvas(true);
+    watchface_ui_refresh_status(true);
     return;
   }
 
@@ -296,7 +202,7 @@ static void comms_data_applied(CommsChangeFlags changes, void *context) {
   battery_saver_update(time(NULL));
   time_service_update();
   persistence_save(&s_data);
-  refresh_status_and_maybe_canvas(true);
+  watchface_ui_refresh_status(true);
 }
 
 void app_controller_init(void) {
@@ -326,9 +232,10 @@ void app_controller_init(void) {
     .unload = window_unload,
   });
   layout_controller_init(&s_data, s_window);
+  watchface_ui_init(&s_data);
   window_stack_push(s_window, true);
 
-  input_init_services();
+  input_init(&s_data, *watchface_ui_input_callbacks(), NULL);
   unobstructed_area_service_subscribe(s_unobstructed_handlers, NULL);
   s_corners_timer = app_timer_register(FEATURES_REFRESH_MS, corners_timer_callback, NULL);
 
@@ -339,6 +246,7 @@ void app_controller_init(void) {
 void app_controller_deinit(void) {
   time_service_deinit();
   input_deinit();
+  watchface_ui_deinit();
   unobstructed_area_service_unsubscribe();
   if (s_corners_timer) {
     app_timer_cancel(s_corners_timer);
