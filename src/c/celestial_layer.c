@@ -279,7 +279,23 @@ void celestial_layer_update(CelestialLayerState *state, GContext *ctx, GRect bou
   for (int s = 0; s < STAR_COUNT; s++) { state->star_center[s] = star_center[s]; state->star_visible[s] = star_visible[s]; }
 }
 
-static void draw_label_in_box(GContext *ctx, GRect r, const char *text, uint8_t label_style, GColor main_color);
+void celestial_draw_label_in_box(GContext *ctx, GRect r, const char *text, uint8_t label_style, GColor main_color) {
+  GFont font = fonts_get_system_font(FONT_KEY_GOTHIC_14);
+  GRect text_box = GRect(r.origin.x, r.origin.y - 2, r.size.w, r.size.h + 2);
+  if (label_style == 1) {
+    feature_render_draw_text_outlined(ctx, text, font, text_box, GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, main_color, 1);
+    return;
+  }
+  if (label_style == 2) {
+    graphics_context_set_text_color(ctx, GColorLightGray);
+    graphics_draw_text(ctx, text, font, text_box, GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
+    return;
+  }
+  graphics_context_set_fill_color(ctx, GColorBlack);
+  graphics_fill_rect(ctx, r, 2, GCornersAll);
+  graphics_context_set_text_color(ctx, GColorWhite);
+  graphics_draw_text(ctx, text, font, text_box, GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
+}
 
 void celestial_layer_draw_label(GContext *ctx, GRect bounds, GPoint near, const char *text,
                                  uint8_t label_style, GColor main_color) {
@@ -294,7 +310,7 @@ void celestial_layer_draw_label(GContext *ctx, GRect bounds, GPoint near, const 
   int16_t y = near.y - h / 2;
   if (y < bounds.origin.y) y = bounds.origin.y;
   if (y + h > bounds.origin.y + bounds.size.h) y = bounds.origin.y + bounds.size.h - h;
-  draw_label_in_box(ctx, GRect(x, y, w, h), text, label_style, main_color);
+  celestial_draw_label_in_box(ctx, GRect(x, y, w, h), text, label_style, main_color);
 }
 
 void celestial_layer_draw_labels(GContext *ctx, GRect bounds, const EclipseData *d,

@@ -1,4 +1,5 @@
 #include "celestial_bodies.h"
+#include "celestial_layer.h"
 #include "celestial_ephemeris.h"
 #include "feature_render.h"
 
@@ -62,23 +63,6 @@ static int32_t planet_seek_az_offset_decideg(uint16_t az_decideg, int32_t headin
   return diff;
 }
 
-static void draw_label_in_box(GContext *ctx, GRect r, const char *text, uint8_t label_style, GColor main_color) {
-  GFont font = fonts_get_system_font(FONT_KEY_GOTHIC_14);
-  GRect text_box = GRect(r.origin.x, r.origin.y - 2, r.size.w, r.size.h + 2);
-  if (label_style == 1) {
-    feature_render_draw_text_outlined(ctx, text, font, text_box, GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, main_color, 1);
-    return;
-  }
-  if (label_style == 2) {
-    graphics_context_set_text_color(ctx, GColorLightGray);
-    graphics_draw_text(ctx, text, font, text_box, GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
-    return;
-  }
-  graphics_context_set_fill_color(ctx, GColorBlack); graphics_fill_rect(ctx, r, 2, GCornersAll);
-  graphics_context_set_text_color(ctx, GColorWhite);
-  graphics_draw_text(ctx, text, font, text_box, GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
-}
-
 static void draw_planet_seek_arrow(GContext *ctx, GPoint tip, bool points_left, GColor color) {
   GPoint pts_left[3] = { GPoint(tip.x, tip.y), GPoint(tip.x + CELESTIAL_ARROW_W, tip.y - 4), GPoint(tip.x + CELESTIAL_ARROW_W, tip.y + 4) };
   GPoint pts_right[3] = { GPoint(tip.x, tip.y), GPoint(tip.x - CELESTIAL_ARROW_W, tip.y - 4), GPoint(tip.x - CELESTIAL_ARROW_W, tip.y + 4) };
@@ -94,7 +78,7 @@ static void draw_planet_seek_edge_label(GContext *ctx, GRect bounds, GPoint arro
   int16_t y = arrow_tip.y - h / 2;
   if (y < bounds.origin.y) y = bounds.origin.y;
   if (y + h > bounds.origin.y + bounds.size.h) y = bounds.origin.y + bounds.size.h - h;
-  draw_label_in_box(ctx, GRect(x, y, w, h), text, label_style, main_color);
+  celestial_draw_label_in_box(ctx, GRect(x, y, w, h), text, label_style, main_color);
 }
 
 static void draw_planet_seek_body(GContext *ctx, GRect bounds, const char *name,

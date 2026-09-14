@@ -52,6 +52,9 @@ void celestial_layer_draw_bg_anim_planets(GContext *ctx, GRect bounds,
                                           const EclipseData *data,
                                           const CelestialLayerState *state);
 
+void celestial_draw_label_in_box(GContext *ctx, GRect r, const char *text,
+                                   uint8_t label_style, GColor main_color);
+
 void celestial_layer_draw_label(GContext *ctx, GRect bounds, GPoint near, const char *text,
                                uint8_t label_style, GColor main_color);
 
