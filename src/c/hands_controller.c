@@ -1,4 +1,5 @@
 #include <pebble.h>
+#include "eclipse_status.h"
 #include "hands_controller.h"
 #include "hand_layer.h"
 #include "input.h"
@@ -288,7 +289,7 @@ int32_t hands_controller_animation_eased_progress_1000(void) {
 
 void hands_controller_start_startup_animation(void) {
   if (s_startup_clock_anim_played || !s_data || s_data->startup_clock_anim_mode == 0) return;
-  if (eclipse_is_active(s_data, time(NULL))) return;
+  if (eclipse_status_is_active(s_data, time(NULL))) return;
   s_startup_clock_anim_played = true;
   s_startup_clock_anim_active = true;
   s_startup_anim_elapsed_ms = 0;

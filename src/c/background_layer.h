@@ -2,6 +2,7 @@
 
 #include <pebble.h>
 #include "eclipse_data.h"
+#include "eclipse_status.h"
 
 // Digital clock panel height on the fixed 200x228 display.
 #define DIGITAL_PANEL_H 76
@@ -38,26 +39,3 @@ void background_layer_set_planet_seek(Layer *layer, bool active, uint16_t elapse
 // once-a-minute throttle decides whether this actually triggers a
 // redraw or just returns immediately, so this is always cheap to call.
 void background_layer_tick(Layer *layer);
-
-// Figures out which phase "now" falls into relative to the contact
-// times in `data`, writes a short human label + countdown (e.g.
-// "Totality in 12:34" / "Partial ends in 0:47") into buf, and
-// returns the phase so the caller can decide how urgently to
-// refresh the canvas. live_seconds should be whatever the caller is
-// actually driving its own redraw cadence off of right now (see
-// pebble-eclipse-watch.c's update_tick_subscription()) -- only used
-// to decide the pre-eclipse "Starts in" countdown's own precision:
-// full M:SS when the screen is already updating every second for
-// some other reason, a plain whole-minutes(+hours) readout otherwise,
-// so the displayed countdown never implies more precision than the
-// redraw rate can actually keep up with.
-EclipsePhase eclipse_get_status_text(const EclipseData *data, time_t now,
-                                      char *buf, size_t buf_len, bool live_seconds);
-
-// True from first contact up to (not including) last contact -- see
-// the .c file's own comment for why every "is the eclipse happening
-// right now" check in the app goes through this one function.
-bool eclipse_is_active(const EclipseData *data, time_t now);
-
-
-

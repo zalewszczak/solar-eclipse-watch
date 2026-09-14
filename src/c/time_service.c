@@ -1,4 +1,5 @@
 #include "time_service.h"
+#include "eclipse_status.h"
 
 #include "battery_saver.h"
 #include "features_layer.h"
@@ -27,7 +28,7 @@ static bool needs_second_precision(void) {
 bool time_service_live_seconds_now(time_t now) {
   if (!s_data) return false;
   if (battery_saver_phase() != BATTERY_SAVER_AWAKE) return false;
-  return needs_second_precision() || eclipse_is_active(s_data, now);
+  return needs_second_precision() || eclipse_status_is_active(s_data, now);
 }
 
 static void tick_handler(struct tm *tick_time, TimeUnits units_changed) {

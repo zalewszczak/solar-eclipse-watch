@@ -1,4 +1,5 @@
 #include <pebble.h>
+#include "eclipse_status.h"
 #include "watchface_ui.h"
 #include "sky_layer.h"
 #include "background_layer.h"
@@ -24,7 +25,7 @@ void watchface_ui_refresh_status(bool force_canvas) {
 
   time_t now = time(NULL);
   char text[40];
-  EclipsePhase phase = eclipse_get_status_text(s_data, now, text, sizeof(text),
+  EclipsePhase phase = eclipse_status_get_text(s_data, now, text, sizeof(text),
                                                time_service_live_seconds_now(now));
   GColor text_color = sky_layer_is_bright(s_data, now) ? GColorBlack : GColorWhite;
   bool hide_label = s_data->valid && !s_data->has_eclipse;
@@ -68,7 +69,7 @@ void watchface_ui_update_planet_seek_accuracy_label(bool active) {
     }
   } else {
     char text[40];
-    eclipse_get_status_text(s_data, now, text, sizeof(text), time_service_live_seconds_now(now));
+    eclipse_status_get_text(s_data, now, text, sizeof(text), time_service_live_seconds_now(now));
     clock_display_set_countdown(text, bright ? GColorBlack : GColorWhite, s_data->valid && !s_data->has_eclipse);
   }
 }

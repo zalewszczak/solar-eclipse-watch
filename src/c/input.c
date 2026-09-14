@@ -1,4 +1,5 @@
 #include <pebble.h>
+#include "eclipse_status.h"
 #include "eclipse_data.h"
 #include "battery_saver.h"
 #include "input.h"
@@ -321,7 +322,7 @@ static void shake_anim_timer_callback(void *data) {
 // the gradient/hand-smoothing window rather than just extending it.
 static void maybe_start_shake_animation(void) {
   if (s_data->shake_anim_mode == 0) return;
-  if (eclipse_is_active(s_data, time(NULL))) return; // no shake animations (smooth second OR Planet seek) while the eclipse itself is actively in progress, per request
+  if (eclipse_status_is_active(s_data, time(NULL))) return; // no shake animations (smooth second OR Planet seek) while the eclipse itself is actively in progress, per request
   if (shake_anim_wants_planet_seek(s_data->shake_anim_mode) && s_data->has_eclipse) return; // Planet seek (modes 2 and 3) never runs on an eclipse day, per request
   s_shake_anim_active = true;
   s_shake_anim_elapsed_ms = 0;

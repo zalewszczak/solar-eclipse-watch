@@ -1,4 +1,5 @@
 #include "background_animation.h"
+#include "eclipse_status.h"
 #include "background_layer.h"
 
 #define BACKGROUND_ANIMATION_FRAME_MS 40
@@ -29,7 +30,7 @@ static void animation_timer_callback(void *context) {
 
 void background_animation_start(EclipseData *data, Layer *canvas_layer) {
   if (s_played || !data || data->bg_anim_mode == 0) return;
-  if (eclipse_is_active(data, time(NULL))) return;
+  if (eclipse_status_is_active(data, time(NULL))) return;
 
   s_played = true;
   s_canvas_layer = canvas_layer;
