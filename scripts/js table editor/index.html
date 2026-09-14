@@ -195,33 +195,15 @@
     const STORAGE_KEY_PALETTE = 'js_table_editor_palette';
 
     const HIGH_CONTRAST_PALETTE = [
-      '#E63946',
-      '#FF6D00',
-      '#FFD600',
-      '#00C853',
-      '#0077B6',
-      '#AA00FF',
-      '#FF1493',
-      '#4361EE',
-      '#00B4D8',
-      '#70E000',
-      '#FF9E00',
-      '#7209B7'
+      '#E63946', '#FF6D00', '#FFD600', '#00C853',
+      '#0077B6', '#AA00FF', '#FF1493', '#4361EE',
+      '#00B4D8', '#70E000', '#FF9E00', '#7209B7'
     ];
 
     const PASTEL_PALETTE = [
-      '#FFB3BA',
-      '#FFDFBA',
-      '#FFFFBA',
-      '#BAFFC9',
-      '#BAE1FF',
-      '#E8AEFF',
-      '#FFC6FF',
-      '#BDB2FF',
-      '#9BF6FF',
-      '#CAFFBF',
-      '#FFD6A5',
-      '#D4A5FF'
+      '#FFB3BA', '#FFDFBA', '#FFFFBA', '#BAFFC9',
+      '#BAE1FF', '#E8AEFF', '#FFC6FF', '#BDB2FF',
+      '#9BF6FF', '#CAFFBF', '#FFD6A5', '#D4A5FF'
     ];
 
     let currentPaletteMode = 'high-contrast';
@@ -351,42 +333,82 @@
 
     function parseTextToTable() {
       try {
-        const src = document.getElementById('srcInput').value;
-        const lines = src.split('\n');
+        let src = document.getElementById('srcInput').value;
+        // Clean non-breaking spaces
+        src = src.replace(/\u00a0/g, ' ');
+
         rowsData = [];
         const keysSet = new Set();
         const existingColMap = new Map();
 
         (columnsConfig || []).forEach(c => existingColMap.set(c.key, c));
 
-        lines.forEach(line => {
-          let trimmed = line.trim();
-          if (!trimmed || trimmed.startsWith('[') || trimmed === ']') return;
+        let i = 0;
+        while (i < src.length) {
+          if (src[i] === '{') {
+            let start = i;
+            let depth = 0;
+            let inString = false;
+            let stringChar = '';
+            let end = -1;
 
-          let comment = '';
-          const commentIdx = line.indexOf('//');
-          if (commentIdx !== -1) {
-            comment = line.substring(commentIdx + 2).trim();
-            line = line.substring(0, commentIdx);
-          }
+            for (let j = i; j < src.length; j++) {
+              let ch = src[j];
+              let prevCh = j > i ? src[j - 1] : '';
 
-          line = line.trim();
-          if (line.endsWith(',')) line = line.slice(0, -1).trim();
+              if (inString) {
+                if (ch === stringChar && prevCh !== '\\') {
+                  inString = false;
+                }
+              } else {
+                if (ch === '"' || ch === "'" || ch === '`') {
+                  inString = true;
+                  stringChar = ch;
+                } else if (ch === '{') {
+                  depth++;
+                } else if (ch === '}') {
+                  depth--;
+                  if (depth === 0) {
+                    end = j;
+                    break;
+                  }
+                }
+              }
+            }
 
-          if (line.startsWith('{') && line.endsWith('}')) {
-            try {
-              const obj = new Function('return ' + line)();
-              obj._comment = comment;
-              rowsData.push(obj);
+            if (end !== -1) {
+              const objStr = src.substring(start, end + 1);
+              let rest = src.substring(end + 1);
+              let lineEndIdx = rest.indexOf('\n');
+              if (lineEndIdx === -1) lineEndIdx = rest.length;
+              let lineAfter = rest.substring(0, lineEndIdx);
 
-              Object.keys(obj).forEach(k => {
-                if (k !== '_comment') keysSet.add(k);
-              });
-            } catch (err) {
-              console.warn('Line parse skipped:', line);
+              let comment = '';
+              const commentIdx = lineAfter.indexOf('//');
+              if (commentIdx !== -1) {
+                comment = lineAfter.substring(commentIdx + 2).trim();
+              }
+
+              try {
+                const obj = new Function('return ' + objStr)();
+                if (obj && typeof obj === 'object' && !Array.isArray(obj)) {
+                  obj._comment = comment;
+                  rowsData.push(obj);
+
+                  Object.keys(obj).forEach(k => {
+                    if (k !== '_comment') keysSet.add(k);
+                  });
+                }
+              } catch (err) {
+                console.warn('Object parse skipped:', objStr, err);
+              }
+
+              i = end + 1;
+              continue;
             }
           }
-        });
+          i++;
+        }
 
         columnsConfig = Array.from(keysSet).map(key => {
           const existing = existingColMap.get(key);
