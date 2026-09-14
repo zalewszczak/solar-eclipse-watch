@@ -16,6 +16,7 @@
 #include "hourly_vibration.h"
 #include "layout_controller.h"
 #include "watchface_ui.h"
+#include "feature_refresh.h"
 
 static Window *s_window;
 static void hands_controller_invalidate(void *context) {
@@ -68,25 +69,6 @@ static void time_service_tick_handler(struct tm *tick_time, TimeUnits units_chan
 }
 
 
-// Once a minute, matching the time service's normal MINUTE_UNIT baseline
-// for anything that doesn't need to be genuinely live -- used to be a
-// much shorter 5s cadence specifically for health data (heart rate
-// especially), but Pebble's own HealthService doesn't actually refresh
-// a heart-rate reading that often either, so 5s bought little real
-// freshness for a real, constant battery cost. Seconds-precision
-// content (Time: second, etc.) no longer depends on this timer at all
-// -- see time_service_tick_handler()'s piggyback on SECOND_UNIT ticks.
-// The time service requests seconds whenever that content is
-// active, which gives it genuinely live per-second updates instead of
-// whatever staleness this cadence would otherwise leave it with.
-// CORNERS_REFRESH_MS retired -- see FEATURES_REFRESH_MS in features_layer.h
-static AppTimer *s_corners_timer = NULL;
-
-static void corners_timer_callback(void *data) {
-  if (layout_controller_features_layer()) features_layer_refresh_values(layout_controller_features_layer());
-  s_corners_timer = app_timer_register(FEATURES_REFRESH_MS, corners_timer_callback, NULL);
-}
-
 // Battery-saver policy/state is implemented in battery_saver.c.
 // This file only owns the consequences of a phase change: tick
 // subscription, the corners refresh timer, redraws, and phone sync.
@@ -107,14 +89,9 @@ static void battery_saver_phase_changed(BatterySaverPhase previous_phase, Batter
   time_service_update();
 
   if (now_resting && !was_resting) {
-    if (s_corners_timer) {
-      app_timer_cancel(s_corners_timer);
-      s_corners_timer = NULL;
-    }
+    feature_refresh_stop();
   } else if (!now_resting && was_resting) {
-    if (!s_corners_timer) {
-      s_corners_timer = app_timer_register(FEATURES_REFRESH_MS, corners_timer_callback, NULL);
-    }
+    feature_refresh_start();
   }
 
   battery_saver_sync_phase_to_phone();
@@ -237,7 +214,8 @@ void app_controller_init(void) {
 
   input_init(&s_data, *watchface_ui_input_callbacks(), NULL);
   unobstructed_area_service_subscribe(s_unobstructed_handlers, NULL);
-  s_corners_timer = app_timer_register(FEATURES_REFRESH_MS, corners_timer_callback, NULL);
+  feature_refresh_init();
+  feature_refresh_start();
 
   comms_init(&s_data, comms_data_applied, NULL);
   battery_saver_sync_phase_to_phone();
@@ -248,10 +226,7 @@ void app_controller_deinit(void) {
   input_deinit();
   watchface_ui_deinit();
   unobstructed_area_service_unsubscribe();
-  if (s_corners_timer) {
-    app_timer_cancel(s_corners_timer);
-    s_corners_timer = NULL;
-  }
+  feature_refresh_deinit();
   comms_deinit();
   background_animation_deinit();
   hands_controller_deinit();
