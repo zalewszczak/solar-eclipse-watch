@@ -1,6 +1,7 @@
 #include "feature_icons.h"
 #include "feature_icon_assets.h"
 #include "feature_weather_icons.h"
+#include "feature_vector_icons.h"
 #include "feature_render.h"
 #include "eclipse_ui.h"
 #include "celestial_layer.h"
@@ -47,126 +48,6 @@ static const struct { uint8_t kind; uint32_t resource_id; int16_t x_nudge; } SIM
 };
 
 
-static void draw_corner_battery_icon(GContext *ctx, GPoint top_left, GColor color, int charge) {
-  graphics_context_set_fill_color(ctx, color);
-  graphics_fill_rect(ctx, GRect(top_left.x + 2, top_left.y, 4, 2), 0, GCornerNone); // nub
-  graphics_context_set_stroke_color(ctx, color);
-  graphics_context_set_stroke_width(ctx, 1);
-  graphics_draw_rect(ctx, GRect(top_left.x, top_left.y + 2, 8, 12));
-  int16_t charge_pixels = (charge == 0) ? 0 : (8 * charge / 100);
-  graphics_fill_rect(ctx, GRect(top_left.x + 2, top_left.y + 4 + (8 - charge_pixels), 4, charge_pixels), 0, GCornerNone); // fill
-}
-
-
-
-static void draw_pressure_trend_icon(GContext *ctx, GPoint top_left, uint8_t trend, GColor color) {
-  GPoint center = GPoint(top_left.x + 5, top_left.y + 6);
-  graphics_context_set_stroke_color(ctx, color);
-  graphics_context_set_stroke_width(ctx, 2);
-  if (trend == 1) { // rising
-    graphics_draw_line(ctx, GPoint(center.x, center.y + 5), GPoint(center.x, center.y - 5));
-    graphics_draw_line(ctx, GPoint(center.x, center.y - 5), GPoint(center.x - 3, center.y - 2));
-    graphics_draw_line(ctx, GPoint(center.x, center.y - 5), GPoint(center.x + 3, center.y - 2));
-  } else if (trend == 2) { // falling
-    graphics_draw_line(ctx, GPoint(center.x, center.y - 5), GPoint(center.x, center.y + 5));
-    graphics_draw_line(ctx, GPoint(center.x, center.y + 5), GPoint(center.x - 3, center.y + 2));
-    graphics_draw_line(ctx, GPoint(center.x, center.y + 5), GPoint(center.x + 3, center.y + 2));
-  } else { // flat
-    graphics_draw_line(ctx, GPoint(center.x - 5, center.y), GPoint(center.x + 5, center.y));
-  }
-}
-
-
-
-static void draw_wind_direction_icon(GContext *ctx, GPoint top_left, int16_t from_deg, GColor color) {
-  GPoint center = GPoint(top_left.x + 6, top_left.y + 6);
-  int32_t angle = (int32_t)(((from_deg + 180) % 360) * TRIG_MAX_ANGLE) / 360;
-  int16_t len = 6;
-  GPoint tip = GPoint(center.x + (len * sin_lookup(angle)) / TRIG_MAX_RATIO,
-                       center.y - (len * cos_lookup(angle)) / TRIG_MAX_RATIO);
-  GPoint tail = GPoint(center.x - (len * sin_lookup(angle)) / TRIG_MAX_RATIO,
-                        center.y + (len * cos_lookup(angle)) / TRIG_MAX_RATIO);
-  graphics_context_set_stroke_color(ctx, color);
-  graphics_context_set_stroke_width(ctx, 1);
-  graphics_draw_line(ctx, tail, tip);
-  int32_t back_angle1 = angle + (TRIG_MAX_ANGLE * 150) / 360;
-  int32_t back_angle2 = angle - (TRIG_MAX_ANGLE * 150) / 360;
-  GPoint h1 = GPoint(tip.x + (4 * sin_lookup(back_angle1)) / TRIG_MAX_RATIO, tip.y - (4 * cos_lookup(back_angle1)) / TRIG_MAX_RATIO);
-  GPoint h2 = GPoint(tip.x + (4 * sin_lookup(back_angle2)) / TRIG_MAX_RATIO, tip.y - (4 * cos_lookup(back_angle2)) / TRIG_MAX_RATIO);
-  graphics_draw_line(ctx, tip, h1);
-  graphics_draw_line(ctx, tip, h2);
-}
-
-
-
-static void draw_compass_icon(GContext *ctx, GPoint top_left, int16_t heading_deg,
-                               GColor north_color, GColor other_color) {
-  GPoint center = GPoint(top_left.x + 6, top_left.y + 6);
-  int32_t north_angle = (int32_t)((((360 - (heading_deg % 360)) % 360) * TRIG_MAX_ANGLE)) / 360;
-
-  for (int k = 0; k < 4; k++) {
-    int32_t angle = north_angle + (int32_t)((int64_t)k * TRIG_MAX_ANGLE / 4);
-    bool is_north = (k == 0);
-    int16_t len = is_north ? 6 : 4;
-    GColor color = is_north ? north_color : other_color;
-    GPoint tip = GPoint(center.x + (len * sin_lookup(angle)) / TRIG_MAX_RATIO,
-                         center.y - (len * cos_lookup(angle)) / TRIG_MAX_RATIO);
-    graphics_context_set_stroke_color(ctx, color);
-    graphics_context_set_stroke_width(ctx, 1);
-    graphics_draw_line(ctx, center, tip);
-    int32_t head_len = is_north ? 3 : 2;
-    int32_t back_angle1 = angle + (TRIG_MAX_ANGLE * 150) / 360;
-    int32_t back_angle2 = angle - (TRIG_MAX_ANGLE * 150) / 360;
-    GPoint h1 = GPoint(tip.x + (head_len * sin_lookup(back_angle1)) / TRIG_MAX_RATIO, tip.y - (head_len * cos_lookup(back_angle1)) / TRIG_MAX_RATIO);
-    GPoint h2 = GPoint(tip.x + (head_len * sin_lookup(back_angle2)) / TRIG_MAX_RATIO, tip.y - (head_len * cos_lookup(back_angle2)) / TRIG_MAX_RATIO);
-    graphics_draw_line(ctx, tip, h1);
-    graphics_draw_line(ctx, tip, h2);
-  }
-}
-
-
-
-static void draw_compass_sleep_icon(GContext *ctx, GPoint top_left, GColor color) {
-  graphics_context_set_stroke_color(ctx, color);
-  graphics_context_set_stroke_width(ctx, 1);
-  // Big Z, roughly 7x7, upper-left of the icon box.
-  GPoint bz[4] = { GPoint(top_left.x, top_left.y), GPoint(top_left.x + 6, top_left.y),
-                    GPoint(top_left.x, top_left.y + 6), GPoint(top_left.x + 6, top_left.y + 6) };
-  graphics_draw_line(ctx, bz[0], bz[1]);
-  graphics_draw_line(ctx, bz[1], bz[2]);
-  graphics_draw_line(ctx, bz[2], bz[3]);
-  // Small z, roughly 4x4, lower-right, overlapping the big one's tail like a real "Zz" sleep glyph.
-  GPoint sz_origin = GPoint(top_left.x + 5, top_left.y + 6);
-  GPoint sz[4] = { sz_origin, GPoint(sz_origin.x + 4, sz_origin.y), GPoint(sz_origin.x, sz_origin.y + 4), GPoint(sz_origin.x + 4, sz_origin.y + 4) };
-  graphics_draw_line(ctx, sz[0], sz[1]);
-  graphics_draw_line(ctx, sz[1], sz[2]);
-  graphics_draw_line(ctx, sz[2], sz[3]);
-}
-
-
-
-static void draw_mountain_icon(GContext *ctx, GPoint top_left, GColor color) {
-  graphics_context_set_fill_color(ctx, color);
-  GPoint peak1[3] = {
-    GPoint(top_left.x + 4, top_left.y + 1),
-    GPoint(top_left.x, top_left.y + 11),
-    GPoint(top_left.x + 9, top_left.y + 11),
-  };
-  GPathInfo info1 = { .num_points = 3, .points = peak1 };
-  GPath *path1 = gpath_create(&info1);
-  gpath_draw_filled(ctx, path1);
-  gpath_destroy(path1);
-
-  GPoint peak2[3] = {
-    GPoint(top_left.x + 11, top_left.y + 4),
-    GPoint(top_left.x + 6, top_left.y + 11),
-    GPoint(top_left.x + 15, top_left.y + 11),
-  };
-  GPathInfo info2 = { .num_points = 3, .points = peak2 };
-  GPath *path2 = gpath_create(&info2);
-  gpath_draw_filled(ctx, path2);
-  gpath_destroy(path2);
-}
 
 
 
@@ -194,11 +75,11 @@ void feature_icons_draw_render_icon(GContext *ctx, uint8_t icon_kind, int16_t ic
       GColor oc = icon_flag ? GColorBlack : outline_color;
       if (do_outline) {
         for (int i = 0; i < offs_n; i++) {
-          draw_corner_battery_icon(ctx, GPoint(pos.x + offs[i].x, pos.y + offs[i].y), oc, 0);
+          feature_vector_icons_battery(ctx, GPoint(pos.x + offs[i].x, pos.y + offs[i].y), oc, 0);
         }
       }
       draw_debug_marker_point(ctx, draw_debug, pos, GColorMagenta);
-      draw_corner_battery_icon(ctx, pos, c, icon_extra);
+      feature_vector_icons_battery(ctx, pos, c, icon_extra);
       return;
     }
     case 4: { // moon phase
@@ -273,33 +154,33 @@ void feature_icons_draw_render_icon(GContext *ctx, uint8_t icon_kind, int16_t ic
       GPoint pos = GPoint(icon_x, box_y + (row_height - 12) / 2);
       if (do_outline) {
         for (int i = 0; i < offs_n; i++) {
-          draw_pressure_trend_icon(ctx, GPoint(pos.x + offs[i].x, pos.y + offs[i].y), (uint8_t)icon_extra, outline_color);
+          feature_vector_icons_pressure_trend(ctx, GPoint(pos.x + offs[i].x, pos.y + offs[i].y), (uint8_t)icon_extra, outline_color);
         }
       }
       draw_debug_marker_point(ctx, draw_debug, pos, GColorMagenta);
-      draw_pressure_trend_icon(ctx, pos, (uint8_t)icon_extra, color);
+      feature_vector_icons_pressure_trend(ctx, pos, (uint8_t)icon_extra, color);
       return;
     }
     case 16: { // wind direction arrow
       GPoint pos = GPoint(icon_x, box_y + (row_height - 12) / 2);
       if (do_outline) {
         for (int i = 0; i < offs_n; i++) {
-          draw_wind_direction_icon(ctx, GPoint(pos.x + offs[i].x, pos.y + offs[i].y), icon_extra, outline_color);
+          feature_vector_icons_wind_direction(ctx, GPoint(pos.x + offs[i].x, pos.y + offs[i].y), icon_extra, outline_color);
         }
       }
       draw_debug_marker_point(ctx, draw_debug, pos, GColorMagenta);
-      draw_wind_direction_icon(ctx, pos, icon_extra, color);
+      feature_vector_icons_wind_direction(ctx, pos, icon_extra, color);
       return;
     }
     case 17: { // altitude mountain glyph
       GPoint pos = GPoint(icon_x, box_y + (row_height - 12) / 2);
       if (do_outline) {
         for (int i = 0; i < offs_n; i++) {
-          draw_mountain_icon(ctx, GPoint(pos.x + offs[i].x, pos.y + offs[i].y), outline_color);
+          feature_vector_icons_mountain(ctx, GPoint(pos.x + offs[i].x, pos.y + offs[i].y), outline_color);
         }
       }
       draw_debug_marker_point(ctx, draw_debug, pos, GColorMagenta);
-      draw_mountain_icon(ctx, pos, color);
+      feature_vector_icons_mountain(ctx, pos, color);
       return;
     }
     case 13: { // bluetooth -- own case rather than the generic SIMPLE_ICONS
@@ -323,13 +204,13 @@ void feature_icons_draw_render_icon(GContext *ctx, uint8_t icon_kind, int16_t ic
       if (do_outline) {
         for (int i = 0; i < offs_n; i++) {
           GPoint shifted = GPoint(pos.x + offs[i].x, pos.y + offs[i].y);
-          if (icon_flag) draw_compass_sleep_icon(ctx, shifted, outline_color);
-          else draw_compass_icon(ctx, shifted, icon_extra, outline_color, outline_color);
+          if (icon_flag) feature_vector_icons_compass_sleep(ctx, shifted, outline_color);
+          else feature_vector_icons_compass(ctx, shifted, icon_extra, outline_color, outline_color);
         }
       }
       draw_debug_marker_point(ctx, draw_debug, pos, GColorMagenta);
-      if (icon_flag) draw_compass_sleep_icon(ctx, pos, color);
-      else draw_compass_icon(ctx, pos, icon_extra, color, color2);
+      if (icon_flag) feature_vector_icons_compass_sleep(ctx, pos, color);
+      else feature_vector_icons_compass(ctx, pos, icon_extra, color, color2);
       return;
     }
     case 29: { // Quiet Time -- speaker / crossed-out speaker (icon_flag: true = active/muted).
