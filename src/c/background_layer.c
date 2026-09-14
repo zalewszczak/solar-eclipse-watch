@@ -7,6 +7,7 @@
 #include "marker_layer.h"
 #include "weather_layer.h"
 #include "celestial_layer.h"
+#include "celestial_bodies.h"
 #include "celestial_ephemeris.h"
 #include "sky_layer.h"
 #include "background_cache.h"
@@ -284,7 +285,7 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
     if (state->planet_seek_active) {
       GColor bg, main_color, accent_color;
       eclipse_ui_get_active_color_scheme(d, now, &bg, &main_color, &accent_color);
-      celestial_layer_draw_planet_seek(ctx, bounds, d, &state->celestial, now,
+      celestial_bodies_draw_planet_seek(ctx, bounds, d, &state->celestial, now,
                                        state->planet_seek_heading_deg,
                                        shake_anim_eased_t_1000(state->planet_seek_elapsed_ms, d),
                                        d->label_style, main_color);
@@ -539,7 +540,7 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
   if (state->planet_seek_active) {
     GColor bg, main_color, accent_color;
     eclipse_ui_get_active_color_scheme(d, now, &bg, &main_color, &accent_color);
-    celestial_layer_draw_planet_seek(ctx, bounds, d, &state->celestial, now,
+    celestial_bodies_draw_planet_seek(ctx, bounds, d, &state->celestial, now,
                                        state->planet_seek_heading_deg,
                                        shake_anim_eased_t_1000(state->planet_seek_elapsed_ms, d),
                                        d->label_style, main_color);

@@ -1,4 +1,6 @@
 #include "feature_icons.h"
+#include "feature_icon_assets.h"
+#include "feature_weather_icons.h"
 #include "feature_render.h"
 #include "eclipse_ui.h"
 #include "celestial_layer.h"
@@ -45,110 +47,6 @@ static const struct { uint8_t kind; uint32_t resource_id; int16_t x_nudge; } SIM
 };
 
 
-static const GPoint OUTLINE_OFFSETS_THIN[4] = { {-1, 0}, {1, 0}, {0, -1}, {0, 1} };
-static const GPoint OUTLINE_OFFSETS_THICK[12] = {
-  {-1, 0}, {1, 0}, {0, -1}, {0, 1},
-  {-2, 0}, {2, 0}, {0, -2}, {0, 2},
-  {1, 1}, {-1, 1}, {-1, -1}, {1, -1},
-};
-static void get_icon_outline_offsets(uint8_t style, const GPoint **offsets, int *count) {
-  if (style >= 2) { *offsets = OUTLINE_OFFSETS_THICK; *count = 12; }
-  else { *offsets = OUTLINE_OFFSETS_THIN; *count = 4; }
-}
-
-static void draw_tiny_icon(GContext *ctx, GPoint top_left, const uint8_t *pattern, int rows, int width, GColor color) {
-  graphics_context_set_fill_color(ctx, color);
-  int bytes_per_row = (width + 7) / 8;
-  for (int row = 0; row < rows; row++) {
-    int16_t y0 = top_left.y + row;
-    for (int col = 0; col < width; col++) {
-      int byte_index = row * bytes_per_row + col / 8;
-      int bit_index = 7 - (col % 8);
-      if (pattern[byte_index] & (1 << bit_index)) {
-        int16_t x0 = top_left.x + col;
-        graphics_fill_rect(ctx, GRect(x0, y0, 1, 1), 0, GCornerNone);
-      }
-    }
-  }
-}
-
-
-
-static void draw_icon_bitmap_tinted_sized(GContext *ctx, GBitmap *bmp, GPoint top_left, GColor color,
-                                           int16_t w, int16_t h) {
-  GColor *palette = gbitmap_get_palette(bmp);
-  if (palette) {
-    bool transparent0 = (palette[0].argb & 0xC0) == 0;
-    bool transparent1 = (palette[1].argb & 0xC0) == 0;
-    int ink;
-    if (transparent0 != transparent1) {
-      ink = transparent0 ? 1 : 0;
-    } else {
-      int sum0 = ((palette[0].argb >> 4) & 0x03) + ((palette[0].argb >> 2) & 0x03) + (palette[0].argb & 0x03);
-      int sum1 = ((palette[1].argb >> 4) & 0x03) + ((palette[1].argb >> 2) & 0x03) + (palette[1].argb & 0x03);
-      ink = (sum0 <= sum1) ? 0 : 1;
-    }
-    palette[ink] = color;
-    palette[1 - ink] = GColorClear;
-  }
-  graphics_context_set_compositing_mode(ctx, GCompOpSet);
-  graphics_draw_bitmap_in_rect(ctx, bmp, GRect(top_left.x, top_left.y, w, h));
-}
-
-
-
-static void draw_icon_bitmap_tinted(GContext *ctx, GBitmap *bmp, GPoint top_left, GColor color) {
-  draw_icon_bitmap_tinted_sized(ctx, bmp, top_left, color, ICON_WIDTH, ICON_ROWS);
-}
-
-
-
-static void draw_icon_resource(GContext *ctx, GPoint top_left, uint32_t resource_id, GColor color) {
-  GBitmap *bmp = gbitmap_create_with_resource(resource_id);
-  if (!bmp) return;
-  draw_icon_bitmap_tinted(ctx, bmp, top_left, color);
-  gbitmap_destroy(bmp);
-}
-
-
-
-static void draw_icon_resource_with_outline_sized(GContext *ctx, GPoint pos, uint32_t resource_id,
-                                                   uint8_t outline_style, GColor outline_color, GColor color,
-                                                   int16_t w, int16_t h) {
-  GBitmap *bmp = gbitmap_create_with_resource(resource_id);
-  if (!bmp) return;
-  if (outline_style != 0) {
-    const GPoint *offs; int offs_n;
-    get_icon_outline_offsets(outline_style, &offs, &offs_n);
-    for (int i = 0; i < offs_n; i++) {
-      GPoint shifted = GPoint(pos.x + offs[i].x, pos.y + offs[i].y);
-      draw_icon_bitmap_tinted_sized(ctx, bmp, shifted, outline_color, w, h);
-    }
-  }
-  draw_icon_bitmap_tinted_sized(ctx, bmp, pos, color, w, h);
-  gbitmap_destroy(bmp);
-}
-
-
-
-static void draw_icon_resource_with_outline(GContext *ctx, GPoint pos, uint32_t resource_id,
-                                             uint8_t outline_style, GColor outline_color, GColor color) {
-  draw_icon_resource_with_outline_sized(ctx, pos, resource_id, outline_style, outline_color, color,
-                                         ICON_WIDTH, ICON_ROWS);
-}
-
-
-
-static void draw_icon_resource_native(GContext *ctx, GPoint top_left, uint32_t resource_id) {
-  GBitmap *bmp = gbitmap_create_with_resource(resource_id);
-  if (!bmp) return;
-  graphics_context_set_compositing_mode(ctx, GCompOpSet);
-  graphics_draw_bitmap_in_rect(ctx, bmp, GRect(top_left.x, top_left.y, ICON_WIDTH, ICON_ROWS));
-  gbitmap_destroy(bmp);
-}
-
-
-
 static void draw_corner_battery_icon(GContext *ctx, GPoint top_left, GColor color, int charge) {
   graphics_context_set_fill_color(ctx, color);
   graphics_fill_rect(ctx, GRect(top_left.x + 2, top_left.y, 4, 2), 0, GCornerNone); // nub
@@ -157,105 +55,6 @@ static void draw_corner_battery_icon(GContext *ctx, GPoint top_left, GColor colo
   graphics_draw_rect(ctx, GRect(top_left.x, top_left.y + 2, 8, 12));
   int16_t charge_pixels = (charge == 0) ? 0 : (8 * charge / 100);
   graphics_fill_rect(ctx, GRect(top_left.x + 2, top_left.y + 4 + (8 - charge_pixels), 4, charge_pixels), 0, GCornerNone); // fill
-}
-
-
-
-static void draw_weather_icon_hollow(GContext *ctx, GPoint top_left, uint8_t category, GColor color) {
-  switch (category) {
-    case 0: // sunny
-      draw_icon_resource(ctx, top_left, RESOURCE_ID_ICON_WEATHER_HOLLOW_SUN, color);
-      return;
-    case 1: // partly cloudy
-      draw_icon_resource(ctx, top_left, RESOURCE_ID_ICON_WEATHER_HOLLOW_PARTLY_CLOUDY, color);
-      return;
-    case 2: // cloudy / overcast
-      draw_icon_resource(ctx, top_left, RESOURCE_ID_ICON_WEATHER_HOLLOW_CLOUDY_OVERCAST, color);
-      return;
-    case 3: // fog
-      draw_icon_resource(ctx, top_left, RESOURCE_ID_ICON_WEATHER_HOLLOW_FOG, color);
-      return;
-    case 4: // rain
-      draw_icon_resource(ctx, top_left, RESOURCE_ID_ICON_WEATHER_HOLLOW_RAIN, color);
-      return;
-    case 5: // snow
-      draw_icon_resource(ctx, top_left, RESOURCE_ID_ICON_WEATHER_HOLLOW_SNOW, color);
-      return;
-    case 6: { // storm
-      draw_icon_resource(ctx, top_left, RESOURCE_ID_ICON_WEATHER_HOLLOW_STORM, color);
-      return;
-    }
-  }
-}
-
-
-
-static void draw_weather_icon_simple(GContext *ctx, GPoint top_left, uint8_t category, GColor color) {
-  switch (category) {
-    case 0: // sunny
-      draw_icon_resource(ctx, top_left, RESOURCE_ID_ICON_WEATHER_SIMPLE_SUN, color);
-      return;
-    case 1: // partly cloudy
-      draw_icon_resource(ctx, top_left, RESOURCE_ID_ICON_WEATHER_SIMPLE_PARTLY_CLOUDY, color);
-      return;
-    case 2: // cloudy / overcast
-      draw_icon_resource(ctx, top_left, RESOURCE_ID_ICON_WEATHER_SIMPLE_CLOUDY_OVERCAST, color);
-      return;
-    case 3: // fog
-      draw_icon_resource(ctx, top_left, RESOURCE_ID_ICON_WEATHER_SIMPLE_FOG, color);
-      return;
-    case 4: // rain
-      draw_icon_resource(ctx, top_left, RESOURCE_ID_ICON_WEATHER_SIMPLE_RAIN, color);
-      return;
-    case 5: // snow
-      draw_icon_resource(ctx, top_left, RESOURCE_ID_ICON_WEATHER_SIMPLE_SNOW, color);
-      return;
-    case 6: { // storm
-      draw_icon_resource(ctx, top_left, RESOURCE_ID_ICON_WEATHER_SIMPLE_STORM, color);
-      return;
-    }
-  }
-}
-
-
-
-static void draw_weather_icon_filled(GContext *ctx, GPoint top_left, uint8_t category, GColor color) {
-  (void)color;
-  switch (category) {
-    case 0: // sunny
-      draw_icon_resource_native(ctx, top_left, RESOURCE_ID_ICON_WEATHER_FULLCOLOR_SUN);
-      return;
-    case 1: // partly cloudy
-      draw_icon_resource_native(ctx, top_left, RESOURCE_ID_ICON_WEATHER_FULLCOLOR_PARTLY_CLOUDY);
-      return;
-    case 2: // cloudy / overcast
-      draw_icon_resource_native(ctx, top_left, RESOURCE_ID_ICON_WEATHER_FULLCOLOR_CLOUDY_OVERCAST);
-      return;
-    case 3: // fog
-      draw_icon_resource_native(ctx, top_left, RESOURCE_ID_ICON_WEATHER_FULLCOLOR_FOG);
-      return;
-    case 4: // rain
-      draw_icon_resource_native(ctx, top_left, RESOURCE_ID_ICON_WEATHER_FULLCOLOR_RAIN);
-      return;
-    case 5: // snow
-      draw_icon_resource_native(ctx, top_left, RESOURCE_ID_ICON_WEATHER_FULLCOLOR_SNOW);
-      return;
-    case 6: { // storm
-      draw_icon_resource_native(ctx, top_left, RESOURCE_ID_ICON_WEATHER_FULLCOLOR_STORM);
-      return;
-    }
-  }
-}
-
-
-
-static void draw_weather_icon(GContext *ctx, GPoint top_left, uint8_t category, uint8_t style, GColor color) {
-  switch (style) {
-    case 0: draw_weather_icon_simple(ctx, top_left, category, color); return;
-    case 2: draw_weather_icon_filled(ctx, top_left, category, color); return;
-    case 1:
-    default: draw_weather_icon_hollow(ctx, top_left, category, color); return;
-  }
 }
 
 
@@ -378,13 +177,13 @@ void feature_icons_draw_render_icon(GContext *ctx, uint8_t icon_kind, int16_t ic
   GColor outline_color = feature_render_contrasting_outline_color(color);
   bool do_outline = outline_style != 0;
   const GPoint *offs = NULL; int offs_n = 0;
-  if (do_outline) get_icon_outline_offsets(outline_style, &offs, &offs_n);
+  if (do_outline) feature_icon_assets_get_outline_offsets(outline_style, &offs, &offs_n);
   draw_debug_marker_point(ctx, draw_debug, GPoint(icon_x, box_y), GColorRed);
   for (size_t i = 0; i < sizeof(SIMPLE_ICONS) / sizeof(SIMPLE_ICONS[0]); i++) {
     if (SIMPLE_ICONS[i].kind != icon_kind) continue;
     GPoint pos = GPoint(icon_x - ICON_WIDTH + SIMPLE_ICONS[i].x_nudge, box_y + (row_height - ICON_ROWS) / 2);
     draw_debug_marker_point(ctx, draw_debug, pos, GColorMagenta);
-    draw_icon_resource_with_outline(ctx, pos, SIMPLE_ICONS[i].resource_id, outline_style, outline_color, color);
+    feature_icon_assets_draw_resource_with_outline(ctx, pos, SIMPLE_ICONS[i].resource_id, outline_style, outline_color, color);
     return;
   }
 
@@ -418,13 +217,13 @@ void feature_icons_draw_render_icon(GContext *ctx, uint8_t icon_kind, int16_t ic
     }
     case 11: { // sunrise/sunset glyph -- now a plain image (see resources/images/
                // icon_sun_time_rise.png / icon_sun_time_set.png), drawn the exact
-               // same way every other bitmap corner icon is (draw_icon_resource_
+               // same way every other bitmap corner icon is (feature_icon_assets_draw_resource_
                // with_outline, just at this glyph's own wider/shorter size)
                // instead of being hand-drawn with fill primitives every frame.
       GPoint pos = GPoint(icon_x, box_y + (row_height - SUN_TIME_ICON_ROWS) / 2);
       uint32_t sun_time_resource = icon_flag ? RESOURCE_ID_ICON_SUN_TIME_RISE : RESOURCE_ID_ICON_SUN_TIME_SET;
       draw_debug_marker_point(ctx, draw_debug, pos, GColorMagenta);
-      draw_icon_resource_with_outline_sized(ctx, pos, sun_time_resource, outline_style, outline_color, color,
+      feature_icon_assets_draw_resource_with_outline_sized(ctx, pos, sun_time_resource, outline_style, outline_color, color,
                                              SUN_TIME_ICON_WIDTH, SUN_TIME_ICON_ROWS);
       return;
     }
@@ -436,7 +235,7 @@ void feature_icons_draw_render_icon(GContext *ctx, uint8_t icon_kind, int16_t ic
       GPoint p2 = GPoint(pos.x + 3 + (35 * icon_extra / 100), pos.y + 9);
       if (do_outline) {
         for (int i = 0; i < offs_n; i++) {
-          draw_tiny_icon(ctx, GPoint(pos.x + offs[i].x, pos.y + offs[i].y), PEBBLE_ICON, 10, 40, oc);
+          feature_icon_assets_draw_tiny(ctx, GPoint(pos.x + offs[i].x, pos.y + offs[i].y), PEBBLE_ICON, 10, 40, oc);
         }
         graphics_context_set_stroke_color(ctx, oc);
         graphics_draw_line(ctx, GPoint(p1.x, p1.y + 1), GPoint(p2.x, p2.y + 1));
@@ -444,7 +243,7 @@ void feature_icons_draw_render_icon(GContext *ctx, uint8_t icon_kind, int16_t ic
         graphics_draw_line(ctx, GPoint(p1.x, p1.y - 1), GPoint(p2.x, p2.y - 1));
       }
       draw_debug_marker_point(ctx, draw_debug, pos, GColorMagenta);
-      draw_tiny_icon(ctx, pos, PEBBLE_ICON, 10, 40, c);
+      feature_icon_assets_draw_tiny(ctx, pos, PEBBLE_ICON, 10, 40, c);
       graphics_context_set_stroke_color(ctx, c);
       graphics_draw_line(ctx, p1, p2);
       return;
@@ -463,11 +262,11 @@ void feature_icons_draw_render_icon(GContext *ctx, uint8_t icon_kind, int16_t ic
       if (do_outline) {
         uint8_t outline_icon_style = (weather_icon_style == 2) ? 1 : weather_icon_style;
         for (int i = 0; i < offs_n; i++) {
-          draw_weather_icon(ctx, GPoint(pos.x + offs[i].x, pos.y + offs[i].y), category, outline_icon_style, outline_color);
+          feature_weather_icons_draw(ctx, GPoint(pos.x + offs[i].x, pos.y + offs[i].y), category, outline_icon_style, outline_color);
         }
       }
       draw_debug_marker_point(ctx, draw_debug, pos, GColorMagenta);
-      draw_weather_icon(ctx, pos, category, weather_icon_style, color);
+      feature_weather_icons_draw(ctx, pos, category, weather_icon_style, color);
       return;
     }
     case 15: { // pressure trend chevron
@@ -516,7 +315,7 @@ void feature_icons_draw_render_icon(GContext *ctx, uint8_t icon_kind, int16_t ic
                // matching every other multi-segment-capable icon kind
                // (battery, moon, compass, ...) below.
       GPoint pos = GPoint(icon_x, box_y + (row_height - ICON_ROWS) / 2);
-      draw_icon_resource_with_outline(ctx, pos, RESOURCE_ID_ICON_BLUETOOTH, outline_style, outline_color, color);
+      feature_icon_assets_draw_resource_with_outline(ctx, pos, RESOURCE_ID_ICON_BLUETOOTH, outline_style, outline_color, color);
       return;
     }
     case 27: { // compass -- asleep (Zz glyph) or a live heading rose with a distinct north arrow
@@ -536,7 +335,7 @@ void feature_icons_draw_render_icon(GContext *ctx, uint8_t icon_kind, int16_t ic
     case 29: { // Quiet Time -- speaker / crossed-out speaker (icon_flag: true = active/muted).
                // Exported to a real image (see resources/images/icon_quiet_time.png /
                // icon_quiet_time_muted.png) and drawn the exact same way every other
-               // bitmap corner icon is (draw_icon_resource_with_outline, standard
+               // bitmap corner icon is (feature_icon_assets_draw_resource_with_outline, standard
                // ICON_WIDTH x ICON_ROWS size) -- was hand-drawn with fill/gpath
                // primitives every frame; a plain resource lookup + the shared tinted-
                // bitmap draw already every other icon_kind here reuses costs
@@ -544,7 +343,7 @@ void feature_icons_draw_render_icon(GContext *ctx, uint8_t icon_kind, int16_t ic
       GPoint pos = GPoint(icon_x, box_y + (row_height - ICON_ROWS) / 2);
       uint32_t quiet_time_resource = icon_flag ? RESOURCE_ID_ICON_QUIET_TIME_MUTED : RESOURCE_ID_ICON_QUIET_TIME;
       draw_debug_marker_point(ctx, draw_debug, pos, GColorMagenta);
-      draw_icon_resource_with_outline(ctx, pos, quiet_time_resource, outline_style, outline_color, color);
+      feature_icon_assets_draw_resource_with_outline(ctx, pos, quiet_time_resource, outline_style, outline_color, color);
       return;
     }
     case 30: { // Hourly Vibrations -- watch+buzz / crossed-out (icon_flag: true = off/crossed).
@@ -553,7 +352,7 @@ void feature_icons_draw_render_icon(GContext *ctx, uint8_t icon_kind, int16_t ic
       GPoint pos = GPoint(icon_x, box_y + (row_height - ICON_ROWS) / 2);
       uint32_t hourly_vibe_resource = icon_flag ? RESOURCE_ID_ICON_HOURLY_VIBE_OFF : RESOURCE_ID_ICON_HOURLY_VIBE;
       draw_debug_marker_point(ctx, draw_debug, pos, GColorMagenta);
-      draw_icon_resource_with_outline(ctx, pos, hourly_vibe_resource, outline_style, outline_color, color);
+      feature_icon_assets_draw_resource_with_outline(ctx, pos, hourly_vibe_resource, outline_style, outline_color, color);
       return;
     }
     default:

@@ -1,18 +1,11 @@
 #include "celestial_layer.h"
 #include "celestial_ephemeris.h"
+#include "celestial_bodies.h"
 #include "feature_render.h"
 #include <string.h>
 
 #define CELESTIAL_ARROW_W 6
 
-static const char *PLANET_NAMES[PLANET_COUNT] = { "Mercury", "Venus", "Mars", "Jupiter", "Saturn" };
-static const char *STAR_NAMES[STAR_COUNT] = {
-  "Sirius", "Canopus", "Arcturus", "Vega", "Capella", "Rigel", "Procyon", "Betelgeuse",
-  "Altair", "Aldebaran", "Antares", "Spica", "Pollux", "Fomalhaut", "Deneb", "Regulus"
-};
-static const uint8_t STAR_RADIUS[STAR_COUNT] = {
-  2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1
-};
 
 int16_t celestial_alt_to_y(int16_t alt_decideg, int16_t scale_max_decideg, int16_t canvas_h, int16_t radius) {
   int16_t horizon_y = canvas_h - CELESTIAL_GROUND_H;
@@ -118,26 +111,6 @@ void celestial_draw_moon_phase(GContext *ctx, GRect bounds, GPoint center, int16
   graphics_context_set_stroke_color(ctx, GColorBlack);
   graphics_context_set_stroke_width(ctx, 1);
   graphics_draw_circle(ctx, center, radius);
-}
-
-static GColor planet_color(PlanetId p) {
-  switch (p) {
-    case PLANET_MERCURY: return GColorLightGray;
-    case PLANET_VENUS: return GColorWhite;
-    case PLANET_MARS: return GColorRed;
-    case PLANET_JUPITER: return GColorYellow;
-    case PLANET_SATURN: default: return GColorYellow;
-  }
-}
-
-static void draw_saturn(GContext *ctx, GPoint center, uint8_t ring_open_pct) {
-  graphics_context_set_fill_color(ctx, GColorYellow);
-  graphics_fill_circle(ctx, center, CELESTIAL_PLANET_R);
-  int16_t ring_span = CELESTIAL_PLANET_R + 4;
-  int16_t ring_thickness = 1 + (int16_t)((ring_open_pct * 2) / 100);
-  graphics_context_set_fill_color(ctx, GColorLightGray);
-  graphics_fill_rect(ctx, GRect(center.x - ring_span, center.y - ring_thickness / 2,
-                                ring_span * 2, ring_thickness), 0, GCornerNone);
 }
 
 static GPoint moon_offset_px(const EclipseData *d, time_t now, int16_t sun_r, int16_t moon_r) {
@@ -260,8 +233,8 @@ void celestial_layer_update(CelestialLayerState *state, GContext *ctx, GRect bou
       GPoint c = GPoint(celestial_az_decideg_to_x(p_az, bounds.size.w), p_y);
       planet_visible[p] = true; planet_center[p] = c;
       if (!skip_body_paint) {
-        if (p == PLANET_SATURN) draw_saturn(ctx, c, d->saturn_ring_open_pct);
-        else { graphics_context_set_fill_color(ctx, planet_color((PlanetId)p)); graphics_fill_circle(ctx, c, CELESTIAL_PLANET_R); }
+        if (p == PLANET_SATURN) celestial_bodies_draw_saturn(ctx, c, d->saturn_ring_open_pct);
+        else { graphics_context_set_fill_color(ctx, celestial_bodies_planet_color((PlanetId)p)); graphics_fill_circle(ctx, c, CELESTIAL_PLANET_R); }
       }
     }
   }
@@ -272,12 +245,12 @@ void celestial_layer_update(CelestialLayerState *state, GContext *ctx, GRect bou
   if (d->sky_mode == 2 && d->show_major_stars && !suppress_other_bodies) {
     for (int s = 0; s < STAR_COUNT; s++) {
       if (d->star_alt_decideg[s] <= 0) continue;
-      int16_t y = celestial_alt_to_y(d->star_alt_decideg[s], d->sky_scale_max_alt_decideg, bounds.size.h, STAR_RADIUS[s]);
+      int16_t y = celestial_alt_to_y(d->star_alt_decideg[s], d->sky_scale_max_alt_decideg, bounds.size.h, celestial_bodies_star_radius((uint8_t)s));
       int16_t x = celestial_az_decideg_to_x(d->star_az_decideg[s], bounds.size.w);
       star_visible[s] = true; star_center[s] = GPoint(x, y);
       if (!skip_body_paint) {
         graphics_context_set_fill_color(ctx, GColorWhite);
-        graphics_fill_circle(ctx, star_center[s], STAR_RADIUS[s]);
+        graphics_fill_circle(ctx, star_center[s], celestial_bodies_star_radius((uint8_t)s));
       }
     }
   }
@@ -306,24 +279,6 @@ void celestial_layer_update(CelestialLayerState *state, GContext *ctx, GRect bou
   for (int s = 0; s < STAR_COUNT; s++) { state->star_center[s] = star_center[s]; state->star_visible[s] = star_visible[s]; }
 }
 
-const char *celestial_planet_name(PlanetId planet) {
-  return PLANET_NAMES[planet];
-}
-
-const char *celestial_star_name(uint8_t star) {
-  return star < STAR_COUNT ? STAR_NAMES[star] : "Star";
-}
-
-void celestial_layer_draw_visible_planet(GContext *ctx, const EclipseData *d,
-                                         const CelestialLayerState *state, PlanetId planet) {
-  if (planet >= PLANET_COUNT || !state->planet_visible[planet]) return;
-  if (planet == PLANET_SATURN) draw_saturn(ctx, state->planet_center[planet], d->saturn_ring_open_pct);
-  else {
-    graphics_context_set_fill_color(ctx, planet_color(planet));
-    graphics_fill_circle(ctx, state->planet_center[planet], CELESTIAL_PLANET_R);
-  }
-}
-
 static void draw_label_in_box(GContext *ctx, GRect r, const char *text, uint8_t label_style, GColor main_color);
 
 void celestial_layer_draw_label(GContext *ctx, GRect bounds, GPoint near, const char *text,
@@ -349,11 +304,11 @@ void celestial_layer_draw_labels(GContext *ctx, GRect bounds, const EclipseData 
   if (state->moon_visible) celestial_layer_draw_label(ctx, bounds, state->moon_center, "Moon", label_style, main_color);
   for (int p = 0; p < PLANET_COUNT; p++) {
     if (!state->planet_visible[p]) continue;
-    celestial_layer_draw_visible_planet(ctx, d, state, (PlanetId)p);
-    celestial_layer_draw_label(ctx, bounds, state->planet_center[p], PLANET_NAMES[p], label_style, main_color);
+    celestial_bodies_draw_visible_planet(ctx, d, state, (PlanetId)p);
+    celestial_layer_draw_label(ctx, bounds, state->planet_center[p], celestial_bodies_planet_name((PlanetId)p), label_style, main_color);
   }
   for (int s = 0; s < STAR_COUNT; s++) {
-    if (state->star_visible[s]) celestial_layer_draw_label(ctx, bounds, state->star_center[s], STAR_NAMES[s], label_style, main_color);
+    if (state->star_visible[s]) celestial_layer_draw_label(ctx, bounds, state->star_center[s], celestial_bodies_star_name((uint8_t)s), label_style, main_color);
   }
   if (state->iss_visible) celestial_layer_draw_label(ctx, bounds, state->iss_center, "ISS", label_style, main_color);
 }
@@ -368,8 +323,8 @@ void celestial_layer_draw_bg_anim_planets(GContext *ctx, GRect bounds,
   if (state->moon_visible) celestial_draw_moon_phase(ctx, bounds, state->moon_center, state->moon_r, d->moon_phase_pct, d->moon_waxing, GColorWhite);
   for (int p = 0; p < PLANET_COUNT; p++) {
     if (!state->planet_visible[p]) continue;
-    if (p == PLANET_SATURN) draw_saturn(ctx, state->planet_center[p], d->saturn_ring_open_pct);
-    else { graphics_context_set_fill_color(ctx, planet_color((PlanetId)p)); graphics_fill_circle(ctx, state->planet_center[p], CELESTIAL_PLANET_R); }
+    if (p == PLANET_SATURN) celestial_bodies_draw_saturn(ctx, state->planet_center[p], d->saturn_ring_open_pct);
+    else { graphics_context_set_fill_color(ctx, celestial_bodies_planet_color((PlanetId)p)); graphics_fill_circle(ctx, state->planet_center[p], CELESTIAL_PLANET_R); }
   }
   // Space view's star field -- celestial_layer_update() above already
   // computes state->star_visible[]/star_center[] every frame regardless
@@ -384,154 +339,7 @@ void celestial_layer_draw_bg_anim_planets(GContext *ctx, GRect bounds,
   for (int s = 0; s < STAR_COUNT; s++) {
     if (!state->star_visible[s]) continue;
     graphics_context_set_fill_color(ctx, GColorWhite);
-    graphics_fill_circle(ctx, state->star_center[s], STAR_RADIUS[s]);
+    graphics_fill_circle(ctx, state->star_center[s], celestial_bodies_star_radius((uint8_t)s));
   }
 }
 
-static int32_t planet_seek_az_offset_decideg(uint16_t az_decideg, int32_t heading_deg) {
-  int32_t diff = (int32_t)az_decideg - heading_deg * 10;
-  diff %= 3600;
-  if (diff > 1800) diff -= 3600;
-  if (diff < -1800) diff += 3600;
-  return diff;
-}
-
-static void draw_label_in_box(GContext *ctx, GRect r, const char *text, uint8_t label_style, GColor main_color) {
-  GFont font = fonts_get_system_font(FONT_KEY_GOTHIC_14);
-  GRect text_box = GRect(r.origin.x, r.origin.y - 2, r.size.w, r.size.h + 2);
-  if (label_style == 1) {
-    feature_render_draw_text_outlined(ctx, text, font, text_box, GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, main_color, 1);
-    return;
-  }
-  if (label_style == 2) {
-    graphics_context_set_text_color(ctx, GColorLightGray);
-    graphics_draw_text(ctx, text, font, text_box, GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
-    return;
-  }
-  graphics_context_set_fill_color(ctx, GColorBlack); graphics_fill_rect(ctx, r, 2, GCornersAll);
-  graphics_context_set_text_color(ctx, GColorWhite);
-  graphics_draw_text(ctx, text, font, text_box, GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
-}
-
-static void draw_planet_seek_arrow(GContext *ctx, GPoint tip, bool points_left, GColor color) {
-  GPoint pts_left[3] = { GPoint(tip.x, tip.y), GPoint(tip.x + CELESTIAL_ARROW_W, tip.y - 4), GPoint(tip.x + CELESTIAL_ARROW_W, tip.y + 4) };
-  GPoint pts_right[3] = { GPoint(tip.x, tip.y), GPoint(tip.x - CELESTIAL_ARROW_W, tip.y - 4), GPoint(tip.x - CELESTIAL_ARROW_W, tip.y + 4) };
-  GPathInfo info = { .num_points = 3, .points = points_left ? pts_left : pts_right };
-  GPath *path = gpath_create(&info); graphics_context_set_fill_color(ctx, color); gpath_draw_filled(ctx, path); gpath_destroy(path);
-}
-
-static void draw_planet_seek_edge_label(GContext *ctx, GRect bounds, GPoint arrow_tip, bool pin_right,
-                                        const char *text, uint8_t label_style, GColor main_color) {
-  int16_t w = 46, h = 14, gap = 2;
-  int16_t arrow_base_x = pin_right ? arrow_tip.x - CELESTIAL_ARROW_W : arrow_tip.x + CELESTIAL_ARROW_W;
-  int16_t x = pin_right ? arrow_base_x - gap - w : arrow_base_x + gap;
-  int16_t y = arrow_tip.y - h / 2;
-  if (y < bounds.origin.y) y = bounds.origin.y;
-  if (y + h > bounds.origin.y + bounds.size.h) y = bounds.origin.y + bounds.size.h - h;
-  draw_label_in_box(ctx, GRect(x, y, w, h), text, label_style, main_color);
-}
-
-static void draw_planet_seek_body(GContext *ctx, GRect bounds, const char *name,
-                                  uint16_t az_decideg, GPoint normal_center, int16_t radius,
-                                  GColor fill_color, int32_t heading_deg, int32_t blend_t_1000,
-                                  uint8_t label_style, GColor main_color,
-                                  bool is_moon, uint8_t moon_phase_pct, bool moon_waxing,
-                                  bool is_saturn, uint8_t saturn_ring_open_pct) {
-  int32_t offset_decideg = planet_seek_az_offset_decideg(az_decideg, heading_deg);
-  // Deliberately NOT gated on a raw (pre-blend) "is this within the
-  // compass's current +-45 deg view" check anymore -- that used to decide
-  // arrow-vs-body BEFORE blend_t_1000 was ever applied, so a body outside
-  // that cone stayed an arrow for the animation's entire run, however far
-  // blend eased back toward 0 -- only the arrow's OWN x position glided;
-  // its shape never did, so the switch to the real body/moon-phase glyph
-  // once Planet seek actually ended was an abrupt swap regardless of how
-  // gently the position itself had eased. compass_x/blended_x below are
-  // computed unconditionally instead, so as blend eases toward 0 this
-  // body's blended position converges on normal_center (always on-screen,
-  // being a body the normal draw path would show anyway) the same way an
-  // in-view body's already did -- naturally crossing into the on-screen
-  // check and switching from arrow to the real glyph partway through the
-  // ease-out, at very nearly the same pixel either shape would occupy,
-  // rather than staying an arrow right up to the final instant.
-  int32_t compass_x = bounds.origin.x + bounds.size.w / 2 + (int32_t)((int64_t)offset_decideg * bounds.size.w / 900);
-  int16_t blended_x = (int16_t)(normal_center.x + (((int32_t)compass_x - normal_center.x) * blend_t_1000) / 1000);
-  GPoint pos = GPoint(blended_x, normal_center.y);
-  if (pos.x >= bounds.origin.x - radius && pos.x <= bounds.origin.x + bounds.size.w + radius) {
-    // Every other body-drawing path in this file (celestial_layer_update(),
-    // celestial_layer_draw_visible_planet(), celestial_layer_draw_bg_anim_
-    // planets()) special-cases Saturn through draw_saturn() for its rings;
-    // this one used to just fall through to the plain-circle branch below
-    // for every planet including Saturn, so it rendered ringless for the
-    // whole Planet-seek animation and only grew rings the instant the mode
-    // switched back to the normal draw path -- the same kind of abrupt
-    // shape swap the arrow-vs-body fix above addresses, just for Saturn
-    // specifically rather than off-view bodies generally.
-    if (is_moon) celestial_draw_moon_phase(ctx, bounds, pos, radius, moon_phase_pct, moon_waxing, fill_color);
-    else if (is_saturn) draw_saturn(ctx, pos, saturn_ring_open_pct);
-    else { graphics_context_set_fill_color(ctx, fill_color); graphics_fill_circle(ctx, pos, radius); }
-    // On-screen case: the body itself is drawn above, but the label was
-    // missing here entirely -- only the off-screen/edge-arrow branch
-    // below ever called a label draw, so a shake-revealed body that
-    // stayed in FOV throughout its Planet-seek animation never got a
-    // name label, and one only appeared once the body's blended
-    // position crossed off-screen and hit draw_planet_seek_edge_label()
-    // instead. Reuse the same near-point label helper the non-Planet-
-    // seek path uses (celestial_layer_draw_labels() above); it already
-    // clamps itself to bounds.
-    celestial_layer_draw_label(ctx, bounds, pos, name, label_style, main_color);
-    return;
-  }
-  bool pin_right = pos.x > bounds.origin.x + bounds.size.w / 2;
-  // Clamp the SAME blended `pos.x` used for the on-screen check above,
-  // rather than separately interpolating the arrow toward its own
-  // edge_arrow_x target -- the two used to blend toward DIFFERENT
-  // endpoints (edge_arrow_x vs compass_x) that only happened to agree
-  // once blend reached exactly 0/1000, so at every blend value in
-  // between, the arrow's position and the body's position disagreed --
-  // sometimes by dozens of pixels -- and the instant `pos.x` crossed
-  // the on-screen boundary above, whichever shape got drawn jumped
-  // straight to its own, different target position. Clamping `pos.x`
-  // itself to the nearest edge keeps the two continuous: right at the
-  // crossing, `pos.x` is (by the check above) already within ~`radius`
-  // of this same edge, so the clamped arrow tip and the body's own
-  // position are never more than a few pixels apart.
-  int16_t clamped_x = pin_right ? bounds.origin.x + bounds.size.w - 2 : bounds.origin.x + 2;
-  GPoint arrow_tip = GPoint(clamped_x, normal_center.y);
-  draw_planet_seek_edge_label(ctx, bounds, arrow_tip, pin_right, name, label_style, main_color);
-  draw_planet_seek_arrow(ctx, arrow_tip, !pin_right, main_color);
-}
-
-void celestial_layer_draw_planet_seek(GContext *ctx, GRect bounds, const EclipseData *d,
-                                      const CelestialLayerState *state, time_t now,
-                                      int32_t heading_deg, int32_t blend_t_1000,
-                                      uint8_t label_style, GColor main_color) {
-  uint8_t pct = d->sun_moon_size_pct > 0 ? d->sun_moon_size_pct : 100;
-  int16_t sun_r = (CELESTIAL_SUN_R_NORMAL * pct) / 100; if (sun_r < 4) sun_r = 4;
-  int16_t moon_r = (CELESTIAL_MOON_R_NORMAL * pct) / 100; if (moon_r < 4) moon_r = 4;
-  if (state->sun_up) {
-    GColor sun_fill = d->sky_mode == 2 ? GColorFromRGB(255, 190, 60) : state->sun_fill_color;
-    draw_planet_seek_body(ctx, bounds, "Sun", celestial_interp_sun_az_decideg(d, now), state->sun_center, sun_r,
-                           sun_fill, heading_deg, blend_t_1000, label_style, main_color, false, 0, false, false, 0);
-  }
-  if (state->moon_visible) {
-    draw_planet_seek_body(ctx, bounds, "Moon", celestial_interp_moon_az_decideg(d, now), state->moon_center, moon_r,
-                           GColorWhite, heading_deg, blend_t_1000, label_style, main_color, true, d->moon_phase_pct, d->moon_waxing, false, 0);
-  }
-  for (int p = 0; p < PLANET_COUNT; p++) if (state->planet_visible[p]) {
-    draw_planet_seek_body(ctx, bounds, PLANET_NAMES[p], celestial_interp_planet_az_decideg(d, (PlanetId)p, now),
-                           state->planet_center[p], CELESTIAL_PLANET_R, planet_color((PlanetId)p), heading_deg,
-                           blend_t_1000, label_style, main_color, false, 0, false,
-                           p == PLANET_SATURN, d->saturn_ring_open_pct);
-  }
-  if (d->sky_mode == 2 && d->show_major_stars) {
-    for (int s = 0; s < STAR_COUNT; s++) {
-      if (!state->star_visible[s]) continue;
-      draw_planet_seek_body(ctx, bounds, STAR_NAMES[s], d->star_az_decideg[s], state->star_center[s], STAR_RADIUS[s],
-                             GColorWhite, heading_deg, blend_t_1000, label_style, main_color, false, 0, false, false, 0);
-    }
-  }
-  if (state->iss_visible) {
-    draw_planet_seek_body(ctx, bounds, "ISS", (uint16_t)(d->iss_az_deg * 10), state->iss_center,
-                           CELESTIAL_ISS_R, GColorWhite, heading_deg, blend_t_1000, label_style, main_color, false, 0, false, false, 0);
-  }
-}

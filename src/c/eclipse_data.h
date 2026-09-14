@@ -174,7 +174,7 @@ typedef enum {
 // an enum, since the meaningful range doesn't fit a small one.
 
 // Which slot each planet occupies in the arrays below -- keep this in
-// sync with PLANET_NAMES in background_layer.c and the concatenation
+// sync with PLANET_NAMES in celestial_bodies.c and the concatenation
 // order PKJS uses when building PLANET_ALT_SAMPLES/RISE/SET.
 typedef enum {
   PLANET_MERCURY = 0,
