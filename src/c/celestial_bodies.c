@@ -131,7 +131,7 @@ static void draw_planet_seek_body(GContext *ctx, GRect bounds, const char *name,
   GPoint pos = GPoint(blended_x, normal_center.y);
   if (pos.x >= bounds.origin.x - radius && pos.x <= bounds.origin.x + bounds.size.w + radius) {
     // Every other body-drawing path in this file (celestial_layer_update(),
-    // celestial_layer_draw_visible_planet(), celestial_layer_draw_bg_anim_
+    // the normal celestial-layer body renderer and the startup-animation
     // planets()) special-cases Saturn through draw_saturn() for its rings;
     // this one used to just fall through to the plain-circle branch below
     // for every planet including Saturn, so it rendered ringless for the

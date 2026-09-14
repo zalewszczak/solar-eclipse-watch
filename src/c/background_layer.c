@@ -152,12 +152,12 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
   // normal once-a-minute throttle) kept showing them there even as
   // real time moved the bodies elsewhere -- a second, stale copy
   // wherever they'd been mid-sweep, alongside the real one. See
-  // draw_bg_anim_planets_overlay() below for the actual fix.
+  // celestial_layer_draw_bg_anim_planets() below for the actual fix.
   bool skip_body_paint = state->planet_seek_active || (state->bg_anim_active && d->bg_anim_mode == 1);
 
   // Same "skip it here, draw it fresh as an overlay after the cache
   // capture" trick as skip_body_paint above, now for the "Markers"
-  // background-on-start mode -- see draw_bg_anim_markers_overlay()'s
+  // background-on-start mode -- see background_overlays_draw_marker_animation()'s
   // own comment for why its backdrop can be captured once (unlike
   // mode 1's, which keeps changing throughout the sweep) and only the
   // overlaid element needs to be fresh every frame.
@@ -454,7 +454,7 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
   // own positioning, which always uses the full unobstructed screen, so
   // markers and hands stay aligned with each other.
   // skip_marker_paint: this frame's markers get drawn afterward
-  // instead, by draw_bg_anim_markers_overlay(), so the cache stays
+  // instead, by background_overlays_draw_marker_animation(), so the cache stays
   // marker-free for every subsequent cheap frame to blit and overlay
   // onto -- same "skip it here, draw it fresh as an overlay after"
   // trick skip_body_paint uses above for bg_anim_mode 1's bodies.
@@ -552,16 +552,10 @@ void background_layer_set_background_animation(Layer *layer, bool active, uint16
   bool was_active = state->bg_anim_active;
   state->bg_anim_active = active;
   state->bg_anim_elapsed_ms = elapsed_ms;
-  // Mode 2 ("Markers") only ever animates its own overlaid element
-  // (see draw_bg_anim_markers_overlay()'s own comment) on top of an
-  // otherwise-unchanging backdrop -- same "full draw once on entering/
-  // leaving the mode, cheap overlay every frame in between" shape
-  // background_layer_set_planet_seek() below already uses -- so only the
-  // active/inactive TRANSITION needs a genuine full redraw, not every
-  // single frame. Mode 1 ("Planets") is different: its sky_now
-  // substitution (see canvas_update_proc's own comment) means the
-  // gradient/Sun color itself keeps changing throughout the sweep, not
-  // just body position, so it still needs a real full redraw every
+  // Marker animation changes only its transient overlay on top of an
+  // otherwise reusable backdrop, so only entry/exit requires a full redraw.
+  // Planet animation is different: its sky-time substitution changes the
+  // gradient and Sun color during the sweep, so it needs a full redraw while
   // frame -- forced unconditionally here whenever it's the active
   // mode, same as every mode used to do. state->data may not be set
   // yet the very first time this is ever called (app launch, before

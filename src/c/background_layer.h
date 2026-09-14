@@ -13,21 +13,12 @@ void background_layer_destroy(Layer *layer);
 void background_layer_set_data(Layer *layer, EclipseData *data);
 
 // Toggles the "Sun" / "Moon" / "Saturn" name labels shown briefly
-// next to each visible body after a shake gesture. pebble-eclipse-watch.c calls this
-// true on tap and false again after a few seconds via app_timer.
+// next to visible bodies after a shake gesture.
 void background_layer_set_labels_visible(Layer *layer, bool show);
 
-// Drives the "animate background on start" effect -- active/
-// elapsed_ms mirror the application-owned animation controller; this forwards the
-// current animation state to the canvas renderer.
-// Only forces an immediate full redraw on entering/leaving bg_anim_
-// mode 2 ("Planets" -- its sky_now-driven gradient sweep genuinely
-// changes every frame) or on the active/inactive transition for modes
-// 1/3 (whose backdrop is static -- only the overlaid clouds/markers
-// move -- so the canvas update procedure's own cache-blit path plus draw_bg_
-// anim_clouds_overlay()/draw_bg_anim_markers_overlay() handle every
-// frame in between cheaply); see this function's own body for the
-// exact condition.
+// Updates the startup background-animation state used by the canvas renderer.
+// The animation controller owns elapsed-time policy; this layer only consumes
+// the current state and decides whether its cached composition can be reused.
 void background_layer_set_background_animation(Layer *layer, bool active, uint16_t elapsed_ms);
 
 // Drives "Planet seek" (shake_anim_mode 2 or 3) -- see its own comment in
