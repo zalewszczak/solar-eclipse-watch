@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>JS Source Table Editor</title>
+  <style>
+    :root[data-theme="dark"] {
+      --bg: #1e1e2e;
+      --card-bg: #282a36;
+      --border: #44475a;
+      --text: #f8f8f2;
+      --accent: #bd93f9;
+      --accent-hover: #ff79c6;
+      --btn-green: #2ea043;
+      --btn-red: #da3633;
+      --muted: #6272a4;
+      --input-bg: #181825;
+      --highlight-bg: #383a59;
+    }
+
+    :root[data-theme="light"] {
+      --bg: #f4f5f9;
+      --card-bg: #ffffff;
+      --border: #dcdfe6;
+      --text: #2c3e50;
+      --accent: #6272a4;
+      --accent-hover: #44475a;
+      --btn-green: #2ecc71;
+      --btn-red: #e74c3c;
+      --muted: #95a5a6;
+      --input-bg: #ffffff;
+      --highlight-bg: #e3e8f8;
+    }
+
+    * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace; }
+    body { background-color: var(--bg); color: var(--text); margin: 0; padding: 20px; transition: background-color 0.2s; }
+    
+    .top-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+    h1 { margin: 0; font-size: 1.5rem; color: var(--accent); }
+    
+    .container { display: flex; flex-direction: column; gap: 20px; max-width: 100%; }
+    .panel { background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 16px; }
+    .panel-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 12px; }
+    .panel-content.collapsed { display: none; }
+
+    textarea.src-input {
+      width: 100%; height: 240px; background: var(--input-bg); color: var(--text);
+      border: 1px solid var(--border); border-radius: 6px; padding: 10px;
+      font-family: monospace; font-size: 13px; line-height: 1.5; white-space: pre; overflow-x: auto; resize: vertical;
+    }
+
+    .btn { background: var(--accent); color: #fff; border: none; padding: 6px 14px; border-radius: 4px; font-weight: bold; cursor: pointer; }
+    .btn:hover { background: var(--accent-hover); }
+    .btn-danger { background: var(--btn-red); }
+    .btn-sm { padding: 4px 8px; font-size: 12px; }
+    .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text); }
+    .btn-outline:hover { background: var(--border); }
+
+    .table-wrapper { overflow-x: auto; max-height: 75vh; position: relative; }
+    table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13px; }
+    th, td { border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); padding: 8px; vertical-align: top; background: var(--card-bg); }
+    tr.active-row td { background-color: var(--highlight-bg) !important; }
+    th { background: var(--bg); position: sticky; top: 0; z-index: 10; border-top: 1px solid var(--border); }
+
+    .resizer { position: absolute; right: 0; top: 0; bottom: 0; width: 8px; cursor: col-resize; user-select: none; z-index: 40; }
+    .resizer:hover, .resizer.resizing { background: var(--accent); opacity: 0.7; }
+
+    .col-header-box { display: flex; flex-direction: column; gap: 4px; width: 100%; }
+    .col-header-top { display: flex; justify-content: space-between; align-items: center; gap: 4px; }
+    .btn-hide { background: transparent; border: none; color: var(--muted); cursor: pointer; }
+    
+    .hidden-cols-container { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+    .hidden-col-pill { background: var(--input-bg); color: var(--text); border: 1px dashed var(--border); padding: 3px 8px; border-radius: 12px; font-size: 11px; cursor: pointer; }
+
+    .col-header-box input, .col-header-box select, select.cell-select {
+      background: var(--input-bg); color: var(--text); border: 1px solid var(--border); padding: 6px; border-radius: 4px; width: 100%;
+    }
+
+    textarea.cell-textarea {
+      width: 100%; min-height: 48px; background: var(--input-bg); color: var(--text);
+      border: 1px solid var(--border); border-radius: 4px; padding: 4px 6px; font-size: 12px; resize: vertical;
+    }
+
+    .num-control { display: flex; align-items: center; gap: 4px; }
+    .num-control button { background: var(--border); color: var(--text); border: none; width: 26px; height: 28px; border-radius: 4px; cursor: pointer; font-weight: bold; }
+    .num-control input { text-align: center; background: var(--input-bg); color: var(--text); border: 1px solid var(--border); padding: 4px; border-radius: 4px; width: 100%; }
+
+    .bool-btn-group { display: flex; align-items: center; gap: 6px; }
+    .bool-main-btn { border: none; border-radius: 4px; padding: 5px 10px; font-size: 11px; font-weight: bold; cursor: pointer; color: #fff; flex: 1; }
+    .bool-main-btn.true-state { background: var(--btn-green); }
+    .bool-main-btn.false-state { background: var(--btn-red); }
+    .bool-main-btn.null-state { background: var(--border); color: var(--muted); }
+
+    .null-btn { border: none; border-radius: 3px; width: 24px; height: 24px; font-size: 11px; font-weight: bold; cursor: pointer; }
+    .null-btn.null-active { background: var(--btn-red); color: #fff; }
+    .null-btn.null-inactive { background: var(--border); color: var(--text); }
+
+    .cat-btn-group { display: flex; flex-wrap: wrap; gap: 4px; }
+    .cat-btn { border: none; border-radius: 4px; padding: 3px 8px; font-size: 11px; font-weight: bold; cursor: pointer; color: #fff; }
+    .cat-btn.active { background: var(--btn-green); }
+    .cat-btn.inactive { background: var(--btn-red); opacity: 0.7; }
+  </style>
+</head>
+<body>
+
+  <div class="top-header">
+    <h1>JS Source Code Table Editor</h1>
+    <div style="display: flex; gap: 8px;">
+      <button class="btn btn-outline btn-sm" onclick="resetAllData()">🔄 Reset Storage</button>
+      <button class="btn" id="themeBtn" onclick="toggleTheme()">🌙 Night Mode</button>
+    </div>
+  </div>
+
+  <div class="container">
+    <div class="panel">
+      <div class="panel-header">
+        <strong>JS Table Source Code</strong>
+        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+          <button class="btn btn-sm btn-outline" id="collapseBtn" onclick="toggleSourcePanel()">[-] Collapse Code</button>
+          <button class="btn btn-sm btn-outline" onclick="prettifySourceText()">✨ Prettify Code</button>
+          <button class="btn btn-sm" onclick="parseTextToTable()">Parse / Reload Table</button>
+        </div>
+      </div>
+      <div class="panel-content" id="srcPanelContent">
+        <textarea id="srcInput" class="src-input" spellcheck="false"></textarea>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">
+        <div style="display: flex; align-items: center; gap: 16px; flex-wrap: wrap;">
+          <strong>Data Table</strong>
+          <label style="font-size: 12px; display: flex; align-items: center; gap: 6px;">
+            Sticky Columns:
+            <input type="number" id="stickyColInput" min="0" value="1" style="width: 55px; padding: 2px 6px;" onchange="updateStickyCols(this.value)">
+          </label>
+          <div class="hidden-cols-container" id="hiddenColsList"></div>
+        </div>
+        <button class="btn btn-sm" onclick="addRow()">+ Add Row</button>
+      </div>
+      <div class="table-wrapper">
+        <table id="dataTable">
+          <thead id="tableHead"></thead>
+          <tbody id="tableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const STORAGE_KEY_SRC = 'js_table_editor_src';
+    const STORAGE_KEY_COLS = 'js_table_editor_cols';
+    const STORAGE_KEY_STICKY = 'js_table_editor_sticky';
+
+    let rowsData = [];
+    let columnsConfig = [];
+    let stickyColCount = 1;
+    let selectedRowIdx = null;
+    let currentResizingCol = null;
+    let startX = 0;
+    let startWidth = 0;
+
+    function escapeHTML(str) {
+      if (str === null || str === undefined) return '';
+      return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function applyTheme(theme) {
+      document.documentElement.setAttribute('data-theme', theme);
+      const themeBtn = document.getElementById('themeBtn');
+      if (themeBtn) themeBtn.innerText = theme === 'light' ? '🌙 Night Mode' : '☀️ Day Mode';
+    }
+
+    function initTheme() {
+      const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+      applyTheme(prefersDark ? 'dark' : 'light');
+    }
+
+    function toggleTheme() {
+      const current = document.documentElement.getAttribute('data-theme');
+      applyTheme(current === 'light' ? 'dark' : 'light');
+    }
+
+    function selectRow(rIdx) {
+      selectedRowIdx = rIdx;
+      document.querySelectorAll('#tableBody tr').forEach((tr, idx) => {
+        tr.classList.toggle('active-row', idx === rIdx);
+      });
+    }
+
+    function saveToLocalStorage() {
+      try {
+        localStorage.setItem(STORAGE_KEY_SRC, document.getElementById('srcInput').value);
+        localStorage.setItem(STORAGE_KEY_COLS, JSON.stringify(columnsConfig));
+        localStorage.setItem(STORAGE_KEY_STICKY, stickyColCount);
+      } catch (e) { console.error(e); }
+    }
+
+    function loadFromLocalStorage() {
+      try {
+        const savedSrc = localStorage.getItem(STORAGE_KEY_SRC);
+        const savedCols = localStorage.getItem(STORAGE_KEY_COLS);
+        const savedSticky = localStorage.getItem(STORAGE_KEY_STICKY);
+
+        if (savedSticky !== null) {
+          stickyColCount = parseInt(savedSticky, 10) || 1;
+          document.getElementById('stickyColInput').value = stickyColCount;
+        }
+
+        if (savedCols) {
+          try { columnsConfig = JSON.parse(savedCols); } catch (err) { columnsConfig = []; }
+        }
+
+        const srcElem = document.getElementById('srcInput');
+        srcElem.value = (savedSrc && savedSrc.trim()) ? savedSrc : defaultSnippet;
+      } catch (e) {
+        document.getElementById('srcInput').value = "[{description:'Paste your table here'}]";
+      }
+    }
+
+    function resetAllData() {
+      if (confirm('Clear local storage and reset editor to default snippet?')) {
+        localStorage.clear();
+        columnsConfig = [];
+        document.getElementById('srcInput').value = defaultSnippet;
+        parseTextToTable();
+      }
+    }
+
+    function toggleSourcePanel() {
+      const content = document.getElementById('srcPanelContent');
+      const btn = document.getElementById('collapseBtn');
+      content.classList.toggle('collapsed');
+      btn.innerText = content.classList.contains('collapsed') ? '[+] Expand Code' : '[-] Collapse Code';
+    }
+
+    function updateStickyCols(val) {
+      stickyColCount = Math.max(0, parseInt(val, 10) || 0);
+      renderTable();
+      saveToLocalStorage();
+    }
+
+    function toggleColumnVisibility(cIdx) {
+      if (columnsConfig[cIdx]) {
+        columnsConfig[cIdx].hidden = !columnsConfig[cIdx].hidden;
+        renderTable();
+        saveToLocalStorage();
+      }
+    }
+
+    function parseTextToTable() {
+      try {
+        const src = document.getElementById('srcInput').value;
+        const lines = src.split('\n');
+        rowsData = [];
+        const keysSet = new Set();
+        const existingColMap = new Map();
+
+        (columnsConfig || []).forEach(c => existingColMap.set(c.key, c));
+
+        lines.forEach(line => {
+          let trimmed = line.trim();
+          if (!trimmed || trimmed.startsWith('[') || trimmed === ']') return;
+
+          let comment = '';
+          const commentIdx = line.indexOf('//');
+          if (commentIdx !== -1) {
+            comment = line.substring(commentIdx + 2).trim();
+            line = line.substring(0, commentIdx);
+          }
+
+          line = line.trim();
+          if (line.endsWith(',')) line = line.slice(0, -1).trim();
+
+          if (line.startsWith('{') && line.endsWith('}')) {
+            try {
+              const obj = new Function('return ' + line)();
+              obj._comment = comment;
+              rowsData.push(obj);
+
+              Object.keys(obj).forEach(k => {
+                if (k !== '_comment') keysSet.add(k);
+              });
+            } catch (err) {
+              console.warn('Line parse skipped:', line);
+            }
+          }
+        });
+
+        columnsConfig = Array.from(keysSet).map(key => {
+          const existing = existingColMap.get(key);
+          let detectedType = existing ? existing.type : 'string';
+          const width = existing ? existing.width : 160;
+          const hidden = existing ? !!existing.hidden : false;
+
+          if (!existing) {
+            for (const r of rowsData) {
+              const val = r[key];
+              if (val === null || val === undefined) continue;
+              if (Array.isArray(val)) { detectedType = 'categories'; break; }
+              if (typeof val === 'number') { detectedType = 'number'; break; }
+              if (typeof val === 'boolean') { detectedType = 'boolean'; break; }
+            }
+          }
+
+          const catSet = new Set(existing ? existing.categoryOptions : []);
+          rowsData.forEach(r => {
+            const val = r[key];
+            if (Array.isArray(val)) {
+              val.forEach(c => catSet.add(String(c)));
+            } else if (val !== null && val !== undefined && typeof val !== 'boolean') {
+              catSet.add(String(val));
+            }
+          });
+
+          return {
+            key,
+            type: detectedType,
+            categoryOptions: Array.from(catSet),
+            width,
+            hidden
+          };
+        });
+
+        columnsConfig.push({
+          key: '_comment',
+          type: 'comment',
+          categoryOptions: [],
+          width: 220,
+          hidden: existingColMap.get('_comment') ? existingColMap.get('_comment').hidden : false
+        });
+
+        renderTable();
+      } catch (err) {
+        console.error('Parse failed', err);
+      }
+    }
+
+    function renderTable() {
+      const thead = document.getElementById('tableHead');
+      const tbody = document.getElementById('tableBody');
+      const hiddenContainer = document.getElementById('hiddenColsList');
+
+      hiddenContainer.innerHTML = columnsConfig.map((col, cIdx) => col.hidden ? 
+        `<button class="hidden-col-pill" onclick="toggleColumnVisibility(${cIdx})">${escapeHTML(col.key === '_comment' ? 'Comment' : col.key)} ✕</button>` : ''
+      ).join('');
+
+      const leftOffsets = [];
+      let currentLeft = 0;
+      columnsConfig.forEach(col => {
+        if (col.hidden) { leftOffsets.push(0); return; }
+        leftOffsets.push(currentLeft);
+        currentLeft += (col.width || 160);
+      });
+
+      let headHTML = '<tr>';
+      let visibleIdx = 0;
+
+      columnsConfig.forEach((col, cIdx) => {
+        if (col.hidden) return;
+        const colWidth = col.width || 160;
+        const isSticky = visibleIdx < stickyColCount;
+        const stickyStyle = isSticky ? `position: sticky; left: ${leftOffsets[cIdx]}px; z-index: 35; background: var(--bg);` : '';
+        const showOptionsInput = col.type === 'categories' || col.type === 'predefined';
+
+        headHTML += `<th style="width: ${colWidth}px; min-width: ${colWidth}px; ${stickyStyle}">
+          <div class="col-header-box">
+            <div class="col-header-top">
+              <strong>${escapeHTML(col.key === '_comment' ? 'Comment' : col.key)}</strong>
+              <button class="btn-hide" onclick="toggleColumnVisibility(${cIdx})">👁️</button>
+            </div>
+            <select onchange="updateColType(${cIdx}, this.value)">
+              <option value="string"${col.type === 'string' ? ' selected' : ''}>String</option>
+              <option value="number"${col.type === 'number' ? ' selected' : ''}>Number</option>
+              <option value="boolean"${col.type === 'boolean' ? ' selected' : ''}>Boolean</option>
+              <option value="predefined"${col.type === 'predefined' ? ' selected' : ''}>Predefined</option>
+              <option value="categories"${col.type === 'categories' ? ' selected' : ''}>Categories</option>
+              <option value="comment"${col.type === 'comment' ? ' selected' : ''}>Comment</option>
+            </select>
+            ${showOptionsInput ? `<input type="text" value="${escapeHTML((col.categoryOptions || []).join(', '))}" onchange="updateCategoryOptions(${cIdx}, this.value)" />` : ''}
+          </div>
+          <div class="resizer" onmousedown="initResize(event, ${cIdx})"></div>
+        </th>`;
+        visibleIdx++;
+      });
+
+      headHTML += '<th style="width: 70px;">Actions</th></tr>';
+      thead.innerHTML = headHTML;
+
+      let bodyHTML = '';
+      rowsData.forEach((row, rIdx) => {
+        const isActive = (rIdx === selectedRowIdx);
+        bodyHTML += `<tr class="${isActive ? 'active-row' : ''}" onclick="selectRow(${rIdx})">`;
+        let rowVisibleIdx = 0;
+
+        columnsConfig.forEach((col, cIdx) => {
+          if (col.hidden) return;
+          const val = row[col.key];
+          const colWidth = col.width || 160;
+          const isSticky = rowVisibleIdx < stickyColCount;
+          const stickyStyle = isSticky ? `position: sticky; left: ${leftOffsets[cIdx]}px; z-index: 15; background: var(--card-bg);` : '';
+
+          bodyHTML += `<td style="width: ${colWidth}px; min-width: ${colWidth}px; ${stickyStyle}">`;
+
+          if (col.type === 'number') {
+            const numVal = (val !== undefined && val !== null) ? val : 0;
+            bodyHTML += `<div class="num-control">
+              <button onclick="stepNumber(${rIdx},${cIdx}, -1)">-</button>
+              <input type="number" value="${numVal}" oninput="updateCell(${rIdx},${cIdx}, parseFloat(this.value) || 0)">
+              <button onclick="stepNumber(${rIdx},${cIdx}, 1)">+</button>
+            </div>`;
+          } else if (col.type === 'boolean') {
+            const isNull = (val === null || val === undefined);
+            const isTrue = val === true;
+            const label = isNull ? 'NULL' : (isTrue ? 'TRUE' : 'FALSE');
+            const btnClass = isNull ? 'null-state' : (isTrue ? 'true-state' : 'false-state');
+
+            bodyHTML += `<div class="bool-btn-group">
+              <button type="button" class="bool-main-btn ${btnClass}" ${isNull ? 'disabled' : ''} onclick="toggleBoolValue(${rIdx}, ${cIdx})">${label}</button>
+              <button type="button" class="null-btn ${isNull ? 'null-active' : 'null-inactive'}" onclick="toggleBoolNull(${rIdx},${cIdx})">✕</button>
+            </div>`;
+          } else if (col.type === 'predefined') {
+            const currentStr = (val === null || val === undefined) ? '' : String(val);
+            const opts = col.categoryOptions || [];
+            const allOpts = Array.from(new Set([...opts, ...(currentStr ? [currentStr] : [])]));
+            let optionsHTML = '<option value="___NULL___">-- None / Null --</option>';
+            
+            allOpts.forEach(opt => {
+              optionsHTML += `<option value="${escapeHTML(opt)}"${currentStr === opt ? ' selected' : ''}>${escapeHTML(opt)}</option>`;
+            });
+
+            bodyHTML += `<select class="cell-select" onchange="updateCellPredefined(${rIdx}, ${cIdx}, this.value)">${optionsHTML}</select>`;
+          } else if (col.type === 'categories') {
+            const selectedArr = Array.isArray(val) ? val : [];
+            const buttonsHTML = (col.categoryOptions || []).map((opt, optIdx) => {
+              const active = selectedArr.includes(opt);
+              return `<button type="button" class="cat-btn ${active ? 'active' : 'inactive'}" onclick="toggleCategory(${rIdx},${cIdx}, ${optIdx})">${escapeHTML(opt)}</button>`;
+            }).join('');
+
+            bodyHTML += `<div class="cat-btn-group">${buttonsHTML}</div>`;
+          } else if (col.type === 'comment') {
+            bodyHTML += `<textarea class="cell-textarea" oninput="updateCell(${rIdx}, ${cIdx}, this.value)">${escapeHTML(row._comment || '')}</textarea>`;
+          } else {
+            const strVal = (val === null || val === undefined) ? '' : val;
+            bodyHTML += `<textarea class="cell-textarea" oninput="updateCell(${rIdx}, ${cIdx}, this.value)">${escapeHTML(strVal)}</textarea>`;
+          }
+
+          bodyHTML += '</td>';
+          rowVisibleIdx++;
+        });
+
+        bodyHTML += `<td><button class="btn btn-danger btn-sm" onclick="deleteRow(${rIdx})">✕</button></td></tr>`;
+      });
+
+      tbody.innerHTML = bodyHTML;
+      updateSourceText();
+    }
+
+    function initResize(e, cIdx) {
+      e.preventDefault();
+      e.stopPropagation();
+      currentResizingCol = cIdx;
+      startX = e.clientX;
+      startWidth = columnsConfig[cIdx].width || 160;
+      
+      const handleMouseMove = (evt) => {
+        if (currentResizingCol === null) return;
+        columnsConfig[currentResizingCol].width = Math.max(90, startWidth + (evt.clientX - startX));
+        renderTable();
+      };
+
+      const handleMouseUp = () => {
+        currentResizingCol = null;
+        document.removeEventListener('mousemove', handleMouseMove);
+        document.removeEventListener('mouseup', handleMouseUp);
+        saveToLocalStorage();
+      };
+
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+    }
+
+    function updateCell(rIdx, cIdx, value) {
+      const key = columnsConfig[cIdx].key;
+      if (key === '_comment') row._comment = value;
+      else rowsData[rIdx][key] = value;
+      updateSourceText();
+    }
+
+    function updateCellPredefined(rIdx, cIdx, value) {
+      const key = columnsConfig[cIdx].key;
+      rowsData[rIdx][key] = (value === '___NULL___') ? null : value;
+      updateSourceText();
+    }
+
+    function toggleBoolValue(rIdx, cIdx) {
+      const key = columnsConfig[cIdx].key;
+      rowsData[rIdx][key] = (rowsData[rIdx][key] !== true);
+      renderTable();
+    }
+
+    function toggleBoolNull(rIdx, cIdx) {
+      const key = columnsConfig[cIdx].key;
+      const current = rowsData[rIdx][key];
+      rowsData[rIdx][key] = (current === null || current === undefined) ? false : null;
+      renderTable();
+    }
+
+    function stepNumber(rIdx, cIdx, delta) {
+      const key = columnsConfig[cIdx].key;
+      const current = parseFloat(rowsData[rIdx][key]) || 0;
+      rowsData[rIdx][key] = current + delta;
+      renderTable();
+    }
+
+    function toggleCategory(rIdx, cIdx, optIdx) {
+      const col = columnsConfig[cIdx];
+      const key = col.key;
+      const option = col.categoryOptions[optIdx];
+      if (!Array.isArray(rowsData[rIdx][key])) rowsData[rIdx][key] = [];
+      const arr = rowsData[rIdx][key];
+      const idx = arr.indexOf(option);
+      if (idx > -1) arr.splice(idx, 1);
+      else arr.push(option);
+      renderTable();
+    }
+
+    function updateColType(cIdx, newType) {
+      columnsConfig[cIdx].type = newType;
+      renderTable();
+    }
+
+    function updateCategoryOptions(cIdx, val) {
+      columnsConfig[cIdx].categoryOptions = val.split(',').map(s => s.trim()).filter(Boolean);
+      renderTable();
+      saveToLocalStorage();
+    }
+
+    function addRow() {
+      const newRow = {};
+      columnsConfig.forEach(c => {
+        if (c.type === 'categories') newRow[c.key] = [];
+        else if (c.type === 'number') newRow[c.key] = 0;
+        else if (c.type === 'boolean') newRow[c.key] = false;
+        else if (c.type === 'comment') newRow._comment = '';
+        else newRow[c.key] = '';
+      });
+      rowsData.push(newRow);
+      selectRow(rowsData.length - 1);
+      renderTable();
+    }
+
+    function deleteRow(rIdx) {
+      rowsData.splice(rIdx, 1);
+      if (selectedRowIdx === rIdx) selectedRowIdx = null;
+      renderTable();
+    }
+
+    function prettifySourceText() {
+      parseTextToTable();
+      updateSourceText();
+    }
+
+    function updateSourceText() {
+      const colWidths = {};
+      columnsConfig.forEach(col => {
+        if (col.type === 'comment') return;
+        let maxLen = 0;
+        rowsData.forEach(row => {
+          const val = row[col.key];
+          if (val === undefined) return;
+
+          let valFormatted;
+          if (val === null) valFormatted = 'null';
+          else if (typeof val === 'string') valFormatted = "'" + val.replace(/'/g, "\\'") + "'";
+          else if (Array.isArray(val)) valFormatted = '[' + val.map(v => "'" + String(v).replace(/'/g, "\\'") + "'").join(', ') + ']';
+          else valFormatted = String(val);
+
+          const entryStr = `${col.key}:${valFormatted}`;
+          if (entryStr.length > maxLen) maxLen = entryStr.length;
+        });
+        colWidths[col.key] = maxLen;
+      });
+
+      const activeDataCols = columnsConfig.filter(c => c.type !== 'comment');
+
+      const formattedRows = rowsData.map(row => {
+        const parts = [];
+        activeDataCols.forEach(col => {
+          const val = row[col.key];
+          if (val === undefined) return;
+
+          let valFormatted;
+          if (val === null) valFormatted = 'null';
+          else if (typeof val === 'string') valFormatted = "'" + val.replace(/'/g, "\\'") + "'";
+          else if (Array.isArray(val)) valFormatted = '[' + val.map(v => "'" + String(v).replace(/'/g, "\\'") + "'").join(', ') + ']';
+          else valFormatted = String(val);
+
+          const entryStr = `${col.key}:${valFormatted}`;
+          parts.push(entryStr.padEnd(colWidths[col.key] || 0, ' '));
+        });
+
+        return { objText: `  { ${parts.join(', ')} },`, comment: row._comment || '' };
+      });
+
+      let maxObjTextLen = 0;
+      formattedRows.forEach(item => {
+        if (item.comment && item.objText.length > maxObjTextLen) maxObjTextLen = item.objText.length;
+      });
+
+      const lines = formattedRows.map(item => {
+        if (!item.comment) return item.objText;
+        return item.objText.padEnd(maxObjTextLen, ' ') + ' // ' + item.comment;
+      });
+
+      document.getElementById('srcInput').value = '[\n' + lines.join('\n') + '\n]';
+      saveToLocalStorage();
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      initTheme();
+      loadFromLocalStorage();
+      parseTextToTable();
+    });
+  </script>
+</body>
+</html>
