@@ -80,6 +80,21 @@ function fontLookupEntry(id) {
   return FONT_LOOKUP[0];
 }
 
+// Shared by secondsAvailableForDigital() and secondsUnavailableReason()
+// below so the "how do we read this field" logic lives in exactly one
+// place. parseInt (not a strict typeof check) so a value that's
+// accidentally been quoted as a string in FONT_LOOKUP (e.g.
+// sidesWithSeconds: '-1' instead of -1) still reads correctly instead
+// of silently falling through to the "no value set" default -- that
+// default exists for genuinely missing fields, not as a catch-all for
+// wrong types, and the two are easy to conflate with a plain typeof
+// guard since both look identical from the outside (no error, just a
+// wrong tier).
+function sidesWithSecondsTier(fontEntry) {
+  var raw = parseInt(fontEntry.sidesWithSeconds, 10);
+  return isNaN(raw) ? 0 : raw;
+}
+
 // Whether "Show seconds" can be offered at all for a mainClock font,
 // given which digital side column(s) (if any) are currently active --
 // side features compete for the same horizontal space seconds would
@@ -88,29 +103,55 @@ function fontLookupEntry(id) {
 // each of the 4 values means) -- tier -1 blocks seconds outright
 // regardless of digitalSidesVal, tier 0 (the common case) only allows
 // it with NO side column active, tier 1 allows it with 0 or 1 side
-// column active but not both, and tier 2 allows it regardless.
-// Defaults to 0 (the same "assume the common case" default
-// `sidesWithSeconds`'s own comment describes) if a lookup ever finds
-// no explicit value. Has a client-side twin further down (used by
-// onBottomStyleChange() and toggleDigitalSide() for live updates as
-// the user actually toggles a side) kept in exact sync with this one
-// -- both read the same FONT_LOOKUP field, so there's nothing for the
-// two copies to disagree about even if their surrounding code
-// differs.
+// column active but not both, and tier 2 allows it regardless. Has a
+// client-side twin further down (used by onBottomStyleChange() and
+// toggleDigitalSide() for live updates as the user actually toggles a
+// side) kept in exact sync with this one -- both read the same
+// FONT_LOOKUP field, so there's nothing for the two copies to
+// disagree about even if their surrounding code differs.
 function secondsAvailableForDigital(fontEntry, digitalSidesVal) {
-  // parseInt (not a strict typeof check) so a value that's accidentally
-  // been quoted as a string in FONT_LOOKUP (e.g. sidesWithSeconds: '-1'
-  // instead of -1) still reads correctly instead of silently falling
-  // through to the "no value set" default -- that default exists for
-  // genuinely missing fields, not as a catch-all for wrong types, and
-  // the two are easy to conflate with a plain typeof guard since both
-  // look identical from the outside (no error, just a wrong tier).
-  var tierRaw = parseInt(fontEntry.sidesWithSeconds, 10);
-  var tier = isNaN(tierRaw) ? 0 : tierRaw;
+  var tier = sidesWithSecondsTier(fontEntry);
   if (tier === -1) return false;
   if (tier === 2) return true;
   if (tier === 1) return !digitalSidesVal || digitalSidesVal !== 'both';
   return !digitalSidesVal || digitalSidesVal === 'none';
+}
+
+// Companion to secondsAvailableForDigital() -- only ever meaningful to
+// call once that's already returned false, so it doesn't re-check
+// digitalSidesVal itself: by the time seconds is unavailable, the
+// TIER alone (not which specific side combination triggered it)
+// determines which of the 3 blocking reasons applies, since each
+// tier has exactly one way to end up unavailable. Surfaced in the
+// Show Seconds help text (secondsHelp) instead of that field's old
+// one-size-fits-all "This font doesn't support showing seconds."
+function secondsUnavailableReason(fontEntry) {
+  var tier = sidesWithSecondsTier(fontEntry);
+  if (tier === -1) return 'This font doesn\'t support showing seconds at all.';
+  if (tier === 1) return 'This font requires 1 or fewer side features enabled to show seconds.';
+  return 'This font requires no side features enabled to show seconds.';
+}
+
+// Full help text for the Side features section's own "?" panel --
+// the base explanation already varied by sidesAllowed (room for one
+// column vs both), now with an extra sentence appended when this
+// font's sidesWithSeconds tier means turning on (more) side features
+// will cost the user Show Seconds, so that tradeoff isn't only
+// discovered after the fact via the Show Seconds checkbox quietly
+// graying out. No extra sentence for tier -1 (seconds was never on
+// the table regardless of side features, so mentioning sides here
+// would be misleading) or tier 2 (no tradeoff to warn about).
+function digitalSidesHelpText(sidesAllowedVal, secondsTier) {
+  var base = (sidesAllowedVal === 1)
+    ? 'This font only has room for one side column at a time -- pick left OR right, not both.'
+    : 'Adds up to 3 short info lines down each side of the digital clock, on the clock\'s own panel -- pick their content on the diagram above. Only offered for narrower clock fonts (this one qualifies); picking both sides assumes the font is already narrow enough to share the panel with them without shrinking the clock any further.';
+  if (secondsTier === 0) {
+    return base + ' Turning on a side feature will also turn off Show seconds for this font.';
+  }
+  if (secondsTier === 1) {
+    return base + ' Turning on both side features at once will also turn off Show seconds for this font -- one side keeps it available.';
+  }
+  return base;
 }
 
 // Renders <option>s for one of the four font pickers. `onlyMainClock`
@@ -137,6 +178,9 @@ module.exports = {
   googleFontsHref: googleFontsHref,
   cdnFontLinks: cdnFontLinks,
   fontLookupEntry: fontLookupEntry,
+  sidesWithSecondsTier: sidesWithSecondsTier,
   secondsAvailableForDigital: secondsAvailableForDigital,
+  secondsUnavailableReason: secondsUnavailableReason,
+  digitalSidesHelpText: digitalSidesHelpText,
   fontOptionsHtml: fontOptionsHtml
 };

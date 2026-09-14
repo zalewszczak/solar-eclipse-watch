@@ -165,7 +165,10 @@ var configFonts = require('./config/config-fonts');
 var googleFontsHref = configFonts.googleFontsHref;
 var cdnFontLinks = configFonts.cdnFontLinks;
 var fontLookupEntry = configFonts.fontLookupEntry;
+var sidesWithSecondsTier = configFonts.sidesWithSecondsTier;
 var secondsAvailableForDigital = configFonts.secondsAvailableForDigital;
+var secondsUnavailableReason = configFonts.secondsUnavailableReason;
+var digitalSidesHelpText = configFonts.digitalSidesHelpText;
 var fontOptionsHtml = configFonts.fontOptionsHtml;
 
 
@@ -291,6 +294,16 @@ function buildConfigHtml(current) {
   var secondsUnsupported = configState.secondsUnsupported;
   var secondsChecked = configState.secondsChecked;
   var secondsDisabled = configState.secondsDisabled;
+  // Only actually read when secondsUnsupported is true (see the
+  // secondsHelp div below) -- specific per FONT_LOOKUP's own
+  // sidesWithSeconds tier instead of one static "doesn't support
+  // seconds" line for every reason it could be unavailable.
+  var secondsHelpText = secondsUnsupported ? secondsUnavailableReason(fontLookupEntry(clockFontId)) : '';
+  // Appends a sentence about the Show Seconds tradeoff to the Side
+  // features help panel when this font's sidesWithSeconds tier means
+  // turning on (more) side features costs the user Show Seconds --
+  // see digitalSidesHelpText()'s own comment in config-fonts.js.
+  var digitalSidesHelpTextVal = digitalSidesHelpText(clockSidesAllowed, sidesWithSecondsTier(fontLookupEntry(clockFontId)));
   var cornerFontId = configState.cornerFontId;
   var cornerCategoriesForClient = configState.cornerCategoriesForClient;
   var exampleStylesButtonsHtml = configState.exampleStylesButtonsHtml;
@@ -1138,7 +1151,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      <label for="showSeconds" style="margin:0;">Show seconds</label>' +
 '      <button type="button" class="help-btn" onclick="toggleHelp(\'help-showSeconds\')">?</button>' +
 '    </div>' +
-'    <div class="help" id="secondsHelp" style="' + (secondsUnsupported ? '' : 'display:none;') + '">This font doesn\'t support showing seconds.</div>' +
+'    <div class="help" id="secondsHelp" style="' + (secondsUnsupported ? '' : 'display:none;') + '">' + esc(secondsHelpText) + '</div>' +
 '    <div class="help" id="help-showSeconds" style="display:none;">Used by both layouts -- the digital clock\'s own seconds digits, and whether analog draws a second hand at all (gates the Custom style\'s "Edit second hand" below, too).</div>' +
 
 '    <div id="bigAnalogSettings" class="subsection" style="' + (isAnalog ? '' : 'display:none;') + '">' +
@@ -1265,7 +1278,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      <input type="hidden" id="digitalSides" value="' + esc(digitalSidesVal) + '">' +
 '      <input type="hidden" id="digitalSidesPreferred" value="' + esc(digitalSidesPreferredVal) + '">' +
 '      <div class="help tooltip-warning" id="digitalSidesExclusiveTip" style="display:none;">This font only fits one side at a time -- picking a side turns the other off.</div>' +
-'      <div class="help" id="help-digitalSides" style="display:none;">' + (clockSidesAllowed === 1 ? 'This font only has room for one side column at a time -- pick left OR right, not both.' : 'Adds up to 3 short info lines down each side of the digital clock, on the clock\'s own panel -- pick their content on the diagram above. Only offered for narrower clock fonts (this one qualifies); picking both sides assumes the font is already narrow enough to share the panel with them without shrinking the clock any further.') + '</div>' +
+'      <div class="help" id="help-digitalSides" style="display:none;">' + esc(digitalSidesHelpTextVal) + '</div>' +
 '    </div>' +
 '    <div class="help" id="digitalSidesWideHelp" style="' + ((isDigital && clockFontIsWide) ? '' : 'display:none;') + '">This font runs too wide for side features -- pick a narrower one in the Style section to use them.</div>' +
 
@@ -2020,16 +2033,38 @@ handEditorModalHtml('sec', 'Edit second hand') +
 // including why this is parseInt rather than a strict typeof check)
 // -- reads the same FONT_LOOKUP `sidesWithSeconds` tier via
 // fontLookupEntry(), so there's nothing for the two copies to
-// disagree about even though this one takes a raw fontId (every
-// caller here already has one on hand from a <select>'s own .value)
-// rather than a full entry object.
+// disagree about.
+'function sidesWithSecondsTier(fontEntry) {' +
+'  var raw = parseInt(fontEntry.sidesWithSeconds, 10);' +
+'  return isNaN(raw) ? 0 : raw;' +
+'}' +
+// Takes a raw fontId (every caller here already has one on hand from
+// a <select>'s own .value) rather than a full entry object, unlike
+// its server-side twin.
 'function secondsAvailableForDigital(fontId, digitalSidesVal) {' +
-'  var tierRaw = parseInt(fontLookupEntry(fontId).sidesWithSeconds, 10);' +
-'  var tier = isNaN(tierRaw) ? 0 : tierRaw;' +
+'  var tier = sidesWithSecondsTier(fontLookupEntry(fontId));' +
 '  if (tier === -1) return false;' +
 '  if (tier === 2) return true;' +
 '  if (tier === 1) return !digitalSidesVal || digitalSidesVal !== "both";' +
 '  return !digitalSidesVal || digitalSidesVal === "none";' +
+'}' +
+// Client-side twin of secondsUnavailableReason() in config-fonts.js
+// -- see its own comment there for why it doesn't need digitalSidesVal.
+'function secondsUnavailableReason(fontId) {' +
+'  var tier = sidesWithSecondsTier(fontLookupEntry(fontId));' +
+'  if (tier === -1) return "This font doesn\'t support showing seconds at all.";' +
+'  if (tier === 1) return "This font requires 1 or fewer side features enabled to show seconds.";' +
+'  return "This font requires no side features enabled to show seconds.";' +
+'}' +
+// Client-side twin of digitalSidesHelpText() in config-fonts.js --
+// see its own comment there for what each branch means.
+'function digitalSidesHelpText(sidesAllowedVal, secondsTier) {' +
+'  var base = (sidesAllowedVal === 1) ?' +
+'    "This font only has room for one side column at a time -- pick left OR right, not both." :' +
+'    "Adds up to 3 short info lines down each side of the digital clock, on the clock\'s own panel -- pick their content on the diagram above. Only offered for narrower clock fonts (this one qualifies); picking both sides assumes the font is already narrow enough to share the panel with them without shrinking the clock any further.";' +
+'  if (secondsTier === 0) return base + " Turning on a side feature will also turn off Show seconds for this font.";' +
+'  if (secondsTier === 1) return base + " Turning on both side features at once will also turn off Show seconds for this font -- one side keeps it available.";' +
+'  return base;' +
 '}' +
       (function () {
         // Seeds DUAL_CONTEXT_SHADOW (see that var's own comment further
@@ -2304,7 +2339,9 @@ require('./config/config-preview') +
 // column(s) digitalSides says are effective right now -- baseline
 // eligibility and side-column availability are the SAME check now,
 // not two separate ones, since a tier-0 font fails it regardless of
-// digitalSidesVal).
+// digitalSidesVal). Also fills in secondsHelp's own text via
+// secondsUnavailableReason() -- specific to WHY it's unavailable
+// right now, not one static line for every possible reason.
 'function updateSecondsAvailability() {' +
 '  var isAnalog = document.getElementById("bottomStyleValue").value === "analog";' +
 '  var secondsBox = document.getElementById("showSeconds");' +
@@ -2314,7 +2351,9 @@ require('./config/config-preview') +
 '  var secondsUnavailable = !isAnalog && !secondsAvailableForDigital(fontId, digitalSidesVal);' +
 '  secondsBox.disabled = secondsUnavailable;' +
 '  if (secondsUnavailable) secondsBox.checked = false;' +
-'  document.getElementById("secondsHelp").style.display = secondsUnavailable ? "block" : "none";' +
+'  var secondsHelp = document.getElementById("secondsHelp");' +
+'  if (secondsUnavailable) secondsHelp.textContent = secondsUnavailableReason(fontId);' +
+'  secondsHelp.style.display = secondsUnavailable ? "block" : "none";' +
 '}' +
 // A font switch can turn side features on/off (the "too wide" check
 // depends on the clock font, not just digital-vs-analog), so both this
@@ -2333,9 +2372,16 @@ require('./config/config-preview') +
 '  var val = parseInt(raw, 10);' +
 '  return isNaN(val) ? 2 : val;' +
 '}' +
-'function showDigitalSidesExclusiveTip() {' +
+// Now takes an explicit message so it can explain EITHER of two
+// different limits with the same one tooltip element: the sidesAllowed
+// exclusivity rule (toggleDigitalSide()'s own call, unchanged wording)
+// or a just-happened Show Seconds side-effect (also toggleDigitalSide(),
+// new) -- whichever applied (or both, joined into one message) for the
+// click that just happened.
+'function showSideFeatureTip(message) {' +
 '  var tip = document.getElementById("digitalSidesExclusiveTip");' +
 '  if (!tip) return;' +
+'  tip.textContent = message;' +
 '  tip.style.display = "block";' +
 '  clearTimeout(tip.__hideTimer);' +
 '  tip.__hideTimer = setTimeout(function () { tip.style.display = "none"; }, 3500);' +
@@ -2358,9 +2404,8 @@ require('./config/config-preview') +
 '  var blocked = sidesAllowedVal === 0;' +
 '  document.getElementById("digitalSidesSection").style.display = (isDigital && !blocked) ? "" : "none";' +
 '  document.getElementById("digitalSidesWideHelp").style.display = (isDigital && blocked) ? "" : "none";' +
-'  document.getElementById("help-digitalSides").textContent = (sidesAllowedVal === 1) ?' +
-'    "This font only has room for one side column at a time -- pick left OR right, not both." :' +
-'    "Adds up to 3 short info lines down each side of the digital clock, on the clock\'s own panel -- pick their content on the diagram above. Only offered for narrower clock fonts (this one qualifies); picking both sides assumes the font is already narrow enough to share the panel with them without shrinking the clock any further.";' +
+'  var fontId = parseInt(document.getElementById("clockFont").value, 10);' +
+'  document.getElementById("help-digitalSides").textContent = digitalSidesHelpText(sidesAllowedVal, sidesWithSecondsTier(fontLookupEntry(fontId)));' +
 // Recomputes the EFFECTIVE digitalSides from the untouched preference
 // every time -- never overwrites digitalSidesPreferred itself, so
 // switching to Analog, or to a font that can't currently fit the
@@ -2382,6 +2427,7 @@ require('./config/config-preview') +
 '  var leftOn = cur === "left" || cur === "both";' +
 '  var rightOn = cur === "right" || cur === "both";' +
 '  var sidesAllowedVal = currentClockSidesAllowed();' +
+'  var tipMessages = [];' +
 '  if (sidesAllowedVal === 1) {' +
 // Exclusive mode: turning one side on always forces the other off
 // (never "both"); turning the active side off just leaves both off.
@@ -2391,7 +2437,7 @@ require('./config/config-preview') +
 '    if (turningOn) {' +
 '      leftOn = side === "left";' +
 '      rightOn = side === "right";' +
-'      showDigitalSidesExclusiveTip();' +
+'      tipMessages.push("This font only fits one side at a time -- picking a side turns the other off.");' +
 '    } else if (side === "left") { leftOn = false; } else { rightOn = false; }' +
 '  } else {' +
 '    if (side === "left") leftOn = !leftOn; else rightOn = !rightOn;' +
@@ -2408,6 +2454,18 @@ require('./config/config-preview') +
 '  var buttons = document.getElementById("digitalSidesGroup").getElementsByClassName("mode-btn");' +
 '  buttons[0].className = "mode-btn" + (leftOn ? " active" : "");' +
 '  buttons[1].className = "mode-btn" + (rightOn ? " active" : "");' +
+// If this click just took Show Seconds from available to unavailable,
+// say so right here at the side buttons -- otherwise the only sign is
+// the Show Seconds checkbox itself quietly graying out somewhere else
+// on the page, which is easy to miss since it wasn\'t the control the
+// user actually touched.
+'  var fontId = parseInt(document.getElementById("clockFont").value, 10);' +
+'  var wasSecondsOk = secondsAvailableForDigital(fontId, cur);' +
+'  var nowSecondsOk = secondsAvailableForDigital(fontId, next);' +
+'  if (wasSecondsOk && !nowSecondsOk) {' +
+'    tipMessages.push(secondsUnavailableReason(fontId) + " Show seconds has been turned off.");' +
+'  }' +
+'  if (tipMessages.length) showSideFeatureTip(tipMessages.join(" "));' +
 '  updateSecondsAvailability();' +
 '  renderSlotPicker();' +
 '  updatePreview();' +
