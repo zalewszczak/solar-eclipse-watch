@@ -2024,10 +2024,11 @@ handEditorModalHtml('sec', 'Edit second hand') +
 // rather than a full entry object.
 'function secondsAvailableForDigital(fontId, digitalSidesVal) {' +
 '  var tier = fontLookupEntry(fontId).sidesWithSeconds;' +
-'  tier = (typeof tier === "number") ? tier : 1;' +
-'  if (tier === 0) return false;' +
+'  tier = (typeof tier === "number") ? tier : 0;' +
+'  if (tier === -1) return false;' +
 '  if (tier === 2) return true;' +
-'  return !digitalSidesVal || digitalSidesVal !== "both";' +
+'  if (tier === 1) return !digitalSidesVal || digitalSidesVal !== "both";' +
+'  return !digitalSidesVal || digitalSidesVal === "none";' +
 '}' +
       (function () {
         // Seeds DUAL_CONTEXT_SHADOW (see that var's own comment further
@@ -2336,7 +2337,7 @@ require('./config/config-preview') +
 // updates the preference itself -- see that function's own comment).
 'function computeEffectiveDigitalSides(preferred, sidesAllowedVal, isDigitalNow) {' +
 '  if (!isDigitalNow || sidesAllowedVal === 0) return "none";' +
-'  if (sidesAllowedVal === 1 && preferred === "both") return "left";' +
+'  if (sidesAllowedVal === 1 && preferred === "both") return "right";' +
 '  return preferred;' +
 '}' +
 'function updateDigitalSidesVisibility() {' +

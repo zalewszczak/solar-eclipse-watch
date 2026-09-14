@@ -74,19 +74,22 @@ function deriveConfigState(current) {
   // preference back instead of whatever it had collapsed down to.
   var digitalSidesVal = !isDigital ? 'none'
     : clockFontIsWide ? 'none'
-    : (clockSidesAllowed === 1 && digitalSidesPreferredVal === 'both') ? 'left'
+    : (clockSidesAllowed === 1 && digitalSidesPreferredVal === 'both') ? 'right'
     : digitalSidesPreferredVal;
   var digitalLeftOn = digitalSidesVal === 'left' || digitalSidesVal === 'both';
   var digitalRightOn = digitalSidesVal === 'right' || digitalSidesVal === 'both';
   // A font's own FONT_LOOKUP sidesWithSeconds tier decides all of
   // this now (see its own comment in presets-lookups.js for what each
-  // of the 3 values means): tier 0 blocks seconds outright regardless
+  // of the 4 values means): tier -1 blocks seconds outright regardless
   // of digitalSidesVal (the same fonts sidesAllowed 0 already flags as
   // too wide for a side column in the first place); tier 2 allows it
-  // no matter what; tier 1 (the common case) allows it with 0 or 1
-  // side column active but not both -- side columns compete for the
-  // same horizontal space seconds would need, so going from 1 to 2 can
-  // knock it out even for a font that was fine a moment ago.
+  // no matter what; tier 0 (the common case) only allows it with NO
+  // side column active; tier 1 allows it with 0 or 1 side column
+  // active but not both -- side columns compete for the same
+  // horizontal space seconds would need, so going from 0 to 1 active
+  // sides can knock it out even for a font that was fine a moment ago
+  // (tier 1 fonts get one more step of headroom before that happens
+  // than tier 0 ones do).
   var secondsUnsupported = isDigital && !secondsAvailableForDigital(fontLookupEntry(clockFontId), digitalSidesVal);
   var secondsChecked = (current.showSeconds && !secondsUnsupported) ? 'checked' : '';
   var secondsDisabled = secondsUnsupported ? 'disabled' : '';

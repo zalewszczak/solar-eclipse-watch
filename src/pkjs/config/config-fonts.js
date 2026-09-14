@@ -68,22 +68,24 @@ function fontLookupEntry(id) {
 // side features compete for the same horizontal space seconds would
 // need. Entirely driven by the font's own FONT_LOOKUP
 // `sidesWithSeconds` tier now (see its own comment there for what
-// each of the 3 values means) -- tier 0 blocks seconds outright
-// regardless of digitalSidesVal, tier 2 allows it regardless, and
-// tier 1 (the common case) allows it with 0 or 1 side column active
-// but not both. Defaults to 1 (the same "assume the common case"
-// default `sidesWithSeconds`'s own comment describes) if a lookup
-// ever finds no explicit value. Has a client-side twin further down
-// (used by onBottomStyleChange() and toggleDigitalSide() for live
-// updates as the user actually toggles a side) kept in exact sync
-// with this one -- both read the same FONT_LOOKUP field, so there's
-// nothing for the two copies to disagree about even if their
-// surrounding code differs.
+// each of the 4 values means) -- tier -1 blocks seconds outright
+// regardless of digitalSidesVal, tier 0 (the common case) only allows
+// it with NO side column active, tier 1 allows it with 0 or 1 side
+// column active but not both, and tier 2 allows it regardless.
+// Defaults to 0 (the same "assume the common case" default
+// `sidesWithSeconds`'s own comment describes) if a lookup ever finds
+// no explicit value. Has a client-side twin further down (used by
+// onBottomStyleChange() and toggleDigitalSide() for live updates as
+// the user actually toggles a side) kept in exact sync with this one
+// -- both read the same FONT_LOOKUP field, so there's nothing for the
+// two copies to disagree about even if their surrounding code
+// differs.
 function secondsAvailableForDigital(fontEntry, digitalSidesVal) {
-  var tier = typeof fontEntry.sidesWithSeconds === 'number' ? fontEntry.sidesWithSeconds : 1;
-  if (tier === 0) return false;
+  var tier = typeof fontEntry.sidesWithSeconds === 'number' ? fontEntry.sidesWithSeconds : 0;
+  if (tier === -1) return false;
   if (tier === 2) return true;
-  return !digitalSidesVal || digitalSidesVal !== 'both';
+  if (tier === 1) return !digitalSidesVal || digitalSidesVal !== 'both';
+  return !digitalSidesVal || digitalSidesVal === 'none';
 }
 
 // Renders <option>s for one of the four font pickers. `onlyMainClock`
