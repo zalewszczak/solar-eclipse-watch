@@ -13,6 +13,7 @@
       --accent-hover: #ff79c6;
       --btn-green: #2ea043;
       --btn-red: #da3633;
+      --btn-gray: #6e7681;
       --muted: #6272a4;
       --input-bg: #181825;
       --highlight-bg: #383a59;
@@ -27,6 +28,7 @@
       --accent-hover: #44475a;
       --btn-green: #2ecc71;
       --btn-red: #e74c3c;
+      --btn-gray: #95a5a6;
       --muted: #95a5a6;
       --input-bg: #ffffff;
       --highlight-bg: #e3e8f8;
@@ -98,14 +100,18 @@
     .cat-btn-group { display: flex; flex-wrap: wrap; gap: 4px; }
     .cat-btn { border: none; border-radius: 4px; padding: 3px 8px; font-size: 11px; font-weight: bold; cursor: pointer; color: #fff; }
     .cat-btn.active { background: var(--btn-green); }
-    .cat-btn.inactive { background: var(--btn-red); opacity: 0.7; }
+    .cat-btn.inactive { background: var(--btn-gray); opacity: 0.75; }
   </style>
 </head>
 <body>
 
   <div class="top-header">
     <h1>JS Source Code Table Editor</h1>
-    <div style="display: flex; gap: 8px;">
+    <div style="display: flex; gap: 8px; align-items: center;">
+      <select id="paletteSelect" class="btn btn-outline btn-sm" onchange="changePalette(this.value)">
+        <option value="high-contrast" selected>Palette: High Contrast</option>
+        <option value="pastel">Palette: Pastel</option>
+      </select>
       <button class="btn btn-outline btn-sm" onclick="resetAllData()">🔄 Reset Storage</button>
       <button class="btn" id="themeBtn" onclick="toggleTheme()">🌙 Night Mode</button>
     </div>
@@ -151,23 +157,8 @@
     const STORAGE_KEY_SRC = 'js_table_editor_src';
     const STORAGE_KEY_COLS = 'js_table_editor_cols';
     const STORAGE_KEY_STICKY = 'js_table_editor_sticky';
+    const STORAGE_KEY_PALETTE = 'js_table_editor_palette';
 
-    // Base 12 Pastel Palette
-    const PASTEL_PALETTE = [
-      '#FFB3BA', // Pastel Pink / Red
-      '#FFDFBA', // Pastel Peach / Orange
-      '#FFFFBA', // Pastel Yellow
-      '#BAFFC9', // Pastel Mint / Green
-      '#BAE1FF', // Pastel Sky Blue
-      '#E8AEFF', // Pastel Lavender
-      '#FFC6FF', // Pastel Bubblegum
-      '#BDB2FF', // Pastel Periwinkle
-      '#9BF6FF', // Pastel Aqua
-      '#CAFFBF', // Pastel Light Green
-      '#FFD6A5', // Pastel Apricot
-      '#D4A5FF'  // Pastel Soft Violet
-    ];
-    
     const HIGH_CONTRAST_PALETTE = [
       '#E63946',
       '#FF6D00',
@@ -183,6 +174,22 @@
       '#7209B7'
     ];
 
+    const PASTEL_PALETTE = [
+      '#FFB3BA',
+      '#FFDFBA',
+      '#FFFFBA',
+      '#BAFFC9',
+      '#BAE1FF',
+      '#E8AEFF',
+      '#FFC6FF',
+      '#BDB2FF',
+      '#9BF6FF',
+      '#CAFFBF',
+      '#FFD6A5',
+      '#D4A5FF'
+    ];
+
+    let currentPaletteMode = 'high-contrast';
     let rowsData = [];
     let columnsConfig = [];
     let stickyColCount = 1;
@@ -191,14 +198,20 @@
     let startX = 0;
     let startWidth = 0;
 
-    const defaultSnippet = `[
-  { id: 0,  label: 'Gothic X-Small', height: 14, preview: 'font-family: Arial, sans-serif;', small: true, google: null, sizePx: 14, approx: true, categories: ['pebbleos', 'modern', 'tiny'] }, // Pebble system font
-  { id: 21, label: 'Alagard Small',  height: 19, preview: 'font-family: Pixelify Sans, sans-serif;', small: true, google: 'Pixelify Sans', weight: 600, sizePx: 19, approx: true, categories: ['pixelated', 'stylish', 'small'] }
-]`;
+    const defaultSnippet = "[{description:'Paste your table here'}]";
 
     function escapeHTML(str) {
       if (str === null || str === undefined) return '';
       return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function getContrastTextColor(hexColor) {
+      const hex = hexColor.replace('#', '');
+      const r = parseInt(hex.substr(0, 2), 16);
+      const g = parseInt(hex.substr(2, 2), 16);
+      const b = parseInt(hex.substr(4, 2), 16);
+      const yiq = (r * 299 + g * 587 + b * 114) / 1000;
+      return yiq >= 140 ? '#1e1e2e' : '#ffffff';
     }
 
     function applyTheme(theme) {
@@ -217,6 +230,12 @@
       applyTheme(current === 'light' ? 'dark' : 'light');
     }
 
+    function changePalette(mode) {
+      currentPaletteMode = mode;
+      saveToLocalStorage();
+      renderTable();
+    }
+
     function selectRow(rIdx) {
       selectedRowIdx = rIdx;
       document.querySelectorAll('#tableBody tr').forEach((tr, idx) => {
@@ -229,6 +248,7 @@
         localStorage.setItem(STORAGE_KEY_SRC, document.getElementById('srcInput').value);
         localStorage.setItem(STORAGE_KEY_COLS, JSON.stringify(columnsConfig));
         localStorage.setItem(STORAGE_KEY_STICKY, stickyColCount);
+        localStorage.setItem(STORAGE_KEY_PALETTE, currentPaletteMode);
       } catch (e) { console.error(e); }
     }
 
@@ -237,6 +257,7 @@
         const savedSrc = localStorage.getItem(STORAGE_KEY_SRC);
         const savedCols = localStorage.getItem(STORAGE_KEY_COLS);
         const savedSticky = localStorage.getItem(STORAGE_KEY_STICKY);
+        const savedPalette = localStorage.getItem(STORAGE_KEY_PALETTE);
 
         if (savedSticky !== null) {
           stickyColCount = parseInt(savedSticky, 10) || 1;
@@ -246,6 +267,11 @@
         if (savedCols) {
           try { columnsConfig = JSON.parse(savedCols); } catch (err) { columnsConfig = []; }
         }
+
+        if (savedPalette) {
+          currentPaletteMode = savedPalette;
+        }
+        document.getElementById('paletteSelect').value = currentPaletteMode;
 
         const srcElem = document.getElementById('srcInput');
         srcElem.value = (savedSrc && savedSrc.trim()) ? savedSrc : defaultSnippet;
@@ -258,6 +284,8 @@
       if (confirm('Clear local storage and reset editor to default snippet?')) {
         localStorage.clear();
         columnsConfig = [];
+        currentPaletteMode = 'high-contrast';
+        document.getElementById('paletteSelect').value = 'high-contrast';
         document.getElementById('srcInput').value = defaultSnippet;
         parseTextToTable();
       }
@@ -424,6 +452,8 @@
       thead.innerHTML = headHTML;
 
       let bodyHTML = '';
+      const activePalette = currentPaletteMode === 'pastel' ? PASTEL_PALETTE : HIGH_CONTRAST_PALETTE;
+
       rowsData.forEach((row, rIdx) => {
         const isActive = (rIdx === selectedRowIdx);
         bodyHTML += `<tr class="${isActive ? 'active-row' : ''}" onclick="selectRow(${rIdx})">`;
@@ -463,8 +493,9 @@
 
             const buttonsHTML = allOpts.map((opt, optIdx) => {
               const active = !isNull && currentStr === String(opt);
-              const pastelColor = HIGH_CONTRAST_PALETTE[optIdx % HIGH_CONTRAST_PALETTE.length];
-              const activeStyle = active ? `style="background-color: ${pastelColor}; color: #1e1e2e; opacity: 1; border: 1px solid rgba(0,0,0,0.2);"` : '';
+              const color = activePalette[optIdx % activePalette.length];
+              const textColor = getContrastTextColor(color);
+              const activeStyle = active ? `style="background-color: ${color}; color: ${textColor}; opacity: 1; border: 1px solid rgba(0,0,0,0.2);"` : '';
 
               return `<button type="button" class="cat-btn ${active ? 'active-predefined' : 'inactive'}" ${activeStyle} onclick="selectPredefinedOption(${rIdx}, ${cIdx}, ${optIdx})">${escapeHTML(opt)}</button>`;
             }).join('');
