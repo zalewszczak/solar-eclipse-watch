@@ -28,4 +28,8 @@ void marker_layer_draw(GContext *ctx, MarkerLayerState *state, GPoint center, GR
 GPoint marker_layer_point_on_ring(GPoint center, GRect screen, int32_t angle,
                      uint8_t pct, uint8_t eccentricity_pct);
 
+// Shared marker-label/ring startup animation helpers.
+int32_t marker_ease_in_1000(int32_t t);
+int32_t marker_anim_mark_progress_1000_raw(int mark_index, int marks, int32_t overall_progress_1000);
+
 void marker_layer_inner_reach(uint8_t marker_style, uint8_t *out_pct, uint8_t *out_eccentricity);
