@@ -408,6 +408,7 @@ static void top_gradient_update_proc(Layer *layer, GContext *ctx) {
 
 Layer *sky_layer_top_gradient_create(GRect frame) {
   Layer *layer = layer_create_with_data(frame, sizeof(TopGradientState));
+  if (!layer) return NULL;
   TopGradientState *state = (TopGradientState *)layer_get_data(layer);
   state->data = NULL;
   layer_set_update_proc(layer, top_gradient_update_proc);
@@ -415,7 +416,7 @@ Layer *sky_layer_top_gradient_create(GRect frame) {
 }
 
 void sky_layer_top_gradient_destroy(Layer *layer) {
-  layer_destroy(layer);
+  if (layer) layer_destroy(layer);
 }
 
 void sky_layer_top_gradient_set_data(Layer *layer, EclipseData *data) {

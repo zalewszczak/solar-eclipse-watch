@@ -510,6 +510,7 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
 
 Layer *background_layer_create(GRect frame) {
   Layer *layer = layer_create_with_data(frame, sizeof(CanvasState));
+  if (!layer) return NULL;
   CanvasState *state = (CanvasState *)layer_get_data(layer);
   state->data = NULL;
   state->show_labels = false;
@@ -525,6 +526,7 @@ Layer *background_layer_create(GRect frame) {
 }
 
 void background_layer_destroy(Layer *layer) {
+  if (!layer) return;
   CanvasState *state = (CanvasState *)layer_get_data(layer);
   background_cache_deinit(&state->cache);
   marker_layer_deinit(&state->markers);

@@ -201,6 +201,7 @@ Layer *clock_display_countdown_layer(void) { return s_countdown_layer; }
 void clock_display_create_panel(Layer *parent, GRect frame) {
   clock_display_destroy_panel();
   s_panel_layer = layer_create(frame);
+  if (!s_panel_layer) return;
   layer_set_update_proc(s_panel_layer, draw_digital_clock_panel);
   layer_add_child(parent, s_panel_layer);
 }
@@ -215,6 +216,7 @@ void clock_display_destroy_panel(void) {
 void clock_display_create_countdown(Layer *parent, GRect frame) {
   clock_display_destroy_countdown();
   s_countdown_layer = layer_create(frame);
+  if (!s_countdown_layer) return;
   layer_set_update_proc(s_countdown_layer, countdown_layer_update_proc);
   s_countdown_text_color = GColorBlack;
   s_countdown_buf[0] = '\0';

@@ -24,6 +24,7 @@ static void features_layer_update_proc(Layer *layer, GContext *ctx) {
 
 Layer *features_layer_create(GRect frame) {
   Layer *layer = layer_create_with_data(frame, sizeof(FeaturesState));
+  if (!layer) return NULL;
   FeaturesState *state = (FeaturesState *)layer_get_data(layer);
   state->data = NULL;
   for (int i = 0; i < FEATURES_MAX_SLOTS; i++) state->slots[i].active = false;
@@ -32,7 +33,7 @@ Layer *features_layer_create(GRect frame) {
 }
 
 void features_layer_destroy(Layer *layer) {
-  layer_destroy(layer);
+  if (layer) layer_destroy(layer);
 }
 
 void features_layer_set_data(Layer *layer, EclipseData *data) {

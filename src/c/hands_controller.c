@@ -264,6 +264,7 @@ void hands_controller_deinit(void) {
 
 Layer *hands_controller_create_layer(GRect frame) {
   s_hands_layer = layer_create(frame);
+  if (!s_hands_layer) return NULL;
   layer_set_update_proc(s_hands_layer, hands_layer_update_proc);
   return s_hands_layer;
 }
