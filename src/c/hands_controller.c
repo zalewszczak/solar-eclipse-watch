@@ -5,7 +5,7 @@
 #include "input.h"
 #include "background_animation.h"
 #include "eclipse_ui.h"
-#include "features_layer.h"
+#include "feature_controller.h"
 
 #include "background_layer.h"
 static EclipseData *s_data = NULL;
@@ -136,7 +136,7 @@ static void hands_layer_update_proc(Layer *layer, GContext *ctx) {
   // redraw now (background_layer.c), composited once per its own
   // once-a-minute/force-redraw cadence rather than every tick this
   // always-on-top hands layer runs.
-  features_ensure_corner_custom_font(s_data->corner_font);
+  feature_controller_ensure_corner_custom_font(s_data->corner_font);
 
   int32_t hour_angle = (int32_t)(((int64_t)((t->tm_hour % 12) * 3600 + t->tm_min * 60 + t->tm_sec) * TRIG_MAX_ANGLE) / (12 * 3600));
 

@@ -9,6 +9,7 @@
 #include "background_layer.h"
 #include "background_animation.h"
 #include "sky_layer.h"
+#include "feature_controller.h"
 #include "features_layer.h"
 #include "clock_display.h"
 #include "hands_controller.h"
@@ -119,7 +120,7 @@ static void window_load(Window *window) {
 static void window_unload(Window *window) {
   clock_display_destroy_countdown();
   layout_controller_unload();
-  features_layer_unload_fonts();
+  feature_controller_unload_fonts();
 }
 
 static void comms_data_applied(CommsChangeFlags changes, void *context) {

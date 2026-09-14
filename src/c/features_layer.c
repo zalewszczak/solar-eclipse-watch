@@ -1,7 +1,5 @@
 #include "features_layer.h"
-#include "feature_icons.h"
 #include "feature_controller.h"
-#include "font_lookup.h"
 #include "feature_slot.h"
 #include "feature_render.h"
 
@@ -49,9 +47,6 @@ void features_layer_refresh_values(Layer *layer) {
   layer_mark_dirty(layer);
 }
 
-bool features_layer_content_in_use(const EclipseData *data, uint8_t content) {
-  return feature_controller_content_in_use(data, content);
-}
 
 void features_layer_refresh_second_slots(Layer *layer) {
   FeaturesState *state = (FeaturesState *)layer_get_data(layer);
@@ -65,10 +60,3 @@ void features_layer_refresh_content(Layer *layer, uint8_t content) {
   layer_mark_dirty(layer);
 }
 
-void features_ensure_corner_custom_font(uint8_t choice) {
-  feature_controller_ensure_corner_custom_font(choice);
-}
-
-void features_layer_unload_fonts(void) {
-  feature_controller_unload_fonts();
-}

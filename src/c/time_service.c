@@ -2,7 +2,7 @@
 #include "eclipse_status.h"
 
 #include "battery_saver.h"
-#include "features_layer.h"
+#include "feature_controller.h"
 #include "background_layer.h"
 
 // Content ids that display a live seconds value -- see the corresponding
@@ -19,7 +19,7 @@ static bool needs_second_precision(void) {
   if (s_data->show_seconds) return true;
 
   for (size_t i = 0; i < sizeof(SECOND_PRECISION_CONTENT_IDS); i++) {
-    if (features_layer_content_in_use(s_data, SECOND_PRECISION_CONTENT_IDS[i])) return true;
+    if (feature_controller_content_in_use(s_data, SECOND_PRECISION_CONTENT_IDS[i])) return true;
   }
 
   return false;

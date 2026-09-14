@@ -3,100 +3,24 @@
 #include <pebble.h>
 #include "eclipse_data.h"
 
-// ---------------------------------------------------------------------------
-// The always-on-top text/icon overlay for the corner and edge-middle
-// "feature" slots (health, weather, timezones, astronomy, ...) -- split out
-// of pebble-eclipse-watch.c's corners_layer_update_proc into its own module,
-// mirroring background_layer.c/hand_layer.c.
-//
-// Table-driven: every one of the 12 slots is a FeatureSlot holding
-// everything features_layer_update_proc() needs to draw it -- position,
-// color, icon, text -- fully resolved ahead of time. A slot has two
-// halves that change at very different rates:
-//
-//   - LAYOUT (which of the 12 slots are active, and where each one's box
-//     sits) depends only on settings (bottom_style, big_analog_marker_style,
-//     the corner/edge content+color-mode fields) -- resolved by
-//     feature_layout_recompute() (feature_layout.c), only ever
-//     called from features_layer_set_data() below.
-//
-//   - VALUE (the actual text/icon/color for a slot's current content --
-//     a health reading, the weather, the clock, a compass heading) changes
-//     far more often, and is resolved separately by
-//     feature_values_compute_slot() (feature_values.c), grouped
-//     into a handful of per-category functions rather than one giant
-//     per-content switch. features_layer_refresh_values() re-runs this for
-//     every active slot (the periodic ~1-minute tick); refresh_second_slots()
-//     re-runs it ONLY for the slot(s) whose content actually needs
-//     second-by-second updates (never all 12 just because one shows
-//     seconds).
-//
-// features_layer_update_proc() itself (features_layer.c) does none of the
-// above -- by the time it runs, every slot already has its final pixel
-// positions/colors/strings sitting in the table, so drawing is a plain
-// blit loop with no formatting, gradient math, or alignment/width
-// measurement of its own.
-// ---------------------------------------------------------------------------
+// Pebble Layer wrapper for the always-on-top feature-slot overlay.
+// Slot layout, value computation, feature fonts and rendering are owned by
+// the feature_* modules; this header exposes only the layer lifecycle and
+// refresh operations needed by layout/application code.
 
 #define FEATURES_MAX_SLOTS 12
-
-// How long, in ms, the periodic refresh (features_layer_refresh_values(),
-// called from corners_timer_callback() in pebble-eclipse-watch.c)
-// re-resolves every active slot's value, independent of any settings
-// change. Named here as a single shared knob rather than a magic number
-// duplicated in the main .c file.
-#define FEATURES_REFRESH_MS 60000
-
 
 Layer *features_layer_create(GRect frame);
 void features_layer_destroy(Layer *layer);
 
-// Recomputes every slot's layout AND value from the current settings in
-// `data`, then marks the layer dirty. Call once right after creating the
-// layer, and again whenever an inbox message may have changed a setting
-// that affects feature layout or content (style, marker style,
-// bottom-info-bar mode, any of the corner/edge content fields, colors,
-// units, ...).
+// Recomputes layout and values from the supplied application data.
 void features_layer_set_data(Layer *layer, EclipseData *data);
 
-// The shake-to-reveal ground bar shifts the two bottom corners up out of
-// its way while it's showing -- affects slot position like a settings
-// change would, so (like features_layer_set_data()) this recomputes
-// layout and value for every slot rather than just marking the layer
-// dirty.
-
-// Re-resolves every active slot's VALUE (not layout -- that's unchanged)
-// from the current data/time/live sensor state, then marks the layer
-// dirty. Call from the periodic refresh timer -- see FEATURES_REFRESH_MS
-// above.
+// Recomputes all active slot values without changing layout.
 void features_layer_refresh_values(Layer *layer);
 
-// Re-resolves only the slot(s) whose content needs second-by-second
-// updating, then marks the layer dirty.
+// Recomputes only slots whose content requires second-level updates.
 void features_layer_refresh_second_slots(Layer *layer);
 
-// Returns true when the supplied corner/edge content id is used by any
-// feature slot. Kept here so input/compass and time/tick policy can inspect
-// feature configuration without reaching into private feature-layer state.
-bool features_layer_content_in_use(const EclipseData *data, uint8_t content);
-
-// Re-resolves ONLY the slot(s) currently showing this specific content
-// id, then marks the layer dirty -- for triggers tied to one particular
-// content type rather than the clock (e.g. the compass feature's own
-// live-heading animation frame, which needs to update far more often
-// than the general refresh, but only for whichever slot(s) are actually
-// showing the compass).
+// Recomputes only slots currently showing the supplied content id.
 void features_layer_refresh_content(Layer *layer, uint8_t content);
-
-
-// Loads/unloads the shared corner/edge custom font on demand -- cheap to
-// call repeatedly (no-ops if the choice hasn't changed since the last
-// call). Used by this module's own value-recompute functions and the
-// big-analog hands layer's date-behind-hands readout.
-void features_ensure_corner_custom_font(uint8_t choice);
-
-// Unloads the shared corner/edge custom font, if one is currently
-// loaded -- call once from window_unload() on app exit, mirroring how
-// pebble-eclipse-watch.c already frees its own clock_font.
-void features_layer_unload_fonts(void);
-

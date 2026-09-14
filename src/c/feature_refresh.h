@@ -2,10 +2,9 @@
 
 #include <pebble.h>
 
-// Owns the low-frequency refresh timer used for feature values that do not
-// need a genuinely live SECOND_UNIT tick. The scheduler deliberately asks
-// the layout controller for the current feature layer each time, so layout
-// changes do not leave a stale layer pointer behind.
+// Low-frequency refresh scheduler for feature-slot values.
+#define FEATURES_REFRESH_MS 60000
+
 void feature_refresh_init(void);
 void feature_refresh_deinit(void);
 void feature_refresh_start(void);

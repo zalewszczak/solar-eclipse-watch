@@ -3,7 +3,7 @@
 #include "eclipse_data.h"
 #include "battery_saver.h"
 #include "input.h"
-#include "features_layer.h"
+#include "feature_controller.h"
 #include "background_layer.h"
 
 static EclipseData *s_data;
@@ -256,7 +256,7 @@ static void compass_feature_timer_callback(void *data) {
 // Called from tap_handler() below, once per shake -- restarts the
 // window fresh each time, same shape as maybe_start_shake_animation().
 static void maybe_start_compass_feature(void) {
-  if (!features_layer_content_in_use(s_data, 85)) return;
+  if (!feature_controller_content_in_use(s_data, 85)) return;
   s_compass_feature_active = true;
   s_compass_feature_elapsed_ms = 0;
   if (s_compass_feature_timer) app_timer_cancel(s_compass_feature_timer);

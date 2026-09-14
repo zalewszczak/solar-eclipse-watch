@@ -3,7 +3,6 @@
 #include "eclipse_status.h"
 #include "eclipse_ui.h"
 #include "subpixel.h"
-#include "features_layer.h"
 #include "feature_layout.h"
 #include "marker_layer.h"
 #include "weather_layer.h"
