@@ -93,6 +93,14 @@
     .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text); }
     .btn-outline:hover { background: var(--border); }
 
+    .row-count { font-size: 12px; color: var(--muted); transition: font-weight 0.15s, color 0.15s; }
+    .row-count.active-filter { font-weight: bold; color: var(--accent); }
+
+    .filter-input {
+      background: var(--input-bg); color: var(--text); border: 1px solid var(--border);
+      padding: 5px 8px; border-radius: 4px; font-size: 12px; width: 160px;
+    }
+
     .table-wrapper { overflow-x: auto; max-height: 75vh; position: relative; }
     table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13px; }
     th, td { border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); padding: 8px; vertical-align: top; background: var(--card-bg); }
@@ -177,7 +185,13 @@
           </label>
           <div class="hidden-cols-container" id="hiddenColsList"></div>
         </div>
-        <button class="btn btn-sm" onclick="addRow()">+ Add Row</button>
+        
+        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+          <span id="rowCountText" class="row-count">Total: 0 | Filtered out: 0 | Left: 0</span>
+          <input type="text" id="filterInput" class="filter-input" placeholder="Filter rows..." oninput="applyFilter()" />
+          <button class="btn btn-sm btn-outline" onclick="resetFilter()">Reset Filter</button>
+          <button class="btn btn-sm" onclick="addRow()">+ Add Row</button>
+        </div>
       </div>
       <div class="table-wrapper">
         <table id="dataTable">
@@ -331,10 +345,35 @@
       }
     }
 
+    function applyFilter() {
+      renderTable();
+    }
+
+    function resetFilter() {
+      const filterInput = document.getElementById('filterInput');
+      if (filterInput) filterInput.value = '';
+      renderTable();
+      if (filterInput) filterInput.focus();
+    }
+
+    function rowMatchesQuery(row, query) {
+      if (!query) return true;
+      const q = query.toLowerCase();
+      for (const key in row) {
+        const val = row[key];
+        if (val === null || val === undefined) continue;
+        if (Array.isArray(val)) {
+          if (val.some(v => String(v).toLowerCase().includes(q))) return true;
+        } else if (String(val).toLowerCase().includes(q)) {
+          return true;
+        }
+      }
+      return false;
+    }
+
     function parseTextToTable() {
       try {
         let src = document.getElementById('srcInput').value;
-        // Clean non-breaking spaces
         src = src.replace(/\u00a0/g, ' ');
 
         rowsData = [];
@@ -463,6 +502,7 @@
       const thead = document.getElementById('tableHead');
       const tbody = document.getElementById('tableBody');
       const hiddenContainer = document.getElementById('hiddenColsList');
+      const filterQuery = (document.getElementById('filterInput')?.value || '').trim();
 
       hiddenContainer.innerHTML = columnsConfig.map((col, cIdx) => col.hidden ? 
         `<button class="hidden-col-pill" onclick="toggleColumnVisibility(${cIdx})">${escapeHTML(col.key === '_comment' ? 'Comment' : col.key)} ✕</button>` : ''
@@ -513,9 +553,22 @@
       let bodyHTML = '';
       const activePalette = currentPaletteMode === 'pastel' ? PASTEL_PALETTE : HIGH_CONTRAST_PALETTE;
 
+      let totalRows = rowsData.length;
+      let filteredOutCount = 0;
+      let showingCount = 0;
+
       rowsData.forEach((row, rIdx) => {
+        const matches = rowMatchesQuery(row, filterQuery);
+        if (matches) {
+          showingCount++;
+        } else {
+          filteredOutCount++;
+        }
+
         const isActive = (rIdx === selectedRowIdx);
-        bodyHTML += `<tr class="${isActive ? 'active-row' : ''}" onclick="selectRow(${rIdx})">`;
+        const rowDisplayStyle = matches ? '' : 'display: none;';
+
+        bodyHTML += `<tr class="${isActive ? 'active-row' : ''}" style="${rowDisplayStyle}" onclick="selectRow(${rIdx})">`;
         let rowVisibleIdx = 0;
 
         columnsConfig.forEach((col, cIdx) => {
@@ -586,6 +639,14 @@
       });
 
       tbody.innerHTML = bodyHTML;
+
+      // Update row counter display
+      const rowCountElem = document.getElementById('rowCountText');
+      if (rowCountElem) {
+        rowCountElem.innerText = `Total: ${totalRows} | Filtered out: ${filteredOutCount} | Left: ${showingCount}`;
+        rowCountElem.classList.toggle('active-filter', filterQuery.length > 0);
+      }
+
       updateSourceText();
     }
 
