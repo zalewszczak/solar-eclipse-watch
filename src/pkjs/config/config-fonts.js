@@ -11,6 +11,23 @@ var presetsLookups = require('../presets-lookups');
 var FONT_LOOKUP = presetsLookups.FONT_LOOKUP;
 var esc = require('./config-template').esc;
 
+// Same "don't silently do the opposite of what was written" fix as
+// secondsAvailableForDigital()'s parseInt change below, for
+// FONT_LOOKUP's boolean fields (mainClock, small, italic) instead of
+// its numeric ones. A plain `f.mainClock` truthy check treats the
+// STRING 'false' as true (any non-empty string is truthy in JS), so a
+// value that's accidentally been quoted -- an easy mistake, since
+// `mainClock: false` and `small: false` are both written explicitly
+// throughout FONT_LOOKUP already, not just omitted -- silently flips
+// to the opposite of what was intended instead of erroring. Leaves
+// every other value's existing truthy/falsy behavior untouched
+// (including a bare `true`/omitted/undefined), so this only closes
+// the specific 'true'/'false' string trap, not a general type check.
+function fontFlag(v) {
+  if (v === 'false') return false;
+  if (v === 'true') return true;
+  return !!v;
+}
 
 // Builds one combined Google Fonts stylesheet URL covering every
 // `google` family (at its own specific weight/italic) FONT_LOOKUP
@@ -23,7 +40,7 @@ function googleFontsHref() {
   var params = [];
   FONT_LOOKUP.forEach(function (f) {
     if (!f.google) return;
-    var italAxis = f.italic ? '1' : '0';
+    var italAxis = fontFlag(f.italic) ? '1' : '0';
     var key = f.google + '|' + italAxis + '|' + f.weight;
     if (seen[key]) return;
     seen[key] = true;
@@ -102,7 +119,7 @@ function secondsAvailableForDigital(fontEntry, digitalSidesVal) {
 // companion, marker text, corner/edge content) get every font.
 function fontOptionsHtml(selectedId, onlyMainClock) {
   return FONT_LOOKUP.filter(function (f) {
-    return !onlyMainClock || f.mainClock;
+    return !onlyMainClock || fontFlag(f.mainClock);
   }).map(function (f) {
     // parseInt, not a strict typeof check -- see secondsAvailableForDigital()'s
     // own comment on why: a quoted-string sidesAllowed value would
@@ -110,7 +127,7 @@ function fontOptionsHtml(selectedId, onlyMainClock) {
     var sidesAllowedRaw = parseInt(f.sidesAllowed, 10);
     var sidesAllowedVal = isNaN(sidesAllowedRaw) ? 2 : sidesAllowedRaw;
     return '<option value="' + f.id + '" data-preview="' + esc(f.preview) + '" data-height="' + f.height +
-      '" data-small="' + (f.small ? '1' : '0') +
+      '" data-small="' + (fontFlag(f.small) ? '1' : '0') +
       '" data-sides-allowed="' + sidesAllowedVal + '"' +
       (selectedId === f.id ? ' selected' : '') + '>' + esc(f.label) + '</option>';
   }).join('');

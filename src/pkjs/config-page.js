@@ -2070,6 +2070,16 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  }' +
 '  return FONT_LOOKUP[0];' +
 '}' +
+// Client-side twin of the same-named server-side function in
+// config-fonts.js (see its own comment there for the full rule) --
+// closes the same "quoted 'false' is truthy" trap for FONT_LOOKUP's
+// boolean fields (mainClock, small) that parseInt closes for its
+// numeric ones below.
+'function fontFlag(v) {' +
+'  if (v === "false") return false;' +
+'  if (v === "true") return true;' +
+'  return !!v;' +
+'}' +
 // Scales a font's real on-watch bake size (12-48px) down to something
 // that reads clearly inside a compact picker-button preview without
 // the biggest ones (the 48px-baked main clock faces) overflowing it --
@@ -2209,7 +2219,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  incompatibleRow.style.display = cfg.showIncompatibleToggle ? "" : "none";' +
 '  if (cfg.showIncompatibleToggle) {' +
 '    var currentId = document.getElementById(cfg.selectId).value;' +
-'    document.getElementById("fontPickerShowIncompatible").checked = !fontLookupEntry(currentId).small;' +
+'    document.getElementById("fontPickerShowIncompatible").checked = !fontFlag(fontLookupEntry(currentId).small);' +
 '  }' +
 '  renderFontCategoryRow();' +
 '  renderFontPickerGrid();' +
@@ -2236,8 +2246,8 @@ handEditorModalHtml('sec', 'Edit second hand') +
 // "All"), exactly per the request: unchecking it hides small:false
 // fonts no matter what categories are active.
 '  FONT_LOOKUP.forEach(function (f) {' +
-'    if (cfg.onlyMainClock && !f.mainClock) return;' +
-'    if (!showIncompatible && !f.small && f.id !== currentId) return;' +
+'    if (cfg.onlyMainClock && !fontFlag(f.mainClock)) return;' +
+'    if (!showIncompatible && !fontFlag(f.small) && f.id !== currentId) return;' +
 '    if (!fontMatchesCategoryFilters(f)) return;' +
 '    var previewStyle = f.preview + " font-size:" + fontPickerPreviewPx(f.sizePx) + "px;";' +
 '    html += \'<button type="button" class="font-picker-btn\' + (f.id === currentId ? " selected" : "") + \'" onclick="chooseFontOption(\' + f.id + \')">\' +' +
