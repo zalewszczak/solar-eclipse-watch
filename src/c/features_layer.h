@@ -64,7 +64,6 @@ void features_layer_set_data(Layer *layer, EclipseData *data);
 // change would, so (like features_layer_set_data()) this recomputes
 // layout and value for every slot rather than just marking the layer
 // dirty.
-void features_layer_set_labels_visible(Layer *layer, bool visible);
 
 // Re-resolves every active slot's VALUE (not layout -- that's unchanged)
 // from the current data/time/live sensor state, then marks the layer
