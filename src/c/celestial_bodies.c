@@ -23,6 +23,29 @@ GColor celestial_bodies_planet_color(PlanetId p) {
   }
 }
 
+static int32_t planet_seek_ease_out_1000(int32_t t) {
+  int32_t inv = 1000 - t;
+  int64_t inv3 = ((int64_t)inv * inv * inv) / 1000000;
+  int32_t result = 1000 - (int32_t)inv3;
+  return result > 1000 ? 1000 : result;
+}
+
+int32_t celestial_bodies_planet_seek_eased_t_1000(uint16_t elapsed_ms, const EclipseData *data) {
+  uint32_t duration_ms = (uint32_t)(data->shake_label_seconds > 0 ? data->shake_label_seconds : 3) * 1000;
+  if (elapsed_ms < 500) {
+    return planet_seek_ease_out_1000(((int32_t)elapsed_ms * 1000) / 500);
+  }
+
+  uint32_t ease_out_window_ms = duration_ms > 2000 ? 1000 : duration_ms / 2;
+  if (ease_out_window_ms > 0 && elapsed_ms > duration_ms - ease_out_window_ms) {
+    int32_t remaining = (int32_t)duration_ms - (int32_t)elapsed_ms;
+    if (remaining < 0) remaining = 0;
+    return planet_seek_ease_out_1000((remaining * 1000) / (int32_t)ease_out_window_ms);
+  }
+
+  return 1000;
+}
+
 void celestial_bodies_draw_saturn(GContext *ctx, GPoint center, uint8_t ring_open_pct) {
   graphics_context_set_fill_color(ctx, GColorYellow);
   graphics_fill_circle(ctx, center, CELESTIAL_PLANET_R);

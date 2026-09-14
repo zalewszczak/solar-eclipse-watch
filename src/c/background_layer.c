@@ -74,25 +74,6 @@ typedef struct {
 // ---- hour/second markers (sub-pixel & rotation fix) --------------------
 
 // Symmetric integer division with rounding to nearest integer for sub-pixel precision
-static inline int32_t div_round(int32_t num, int32_t den) {
-  if (den == 0) return 0;
-  if ((num ^ den) >= 0) {
-    return (num + den / 2) / den;
-  } else {
-    return (num - den / 2) / den;
-  }
-}
-
-// Same idea again, for the full-day cloud-cover samples (0-100 %).
-// Decelerates into the target -- "animate background on start"'s own
-// easing (graceful, slowing down at the end), separate from
-// pebble-eclipse-watch.c's identically-behaved ease_out_cubic_1000
-// (used for its own, unrelated clock-hand animation) since these are
-// two different translation units and this is a small enough helper
-// that duplicating it is simpler than threading a shared declaration
-// through a header for one function -- same reasoning subpixel.h's
-// own top-of-file comment already gives for this project's small
-// self-contained helpers generally.
 static int32_t bg_anim_ease_out_1000(int32_t t) {
   int32_t inv = 1000 - t;
   int64_t inv3 = ((int64_t)inv * inv * inv) / 1000000;
@@ -102,22 +83,6 @@ static int32_t bg_anim_ease_out_1000(int32_t t) {
 
 
 
-
-static int32_t shake_anim_eased_t_1000(uint16_t elapsed, const EclipseData *d) {
-  uint32_t duration_ms = (uint32_t)(d->shake_label_seconds > 0 ? d->shake_label_seconds : 3) * 1000;
-  if (elapsed < 500) return bg_anim_ease_out_1000(((int32_t)elapsed * 1000) / 500);
-  // Ease back out over the last 1s so Planet seek's bodies glide back to
-  // their normal positions rather than snapping -- capped to half the
-  // total duration for anyone who's set shake_label_seconds short enough
-  // that a full 1s exit window would overlap the 500ms entry ease above.
-  uint32_t ease_out_window_ms = duration_ms > 2000 ? 1000 : duration_ms / 2;
-  if (ease_out_window_ms > 0 && elapsed > duration_ms - ease_out_window_ms) {
-    int32_t remaining = (int32_t)duration_ms - (int32_t)elapsed;
-    if (remaining < 0) remaining = 0;
-    return bg_anim_ease_out_1000((remaining * 1000) / (int32_t)ease_out_window_ms);
-  }
-  return 1000;
-}
 
 static void canvas_update_proc(Layer *layer, GContext *ctx) {
   CanvasState *state = (CanvasState *)layer_get_data(layer);
@@ -278,7 +243,7 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
       eclipse_ui_get_active_color_scheme(d, now, &bg, &main_color, &accent_color);
       celestial_bodies_draw_planet_seek(ctx, bounds, d, &state->celestial, now,
                                        state->planet_seek_heading_deg,
-                                       shake_anim_eased_t_1000(state->planet_seek_elapsed_ms, d),
+                                       celestial_bodies_planet_seek_eased_t_1000(state->planet_seek_elapsed_ms, d),
                                        d->label_style, main_color);
     }
     if (state->bg_anim_active && d->bg_anim_mode == 1) {
@@ -533,7 +498,7 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
     eclipse_ui_get_active_color_scheme(d, now, &bg, &main_color, &accent_color);
     celestial_bodies_draw_planet_seek(ctx, bounds, d, &state->celestial, now,
                                        state->planet_seek_heading_deg,
-                                       shake_anim_eased_t_1000(state->planet_seek_elapsed_ms, d),
+                                       celestial_bodies_planet_seek_eased_t_1000(state->planet_seek_elapsed_ms, d),
                                        d->label_style, main_color);
   }
   if (state->bg_anim_active && d->bg_anim_mode == 2) {

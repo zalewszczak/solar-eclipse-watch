@@ -5,6 +5,10 @@
 #include "eclipse_data.h"
 
 GColor celestial_bodies_planet_color(PlanetId planet);
+// Returns the eased Planet Seek blend factor in the range 0..1000.
+// The easing belongs to celestial-body presentation because it controls the
+// transition between compass-seek positions and normal body positions.
+int32_t celestial_bodies_planet_seek_eased_t_1000(uint16_t elapsed_ms, const EclipseData *data);
 void celestial_bodies_draw_saturn(GContext *ctx, GPoint center, uint8_t ring_open_pct);
 const char *celestial_bodies_planet_name(PlanetId planet);
 const char *celestial_bodies_star_name(uint8_t star);
