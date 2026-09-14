@@ -1,4 +1,4 @@
-#include "feature_vector_icons.h"
+#include "./feature_vector_icons.h"
 
 void feature_vector_icons_battery(GContext *ctx, GPoint top_left, GColor color, int charge) {
   graphics_context_set_fill_color(ctx, color);

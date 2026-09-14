@@ -1,7 +1,7 @@
 #pragma once
 
 #include <pebble.h>
-#include "../domain/eclipse_data.h"
+#include "../data/eclipse_data.h"
 
 // Small feature-domain rules shared by the value, layout and refresh paths.
 // Keeping these here prevents features_layer.c from accumulating unrelated

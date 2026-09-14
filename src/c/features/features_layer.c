@@ -1,7 +1,7 @@
-#include "features_layer.h"
-#include "feature_controller.h"
-#include "feature_slot.h"
-#include "feature_render.h"
+#include "./features_layer.h"
+#include "./feature_controller.h"
+#include "./feature_slot.h"
+#include "./feature_render.h"
 
 // The feature layer is intentionally thin. Feature layout, value resolution,
 // icon rendering and pixel-level rendering are implemented by dedicated

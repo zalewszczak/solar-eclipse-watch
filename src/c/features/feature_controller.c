@@ -1,9 +1,9 @@
-#include "feature_controller.h"
-#include "../domain/eclipse_ui.h"
-#include "../services/font_lookup.h"
-#include "feature_values.h"
-#include "feature_render.h"
-#include "feature_layout.h"
+#include "./feature_controller.h"
+#include "../data/eclipse_ui.h"
+#include "../fonts/font_lookup.h"
+#include "./feature_values.h"
+#include "./feature_render.h"
+#include "./feature_layout.h"
 
 // The controller owns feature-state refresh orchestration and the shared
 // custom corner/edge font cache. It deliberately does not know how slots

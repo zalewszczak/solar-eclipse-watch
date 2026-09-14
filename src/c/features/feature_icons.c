@@ -1,17 +1,17 @@
-#include "feature_icons.h"
-#include "feature_icon_assets.h"
-#include "feature_weather_icons.h"
-#include "feature_vector_icons.h"
-#include "feature_render.h"
-#include "../domain/eclipse_ui.h"
-#include "../background/celestial_layer.h"
+#include "./feature_icons.h"
+#include "./feature_icon_assets.h"
+#include "./feature_weather_icons.h"
+#include "./feature_vector_icons.h"
+#include "./feature_render.h"
+#include "../data/eclipse_ui.h"
+#include "../rendering/background/celestial_layer.h"
 
 #define ICON_WIDTH 16
 #define ICON_ROWS 12
 #define SUN_TIME_ICON_WIDTH 20
 #define SUN_TIME_ICON_ROWS 10
 
-// Debug crosshair used to visualize icon anchor points and geometry.
+// Optional debug crosshair for icon anchor points and geometry.
 static void draw_debug_marker_point(GContext *ctx, bool draw_debug, GPoint pos, GColor color) {
   if (!draw_debug) return;
   graphics_context_set_stroke_width(ctx, 1);
@@ -71,7 +71,7 @@ void feature_icons_draw_render_icon(GContext *ctx, uint8_t icon_kind, int16_t ic
   switch (icon_kind) {
     case 3: { // battery
       GPoint pos = GPoint(icon_x, box_y + (row_height - 14) / 2);
-      GColor c = icon_flag ? GColorGreen : color; // charging -> always green, matching the old special case
+      GColor c = icon_flag ? GColorGreen : color; // charging state uses green
       GColor oc = icon_flag ? GColorBlack : outline_color;
       if (do_outline) {
         for (int i = 0; i < offs_n; i++) {

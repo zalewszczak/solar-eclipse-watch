@@ -1,6 +1,6 @@
 #include <pebble.h>
-#include "comms.h"
-#include "comms_decoder.h"
+#include "./comms.h"
+#include "./comms_decoder.h"
 
 #define STARTUP_REQUEST_DELAY_MS 3000
 

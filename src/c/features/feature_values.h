@@ -1,7 +1,7 @@
 #pragma once
 
 #include <pebble.h>
-#include "../domain/eclipse_data.h"
+#include "../data/eclipse_data.h"
 
 typedef struct FeatureSlot FeatureSlot;
 

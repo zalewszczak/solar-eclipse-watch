@@ -1,7 +1,7 @@
 #pragma once
 
 #include <pebble.h>
-#include "feature_slot.h"
+#include "./feature_slot.h"
 
 // Shared feature rendering primitives.  This module owns the pixel-level
 // drawing and segment measurement used by the feature overlay; it does not

@@ -1,5 +1,5 @@
-#include "feature_render.h"
-#include "feature_icons.h"
+#include "./feature_render.h"
+#include "./feature_icons.h"
 
 #define CORNER_INSET_PX 2
 

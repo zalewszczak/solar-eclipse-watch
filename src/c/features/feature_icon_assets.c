@@ -1,4 +1,4 @@
-#include "feature_icon_assets.h"
+#include "./feature_icon_assets.h"
 
 #define ICON_WIDTH 16
 #define ICON_ROWS 12

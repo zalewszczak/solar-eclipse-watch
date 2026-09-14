@@ -1,7 +1,7 @@
 #pragma once
 
 #include <pebble.h>
-#include "../domain/eclipse_data.h"
+#include "../data/eclipse_data.h"
 
 // Pebble Layer wrapper for the always-on-top feature-slot overlay.
 // Slot layout, value computation, feature fonts and rendering are owned by

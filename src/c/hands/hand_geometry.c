@@ -1,19 +1,13 @@
-#include "hand_geometry.h"
-#include "../domain/eclipse_data.h"
+#include "./hand_geometry.h"
+#include "../data/eclipse_data.h"
 
-// A point at signed distance `axial_fp` along the hand's own axis from
-// `center` -- positive moves toward the tip (same direction `length`
-// extends in), negative moves toward the back (same direction a
-// positive back_offset extends in). Every style below places its
-// points by combining this with perp_offset_fp() (the sideways/width
-// component) -- together they're the same dx/dy math
-// compute_hand_geometry_fp() always used, just factored out so each
-// style's point layout reads as "how far along, how far to the side"
-// instead of repeating the sin/cos arithmetic per point.
+// Place a point along the hand axis and perpendicular to it. Keeping this
+// construction in one helper makes each hand style describe its geometry in
+// terms of axial distance and lateral width without repeating trigonometry.
 static FGPoint point_at_axial_fp(FGPoint center, int32_t sin_v, int32_t cos_v, int32_t axial_fp) {
   int32_t dx = (int32_t)(((int64_t)axial_fp * sin_v) / TRIG_MAX_RATIO);
   int32_t dy = (int32_t)(((int64_t)axial_fp * cos_v) / TRIG_MAX_RATIO);
-  return fgpoint_new(center.x + dx, center.y - dy);
+  return subpixel_fgpoint_new(center.x + dx, center.y - dy);
 }
 
 static void perp_offset_fp(int32_t sin_v, int32_t cos_v, int32_t half_w_fp, int32_t *dx_w, int32_t *dy_w) {
@@ -48,10 +42,10 @@ static void append_capsule_fp(HandGeometry *geo, FGPoint center, int32_t sin_v, 
   HandPoly *poly = &geo->polys[geo->n_polys++];
   poly->n = 4;
   poly->thin = thin;
-  poly->pts[0] = fgpoint_new(inner.x - dx_w, inner.y - dy_w);
-  poly->pts[1] = fgpoint_new(inner.x + dx_w, inner.y + dy_w);
-  poly->pts[2] = fgpoint_new(outer.x + dx_w, outer.y + dy_w);
-  poly->pts[3] = fgpoint_new(outer.x - dx_w, outer.y - dy_w);
+  poly->pts[0] = subpixel_fgpoint_new(inner.x - dx_w, inner.y - dy_w);
+  poly->pts[1] = subpixel_fgpoint_new(inner.x + dx_w, inner.y + dy_w);
+  poly->pts[2] = subpixel_fgpoint_new(outer.x + dx_w, outer.y + dy_w);
+  poly->pts[3] = subpixel_fgpoint_new(outer.x - dx_w, outer.y - dy_w);
 
   if (round_caps) {
     geo->circles[geo->n_circles++] = (HandCircle){ .center = inner, .radius_fp = half_w_fp, .thin = thin };
@@ -73,12 +67,12 @@ static void append_taper_fp(HandGeometry *geo, FGPoint center, int32_t sin_v, in
   HandPoly *poly = &geo->polys[geo->n_polys++];
   poly->n = 3;
   poly->thin = thin;
-  poly->pts[0] = fgpoint_new(base.x - dx_w, base.y - dy_w);
-  poly->pts[1] = fgpoint_new(base.x + dx_w, base.y + dy_w);
+  poly->pts[0] = subpixel_fgpoint_new(base.x - dx_w, base.y - dy_w);
+  poly->pts[1] = subpixel_fgpoint_new(base.x + dx_w, base.y + dy_w);
   poly->pts[2] = tip_point;
 }
 
-void compute_hand_geometry_fp(FGPoint center, int32_t angle, const HandConfig *cfg, HandGeometry *geo) {
+void hand_geometry_compute_fp(FGPoint center, int32_t angle, const HandConfig *cfg, HandGeometry *geo) {
   geo->n_polys = 0;
   geo->n_circles = 0;
 
@@ -116,9 +110,9 @@ void compute_hand_geometry_fp(FGPoint center, int32_t angle, const HandConfig *c
       poly->n = 4;
       poly->thin = thin_w;
       poly->pts[0] = back_tip;
-      poly->pts[1] = fgpoint_new(mid.x - dx_w, mid.y - dy_w);
+      poly->pts[1] = subpixel_fgpoint_new(mid.x - dx_w, mid.y - dy_w);
       poly->pts[2] = top_tip;
-      poly->pts[3] = fgpoint_new(mid.x + dx_w, mid.y + dy_w);
+      poly->pts[3] = subpixel_fgpoint_new(mid.x + dx_w, mid.y + dy_w);
       return;
     }
 
@@ -138,11 +132,11 @@ void compute_hand_geometry_fp(FGPoint center, int32_t angle, const HandConfig *c
       HandPoly *poly = &geo->polys[geo->n_polys++];
       poly->n = 5;
       poly->thin = thin_w; // dominant/base width -- matches the other multi-width styles' convention
-      poly->pts[0] = fgpoint_new(base.x - dx_w, base.y - dy_w);
-      poly->pts[1] = fgpoint_new(mid.x - dx_sw, mid.y - dy_sw);
+      poly->pts[0] = subpixel_fgpoint_new(base.x - dx_w, base.y - dy_w);
+      poly->pts[1] = subpixel_fgpoint_new(mid.x - dx_sw, mid.y - dy_sw);
       poly->pts[2] = top;
-      poly->pts[3] = fgpoint_new(mid.x + dx_sw, mid.y + dy_sw);
-      poly->pts[4] = fgpoint_new(base.x + dx_w, base.y + dy_w);
+      poly->pts[3] = subpixel_fgpoint_new(mid.x + dx_sw, mid.y + dy_sw);
+      poly->pts[4] = subpixel_fgpoint_new(base.x + dx_w, base.y + dy_w);
       return;
     }
 
@@ -181,8 +175,8 @@ void compute_hand_geometry_fp(FGPoint center, int32_t angle, const HandConfig *c
         HandPoly *poly = &geo->polys[geo->n_polys++];
         poly->n = 3;
         poly->thin = thin_sw;
-        poly->pts[0] = fgpoint_new(tip.x - dx_sw, tip.y - dy_sw);
-        poly->pts[1] = fgpoint_new(tip.x + dx_sw, tip.y + dy_sw);
+        poly->pts[0] = subpixel_fgpoint_new(tip.x - dx_sw, tip.y - dy_sw);
+        poly->pts[1] = subpixel_fgpoint_new(tip.x + dx_sw, tip.y + dy_sw);
         poly->pts[2] = apex;
       }
       return;
@@ -201,8 +195,8 @@ void compute_hand_geometry_fp(FGPoint center, int32_t angle, const HandConfig *c
       HandPoly *poly = &geo->polys[geo->n_polys++];
       poly->n = 3;
       poly->thin = thin_sw;
-      poly->pts[0] = fgpoint_new(tip.x - dx_sw, tip.y - dy_sw);
-      poly->pts[1] = fgpoint_new(tip.x + dx_sw, tip.y + dy_sw);
+      poly->pts[0] = subpixel_fgpoint_new(tip.x - dx_sw, tip.y - dy_sw);
+      poly->pts[1] = subpixel_fgpoint_new(tip.x + dx_sw, tip.y + dy_sw);
       poly->pts[2] = apex;
       return;
     }
@@ -243,15 +237,15 @@ void compute_hand_geometry_fp(FGPoint center, int32_t angle, const HandConfig *c
       FGPoint plus_side2[LEAF_HALF_SAMPLES], minus_side2[LEAF_HALF_SAMPLES]; // peak -> tip flank
 
       // A sufficiently extreme middle_offset clamps peak_ax onto
-      // back_fp or len_fp exactly (previous comment) -- and once a
+      // back_fp or len_fp exactly. Once a
       // flank's own span is zero, every one of its "interior" points
       // above is mathematically supposed to land exactly on the
       // straight edge between that anchor and the peak, but the
       // fixed-point width/trig math doesn't round to EXACTLY zero
-      // deviation from that line -- just close enough that it used to
-      // flip the polygon non-convex by a few thousandths of a pixel
+      // deviation from that line -- small enough to be invisible but
+      // sufficient to flip the polygon non-convex by a few thousandths of a pixel
       // right at that corner (invisible on screen, but still breaks
-      // point_in_convex_polygon_fp's assumption). Rather than compute
+      // subpixel_point_in_convex_polygon_fp's assumption). Rather than compute
       // those now-redundant points at all, this flank is just omitted
       // outright when degenerate -- back_pt/tip_pt (and that whole
       // flank's samples) drop out, leaving a flat leading/trailing
@@ -269,8 +263,8 @@ void compute_hand_geometry_fp(FGPoint center, int32_t angle, const HandConfig *c
           int32_t w = (int32_t)(((int64_t)half_w_fp * sin_lookup(angle_half_pi_u)) / TRIG_MAX_RATIO);
           FGPoint p = point_at_axial_fp(center, sin_v, cos_v, ax);
           int32_t dx, dy; perp_offset_fp(sin_v, cos_v, w, &dx, &dy);
-          plus_side[k - 1] = fgpoint_new(p.x + dx, p.y + dy);
-          minus_side[k - 1] = fgpoint_new(p.x - dx, p.y - dy);
+          plus_side[k - 1] = subpixel_fgpoint_new(p.x + dx, p.y + dy);
+          minus_side[k - 1] = subpixel_fgpoint_new(p.x - dx, p.y - dy);
         }
       }
       if (have_tip) {
@@ -281,8 +275,8 @@ void compute_hand_geometry_fp(FGPoint center, int32_t angle, const HandConfig *c
           int32_t w = (int32_t)(((int64_t)half_w_fp * cos_lookup(angle_half_pi_v)) / TRIG_MAX_RATIO);
           FGPoint p = point_at_axial_fp(center, sin_v, cos_v, ax);
           int32_t dx, dy; perp_offset_fp(sin_v, cos_v, w, &dx, &dy);
-          plus_side2[k - 1] = fgpoint_new(p.x + dx, p.y + dy);
-          minus_side2[k - 1] = fgpoint_new(p.x - dx, p.y - dy);
+          plus_side2[k - 1] = subpixel_fgpoint_new(p.x + dx, p.y + dy);
+          minus_side2[k - 1] = subpixel_fgpoint_new(p.x - dx, p.y - dy);
         }
       }
 
@@ -290,8 +284,8 @@ void compute_hand_geometry_fp(FGPoint center, int32_t angle, const HandConfig *c
       {
         FGPoint p = point_at_axial_fp(center, sin_v, cos_v, peak_ax);
         int32_t dx, dy; perp_offset_fp(sin_v, cos_v, half_w_fp, &dx, &dy);
-        peak_plus = fgpoint_new(p.x + dx, p.y + dy);
-        peak_minus = fgpoint_new(p.x - dx, p.y - dy);
+        peak_plus = subpixel_fgpoint_new(p.x + dx, p.y + dy);
+        peak_minus = subpixel_fgpoint_new(p.x - dx, p.y - dy);
       }
 
       HandPoly *poly = &geo->polys[geo->n_polys++];
@@ -354,10 +348,10 @@ void compute_hand_geometry_fp(FGPoint center, int32_t angle, const HandConfig *c
       HandPoly *poly = &geo->polys[geo->n_polys++];
       poly->n = 4;
       poly->thin = thin_w;
-      poly->pts[0] = fgpoint_new(corner.x - dx_w, corner.y - dy_w);
-      poly->pts[1] = fgpoint_new(corner.x + dx_w, corner.y + dy_w);
-      poly->pts[2] = fgpoint_new(tip.x + dx_sw, tip.y + dy_sw);
-      poly->pts[3] = fgpoint_new(tip.x - dx_sw, tip.y - dy_sw);
+      poly->pts[0] = subpixel_fgpoint_new(corner.x - dx_w, corner.y - dy_w);
+      poly->pts[1] = subpixel_fgpoint_new(corner.x + dx_w, corner.y + dy_w);
+      poly->pts[2] = subpixel_fgpoint_new(tip.x + dx_sw, tip.y + dy_sw);
+      poly->pts[3] = subpixel_fgpoint_new(tip.x - dx_sw, tip.y - dy_sw);
       return;
     }
 
@@ -443,17 +437,17 @@ void compute_hand_geometry_fp(FGPoint center, int32_t angle, const HandConfig *c
         if (len_sq == 0) {
           perp_offset_fp(sin_v, cos_v, half_w_fp, &ox, &oy);
         } else {
-          int32_t tlen = (int32_t)isqrt64_fp(len_sq);
+          int32_t tlen = (int32_t)subpixel_isqrt64_fp(len_sq);
           ox = subpixel_round_div(-ty * half_w_fp, tlen);
           oy = subpixel_round_div(tx * half_w_fp, tlen);
         }
         HandPoly *poly = &geo->polys[geo->n_polys++];
         poly->n = 4;
         poly->thin = thin_w;
-        poly->pts[0] = fgpoint_new(a.x - ox, a.y - oy);
-        poly->pts[1] = fgpoint_new(a.x + ox, a.y + oy);
-        poly->pts[2] = fgpoint_new(b.x + ox, b.y + oy);
-        poly->pts[3] = fgpoint_new(b.x - ox, b.y - oy);
+        poly->pts[0] = subpixel_fgpoint_new(a.x - ox, a.y - oy);
+        poly->pts[1] = subpixel_fgpoint_new(a.x + ox, a.y + oy);
+        poly->pts[2] = subpixel_fgpoint_new(b.x + ox, b.y + oy);
+        poly->pts[3] = subpixel_fgpoint_new(b.x - ox, b.y - oy);
       }
       #undef SERP_SEGMENTS
       return;

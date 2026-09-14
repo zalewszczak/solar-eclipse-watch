@@ -1,12 +1,12 @@
-#include "feature_values.h"
-#include "feature_slot.h"
-#include "feature_value_helpers.h"
-#include "feature_value_health.h"
-#include "feature_value_weather.h"
-#include "feature_value_time.h"
-#include "feature_value_composite.h"
-#include "feature_rules.h"
-#include "../background/weather_layer.h"
+#include "./feature_values.h"
+#include "./feature_slot.h"
+#include "./feature_value_helpers.h"
+#include "./feature_value_health.h"
+#include "./feature_value_weather.h"
+#include "./feature_value_time.h"
+#include "./feature_value_composite.h"
+#include "./feature_rules.h"
+#include "../rendering/background/weather_layer.h"
 #include <stdio.h>
 
 // ---- unified position resolution ---------------------------------------

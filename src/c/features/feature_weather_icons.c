@@ -1,5 +1,5 @@
-#include "feature_weather_icons.h"
-#include "feature_icon_assets.h"
+#include "./feature_weather_icons.h"
+#include "./feature_icon_assets.h"
 
 void feature_weather_icons_draw_hollow(GContext *ctx, GPoint top_left, uint8_t category, GColor color) {
   switch (category) {

@@ -1,8 +1,8 @@
 #pragma once
 
 #include <pebble.h>
-#include "../domain/eclipse_data.h"
-#include "feature_slot.h"
+#include "../data/eclipse_data.h"
+#include "./feature_slot.h"
 
 // Settings-driven feature layout. This module decides which cached slots
 // are active and where their boxes live. It does not compute feature values

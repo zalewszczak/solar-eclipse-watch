@@ -1,8 +1,8 @@
 #pragma once
 
 #include <pebble.h>
-#include "../primitives/subpixel.h"
-#include "hand_layer.h"
+#include "../graphics/subpixel.h"
+#include "../data/hand_types.h"
 
 // Maximum fixed storage required by the supported hand styles.
 #define HAND_MAX_POLY_PTS 12
@@ -13,7 +13,7 @@ typedef struct {
   FGPoint pts[HAND_MAX_POLY_PTS];
   int n;     // 0 = unused
   bool thin; // true when this polygon's own half-width is < 1.5px -- see
-              // subpixel.h's fill_polygon_thin_fp() comment for why that
+              // subpixel.h's subpixel_fill_polygon_thin_fp() comment for why that
               // needs a different fill routine than a normal-width shape.
 } HandPoly;
 
@@ -32,4 +32,4 @@ typedef struct {
 
 
 // Build the sub-pixel geometric representation for one configured hand.
-void compute_hand_geometry_fp(FGPoint center, int32_t angle, const HandConfig *cfg, HandGeometry *geo);
+void hand_geometry_compute_fp(FGPoint center, int32_t angle, const HandConfig *cfg, HandGeometry *geo);

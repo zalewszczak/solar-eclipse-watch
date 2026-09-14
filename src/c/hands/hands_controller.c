@@ -1,13 +1,13 @@
 #include <pebble.h>
-#include "../domain/eclipse_status.h"
-#include "hands_controller.h"
-#include "hand_layer.h"
-#include "../application/input.h"
-#include "../background/background_animation.h"
-#include "../domain/eclipse_ui.h"
+#include "../data/eclipse_status.h"
+#include "./hands_controller.h"
+#include "./hand_layer.h"
+#include "../input/input.h"
+#include "../rendering/background/background_animation.h"
+#include "../data/eclipse_ui.h"
 #include "../features/feature_controller.h"
 
-#include "../background/background_layer.h"
+#include "../rendering/background/background_layer.h"
 static EclipseData *s_data = NULL;
 static Layer *s_hands_layer = NULL;
 static HandsControllerInvalidateHandler s_invalidate_handler = NULL;
@@ -95,8 +95,8 @@ static void compute_startup_hand_anim(int32_t target_angle, uint16_t elapsed_ms,
 
 // ---- shared ease-out lookup table -----------------------------------
 // Cubic ease-out (1-(1-t)^3), precomputed at 21 points (0, 50, 100,
-// ..., 1000) -- avoids the 2 multiplications ease_out_cubic_1000()
-// used to do on every single call in favor of one table lookup + a
+// ..., 1000). A lookup plus linear interpolation keeps animation updates
+// inexpensive while preserving the shared easing curve.
 // cheap linear interpolation between its 2 nearest points, and gives
 // every animation that wants this same "starts quick, eases into
 // place" feel (the startup clock/hand sweep, the background sweep,

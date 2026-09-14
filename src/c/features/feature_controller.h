@@ -1,8 +1,8 @@
 #pragma once
 
 #include <pebble.h>
-#include "../domain/eclipse_data.h"
-#include "feature_slot.h"
+#include "../data/eclipse_data.h"
+#include "./feature_slot.h"
 
 // Refresh orchestration for the feature-slot cache. This module coordinates
 // value computation, segment measurement and the shared custom feature font,

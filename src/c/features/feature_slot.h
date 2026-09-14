@@ -1,7 +1,7 @@
 #pragma once
 
 #include <pebble.h>
-#include "../domain/eclipse_data.h"
+#include "../data/eclipse_data.h"
 
 // Shared feature-row geometry used by both layout and rendering.
 #define CORNER_ROW_H 24

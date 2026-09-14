@@ -2,7 +2,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
-#include "../domain/eclipse_data.h"
+#include "../data/eclipse_data.h"
 
 typedef enum {
   COMMS_CHANGE_NONE           = 0,

@@ -1,11 +1,13 @@
 #include <pebble.h>
 #include <stddef.h>
 #include <string.h>
-#include "comms_decoder.h"
-#include "message_key_index.h"
+#include "./comms_decoder.h"
+#include "../generated/message_key_index.h"
+#include "../data/hand_types.h"
+#include "../data/marker_types.h"
 
 // ---- Table-driven plain-copy message fields ---------------------------
-// After C's message-key consolidation (86 of the old individual keys ->
+// The watch receives a compact set of consolidated message fields.
 // 5 grouped ones -- HANDS/MARKER_RINGS/EDGE_LINES/MARKER_TEXT/COLORS,
 // handled by apply_consolidated_fields() below instead), this app has
 // ~113 AppMessage keys; roughly half resolve to nothing more than "copy
@@ -196,7 +198,7 @@ static void apply_consolidated_fields(DictionaryIterator *iter, EclipseData *d) 
   }
 
   // MARKER_RINGS: 2x MarkerRingConfig, hour ring then second ring, each
-  // in MarkerRingConfig's own declared field order (see eclipse_data.h).
+  // in MarkerRingConfig's own declared field order (see data/eclipse_data.h).
   if ((t = dict_find(iter, MESSAGE_KEY_MARKER_RINGS)) && t->length >= 2 * sizeof(MarkerRingConfig)) {
     memcpy(&d->custom_hour_marker, t->value->data, 2 * sizeof(MarkerRingConfig));
   }
@@ -336,7 +338,7 @@ CommsChangeFlags comms_decoder_apply(DictionaryIterator *iter, EclipseData *data
   // overlay's layout (style/marker-style/bottom-info-bar-mode, and all
   // of the corner/edge content+color fields) has now been applied to
   // s_data -- one recompute here replaces the many individual
-  // layer_mark_dirty(s_features_layer) calls the old per-field handling
+  // Mark the affected feature layer after applying the decoded values.
   // used, since features_layer_set_data() recomputes every slot's
   // layout AND value in one pass and marks the layer dirty. Content-
   // only fields parsed further below (weather icon style, AQI/altitude
@@ -380,7 +382,7 @@ CommsChangeFlags comms_decoder_apply(DictionaryIterator *iter, EclipseData *data
   // since a plain byte array can't carry a signed value; decoded back
   // to a real (possibly negative) Celsius reading here, with -128 as
   // the sentinel d->forecast_temp_c itself uses for "not available"
-  // (see its own comment in eclipse_data.h).
+  // (see its own comment in data/eclipse_data.h).
   if ((t = dict_find(iter, MESSAGE_KEY_FORECAST_TEMP_C))) {
     uint8_t *raw = t->value->data;
     int n = t->length;
@@ -431,7 +433,7 @@ CommsChangeFlags comms_decoder_apply(DictionaryIterator *iter, EclipseData *data
   }
 
   // Full-day sky background: sun altitude + cloud cover samples,
-  // used to render the gradient and dithered clouds behind the sun.
+  // The background layer owns the gradient and dithered cloud rendering.
   if ((t = dict_find(iter, MESSAGE_KEY_SKY_SAMPLE_COUNT))) {
     uint8_t count = t->value->uint8;
     d->sky_sample_count = count > MAX_SKY_SAMPLES ? MAX_SKY_SAMPLES : count;
@@ -483,7 +485,7 @@ CommsChangeFlags comms_decoder_apply(DictionaryIterator *iter, EclipseData *data
     }
   }
   // Packed as PLANET_COUNT rows of int16 (little-endian) samples,
-  // concatenated in PlanetId order (see eclipse_data.h) -- one
+  // concatenated in PlanetId order (see data/eclipse_data.h) -- one
   // message key instead of five near-duplicate ones.
   if ((t = dict_find(iter, MESSAGE_KEY_PLANET_ALT_SAMPLES))) {
     uint8_t *raw = t->value->data;
@@ -533,7 +535,7 @@ CommsChangeFlags comms_decoder_apply(DictionaryIterator *iter, EclipseData *data
   if ((t = dict_find(iter, MESSAGE_KEY_STAR_ALT_SAMPLES))) {
     // Byte blob of int16 (little-endian) tenths-of-a-degree values,
     // same packing as SUN_ALT_SAMPLES above -- see star_alt_decideg's
-    // own comment in eclipse_data.h for why this is a flat current-
+    // own comment in data/eclipse_data.h for why this is a flat current-
     // snapshot array, not a full-day grid like that one.
     uint8_t *raw = t->value->data;
     int n = t->length / 2;

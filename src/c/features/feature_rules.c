@@ -1,4 +1,4 @@
-#include "feature_rules.h"
+#include "./feature_rules.h"
 
 int16_t feature_rules_convert_temp(int16_t celsius, uint8_t temp_unit) {
   if (temp_unit == 1) return (int16_t)((celsius * 9) / 5 + 32);

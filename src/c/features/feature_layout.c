@@ -1,8 +1,8 @@
-#include "feature_layout.h"
-#include "../background/background_layer.h"
-#include "../background/marker_layer.h"
-#include "feature_rules.h"
-#include "../services/font_lookup.h"
+#include "./feature_layout.h"
+#include "../rendering/background/background_layer.h"
+#include "../rendering/background/marker_layer.h"
+#include "./feature_rules.h"
+#include "../fonts/font_lookup.h"
 
 #define FEATURE_LAYOUT_CORNER_INSET_PX 2
 
@@ -213,7 +213,7 @@ void feature_layout_recompute(FeaturesState *state) {
   // column, SLOT_BOTTOM_L1 as the single bottom feature (SLOT_BOTTOM_L2
   // stays unused). Deliberately reuses the SAME 8 EclipseData fields
   // analog mode's upper/bottom/left/right-middle content uses (see
-  // their own dual-purpose comment in eclipse_data.h) rather than a
+  // their own dual-purpose comment in data/eclipse_data.h) rather than a
   // separate set of digital-only fields -- the two modes never run at
   // once, so there's nothing to actually preserve by keeping them
   // apart, and sharing saves both the extra bytes on the watch and the
@@ -291,7 +291,7 @@ void feature_layout_recompute(FeaturesState *state) {
     // upper of its own 2-line pair; bottom_middle_line2 has no
     // digital-mode role, 7 slots needed against 8 available fields).
     // Shares clock_x/clock_w with the clock text itself
-    // (draw_digital_clock_panel() in pebble-eclipse-watch.c uses the
+    // (clock_display_create_panel() uses the
     // exact same feature_layout_digital_clock_area() call), always centered within
     // that band, anchored to the screen's own outer edge -- the true
     // bottom for Digital bar, the true top for Digital top (row 3's own

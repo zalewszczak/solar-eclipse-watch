@@ -1,4 +1,4 @@
-#include "feature_colors.h"
+#include "./feature_colors.h"
 
 GColor feature_colors_seven_stop_gradient(int32_t value, int32_t min_v, int32_t max_v) {
   static const int16_t STOPS[7][3] = {
@@ -66,15 +66,9 @@ GColor feature_colors_red_green_gradient(uint8_t pct) {
 GColor feature_colors_white_to_red_gradient(uint8_t kp_x10) {
   if (kp_x10 >= 90) return GColorFromRGB(220, 0, 0);
   int32_t frac1000 = ((int32_t)kp_x10 * 1000) / 90;
-  // Capped at 170, not 255 -- Pebble's display quantizes each RGB
-  // channel to just 4 levels (0/85/170/255), so anything above ~213
-  // rounds straight back up to 255 anyway. A genuinely calm Kp (or,
-  // more often in practice, no reading fetched yet, which also reads
-  // as 0) used to render as pure white text, which vanishes into any
-  // light/white-background color scheme whenever the outline setting
-  // is off. 170 quantizes cleanly to a pale pink-white that's never
-  // fully invisible, while still reading as "white-ish" per the
-  // original white-to-red design.
+  // Cap the green channel at 170. Pebble quantizes each RGB channel to
+  // four levels (0/85/170/255), so this keeps the calm end visibly tinted
+  // instead of collapsing to full white on a light background.
   int16_t g = 170 - (int16_t)((170 * frac1000) / 1000);
   int16_t b = g;
   return GColorFromRGB(255, (uint8_t)g, (uint8_t)b);
@@ -119,7 +113,7 @@ GColor feature_colors_altitude_gradient(int16_t altitude_m) {
 }
 
 // Dim gray (faint) -> white (strong), for the meteor-shower intensity
-// reading -- "more meteors = whiter", replacing the old red/green read.
+// reading -- higher intensity becomes whiter.
 GColor feature_colors_meteor_intensity_gradient(uint8_t pct) {
   int32_t frac1000 = ((int32_t)pct * 1000) / 100;
   int16_t v = 90 + (int16_t)((165 * frac1000) / 1000);

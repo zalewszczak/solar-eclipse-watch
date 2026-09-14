@@ -1,4 +1,4 @@
-#include "feature_health.h"
+#include "./feature_health.h"
 
 void feature_health_format_duration_hm(char *buf, size_t buf_size, int32_t total_seconds) {
   if (total_seconds < 0) total_seconds = 0;

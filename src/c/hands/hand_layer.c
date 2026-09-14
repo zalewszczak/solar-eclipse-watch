@@ -1,15 +1,12 @@
-#include "hand_layer.h"
-#include "../domain/eclipse_data.h"
-#include "hand_geometry.h"
+#include "./hand_layer.h"
+#include "./hand_geometry.h"
 
-// subpixel_round_div/BAYER4/FGPoint helpers and the fill_polygon_fp()/
-// fill_polygon_dithered_fp()/fill_circle_fp()/stroke_line_fp()/
-// stroke_polygon_fp()/stroke_circle_fp() rasterizers this file relies on
+// subpixel_round_div/BAYER4/FGPoint helpers and the subpixel_fill_polygon_fp()/
+// subpixel_fill_polygon_dithered_fp()/subpixel_fill_circle_fp()/subpixel_stroke_line_fp()/
+// subpixel_stroke_polygon_fp()/subpixel_stroke_circle_fp() rasterizers this file relies on
 // all now live in subpixel.h (included via hand_layer.h) -- shared with
-// background_layer.c's marker ring. See that header's own top-of-file
-// comment for why, and stroke_line_fp()'s comment specifically for the
-// rounding/step-count bug that used to make outlines and hollow shapes
-// look half a pixel off or drop parts of thin lines.
+// background marker ring. Both paths use the same fixed-point rasterizer
+// so outlines and hollow shapes share the same rounding and step-count rules.
 
 static GColor resolve_scheme_color(uint8_t choice, GColor main_color, GColor accent_color, GColor bg_color) {
   if (choice == 1) return accent_color;
@@ -24,14 +21,14 @@ static GColor resolve_scheme_color(uint8_t choice, GColor main_color, GColor acc
 // primitives -- 1-2 polygons (3-5 points each) and 0-2 circles --
 // packed into a HandGeometry. The fill/outline/shadow passes below all
 // just iterate whatever's in here, so a new style only ever needs to
-// change compute_hand_geometry_fp(), never the three drawing passes
+// change hand_geometry_compute_fp(), never the three drawing passes
 // themselves. (Circles matter for round caps like the dot style's
 // pivot/tip caps or the pomme's rounded thick section, and for the
 // spade's droplet tip -- everything else is a plain filled polygon.)
 //
-// Every polygon here MUST be convex: fill_polygon_fp() (and the
+// Every polygon here MUST be convex: subpixel_fill_polygon_fp() (and the
 // dithered/thin variants) all test membership via
-// point_in_convex_polygon_fp(), same as before this file supported
+// subpixel_point_in_convex_polygon_fp(), same as before this file supported
 // more than one shape. Any style whose real shape isn't convex on its
 // own (pomme's thick+thin sections; spade/arrow's line-or-triangle
 // base plus a separate tip ornament) is decomposed into 2 separate
@@ -42,7 +39,7 @@ static GColor resolve_scheme_color(uint8_t choice, GColor main_color, GColor acc
 // its two flanks, the peak itself, and the tip point) needs every one
 // of the 12 slots that shape's own comment works out; every other
 // style still needs at most 5. Must stay <= subpixel.h's own
-// SUBPIXEL_MAX_RING_PTS -- inset_convex_polygon_fp()/fill_polygon_ring_fp()
+// SUBPIXEL_MAX_RING_PTS -- subpixel_inset_convex_polygon_fp()/subpixel_fill_polygon_ring_fp()
 // (the "hollow thickness" feature) take whatever poly this file hands
 // them, sight unseen, into their own fixed-size local arrays of that size.
 #define HAND_MAX_POLY_PTS 12
@@ -56,9 +53,8 @@ static GColor resolve_scheme_color(uint8_t choice, GColor main_color, GColor acc
 // caps (from append_capsule_fp(..., round_caps=true)) PLUS its own
 // separate droplet-tip circle, 3 circles total in the one hand. Every
 // other style needs at most 2 (the round-capped base styles) or 0.
-// This used to be 2, silently overflowing HandGeometry.circles[] by
-// one entry on every single Spade redraw (regardless of preset --
-// unconditional, not something a particular slider combination
+// Spade can require three circle primitives, so the geometry buffer must
+// reserve space for all three entries on every redraw.
 // triggered) and corrupting whatever stack memory followed it, which
 // is what actually crashed the watch -- not a divide-by-zero (ARM's
 // integer divide instructions just return 0 on divide-by-zero, they
@@ -76,10 +72,9 @@ static GColor resolve_scheme_color(uint8_t choice, GColor main_color, GColor acc
 // stroke-only look an earlier version of this file used.
 // Takes an already-computed HandGeometry rather than a center/angle to
 // compute its own -- hand_layer_draw() computes geometry exactly ONCE
-// per hand now and shares it between this and draw_hand_outline_from_
-// geometry() below (see hand_layer_draw()'s own comment), since both
-// draw the same shape at the same center/angle and used to each redo
-// this file's own compute_hand_geometry_fp() independently -- a real,
+// per hand and shares it with draw_hand_outline_from_geometry() below.
+// Both paths draw the same shape at the same center/angle, so geometry is
+// computed once per hand instead of repeating the fixed-point/trigonometric work.
 // measurable cost given this runs every second, for every hand with
 // both a fill and an outline (the common case).
 static void draw_hand_shape_from_geometry(GContext *ctx, const HandGeometry *geo, const HandConfig *cfg,
@@ -88,26 +83,26 @@ static void draw_hand_shape_from_geometry(GContext *ctx, const HandGeometry *geo
 
   for (int i = 0; i < geo->n_polys; i++) {
     const HandPoly *p = &geo->polys[i];
-    if (dithered) fill_polygon_dithered_fp(ctx, p->pts, p->n, color);
+    if (dithered) subpixel_fill_polygon_dithered_fp(ctx, p->pts, p->n, color);
     else if (cfg->hollow) {
-      if (cfg->hollow_thickness <= 1) stroke_polygon_fp(ctx, p->pts, p->n, color, false);
-      else fill_polygon_ring_fp(ctx, p->pts, p->n, hollow_thickness_fp, color, false);
+      if (cfg->hollow_thickness <= 1) subpixel_stroke_polygon_fp(ctx, p->pts, p->n, color, false);
+      else subpixel_fill_polygon_ring_fp(ctx, p->pts, p->n, hollow_thickness_fp, color, false);
     }
-    else if (p->thin) fill_polygon_thin_fp(ctx, p->pts, p->n, color);
-    else fill_polygon_fp(ctx, p->pts, p->n, color);
+    else if (p->thin) subpixel_fill_polygon_thin_fp(ctx, p->pts, p->n, color);
+    else subpixel_fill_polygon_fp(ctx, p->pts, p->n, color);
   }
   for (int i = 0; i < geo->n_circles; i++) {
     const HandCircle *c = &geo->circles[i];
     if (cfg->hollow && !dithered) {
-      if (cfg->hollow_thickness <= 1) stroke_circle_fp(ctx, c->center, c->radius_fp, color, false);
-      else fill_circle_ring_fp(ctx, c->center, c->radius_fp, hollow_thickness_fp, color, false);
+      if (cfg->hollow_thickness <= 1) subpixel_stroke_circle_fp(ctx, c->center, c->radius_fp, color, false);
+      else subpixel_fill_circle_ring_fp(ctx, c->center, c->radius_fp, hollow_thickness_fp, color, false);
     }
-    else if (c->thin && !dithered) fill_circle_thin_fp(ctx, c->center, c->radius_fp, color);
-    else fill_circle_fp(ctx, c->center, c->radius_fp, color, dithered);
+    else if (c->thin && !dithered) subpixel_fill_circle_thin_fp(ctx, c->center, c->radius_fp, color);
+    else subpixel_fill_circle_fp(ctx, c->center, c->radius_fp, color, dithered);
   }
 }
 // A genuine perimeter outline for hand_layer_draw()'s outline_enabled
-// pass -- stroke_polygon_fp()/stroke_circle_fp() (a real, clean 1px
+// pass -- subpixel_stroke_polygon_fp()/subpixel_stroke_circle_fp() (a real, clean 1px
 // boundary line, whether opaque or dithered -- see subpixel.h for the
 // rounding fix that makes that boundary line actually land where it's
 // supposed to). Replaces the earlier "draw 4 shifted copies of the
@@ -122,15 +117,15 @@ static void draw_hand_shape_from_geometry(GContext *ctx, const HandGeometry *geo
 static void draw_hand_outline_from_geometry(GContext *ctx, const HandGeometry *geo,
                                              GColor color, bool dithered) {
   for (int i = 0; i < geo->n_polys; i++) {
-    stroke_polygon_fp(ctx, geo->polys[i].pts, geo->polys[i].n, color, dithered);
+    subpixel_stroke_polygon_fp(ctx, geo->polys[i].pts, geo->polys[i].n, color, dithered);
   }
   for (int i = 0; i < geo->n_circles; i++) {
-    stroke_circle_fp(ctx, geo->circles[i].center, geo->circles[i].radius_fp, color, dithered);
+    subpixel_stroke_circle_fp(ctx, geo->circles[i].center, geo->circles[i].radius_fp, color, dithered);
   }
 }
 
 // Bayer-dithered polygon/circle fills at an arbitrary density, not just
-// fill_polygon_dithered_fp()/fill_circle_fp()'s fixed ~50% -- shadows need
+// subpixel_fill_polygon_dithered_fp()/subpixel_fill_circle_fp()'s fixed ~50% -- shadows need
 // a second, lighter ~25% density (see draw_hand_shadow_once_fp() below),
 // and duplicating the scan logic here (rather than changing the shared
 // subpixel.h versions or their callers) matches this project's own
@@ -160,7 +155,7 @@ static void fill_polygon_dithered_level_fp(GContext *ctx, const FGPoint *pts, in
     for (int16_t x = min_x; x <= max_x; x++) {
       if (BAYER4[y & 3][x & 3] >= threshold) continue;
       int32_t sample_x = ((int32_t)x << SUBPIXEL_BITS) + SUBPIXEL_HALF;
-      if (point_in_convex_polygon_fp(pts, n, fgpoint_new(sample_x, sample_y))) {
+      if (subpixel_point_in_convex_polygon_fp(pts, n, subpixel_fgpoint_new(sample_x, sample_y))) {
         graphics_fill_rect(ctx, GRect(x, y, 1, 1), 0, GCornerNone);
       }
     }
@@ -206,21 +201,21 @@ static void draw_hand_shadow_once_fp(GContext *ctx, FGPoint center, int32_t angl
   int32_t dist_fp = (int32_t)cfg->shadow_distance_px << SUBPIXEL_BITS;
   int32_t dx = (int32_t)(((int64_t)dist_fp * sin_lookup(shadow_native_angle)) / TRIG_MAX_RATIO);
   int32_t dy = -(int32_t)(((int64_t)dist_fp * cos_lookup(shadow_native_angle)) / TRIG_MAX_RATIO);
-  FGPoint shadow_center = fgpoint_new(center.x + dx, center.y + dy);
+  FGPoint shadow_center = subpixel_fgpoint_new(center.x + dx, center.y + dy);
 
   HandGeometry geo;
-  compute_hand_geometry_fp(shadow_center, angle, cfg, &geo);
+  hand_geometry_compute_fp(shadow_center, angle, cfg, &geo);
 
   if (!shadow_translucent_style) {
     for (int i = 0; i < geo.n_polys; i++) {
       HandPoly *p = &geo.polys[i];
-      if (p->thin) fill_polygon_thin_fp(ctx, p->pts, p->n, GColorBlack);
-      else fill_polygon_fp(ctx, p->pts, p->n, GColorBlack);
+      if (p->thin) subpixel_fill_polygon_thin_fp(ctx, p->pts, p->n, GColorBlack);
+      else subpixel_fill_polygon_fp(ctx, p->pts, p->n, GColorBlack);
     }
     for (int i = 0; i < geo.n_circles; i++) {
       HandCircle *c = &geo.circles[i];
-      if (c->thin) fill_circle_thin_fp(ctx, c->center, c->radius_fp, GColorBlack);
-      else fill_circle_fp(ctx, c->center, c->radius_fp, GColorBlack, false);
+      if (c->thin) subpixel_fill_circle_thin_fp(ctx, c->center, c->radius_fp, GColorBlack);
+      else subpixel_fill_circle_fp(ctx, c->center, c->radius_fp, GColorBlack, false);
     }
     return;
   }
@@ -251,14 +246,13 @@ void hand_layer_draw(GContext *ctx, GPoint center, int32_t angle, const HandConf
     cfg = &scaled_cfg;
   }
 
-  FGPoint center_fp = fgpoint_from_gpoint(center);
+  FGPoint center_fp = subpixel_fgpoint_from_gpoint(center);
 
   draw_hand_shadow_once_fp(ctx, center_fp, angle, cfg, shadow_translucent_style, shadow_angle_deg);
 
   // Computed once and shared by the outline and fill steps below --
-  // both draw the exact same shape at the exact same center/angle, so
-  // there's no reason for each to redo compute_hand_geometry_fp()'s
-  // own per-style branching/trig independently the way they used to.
+  // Both paths draw the exact same shape at the exact same center/angle,
+  // so the shared geometry avoids duplicate branching and trigonometric work.
   // This runs every second for every visible hand, so avoiding a
   // second full geometry computation whenever a hand has both an
   // outline and a fill (the common case) is a real, continuous saving,
@@ -266,7 +260,7 @@ void hand_layer_draw(GContext *ctx, GPoint center, int32_t angle, const HandConf
   // draw_hand_shadow_once_fp()'s own comment) since it draws at a
   // genuinely different, translated center.
   HandGeometry geo;
-  compute_hand_geometry_fp(center_fp, angle, cfg, &geo);
+  hand_geometry_compute_fp(center_fp, angle, cfg, &geo);
 
   GColor hand_color = GColorClear; // resolved below if actually needed (cfg->color != 3)
   if (cfg->color != 3) {
@@ -294,6 +288,6 @@ void hand_layer_draw_center_circle(GContext *ctx, GPoint center, uint8_t radius,
                                     GColor main_color, GColor accent_color, GColor bg_color) {
   if (radius == 0) return;
   GColor color = resolve_scheme_color(color_choice, main_color, accent_color, bg_color);
-  FGPoint center_fp = fgpoint_from_gpoint(center);
-  fill_circle_fp(ctx, center_fp, (int32_t)radius << SUBPIXEL_BITS, color, false);
+  FGPoint center_fp = subpixel_fgpoint_from_gpoint(center);
+  subpixel_fill_circle_fp(ctx, center_fp, (int32_t)radius << SUBPIXEL_BITS, color, false);
 }

@@ -1,7 +1,8 @@
 #pragma once
 
 #include <pebble.h>
-#include "../primitives/subpixel.h"
+#include "../graphics/subpixel.h"
+#include "../data/hand_types.h"
 
 // ---------------------------------------------------------------------------
 // Hour/minute/second hand system -- the only hand-drawing code in this
@@ -23,72 +24,12 @@
 // own reusable unit, used identically for all three hands.
 //
 // The sub-pixel fixed-point coordinate system and generic fill/stroke
-// rasterizers this shape math is built on now live in subpixel.h --
-// shared with background_layer.c's marker ring, which rotates around the
-// dial the same way hands do and used to be drawn with coarser plain-
-// integer math instead.
+// The fixed-point rasterizers are shared with the background marker ring,
+// which uses the same rotating dial geometry.
 // ---------------------------------------------------------------------------
 
 
-typedef struct {
-  uint8_t style;        // 0=dot (round caps), 1=triangle (tapers to a point), 2=square (flat caps),
-                          // 3=dauphine, 4=sword, 5=spade, 6=arrow, 7=pomme, 8=leaf, 9=syringe,
-                          // 10=serpentine -- see HandGeometry/compute_hand_geometry_fp() in
-                          // hand_layer.c for what each shape does with middle_offset/secondary_width
-                          // below. leaf (8) only uses middle_offset (its peak position), not
-                          // secondary_width; syringe (9) and serpentine (10) use both, same as
-                          // 3-7.
-  uint8_t width;         // 1-40 px, thickness across the hand (ignored -- tip only -- for triangle's tip)
-  uint8_t length;         // 10-100 px, how far the hand extends outward from center
-  int8_t back_offset;      // -40..40 px, extension on the far side of center, opposite the hand's
-                             // direction. Positive = a tail sticking out behind the pivot; negative =
-                             // the hand starts that far short of center instead (a detached gap).
-  // Both only meaningful for styles 3-10 (dauphine/sword/spade/arrow/
-  // pomme/leaf/syringe/serpentine) -- ignored entirely by styles 0-2,
-  // same as width is already ignored by triangle's tip. secondary_width
-  // specifically is further ignored by leaf (8), which only uses
-  // middle_offset. Same ranges/units as back_offset and width
-  // respectively (a position along the hand's own axis, and a sideways
-  // thickness) -- what each one actually controls is style-specific,
-  // see compute_hand_geometry_fp() in hand_layer.c.
-  int8_t middle_offset;    // -40..80 px, axial position of a style's "middle" feature (dauphine's
-                             // side points, sword's side bulge, spade/arrow's tip-ornament height,
-                             // pomme's thick/thin joint) -- measured from center like back_offset,
-                             // positive = toward the tip.
-  uint8_t secondary_width;  // 1-40 px, a style's secondary thickness (sword's mid-bulge width,
-                              // spade's droplet/arrow's tip-triangle width, pomme's thin-tail width)
-  uint8_t color;            // 0=main, 1=accent, 2=background (from the active color scheme),
-                              // 3=none -- skips drawing the hand's fill entirely (the outline, if
-                              // enabled, still draws -- a way to get a "hollow" or ghosted look
-                              // without needing real alpha blending).
-  bool outline_enabled;      // traces a genuine 1px perimeter stroke in outline_color underneath
-                               // the fill (see draw_hand_outline_from_geometry() in hand_layer.c)
-  uint8_t outline_color;      // 0=main, 1=accent, 2=background
-  bool translucent;           // per-hand ~50% transparency, via the same Bayer-dithered stipple
-                                // fill_polygon_dithered() already uses elsewhere in this project --
-                                // applies to both the fill and the outline (if enabled). Takes
-                                // priority over hollow below when both are set, same as the original
-                                // procedural hands did (transparent always won over style==2's hollow
-                                // rendering).
-  bool hollow;                 // draw an INLINE stroke of the shape's own outline instead of a filled
-                                 // shape, in `color` -- i.e. within the shape's own bounds, as opposed
-                                 // to outline_enabled's shifted-copy underlay which marks the hand
-                                 // OUTSIDE its bounds and still layers normally underneath a hollow
-                                 // shape if both are on. hollow_thickness below sets how wide that
-                                 // inline stroke is; hollow_thickness <= 1 draws a plain 1px
-                                 // perimeter trace (stroke_polygon_fp()/stroke_circle_fp() in
-                                 // hand_layer.c). A thickness too large for the shape to actually
-                                 // contain just fills it solid instead (see
-                                 // inset_convex_polygon_fp()'s own comment in subpixel.h).
-  uint8_t hollow_thickness;    // 1-40 px, width of the inline stroke above when hollow is set and
-                                 // this is > 1. Ignored otherwise.
-  bool shadow_enabled;          // draws a drop shadow of the hand's own shape (translated, not rotated,
-                                  // by shadow_distance_px in a single global direction shared by every
-                                  // hand -- see EclipseData's shadow_angle_deg, not this struct)
-                                  // UNDERNEATH everything else this hand draws -- outline and fill both
-                                  // layer on top of it, same z-order a real shadow would have.
-  uint8_t shadow_distance_px;   // 1-5 px.
-} HandConfig;
+
 
 // Draws one hand using sub-pixel precision. shadow_translucent_style
 // and shadow_angle_deg are both single global "Style" section settings
