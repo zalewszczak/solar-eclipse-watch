@@ -12,13 +12,10 @@ void weather_layer_draw_clouds(GContext *ctx, GRect bounds, uint8_t cloud_pct,
                                bool flash_active, int16_t sun_alt_decideg,
                                uint8_t sun_r, uint8_t sun_g, uint8_t sun_b);
 
-void weather_layer_draw_effect(GContext *ctx, GRect bounds, uint8_t condition,
-                               uint8_t cloud_pct, uint8_t cloud_altitude_pct);
-
-void weather_layer_draw_meteors(GContext *ctx, GRect bounds, uint8_t intensity);
-
-void weather_layer_draw_aurora(GContext *ctx, GRect bounds,
-                               uint8_t visibility_pct, uint8_t kp_x10);
+int16_t weather_layer_cloud_band_y(GRect bounds, uint8_t cloud_altitude_pct);
+int weather_layer_cloud_cluster_count(uint8_t cloud_pct, bool stormy);
+int16_t weather_layer_cluster_x_pct(uint8_t index);
+int16_t weather_layer_cluster_y_offset(uint8_t index);
 
 // Returns whether weather-derived feature slots should display an error
 // instead of stale data after repeated failed refreshes.

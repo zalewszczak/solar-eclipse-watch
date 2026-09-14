@@ -6,6 +6,7 @@
 #include "feature_layout.h"
 #include "marker_layer.h"
 #include "weather_layer.h"
+#include "weather_effects.h"
 #include "celestial_layer.h"
 #include "celestial_bodies.h"
 #include "celestial_ephemeris.h"
@@ -410,7 +411,7 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
   bool meteors_visible = sky_is_dark && d->meteor_intensity > 0 && d->sky_mode != 2;
   GPoint meteor_label_point = GPoint(bounds.origin.x + bounds.size.w / 2, bounds.origin.y + 40);
   if (meteors_visible) {
-    weather_layer_draw_meteors(ctx, bounds, d->meteor_intensity);
+    weather_effects_draw_meteors(ctx, bounds, d->meteor_intensity);
   }
 
   GColor sun_fill_color;
@@ -441,7 +442,7 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
   bool aurora_visible = d->sky_mode != 2 && d->aurora_enabled && sky_is_dark && d->aurora_visibility_pct > 15;
   GPoint aurora_label_point = GPoint(bounds.origin.x + bounds.size.w / 2, bounds.origin.y + SKY_TOP_MARGIN + 20);
   if (aurora_visible) {
-    weather_layer_draw_aurora(ctx, bounds, d->aurora_visibility_pct, d->aurora_kp_x10);
+    weather_effects_draw_aurora(ctx, bounds, d->aurora_visibility_pct, d->aurora_kp_x10);
   }
 
   // Cloud clusters, drawn last so they visibly sit in front of (and
@@ -459,7 +460,7 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
     weather_layer_draw_clouds(ctx, bounds, cloud_pct, d->cloud_altitude_pct, d->vis_score_pct, stormy,
                               state->celestial.sun_center, state->celestial.sun_up, flash_currently_active, alt,
                               cached_sun_rgb.r, cached_sun_rgb.g, cached_sun_rgb.b);
-    weather_layer_draw_effect(ctx, bounds, d->weather_condition, cloud_pct, d->cloud_altitude_pct);
+    weather_effects_draw_effect(ctx, bounds, d->weather_condition, cloud_pct, d->cloud_altitude_pct);
   }
 
   // Shake-to-reveal: brief name labels next to whichever bodies are
