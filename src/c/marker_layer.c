@@ -1,12 +1,14 @@
 #include "marker_layer.h"
+#include "marker_bitmap.h"
 #include <string.h>
 #include <limits.h>
 
 // ---------------------------------------------------------------------------
 // Marker renderer
 //
-// This module owns all big-analog marker geometry, text numerals, bitmap
-// marker resources, and marker reveal animation. The background canvas only
+// This module owns all big-analog marker geometry, text numerals, and marker
+// reveal animation. Bitmap resources are delegated to marker_bitmap. The
+// background canvas only
 // supplies the drawing context, current data, geometry, colors, and animation
 // progress.
 // ---------------------------------------------------------------------------
@@ -445,104 +447,6 @@ static void draw_text_markers(GContext *ctx, GPoint center, GRect screen, Marker
 
 // ---- bitmap marker styles (moved in from pebble-eclipse-watch.c) --------
 
-static uint32_t marker_style_resource_id(uint8_t style) {
-  switch (style) {
-    case 3: return RESOURCE_ID_MODERN_BACKGROUND;
-    case 4: return RESOURCE_ID_SHADOW_BACKGROUND;
-    case 5: return RESOURCE_ID_TALLY_BACKGROUND;
-    case 6: return RESOURCE_ID_BELL_BACKGROUND;
-    case 7: return RESOURCE_ID_FANCY_BACKGROUND;
-    default: return 0;
-  }
-}
-
-static void ensure_marker_bitmap_loaded(MarkerLayerState *state, uint8_t style) {
-  if (style < 3) {
-    if (state->bitmap) { gbitmap_destroy(state->bitmap); state->bitmap = NULL; }
-    state->bitmap_style = 255;
-    state->bitmap_tinted = false;
-    return;
-  }
-  if (state->bitmap_style == style && state->bitmap) return; // already the right one
-  if (state->bitmap) { gbitmap_destroy(state->bitmap); state->bitmap = NULL; }
-  uint32_t res_id = marker_style_resource_id(style);
-  if (res_id != 0) state->bitmap = gbitmap_create_with_resource(res_id);
-  state->bitmap_style = style;
-  state->bitmap_tinted = false; // freshly loaded, still in its original exported colors
-}
-
-// Recolors state->bitmap to tint_color, once, in place -- see the
-// original (now-removed) tint_marker_bitmap() in pebble-eclipse-watch.c
-// for the fuller writeup of the two cases (palettized vs 8-bit) this
-// handles; unchanged other than now living per-canvas-instance instead
-// of file-static, and running once per full redraw (this canvas's own
-// once-a-minute/force-redraw cadence) instead of every tick.
-static void tint_marker_bitmap(MarkerLayerState *state, GColor tint_color, bool transparent) {
-  if (!state->bitmap) return;
-  if (state->bitmap_tinted && state->bitmap_tint_color.argb == tint_color.argb
-      && state->bitmap_tint_transparent == transparent) return;
-
-  uint8_t forced_alpha_bits = transparent ? 0x80 : 0xC0; // alpha 2 (~67%) or 3 (opaque)
-
-  GBitmapFormat format = gbitmap_get_format(state->bitmap);
-  if (format == GBitmapFormat1BitPalette || format == GBitmapFormat2BitPalette || format == GBitmapFormat4BitPalette) {
-    GColor *palette = gbitmap_get_palette(state->bitmap);
-    if (palette) {
-      int count = (format == GBitmapFormat1BitPalette) ? 2 : (format == GBitmapFormat2BitPalette) ? 4 : 16;
-      for (int i = 0; i < count; i++) {
-        if ((palette[i].argb & 0xC0) == 0) continue; // fully transparent entry -- leave it alone
-        GColor new_color;
-        new_color.argb = forced_alpha_bits | (tint_color.argb & 0x3F);
-        palette[i] = new_color;
-      }
-    }
-  } else if (format == GBitmapFormat8Bit) {
-    uint8_t *data = gbitmap_get_data(state->bitmap);
-    uint16_t stride = gbitmap_get_bytes_per_row(state->bitmap);
-    GRect b = gbitmap_get_bounds(state->bitmap);
-    for (int16_t y = 0; y < b.size.h; y++) {
-      uint8_t *row = data + (int32_t)y * stride;
-      for (int16_t x = 0; x < b.size.w; x++) {
-        if ((row[x] & 0xC0) == 0) continue; // fully transparent pixel -- leave it alone
-        row[x] = forced_alpha_bits | (tint_color.argb & 0x3F);
-      }
-    }
-  }
-  // Any other format: left as-is, drawn with its original colors.
-
-  state->bitmap_tinted = true;
-  state->bitmap_tint_transparent = transparent;
-  state->bitmap_tint_color = tint_color;
-}
-
-static void draw_marker_bitmap(GContext *ctx, GBitmap *mask, GRect bounds, bool anim_active, int32_t anim_progress_1000) {
-  if (!mask) return;
-  GRect bmp_bounds = gbitmap_get_bounds(mask);
-  GRect dest = GRect(bounds.origin.x + (bounds.size.w - bmp_bounds.size.w) / 2,
-                      bounds.origin.y + (bounds.size.h - bmp_bounds.size.h) / 2,
-                      bmp_bounds.size.w, bmp_bounds.size.h);
-  graphics_context_set_compositing_mode(ctx, GCompOpSet);
-
-  // "Animate background on start"'s circular reveal for bitmap
-  // markers is NOT implemented -- Pebble's public graphics API has no
-  // per-context clip-rect setter (an earlier attempt at one,
-  // graphics_context_set_clip_rect(), doesn't actually exist and
-  // failed to build) and no arbitrary-shape/alpha compositing mode
-  // either, so there's no way to reveal only part of an already-
-  // composited bitmap draw. A real circular reveal would need a
-  // manual per-pixel blit reading the bitmap's own raw data (format-
-  // dependent: 1/2/4-bit palette vs 8-bit, see tint_marker_bitmap()
-  // above for the same distinction) gated by a growing radius test --
-  // doable, but enough of its own scope to be a separate piece of
-  // work rather than guessed at here. anim_active/anim_progress_1000
-  // are accepted (for a consistent call signature with the ring/text-
-  // marker animations) but currently unused: a bitmap marker style
-  // just draws immediately, animated or not.
-  (void)anim_active;
-  (void)anim_progress_1000;
-  graphics_draw_bitmap_in_rect(ctx, mask, dest);
-}
-
 // Draws whichever marker style is active (procedural preset, custom, or
 // bitmap) into `ctx`, using `screen`/`center` -- called from
 // canvas_update_proc() during a full redraw, before the frame gets
@@ -559,10 +463,7 @@ void marker_layer_init(MarkerLayerState *state) {
 }
 
 void marker_layer_deinit(MarkerLayerState *state) {
-  if (state->bitmap) {
-    gbitmap_destroy(state->bitmap);
-    state->bitmap = NULL;
-  }
+  marker_bitmap_release(&state->bitmap, &state->bitmap_style, &state->bitmap_tinted);
   font_lookup_release(&state->text_font_slot);
 }
 
@@ -572,17 +473,20 @@ void marker_layer_draw(GContext *ctx, MarkerLayerState *state, GPoint center, GR
   uint8_t marker_style = d->big_analog_marker_style;
 
   if (marker_style == 9) { // none -- no ring, no bitmap, nothing to draw
-    ensure_marker_bitmap_loaded(state, marker_style); // frees any previously-loaded bitmap
+    marker_bitmap_ensure(&state->bitmap, &state->bitmap_style, &state->bitmap_tinted,
+                         &state->bitmap_tint_color, &state->bitmap_tint_transparent, marker_style); // frees any previously-loaded bitmap
     return;
   }
 
   bool is_bitmap_style = marker_style >= 3 && marker_style != 8;
 
-  ensure_marker_bitmap_loaded(state, marker_style);
+  marker_bitmap_ensure(&state->bitmap, &state->bitmap_style, &state->bitmap_tinted,
+                         &state->bitmap_tint_color, &state->bitmap_tint_transparent, marker_style);
 
   if (is_bitmap_style) {
-    tint_marker_bitmap(state, main_color, d->bitmap_marker_transparent);
-    draw_marker_bitmap(ctx, state->bitmap, screen, anim_active, anim_progress_1000);
+    marker_bitmap_tint(state->bitmap, &state->bitmap_tinted, &state->bitmap_tint_color,
+                       &state->bitmap_tint_transparent, main_color, d->bitmap_marker_transparent);
+    marker_bitmap_draw(ctx, state->bitmap, screen, anim_active, anim_progress_1000);
     return;
   }
 
