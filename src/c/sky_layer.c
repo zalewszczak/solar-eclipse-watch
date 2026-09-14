@@ -1,5 +1,6 @@
 #include "sky_layer.h"
 #include "celestial_layer.h"
+#include "celestial_ephemeris.h"
 
 #define SKY_GROUND_H 18
 

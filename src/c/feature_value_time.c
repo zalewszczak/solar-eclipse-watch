@@ -12,6 +12,7 @@
 #include "sky_layer.h"
 #include "marker_layer.h"
 #include "celestial_layer.h"
+#include "celestial_ephemeris.h"
 #include "weather_layer.h"
 #include "input.h"
 #include "font_lookup.h"

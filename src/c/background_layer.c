@@ -6,6 +6,7 @@
 #include "marker_layer.h"
 #include "weather_layer.h"
 #include "celestial_layer.h"
+#include "celestial_ephemeris.h"
 #include "sky_layer.h"
 #include "background_cache.h"
 #include "background_animation.h"
