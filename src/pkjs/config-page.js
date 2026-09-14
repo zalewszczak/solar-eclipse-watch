@@ -39,7 +39,6 @@ var FONT_CATEGORIES = PRESETS_LOOKUPS.FONT_CATEGORIES;
 var COLOR_SCHEMES = PRESETS_LOOKUPS.COLOR_SCHEMES;
 var CORNER_COLOR_MODE_LABELS = PRESETS_LOOKUPS.CORNER_COLOR_MODE_LABELS;
 var ROMAN_INCOMPATIBLE_FONTS = PRESETS_LOOKUPS.ROMAN_INCOMPATIBLE_FONTS;
-var SECONDS_WITH_ONE_SIDE_FONTS = PRESETS_LOOKUPS.SECONDS_WITH_ONE_SIDE_FONTS;
 var CORNER_CATEGORIES = PRESETS_LOOKUPS.CORNER_CATEGORIES;
 var HAND_PRESETS = PRESETS_LOOKUPS.HAND_PRESETS;
 
@@ -2016,14 +2015,19 @@ handEditorModalHtml('sec', 'Edit second hand') +
 // comment in presets-lookups.js) -- drives the font picker's
 // horizontal category filter row below.
 'var FONT_CATEGORIES = ' + JSON.stringify(FONT_CATEGORIES) + ';' +
-// Runtime copy of SECONDS_WITH_ONE_SIDE_FONTS (see its own comment in
-// presets-lookups.js) -- used by secondsAvailableForDigital() below,
-// the client-side twin of the same-named server-side function.
-'var SECONDS_WITH_ONE_SIDE_FONTS = ' + JSON.stringify(SECONDS_WITH_ONE_SIDE_FONTS) + ';' +
+// Client-side twin of the same-named server-side function in
+// config-fonts.js (see its own comment there for the full rule) --
+// reads the same FONT_LOOKUP `sidesWithSeconds` tier via
+// fontLookupEntry(), so there's nothing for the two copies to
+// disagree about even though this one takes a raw fontId (every
+// caller here already has one on hand from a <select>'s own .value)
+// rather than a full entry object.
 'function secondsAvailableForDigital(fontId, digitalSidesVal) {' +
-'  if (!digitalSidesVal || digitalSidesVal === "none") return true;' +
-'  if (digitalSidesVal === "both") return false;' +
-'  return !!SECONDS_WITH_ONE_SIDE_FONTS[fontId];' +
+'  var tier = fontLookupEntry(fontId).sidesWithSeconds;' +
+'  tier = (typeof tier === "number") ? tier : 1;' +
+'  if (tier === 0) return false;' +
+'  if (tier === 2) return true;' +
+'  return !digitalSidesVal || digitalSidesVal !== "both";' +
 '}' +
       (function () {
         // Seeds DUAL_CONTEXT_SHADOW (see that var's own comment further
@@ -2283,18 +2287,19 @@ require('./config/config-preview') +
 // Shared by onBottomStyleChange() (font or Analog/Digital changed) and
 // toggleDigitalSide() (a side just got turned on/off) -- either one can
 // change whether "Show seconds" is currently offered, per
-// secondsAvailableForDigital()'s own rule (font\'s own baseline
-// eligibility, data-seconds, folded together with whichever side
-// column(s) digitalSides says are effective right now).
+// secondsAvailableForDigital()'s own rule (the font\'s own
+// sidesWithSeconds tier, folded together with whichever side
+// column(s) digitalSides says are effective right now -- baseline
+// eligibility and side-column availability are the SAME check now,
+// not two separate ones, since a tier-0 font fails it regardless of
+// digitalSidesVal).
 'function updateSecondsAvailability() {' +
 '  var isAnalog = document.getElementById("bottomStyleValue").value === "analog";' +
 '  var secondsBox = document.getElementById("showSeconds");' +
 '  var fontSel = document.getElementById("clockFont");' +
-'  var opt = fontSel.options[fontSel.selectedIndex];' +
-'  var fontOk = opt.getAttribute("data-seconds") === "1";' +
 '  var digitalSidesVal = document.getElementById("digitalSides").value;' +
 '  var fontId = parseInt(fontSel.value, 10);' +
-'  var secondsUnavailable = !isAnalog && (!fontOk || !secondsAvailableForDigital(fontId, digitalSidesVal));' +
+'  var secondsUnavailable = !isAnalog && !secondsAvailableForDigital(fontId, digitalSidesVal);' +
 '  secondsBox.disabled = secondsUnavailable;' +
 '  if (secondsUnavailable) secondsBox.checked = false;' +
 '  document.getElementById("secondsHelp").style.display = secondsUnavailable ? "block" : "none";' +

@@ -78,15 +78,15 @@ function deriveConfigState(current) {
     : digitalSidesPreferredVal;
   var digitalLeftOn = digitalSidesVal === 'left' || digitalSidesVal === 'both';
   var digitalRightOn = digitalSidesVal === 'right' || digitalSidesVal === 'both';
-  // A font whose sidesAllowed is 0 can't show seconds at all (no room),
-  // and a font marked allowInlineSeconds:false can't either (its own
-  // numerals clip/read badly with one) -- see fontOptionsHtml()'s own
-  // comment on why data-seconds folds both of those together too.
-  // Beyond that baseline, any digital side column being on on ALSO
-  // knocks seconds out (same space competition, just from the side
-  // features instead of the font itself) unless this font is one of
-  // the few narrow/short enough to keep both with exactly one side
-  // active -- see secondsAvailableForDigital()'s own comment.
+  // A font's own FONT_LOOKUP sidesWithSeconds tier decides all of
+  // this now (see its own comment in presets-lookups.js for what each
+  // of the 3 values means): tier 0 blocks seconds outright regardless
+  // of digitalSidesVal (the same fonts sidesAllowed 0 already flags as
+  // too wide for a side column in the first place); tier 2 allows it
+  // no matter what; tier 1 (the common case) allows it with 0 or 1
+  // side column active but not both -- side columns compete for the
+  // same horizontal space seconds would need, so going from 1 to 2 can
+  // knock it out even for a font that was fine a moment ago.
   var secondsUnsupported = isDigital && !secondsAvailableForDigital(fontLookupEntry(clockFontId), digitalSidesVal);
   var secondsChecked = (current.showSeconds && !secondsUnsupported) ? 'checked' : '';
   var secondsDisabled = secondsUnsupported ? 'disabled' : '';

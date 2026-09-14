@@ -1,15 +1,14 @@
 // ---- font domain: lookup, availability, and <option> rendering -----------
 //
 // Moved out of config-page.js (configuration architecture extraction,
-// JS8 second slice). Everything here reads only FONT_LOOKUP/
-// SECONDS_WITH_ONE_SIDE_FONTS (presets-lookups.js) plus the generic
-// esc() helper (config-template.js) -- no dependency on hands, markers,
-// or any other domain, and nothing else in config-page.js depends on
-// these except by calling them.
+// JS8 second slice). Everything here reads only FONT_LOOKUP
+// (presets-lookups.js) plus the generic esc() helper (config-
+// template.js) -- no dependency on hands, markers, or any other
+// domain, and nothing else in config-page.js depends on these except
+// by calling them.
 
 var presetsLookups = require('../presets-lookups');
 var FONT_LOOKUP = presetsLookups.FONT_LOOKUP;
-var SECONDS_WITH_ONE_SIDE_FONTS = presetsLookups.SECONDS_WITH_ONE_SIDE_FONTS;
 var esc = require('./config-template').esc;
 
 
@@ -67,21 +66,24 @@ function fontLookupEntry(id) {
 // Whether "Show seconds" can be offered at all for a mainClock font,
 // given which digital side column(s) (if any) are currently active --
 // side features compete for the same horizontal space seconds would
-// need, so any side being on can knock this out, with a short
-// allowlist (SECONDS_WITH_ONE_SIDE_FONTS) of fonts narrow/short enough
-// to keep it with exactly one side (not both) active. Checked in
-// addition to, not instead of, the font's own baseline eligibility
-// (sidesAllowed 0 / allowInlineSeconds false -- see fontOptionsHtml()'s
-// own comment on those two, still handled by the caller). Has a
-// client-side twin further down (used by onBottomStyleChange() and
-// toggleDigitalSide() for live updates as the user actually toggles a
-// side) kept in exact sync with this one -- both read the same
-// SECONDS_WITH_ONE_SIDE_FONTS table, so there's nothing for the two
-// copies to disagree about even if their surrounding code differs.
+// need. Entirely driven by the font's own FONT_LOOKUP
+// `sidesWithSeconds` tier now (see its own comment there for what
+// each of the 3 values means) -- tier 0 blocks seconds outright
+// regardless of digitalSidesVal, tier 2 allows it regardless, and
+// tier 1 (the common case) allows it with 0 or 1 side column active
+// but not both. Defaults to 1 (the same "assume the common case"
+// default `sidesWithSeconds`'s own comment describes) if a lookup
+// ever finds no explicit value. Has a client-side twin further down
+// (used by onBottomStyleChange() and toggleDigitalSide() for live
+// updates as the user actually toggles a side) kept in exact sync
+// with this one -- both read the same FONT_LOOKUP field, so there's
+// nothing for the two copies to disagree about even if their
+// surrounding code differs.
 function secondsAvailableForDigital(fontEntry, digitalSidesVal) {
-  if (!digitalSidesVal || digitalSidesVal === 'none') return true;
-  if (digitalSidesVal === 'both') return false;
-  return !!SECONDS_WITH_ONE_SIDE_FONTS[fontEntry.id];
+  var tier = typeof fontEntry.sidesWithSeconds === 'number' ? fontEntry.sidesWithSeconds : 1;
+  if (tier === 0) return false;
+  if (tier === 2) return true;
+  return !digitalSidesVal || digitalSidesVal !== 'both';
 }
 
 // Renders <option>s for one of the four font pickers. `onlyMainClock`
@@ -92,17 +94,8 @@ function fontOptionsHtml(selectedId, onlyMainClock) {
   return FONT_LOOKUP.filter(function (f) {
     return !onlyMainClock || f.mainClock;
   }).map(function (f) {
-    // A font whose sidesAllowed is 0 can't show seconds at all (no
-    // room -- same reasoning the old `wide: true` flag used to cover),
-    // and a font that's merely marked allowInlineSeconds:false can't
-    // either (its own numerals don't read well with one) -- both fold
-    // into this same data-seconds flag rather than being two separate
-    // checks every consumer of data-seconds would otherwise need to
-    // remember. Fonts with no sidesAllowed at all (non-mainClock) are
-    // never affected by the first half of this check.
-    var secondsOk = f.sidesAllowed !== 0 && f.allowInlineSeconds !== false;
-    return '<option value="' + f.id + '" data-preview="' + esc(f.preview) + '" data-seconds="' +
-      (secondsOk ? '1' : '0') + '" data-height="' + f.height + '" data-small="' + (f.small ? '1' : '0') +
+    return '<option value="' + f.id + '" data-preview="' + esc(f.preview) + '" data-height="' + f.height +
+      '" data-small="' + (f.small ? '1' : '0') +
       '" data-sides-allowed="' + (typeof f.sidesAllowed === 'number' ? f.sidesAllowed : 2) + '"' +
       (selectedId === f.id ? ' selected' : '') + '>' + esc(f.label) + '</option>';
   }).join('');

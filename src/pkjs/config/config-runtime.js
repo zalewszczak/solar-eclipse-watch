@@ -40,8 +40,7 @@ module.exports =
 // to the watch, so it\'s re-derived here from the current clock font
 // selection directly rather than trusted to already be correct.
 '  var clockFontSel = document.getElementById("clockFont");' +
-'  var clockFontOpt = clockFontSel.options[clockFontSel.selectedIndex];' +
-'  var secondsOverriddenOff = bottomStyleVal !== "analog" && (clockFontOpt.getAttribute("data-seconds") === "0" || !secondsAvailableForDigital(parseInt(clockFontOpt.value, 10), document.getElementById("digitalSides").value));' +
+'  var secondsOverriddenOff = bottomStyleVal !== "analog" && !secondsAvailableForDigital(parseInt(clockFontSel.value, 10), document.getElementById("digitalSides").value);' +
 '  var showSecondsVal = !secondsOverriddenOff && document.getElementById("showSeconds").checked;' +
 // Same "re-derive at save time rather than trust the DOM already
 // reflects it" belt-and-suspenders principle as showSecondsVal above,
