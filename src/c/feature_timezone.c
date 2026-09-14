@@ -129,6 +129,3 @@ const TimezoneInfo *feature_timezone_get(uint8_t index) {
   return &TIMEZONES[index];
 }
 
-uint8_t feature_timezone_count(void) {
-  return (uint8_t)TIMEZONE_COUNT;
-}

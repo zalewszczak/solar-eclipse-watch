@@ -23,4 +23,3 @@ void battery_saver_note_activity(time_t now);
 void battery_saver_update(time_t now);
 
 BatterySaverPhase battery_saver_phase(void);
-bool battery_saver_is_resting(void);

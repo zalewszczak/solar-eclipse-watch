@@ -35,6 +35,3 @@ void feature_refresh_stop(void) {
   s_timer = NULL;
 }
 
-bool feature_refresh_is_running(void) {
-  return s_timer != NULL;
-}

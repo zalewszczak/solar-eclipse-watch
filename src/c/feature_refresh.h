@@ -10,4 +10,3 @@ void feature_refresh_init(void);
 void feature_refresh_deinit(void);
 void feature_refresh_start(void);
 void feature_refresh_stop(void);
-bool feature_refresh_is_running(void);

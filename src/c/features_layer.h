@@ -71,11 +71,8 @@ void features_layer_set_data(Layer *layer, EclipseData *data);
 // above.
 void features_layer_refresh_values(Layer *layer);
 
-// Re-resolves ONLY the slot(s) whose content needs second-by-second
-// updating (a seconds-showing time display), then marks the layer dirty.
-// Call from the once-a-second tick handler -- cheap even when nothing in
-// the whole table actually needs it, since it's a no-op scan when no
-// slot is currently showing seconds.
+// Re-resolves only the slot(s) whose content needs second-by-second
+// updating, then marks the layer dirty.
 void features_layer_refresh_second_slots(Layer *layer);
 
 // Returns true when the supplied corner/edge content id is used by any

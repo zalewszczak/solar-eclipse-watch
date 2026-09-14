@@ -48,6 +48,3 @@ BatterySaverPhase battery_saver_phase(void) {
   return s_phase;
 }
 
-bool battery_saver_is_resting(void) {
-  return s_phase != BATTERY_SAVER_AWAKE;
-}
