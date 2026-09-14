@@ -81,7 +81,15 @@ function fontLookupEntry(id) {
 // two copies to disagree about even if their surrounding code
 // differs.
 function secondsAvailableForDigital(fontEntry, digitalSidesVal) {
-  var tier = typeof fontEntry.sidesWithSeconds === 'number' ? fontEntry.sidesWithSeconds : 0;
+  // parseInt (not a strict typeof check) so a value that's accidentally
+  // been quoted as a string in FONT_LOOKUP (e.g. sidesWithSeconds: '-1'
+  // instead of -1) still reads correctly instead of silently falling
+  // through to the "no value set" default -- that default exists for
+  // genuinely missing fields, not as a catch-all for wrong types, and
+  // the two are easy to conflate with a plain typeof guard since both
+  // look identical from the outside (no error, just a wrong tier).
+  var tierRaw = parseInt(fontEntry.sidesWithSeconds, 10);
+  var tier = isNaN(tierRaw) ? 0 : tierRaw;
   if (tier === -1) return false;
   if (tier === 2) return true;
   if (tier === 1) return !digitalSidesVal || digitalSidesVal !== 'both';
@@ -96,9 +104,14 @@ function fontOptionsHtml(selectedId, onlyMainClock) {
   return FONT_LOOKUP.filter(function (f) {
     return !onlyMainClock || f.mainClock;
   }).map(function (f) {
+    // parseInt, not a strict typeof check -- see secondsAvailableForDigital()'s
+    // own comment on why: a quoted-string sidesAllowed value would
+    // otherwise silently be treated as absent and fall back to 2.
+    var sidesAllowedRaw = parseInt(f.sidesAllowed, 10);
+    var sidesAllowedVal = isNaN(sidesAllowedRaw) ? 2 : sidesAllowedRaw;
     return '<option value="' + f.id + '" data-preview="' + esc(f.preview) + '" data-height="' + f.height +
       '" data-small="' + (f.small ? '1' : '0') +
-      '" data-sides-allowed="' + (typeof f.sidesAllowed === 'number' ? f.sidesAllowed : 2) + '"' +
+      '" data-sides-allowed="' + sidesAllowedVal + '"' +
       (selectedId === f.id ? ' selected' : '') + '>' + esc(f.label) + '</option>';
   }).join('');
 }

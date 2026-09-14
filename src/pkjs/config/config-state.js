@@ -58,7 +58,11 @@ function deriveConfigState(current) {
   // sidesAllowed only ever appears on mainClock fonts (see FONT_LOOKUP's
   // own comment) -- default to 2 (unrestricted) for the rare case a
   // stale/hand-edited clockFont value points at a non-mainClock entry.
-  var clockSidesAllowed = typeof fontLookupEntry(clockFontId).sidesAllowed === 'number' ? fontLookupEntry(clockFontId).sidesAllowed : 2;
+  // parseInt, not a strict typeof check -- see config-fonts.js's
+  // secondsAvailableForDigital() for why: a quoted-string sidesAllowed
+  // value would otherwise silently be treated as absent.
+  var clockSidesAllowedRaw = parseInt(fontLookupEntry(clockFontId).sidesAllowed, 10);
+  var clockSidesAllowed = isNaN(clockSidesAllowedRaw) ? 2 : clockSidesAllowedRaw;
   var clockFontIsWide = clockSidesAllowed === 0;
   var digitalSidesPreferredVal = current.digitalSidesPreferred || current.digitalSides || 'none';
   // The user's actual preference (digitalSidesPreferredVal, persisted

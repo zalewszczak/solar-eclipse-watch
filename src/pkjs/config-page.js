@@ -2016,15 +2016,16 @@ handEditorModalHtml('sec', 'Edit second hand') +
 // horizontal category filter row below.
 'var FONT_CATEGORIES = ' + JSON.stringify(FONT_CATEGORIES) + ';' +
 // Client-side twin of the same-named server-side function in
-// config-fonts.js (see its own comment there for the full rule) --
-// reads the same FONT_LOOKUP `sidesWithSeconds` tier via
+// config-fonts.js (see its own comment there for the full rule,
+// including why this is parseInt rather than a strict typeof check)
+// -- reads the same FONT_LOOKUP `sidesWithSeconds` tier via
 // fontLookupEntry(), so there's nothing for the two copies to
 // disagree about even though this one takes a raw fontId (every
 // caller here already has one on hand from a <select>'s own .value)
 // rather than a full entry object.
 'function secondsAvailableForDigital(fontId, digitalSidesVal) {' +
-'  var tier = fontLookupEntry(fontId).sidesWithSeconds;' +
-'  tier = (typeof tier === "number") ? tier : 0;' +
+'  var tierRaw = parseInt(fontLookupEntry(fontId).sidesWithSeconds, 10);' +
+'  var tier = isNaN(tierRaw) ? 0 : tierRaw;' +
 '  if (tier === -1) return false;' +
 '  if (tier === 2) return true;' +
 '  if (tier === 1) return !digitalSidesVal || digitalSidesVal !== "both";' +
