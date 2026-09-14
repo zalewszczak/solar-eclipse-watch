@@ -1,5 +1,5 @@
 #include <pebble.h>
-#include "app_controller.h"
+#include "application/app_controller.h"
 
 int main(void) {
   app_controller_init();
