@@ -1,4 +1,5 @@
 #include "weather_layer.h"
+#include "subpixel.h"
 
 // Treat a weather value as stale only after repeated failed refreshes.
 // Previously valid data remains useful through short-lived fetch failures.
@@ -144,22 +145,6 @@ static int cloud_cluster_count(uint8_t cloud_pct, bool stormy) {
   if (cloud_pct > 45) count = 3;
   if (cloud_pct > 75) count = 4;
   return count;
-}
-
-int16_t weather_layer_cloud_band_y(GRect bounds, uint8_t cloud_altitude_pct) {
-  return compute_cloud_band_y(bounds, cloud_altitude_pct);
-}
-
-int weather_layer_cloud_cluster_count(uint8_t cloud_pct, bool stormy) {
-  return cloud_cluster_count(cloud_pct, stormy);
-}
-
-int16_t weather_layer_cluster_x_pct(uint8_t index) {
-  return index < CLOUD_CLUSTER_SLOTS ? CLUSTER_X_PCT[index] : 0;
-}
-
-int16_t weather_layer_cluster_y_offset(uint8_t index) {
-  return index < CLOUD_CLUSTER_SLOTS ? CLUSTER_Y_OFFSET[index] : 0;
 }
 
 // Warm (sun-facing) / cool (shadow-facing) color pairs -- blended

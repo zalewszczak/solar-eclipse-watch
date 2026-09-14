@@ -1,4 +1,5 @@
 #include "background_layer.h"
+#include "background_overlays.h"
 #include "eclipse_status.h"
 #include "eclipse_ui.h"
 #include "subpixel.h"
@@ -116,17 +117,6 @@ static int32_t shake_anim_eased_t_1000(uint16_t elapsed, const EclipseData *d) {
     return bg_anim_ease_out_1000((remaining * 1000) / (int32_t)ease_out_window_ms);
   }
   return 1000;
-}
-
-static void draw_bg_anim_markers_overlay(GContext *ctx, CanvasState *state, const EclipseData *d,
-                                         GRect bounds, time_t now) {
-  if (d->bottom_style != 1) return;
-  GPoint center = GPoint(bounds.size.w / 2, bounds.size.h / 2);
-  GColor bg, main_color, accent_color;
-  eclipse_ui_get_active_color_scheme(d, now, &bg, &main_color, &accent_color);
-  int32_t progress_1000 = ((int32_t)state->bg_anim_elapsed_ms * 1000) / BACKGROUND_ANIMATION_DURATION_MS;
-  if (progress_1000 > 1000) progress_1000 = 1000;
-  marker_layer_draw(ctx, &state->markers, center, bounds, d, main_color, accent_color, bg, true, progress_1000, d->draw_debug);
 }
 
 static void canvas_update_proc(Layer *layer, GContext *ctx) {
@@ -295,7 +285,7 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
       celestial_layer_draw_bg_anim_planets(ctx, bounds, d, &state->celestial);
     }
     if (state->bg_anim_active && d->bg_anim_mode == 2) {
-      draw_bg_anim_markers_overlay(ctx, state, d, bounds, now);
+      background_overlays_draw_marker_animation(ctx, &state->markers, d, bounds, now, state->bg_anim_elapsed_ms, BACKGROUND_ANIMATION_DURATION_MS);
     }
     return;
   }
@@ -547,7 +537,7 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
                                        d->label_style, main_color);
   }
   if (state->bg_anim_active && d->bg_anim_mode == 2) {
-    draw_bg_anim_markers_overlay(ctx, state, d, bounds, now);
+    background_overlays_draw_marker_animation(ctx, &state->markers, d, bounds, now, state->bg_anim_elapsed_ms, BACKGROUND_ANIMATION_DURATION_MS);
   }
   if (state->bg_anim_active && d->bg_anim_mode == 1) {
     celestial_layer_draw_bg_anim_planets(ctx, bounds, d, &state->celestial);

@@ -1,43 +1,27 @@
 #include "weather_effects.h"
-#include "weather_layer.h"
 #include "subpixel.h"
 
 typedef struct { uint8_t r, g, b; } RGB8;
-
 static uint8_t lerp8(uint8_t a, uint8_t b, int32_t num, int32_t den) {
   if (den == 0) return a;
   return (uint8_t)(a + ((int32_t)(b - a) * num) / den);
 }
-
-static uint8_t dither_channel(uint8_t continuous_255, uint8_t bayer_0_15) {
-  int32_t scaled = (int32_t)continuous_255 * 3;
-  int32_t level = scaled / 255;
-  int32_t rem = scaled - level * 255;
-  int32_t threshold = (bayer_0_15 * 255) / 16;
-  if (rem > threshold && level < 3) level++;
+static uint8_t dither_channel(uint8_t c, uint8_t b) {
+  int32_t scaled=(int32_t)c*3, level=scaled/255, rem=scaled-level*255, threshold=(b*255)/16;
+  if (rem > threshold && level < 3) {
+    level++;
+  }
   return (uint8_t)level;
 }
-
-static GColor dither_pixel(RGB8 c, uint8_t bayer_0_15) {
-  return GColorFromRGB(dither_channel(c.r, bayer_0_15) * 85,
-                       dither_channel(c.g, bayer_0_15) * 85,
-                       dither_channel(c.b, bayer_0_15) * 85);
-}
-
+static GColor dither_pixel(RGB8 c,uint8_t b) { return GColorFromRGB(dither_channel(c.r,b)*85,dither_channel(c.g,b)*85,dither_channel(c.b,b)*85); }
 #define GROUND_H 18
 #define SKY_TOP_MARGIN 20
+#define CLOUD_CLUSTER_SLOTS 4
+static const int16_t CLUSTER_X_PCT[CLOUD_CLUSTER_SLOTS] = { 18, 45, 68, 88 };
+static const int16_t CLUSTER_Y_OFFSET[CLOUD_CLUSTER_SLOTS] = { 0, -6, 4, -3 };
 
-// Rain/snow columns are anchored to the same cluster x-positions and
-// band_y the clouds themselves use (see CLUSTER_X_PCT / cloud_cluster_count
-// above), so precipitation visibly falls from the cloud masses rather
-// than scattering across the whole sky regardless of where the clouds
-// are. Fixed, deliberately-not-random offsets within each column --
-// redraws happen at most once a minute, so per-frame randomness
-// wouldn't read as motion anyway, and fixed positions are cheap and
-// reproducible. Weather-condition codes match what index.js sends:
-// 1=fog, 2=rain, 3=snow, 4=thunderstorm.
 static const GPoint RAIN_OFFSETS[5] = {
-  { -16,  8 }, { -5, 15 }, { 6, 10 }, { 17, 17 }, { 0, 24 },
+  { -16, 8 }, { -5, 15 }, { 6, 10 }, { 17, 17 }, { 0, 24 },
 };
 #define RAIN_OFFSET_COUNT 5
 
@@ -45,19 +29,33 @@ static const GPoint SNOW_OFFSETS[6] = {
   { -18, 10 }, { -7, 19 }, { 4, 13 }, { 15, 23 }, { -2, 29 }, { 20, 16 },
 };
 #define SNOW_OFFSET_COUNT 6
+static int16_t compute_cloud_band_y(GRect bounds,uint8_t cloud_altitude_pct) {
+  int16_t half_h=bounds.size.h/2, lower_top=bounds.origin.y+half_h, lower_bottom=bounds.origin.y+bounds.size.h-GROUND_H;
+  return lower_bottom-(((int32_t)(lower_bottom-lower_top)*cloud_altitude_pct)/100);
+}
+static int cloud_cluster_count(uint8_t cloud_pct,bool stormy) {
+  if (stormy) {
+    return CLOUD_CLUSTER_SLOTS;
+  }
+  int count = 1;
+  if (cloud_pct > 15) count = 2;
+  if (cloud_pct > 45) count = 3;
+  if (cloud_pct > 75) count = 4;
+  return count;
+}
 
 void weather_effects_draw_effect(GContext *ctx, GRect bounds, uint8_t condition,
                                  uint8_t cloud_pct, uint8_t cloud_altitude_pct) {
   int16_t sky_h = bounds.size.h - GROUND_H; // don't draw effects over the ground strip
 
   if (condition == 2 || condition == 4) { // rain, or a storm's heavier rain
-    int16_t band_y = weather_layer_cloud_band_y(bounds, cloud_altitude_pct);
-    int cluster_count = weather_layer_cloud_cluster_count(cloud_pct < 60 ? 60 : cloud_pct, condition == 4);
+    int16_t band_y = compute_cloud_band_y(bounds, cloud_altitude_pct);
+    int cluster_count = cloud_cluster_count(cloud_pct < 60 ? 60 : cloud_pct, condition == 4);
     graphics_context_set_stroke_color(ctx, GColorFromRGB(40, 100, 210));
     graphics_context_set_stroke_width(ctx, condition == 4 ? 2 : 1);
     for (int c = 0; c < cluster_count; c++) {
-      int16_t cx = bounds.origin.x + (bounds.size.w * weather_layer_cluster_x_pct(c)) / 100;
-      int16_t base_y = band_y + weather_layer_cluster_y_offset(c) + 15; // just below the puff cluster's underside
+      int16_t cx = bounds.origin.x + (bounds.size.w * CLUSTER_X_PCT[c]) / 100;
+      int16_t base_y = band_y + CLUSTER_Y_OFFSET[c] + 15; // just below the puff cluster's underside
       for (int i = 0; i < RAIN_OFFSET_COUNT; i++) {
         int16_t x = cx + RAIN_OFFSETS[i].x;
         int16_t y = base_y + RAIN_OFFSETS[i].y;
@@ -76,12 +74,12 @@ void weather_effects_draw_effect(GContext *ctx, GRect bounds, uint8_t condition,
       }
     }
   } else if (condition == 3) { // snow
-    int16_t band_y = weather_layer_cloud_band_y(bounds, cloud_altitude_pct);
-    int cluster_count = weather_layer_cloud_cluster_count(cloud_pct < 60 ? 60 : cloud_pct, false);
+    int16_t band_y = compute_cloud_band_y(bounds, cloud_altitude_pct);
+    int cluster_count = cloud_cluster_count(cloud_pct < 60 ? 60 : cloud_pct, false);
     graphics_context_set_fill_color(ctx, GColorWhite);
     for (int c = 0; c < cluster_count; c++) {
-      int16_t cx = bounds.origin.x + (bounds.size.w * weather_layer_cluster_x_pct(c)) / 100;
-      int16_t base_y = band_y + weather_layer_cluster_y_offset(c) + 15;
+      int16_t cx = bounds.origin.x + (bounds.size.w * CLUSTER_X_PCT[c]) / 100;
+      int16_t base_y = band_y + CLUSTER_Y_OFFSET[c] + 15;
       for (int i = 0; i < SNOW_OFFSET_COUNT; i++) {
         int16_t x = cx + SNOW_OFFSETS[i].x;
         int16_t y = base_y + SNOW_OFFSETS[i].y;
@@ -119,6 +117,7 @@ static const GPoint METEOR_ENDS[6] = {
   { 45, 35 }, { 100, 28 }, { 148, 40 }, { 180, 58 }, { 68, 65 }, { 128, 75 },
 };
 
+
 void weather_effects_draw_meteors(GContext *ctx, GRect bounds, uint8_t intensity) {
   int count = (intensity * 6) / 100;
   if (count > 6) count = 6;
@@ -154,6 +153,7 @@ static const int32_t AURORA_STREAK_PHASE[AURORA_STREAK_COUNT] = { 0, 9362, 18725
 // green at the base fading toward violet/magenta higher up (redder/
 // more magenta overall as Kp climbs), the classic look of a real
 // display's lower green arc topped by faint red/purple structure.
+
 void weather_effects_draw_aurora(GContext *ctx, GRect bounds, uint8_t visibility_pct, uint8_t kp_x10) {
   int16_t top_y = bounds.origin.y + SKY_TOP_MARGIN;
   int16_t horizon_y = bounds.origin.y + bounds.size.h - GROUND_H;
