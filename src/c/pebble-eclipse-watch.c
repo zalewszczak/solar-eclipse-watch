@@ -9,393 +9,25 @@
 #include "background_animation.h"
 #include "sky_layer.h"
 #include "features_layer.h"
-#include "feature_layout.h"
-#include "feature_render.h"
+#include "clock_display.h"
 #include "hands_controller.h"
-#include "font_lookup.h"
 #include "message_key_index.h" // MK_* is used for the startup key-index consistency check.
 #include "eclipse_ui.h"
+#include "hourly_vibration.h"
+#include "layout_controller.h"
 
 static Window *s_window;
-static Layer *s_countdown_layer; // custom-drawn (not TextLayer) so it can draw the 1px outline
-static GColor s_countdown_text_color;
-static Layer *s_canvas_layer;
-static Layer *s_panel_layer; // NULL in analog mode -- the digital clock panel (bar OR top layout;
-                               // see draw_digital_clock_panel()'s own opaque_bg param for how the two
-                               // differ) that holds the clock text itself
-static Layer *s_top_gradient_layer; // Digital top only -- the reserved band's own gradient-only wash,
-                                      // BELOW s_panel_layer in z-order so the panel's transparent
-                                      // background lets it show through -- see background_layer.h's own
-                                      // sky_layer_top_gradient_create() comment
-static Layer *s_hands_layer;  // big-analogue mode only
-
 static void hands_controller_invalidate(void *context) {
   (void)context;
-  if (s_hands_layer) layer_mark_dirty(s_hands_layer);
-  if (s_panel_layer) layer_mark_dirty(s_panel_layer);
+  Layer *hands_layer = layout_controller_hands_layer();
+  if (hands_layer) layer_mark_dirty(hands_layer);
+  clock_display_mark_panel_dirty();
 }
-static Layer *s_features_layer; // always present -- overlays the FULL screen (not just the sky
-                                  // canvas's own frame, which in digital mode is only the top 152px --
-                                  // this layer's own bottom-anchored slots need the real screen bottom);
-                                  // see features_layer.h -- owns its own per-layer state now
-static uint8_t s_current_layout_style = 255; // sentinel: forces initial layout setup
-static bool s_current_draw_features_beneath_hands = false; // mirrors s_data's own default
-
-// True while the shake-to-reveal ground bar is up (mirrors
-// background_layer.c's own private show_labels state, tracked
-// separately here since pebble-eclipse-watch.c already owns the shake timer and the
-// corners layer needs this to shift its bottom corners up out of the
-// bar's way).
-
-// UI layout/font functions are kept in the application layer; communication
-// reports the changes they need to react to through comms_data_applied().
-static void apply_layout(void);
-static void apply_clock_font(void);
-static void comms_data_applied(CommsChangeFlags changes, void *context);
-
-static char s_countdown_buf[40];
 
 static EclipseData s_data;
 
-// Big-analog hand rendering and the one-shot startup clock animation are
-// coordinated by hands_controller.c.
-
-// Declare a file-scope variable
-static GFont clock_font;
-static FontSlot s_clock_font_slot = FONT_SLOT_EMPTY;
-
-// static declarations:
-
-// Battery-saver policy lives in battery_saver.c. The app owns the
-// visual/timing consequences of a phase change.
-static void battery_saver_phase_changed(BatterySaverPhase previous_phase, BatterySaverPhase phase, void *context);
+static void refresh_status_and_maybe_canvas(bool force_canvas);
 static void battery_saver_sync_phase_to_phone(void);
-
-// Shared UI/color and sunrise/sunset helpers live in eclipse_ui.c.
-
-// draw_sun_time_icon() (the sunrise/sunset corner-glyph renderer) used
-// to live here, hand-drawing an arrow + horizon-sun with fill
-// primitives every frame. It's now a plain image (resources/images/
-// icon_sun_time_rise.png / icon_sun_time_set.png), drawn by
-// features_layer.c's draw_render_icon() the same way every other
-// bitmap corner icon is -- see that file's case 11.
-
-// ---- big-analogue mode: fullscreen hands over the sky layer --------------
-
-// Shared outline and geometry helpers live in features_layer.c.
-
-// ---- big-analogue marker styles (procedural + bitmap) --------------------
-// Moved into background_layer.c -- markers now draw as part of the sky
-// canvas's own cached redraw (see the design note at the top of that
-// file), not from here every tick.
-
-// Corner/edge/date font resolution uses font_lookup.c plus the shared
-// FontSlot owned by the feature layer.
-
-
-
-// The always-on-top overlay for big-analogue mode: hour/minute/second
-// hands, optional edge tick markers, and an optional date readout
-// behind the hands. Deliberately never fills its own background --
-// left untouched, whatever the sky canvas underneath already drew
-// shows straight through, the same "transparent overlay" pattern the
-// countdown label already uses successfully elsewhere in this file.
-// ---- startup clock animation --------------------------------------------
-// User setting ("Style" section, on by default): on launch, the clock
-// sweeps in from a cold-start position up to the real time instead of
-// just appearing already showing it -- digital/small-analog count up
-// from 120 minutes before the real time, big-analog's custom hands
-// grow out from a center dot and sweep into place (chasing that same
-// 120-minutes-ago starting point too, if the "Planets" background
-// sweep is also running -- see hands_layer_update_proc's own comment).
-// Driven by a fast repeating AppTimer (this is
-// the one place in the app that redraws faster than once a second,
-// let alone once a minute -- deliberately bounded to under
-// STARTUP_CLOCK_ANIM_MS and played at most once per app launch, so it
-// doesn't become an ongoing battery cost).
-
-// ---- corners/edges feature overlay ---------------------------------------
-// The whole always-on-top text/icon overlay (icon bitmaps, weather/
-// timezone/gradient/sleep helpers, the table-driven per-slot recompute/
-// draw split, and the layer itself) lives in features_layer.c/.h -- see
-// that file's own top-of-file note. s_features_layer below is created
-// via features_layer_create()/destroyed via features_layer_destroy() in
-// apply_layout()/window_unload(), and fed with
-// features_layer_set_data()/refresh_values()/refresh_second_slots()/
-// refresh_content() instead of being recomputed on every redraw.
-
-
-// ---- rendering ---------------------------------------------------------
-
-// The digital clock's own panel -- Digital bar's opaque bottom-third
-// bar (bottom_style 0/2/3/4) and Digital top's transparent top strip
-// (5/7/8/9) share this one draw function (see s_panel_layer's own
-// comment for why one Layer variable now covers both): is_top (derived
-// from feature_layout_is_digital_top_layout()) picks which -- false fills
-// `bounds` solid first, exactly Digital bar's original always-had-a-
-// solid-backing look; true leaves the frame buffer alone so whatever
-// s_top_gradient_layer/the sky canvas already painted underneath
-// (added as children BEFORE this layer -- see apply_layout()) shows
-// straight through, which is Digital top's own "transparent panel over
-// the sky" look. Analog (bottom_style == 1) has no panel at all -- see
-// apply_layout() -- so this never runs then. Obeys the color scheme
-// and the seconds-visibility setting either way. Redrawn every second
-// when seconds are shown; otherwise still cheap enough (no astronomy,
-// just text drawing) not to bother throttling separately from the sky
-// canvas underneath it.
-static void draw_digital_clock_panel(Layer *layer, GContext *ctx) {
-  GRect bounds = layer_get_bounds(layer);
-  bool is_top = feature_layout_is_digital_top_layout(s_data.bottom_style);
-  time_t now = time(NULL);
-  struct tm *t = localtime(&now);
-
-  // Startup animation: substitutes an eased count-up from 120 minutes
-  // before the real time (not all the way from midnight -- a many-
-  // hour jump used to make the digits blur through most of the day
-  // in under 1.5s, which read as noisy digit-flicker rather than a
-  // deliberate sweep) up to the real time, for the DISPLAYED time
-  // only -- `now`/the color scheme below still use the real current
-  // time. Every read of `t->tm_hour`/`tm_min`/`tm_sec` below shares
-  // this one struct tm, so the digital HH:MM(:SS) text gets the
-  // count-up for free from this single substitution. Uses the same
-  // shared ease-out table every other "settles gracefully into place"
-  // animation in this app uses (fast at first, gradually slowing into
-  // the real time) -- this used to accelerate INTO the stop instead
-  // (ease-in), which read as an abrupt halt right at the end.
-  struct tm anim_tm;
-  if (hands_controller_animation_active()) {
-    int32_t eased = hands_controller_animation_eased_progress_1000();
-    time_t anim_start = now - 120 * 60; // 2 hours before the real time
-    int32_t total_seconds = (int32_t)(now - anim_start);
-    int32_t fake_seconds = (int32_t)(((int64_t)total_seconds * eased) / 1000);
-    time_t fake_time = anim_start + fake_seconds;
-    anim_tm = *localtime(&fake_time);
-    t = &anim_tm;
-  }
-
-  GColor bg, text_color, accent_color;
-  eclipse_ui_get_active_color_scheme(&s_data, now, &bg, &text_color, &accent_color);
-
-  if (!is_top) {
-    graphics_context_set_fill_color(ctx, bg);
-    graphics_fill_rect(ctx, bounds, 0, GCornerNone);
-  }
-
-  // show_seconds is only ever true here for a font PKJS has already
-  // determined can fit a full "HH:MM:SS" readout at its normal size --
-  // wide fonts have seconds forced off and the checkbox hidden
-  // entirely on the settings page, so there's no on-watch "does this
-  // font fit seconds" decision left to make, and no small-side-digit
-  // fallback rendering needed for the fonts that don't.
-  char time_buf[10];
-  if (s_data.show_seconds) {
-    strftime(time_buf, sizeof(time_buf), clock_is_24h_style() ? "%H:%M:%S" : "%I:%M:%S", t);
-  } else {
-    strftime(time_buf, sizeof(time_buf), clock_is_24h_style() ? "%H:%M" : "%I:%M", t);
-  }
-
-  // Shifts away from whichever single side-feature column is active
-  // (feature_layout_digital_side_mode() 2 or 3, regardless of which layout), or stays
-  // centered/full-width otherwise (0, or 4 with both columns on -- see
-  // feature_layout_digital_clock_area()'s own comment for why "both" doesn't shrink
-  // the clock further). The features_layer overlay draws the side
-  // columns themselves and the single bottom feature (which used to be
-  // the fixed date/sun-time row directly below, now a user-selectable
-  // content slot instead) -- this layer only ever draws the clock
-  // digits.
-  int16_t clock_x, clock_w;
-  feature_layout_digital_clock_area(s_data.bottom_style, bounds.size.w, &clock_x, &clock_w);
-  int16_t font_h = font_lookup_height(s_data.clock_font) + font_lookup_y_offset(s_data.clock_font);
-  // Centered 24px from whichever edge of the panel sits next to the
-  // clock's own "inner" boundary with the sky -- the panel's own top
-  // for Digital bar (the sky is right above it), its own bottom for
-  // Digital top (mirrored -- the sky is right below it instead), so
-  // the two layouts read as a literal vertical flip of one another
-  // rather than each being independently tuned.
-  int16_t clock_y =  (is_top ? 44 : 24) - font_h / 2;
-  GRect clock_rect = GRect(bounds.origin.x + clock_x, bounds.origin.y + clock_y, clock_w, font_h);
-  GTextAlignment alignment = GTextAlignmentCenter;
-
-  // Trick to avoid clipping of shifted clocks and not having text trimmed (...) or having clock outside of the screen in extreme cases
-  uint8_t side = feature_layout_digital_side_mode(s_data.bottom_style);
-  if (side == 2) { // right side only -- shift left
-    int16_t initial_allowed_area = clock_rect.size.w;
-    clock_rect.size.w += 30;
-    GSize calculated_size = graphics_text_layout_get_content_size(time_buf, clock_font, clock_rect, GTextOverflowModeTrailingEllipsis, alignment);
-    if (calculated_size.w >= initial_allowed_area) {
-      alignment = GTextAlignmentLeft;
-    } else {
-      // revert spacing coz we fit
-      clock_rect.size.w -= 30;
-    }
-  } else if (side == 3) { // left side only -- shift right
-    int16_t initial_allowed_area = clock_rect.size.w;
-    clock_rect.size.w += 30;
-    clock_rect.origin.x -= 30;
-    GSize calculated_size = graphics_text_layout_get_content_size(time_buf, clock_font, clock_rect, GTextOverflowModeTrailingEllipsis, alignment);
-    if (calculated_size.w >= initial_allowed_area) {
-      alignment = GTextAlignmentRight;
-    } else {
-      // revert spacing coz we fit
-      clock_rect.size.w -= 30;
-      clock_rect.origin.x += 30;
-    }
-  }
-
-  if (s_data.draw_debug){
-    graphics_context_set_stroke_width(ctx, 1);
-    graphics_context_set_stroke_color(ctx, GColorCyan);
-    graphics_draw_rect(ctx, clock_rect);
-  }
-
-  // ---- big time ----
-  // Digital top only: routed through the shared outline primitive
-  // (same one corner/edge text and the countdown label already use)
-  // instead of a plain graphics_draw_text() -- this is the one clock
-  // panel with sky visible directly behind it, so it's the one place
-  // outline_style's existing "stay readable over any part of the sky"
-  // job actually applies to the clock digits themselves. Digital bar's
-  // own opaque backing has never needed this, so passing outline_style
-  // 0 there (via features_draw_text_outlined's own no-op-at-0 handling) keeps
-  // its look pixel-identical to before.
-  if (is_top) {
-    feature_render_draw_text_outlined(ctx, time_buf, clock_font, clock_rect, GTextOverflowModeTrailingEllipsis, alignment, text_color, s_data.outline_style);
-  } else {
-    graphics_context_set_text_color(ctx, text_color);
-    graphics_draw_text(ctx, time_buf, clock_font, clock_rect, GTextOverflowModeTrailingEllipsis, alignment, NULL);
-  }
-  // The date/week-or-sunrise row that used to sit directly below the
-  // clock is now the features_layer overlay's own "digital bottom"
-  // feature slot (content-selectable in settings, defaulting to
-  // "long date + sunrise/sunset" -- the exact information this fixed
-  // row always showed) -- drawn by that layer, not this one.
-}
-
-
-
-// The countdown/status label used to be a plain TextLayer, but that
-// has no way to draw a custom outline, so it's a plain Layer with its
-// own update_proc instead -- reads whatever refresh_status_and_maybe_
-// canvas() last stored in s_countdown_buf/s_countdown_text_color
-// rather than taking them as parameters, since layer update_procs
-// have a fixed signature.
-static void countdown_layer_update_proc(Layer *layer, GContext *ctx) {
-  GRect bounds = layer_get_bounds(layer);
-  GFont font = fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD);
-
-  // This label floats directly over the busy sky view in Analog mode
-  // and (since its own panel is transparent) Digital top too -- both
-  // have real sky right behind it at this label's fixed position (near
-  // the screen's top edge). Normally feature_render_draw_text_outlined()'s 4-shifted-
-  // copy outline keeps it legible against any background there, but
-  // with that setting off there's nothing else backing the text, so it
-  // can disappear into a similarly-colored patch of sky. Give it a
-  // solid pill background in that specific case instead
-  // (feature_render_contrasting_outline_color() picks black or white, whichever
-  // contrasts with the text color) -- outline mode already handles
-  // legibility fine on its own, and Digital bar's own panel is already
-  // a solid color the text sits on, so neither of those needs this
-  // extra background.
-  if (s_data.outline_style == 0 && (s_data.bottom_style == 1 || feature_layout_is_digital_top_layout(s_data.bottom_style)) && s_countdown_buf[0] != '\0') {
-    GSize text_size = graphics_text_layout_get_content_size(s_countdown_buf, font, bounds,
-                                                              GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter);
-    int16_t pad_x = 6;
-    GRect bg_rect = GRect(bounds.origin.x + (bounds.size.w - text_size.w) / 2 - pad_x,
-                           bounds.origin.y, text_size.w + pad_x * 2, bounds.size.h);
-    graphics_context_set_fill_color(ctx, feature_render_contrasting_outline_color(s_countdown_text_color));
-    graphics_fill_rect(ctx, bg_rect, 4, GCornersAll);
-  }
-
-  feature_render_draw_text_outlined(ctx, s_countdown_buf, font, bounds,
-                      GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter,
-                      s_countdown_text_color, s_data.outline_style);
-}
-
-static void refresh_status_and_maybe_canvas(bool force_canvas) {
-  time_t now = time(NULL);
-  EclipsePhase phase = eclipse_get_status_text(&s_data, now, s_countdown_buf, sizeof(s_countdown_buf), time_service_live_seconds_now(now));
-  // The countdown label overlays the sky canvas transparently, so its
-  // own contrast needs to track the sky brightness underneath it --
-  // this check is cheap (no drawing), so it's fine to do every second.
-  s_countdown_text_color = sky_layer_is_bright(&s_data, now) ? GColorBlack : GColorWhite;
-  // Hidden entirely (not just left blank) when there's confirmed to
-  // be no eclipse today -- this field is purely about eclipse phases
-  // now (see eclipse_get_status_text), so there's nothing for it to
-  // show in that case. Error/loading states still display normally,
-  // since those aren't "no eclipse," they're "don't know yet."
-  bool hide_label = s_data.valid && !s_data.has_eclipse;
-
-  // Totality flashes the countdown label on/off once a second -- the
-  // same attention-grabbing treatment update_planet_seek_accuracy_label()
-  // gives the compass-accuracy warning -- rather than sitting on
-  // screen solid for the whole totality window. eclipse_is_active()
-  // being true for this entire phase is exactly what already forces
-  // time_service_live_seconds_now() (and so the SECOND_UNIT tick rate this actually
-  // needs to look like flashing rather than a slow blink) above.
-  if (phase == PHASE_TOTAL && (now % 2) == 0) { // hidden on even seconds, shown on odd ones
-    s_countdown_buf[0] = '\0';
-    hide_label = true;
-  }
-
-  // Battery saver's sleep/deep-sleep indicator takes over this same
-  // top-of-screen label -- same free-real-estate reasoning
-  // update_planet_seek_accuracy_label() already uses for Planet
-  // seek's own compass-accuracy warning just below. The two never
-  // actually collide: Planet seek only ever runs in the few seconds
-  // right after a shake, which is exactly what resets battery saver
-  // straight back to BATTERY_SAVER_AWAKE (see tap_handler()).
-  if (battery_saver_phase() == BATTERY_SAVER_DEEP_SLEEP) {
-    snprintf(s_countdown_buf, sizeof(s_countdown_buf), "Zzzzzzz");
-    hide_label = false;
-  } else if (battery_saver_phase() == BATTERY_SAVER_SLEEP) {
-    snprintf(s_countdown_buf, sizeof(s_countdown_buf), "Zzz");
-    hide_label = false;
-  }
-
-  layer_set_hidden(s_countdown_layer, hide_label);
-  layer_mark_dirty(s_countdown_layer);
-
-  // The bottom canvas (time/date, or the analog clock) is cheap
-  // enough (no astronomy) to just redraw every second directly. Only
-  // exists in digital/analog mode -- big-analogue mode has no bottom
-  // bar, and redraws its hands layer every second instead, for the
-  // same reason (cheap, no astronomy, ticks smoothly).
-  if (s_panel_layer) layer_mark_dirty(s_panel_layer);
-  if (s_hands_layer) layer_mark_dirty(s_hands_layer);
-
-  // New data (or an explicit force, e.g. right after window_load)
-  // always redraws immediately; otherwise just nudge the canvas every
-  // second and let its own internal once-a-minute throttle (tracked
-  // inside canvas_update_proc itself) decide whether that actually
-  // costs a redraw -- this is the single biggest lever on battery
-  // life for this watchface, and now holds regardless of what
-  // triggers the nudge, not just this call site's discipline.
-  if (force_canvas) {
-    background_layer_set_data(s_canvas_layer, &s_data);
-  } else {
-    background_layer_tick(s_canvas_layer);
-  }
-}
-
-// ---- AppMessage ---------------------------------------------------------
-
-// ---- startup background animation ---------------------------------------
-// The timer/state machine lives in background_animation.c. The application
-// only decides when to request the one-shot effect; the animation module
-// owns its timer, progress, and lifetime.
-static void maybe_start_startup_background_animation(void) {
-  background_animation_start(&s_data, s_canvas_layer);
-}
-
-// get_clock_font_height_offset() used to live here as a hand-tuned
-// per-clock_font-value switch -- folded into font_lookup.c's shared
-// FONT_TABLE (its y_offset column) now, called directly as
-// font_lookup_y_offset(s_data.clock_font) at each call site.
-
-static void apply_clock_font(void) {
-  clock_font = font_lookup_resolve(&s_clock_font_slot, s_data.clock_font);
-  if (s_panel_layer) layer_mark_dirty(s_panel_layer);
-}
 
 // Battery-saver tick policy and Pebble tick subscription live in
 // time_service.c. The application still owns what each tick means visually
@@ -404,57 +36,10 @@ static void apply_clock_font(void) {
 
 // ---- tick + click ---------------------------------------------------------
 
-// ---- hourly vibrations ------------------------------------------------
-// A periodic reminder buzz, entirely independent of vibrate_on_phase_change
-// above (which is about the eclipse itself) -- see hourly_vibe_mode's own
-// comment in eclipse_data.h for the full field layout.
-
-// hourly_vibe_start_min == hourly_vibe_end_min (including the 0==0
-// default) means "all 24 hours", not a single-minute window -- see
-// that field's own comment in eclipse_data.h. Otherwise start > end
-// wraps past midnight (e.g. 22:00-6:00 covers 22:00 through 23:59 AND
-// 00:00 through 6:00), same as a normal "quiet hours" range would.
-static bool hourly_vibe_time_in_range(int minute_of_day) {
-  int start = s_data.hourly_vibe_start_min, end = s_data.hourly_vibe_end_min;
-  if (start == end) return true;
-  if (start < end) return minute_of_day >= start && minute_of_day <= end;
-  return minute_of_day >= start || minute_of_day <= end;
-}
-
-static void do_hourly_vibe(void) {
-  switch (s_data.hourly_vibe_pattern) {
-    case 1: vibes_double_pulse(); break;
-    case 2: vibes_long_pulse(); break;
-    default: vibes_short_pulse(); break; // 0, and any unrecognized value
-  }
-}
-
-// Called once a minute regardless of the tick subscription's own
-// granularity or battery-saver phase -- a reminder buzz shouldn't miss its
-// minute just because the display isn't redrawing that often.
-static void maybe_do_hourly_vibe(struct tm *tick_time) {
-  if (s_data.hourly_vibe_mode == 0) return;
-  if (!((s_data.hourly_vibe_days_mask >> tick_time->tm_wday) & 1)) return;
-  int minute_of_day = tick_time->tm_hour * 60 + tick_time->tm_min;
-  if (!hourly_vibe_time_in_range(minute_of_day)) return;
-
-  bool should_fire;
-  if (s_data.hourly_vibe_mode == 1) {
-    should_fire = (tick_time->tm_min == 0);
-  } else {
-    int interval = s_data.hourly_vibe_interval_min > 0 ? s_data.hourly_vibe_interval_min : 30;
-    should_fire = (minute_of_day % interval) == 0;
-  }
-
-  if (!should_fire) return;
-  if (!s_data.hourly_vibe_override_quiet && quiet_time_is_active()) return;
-  do_hourly_vibe();
-}
-
 static void time_service_tick_handler(struct tm *tick_time, TimeUnits units_changed, void *context) {
   (void)context;
 
-  if (units_changed & MINUTE_UNIT) maybe_do_hourly_vibe(tick_time);
+  if (units_changed & MINUTE_UNIT) hourly_vibration_handle_minute(tick_time);
 
   battery_saver_update(time(NULL));
   battery_saver_sync_phase_to_phone();
@@ -465,15 +50,15 @@ static void time_service_tick_handler(struct tm *tick_time, TimeUnits units_chan
   bool deep_sleep_skip = (battery_saver_phase() == BATTERY_SAVER_DEEP_SLEEP) && (tick_time->tm_min % 5 != 0);
   if (!deep_sleep_skip) {
     refresh_status_and_maybe_canvas(false);
-    if (battery_saver_phase() != BATTERY_SAVER_AWAKE && s_features_layer) {
-      features_layer_refresh_values(s_features_layer);
+    if (battery_saver_phase() != BATTERY_SAVER_AWAKE && layout_controller_features_layer()) {
+      features_layer_refresh_values(layout_controller_features_layer());
     }
   }
 
   // Seconds-precision feature slots piggyback on SECOND_UNIT rather than
   // maintaining another wake source.
-  if (time_service_is_seconds() && s_features_layer) {
-    features_layer_refresh_second_slots(s_features_layer);
+  if (time_service_is_seconds() && layout_controller_features_layer()) {
+    features_layer_refresh_second_slots(layout_controller_features_layer());
   }
 
   // Re-check on every tick because an eclipse can enter or leave its active
@@ -483,17 +68,16 @@ static void time_service_tick_handler(struct tm *tick_time, TimeUnits units_chan
 }
 
 static void update_planet_seek_accuracy_label(bool active) {
-  if (!s_countdown_layer) return;
+  if (!clock_display_countdown_layer()) return;
   if (active && input_planet_seek_compass_low_accuracy()) {
     time_t now = time(NULL);
     bool flash_visible = (now % 2) != 0; // on for odd seconds, off for even seconds
     if (flash_visible) {
-      snprintf(s_countdown_buf, sizeof(s_countdown_buf), "Low compass accuracy");
-      s_countdown_text_color = sky_layer_is_bright(&s_data, now) ? GColorBlack : GColorWhite;
-      layer_set_hidden(s_countdown_layer, false);
+      char text[40];
+      snprintf(text, sizeof(text), "Low compass accuracy");
+      clock_display_set_countdown(text, sky_layer_is_bright(&s_data, now) ? GColorBlack : GColorWhite, false);
     } else {
-      s_countdown_buf[0] = '\0';
-      layer_set_hidden(s_countdown_layer, true);
+      clock_display_set_countdown("", sky_layer_is_bright(&s_data, now) ? GColorBlack : GColorWhite, true);
     }
   } else {
     // Same condition countdown_layer_update_proc/refresh_status_and_maybe_canvas
@@ -502,11 +86,44 @@ static void update_planet_seek_accuracy_label(bool active) {
     // day, so this always resolves to "hidden" in practice here, but
     // spelling it out the same way keeps this in sync if that ever
     // changes.
-    eclipse_get_status_text(&s_data, time(NULL), s_countdown_buf, sizeof(s_countdown_buf), time_service_live_seconds_now(time(NULL)));
-    layer_set_hidden(s_countdown_layer, s_data.valid && !s_data.has_eclipse);
+    char text[40];
+    eclipse_get_status_text(&s_data, time(NULL), text, sizeof(text), time_service_live_seconds_now(time(NULL)));
+    clock_display_set_countdown(text, sky_layer_is_bright(&s_data, time(NULL)) ? GColorBlack : GColorWhite, s_data.valid && !s_data.has_eclipse);
   }
 }
 
+
+static void refresh_status_and_maybe_canvas(bool force_canvas) {
+  time_t now = time(NULL);
+  char text[40];
+  EclipsePhase phase = eclipse_get_status_text(&s_data, now, text, sizeof(text),
+                                               time_service_live_seconds_now(now));
+  GColor text_color = sky_layer_is_bright(&s_data, now) ? GColorBlack : GColorWhite;
+  bool hide_label = s_data.valid && !s_data.has_eclipse;
+
+  if (phase == PHASE_TOTAL && (now % 2) == 0) {
+    text[0] = '\0';
+    hide_label = true;
+  }
+
+  if (battery_saver_phase() == BATTERY_SAVER_DEEP_SLEEP) {
+    snprintf(text, sizeof(text), "Zzzzzzz");
+    hide_label = false;
+  } else if (battery_saver_phase() == BATTERY_SAVER_SLEEP) {
+    snprintf(text, sizeof(text), "Zzz");
+    hide_label = false;
+  }
+
+  clock_display_set_countdown(text, text_color, hide_label);
+  clock_display_mark_panel_dirty();
+  if (layout_controller_hands_layer()) layer_mark_dirty(layout_controller_hands_layer());
+
+  if (force_canvas) {
+    if (layout_controller_canvas_layer()) background_layer_set_data(layout_controller_canvas_layer(), &s_data);
+  } else if (layout_controller_canvas_layer()) {
+    background_layer_tick(layout_controller_canvas_layer());
+  }
+}
 
 // ---- input integration ---------------------------------------------------
 
@@ -517,21 +134,21 @@ static void input_wake_handler(void *context) {
 
 static void input_labels_changed(bool visible, void *context) {
   (void)context;
-  if (s_canvas_layer) background_layer_set_labels_visible(s_canvas_layer, visible);
+  if (layout_controller_canvas_layer()) background_layer_set_labels_visible(layout_controller_canvas_layer(), visible);
 }
 
 static void input_animation_frame_handler(bool active, uint32_t elapsed_ms, bool planet_seek, void *context) {
   (void)context;
   if (planet_seek) update_planet_seek_accuracy_label(active);
-  if (s_hands_layer) layer_mark_dirty(s_hands_layer);
-  if (s_features_layer) layer_mark_dirty(s_features_layer);
-  if (s_countdown_layer) layer_mark_dirty(s_countdown_layer);
-  if (s_canvas_layer && planet_seek) background_layer_set_planet_seek(s_canvas_layer, active, elapsed_ms, input_planet_seek_heading_deg());
+  if (layout_controller_hands_layer()) layer_mark_dirty(layout_controller_hands_layer());
+  if (layout_controller_features_layer()) layer_mark_dirty(layout_controller_features_layer());
+  clock_display_mark_countdown_dirty();
+  if (layout_controller_canvas_layer() && planet_seek) background_layer_set_planet_seek(layout_controller_canvas_layer(), active, elapsed_ms, input_planet_seek_heading_deg());
 }
 
 static void input_compass_feature_refresh_handler(void *context) {
   (void)context;
-  if (s_features_layer) features_layer_refresh_content(s_features_layer, 85);
+  if (layout_controller_features_layer()) features_layer_refresh_content(layout_controller_features_layer(), 85);
 }
 
 static void input_init_services(void) {
@@ -560,7 +177,7 @@ static void input_init_services(void) {
 static AppTimer *s_corners_timer = NULL;
 
 static void corners_timer_callback(void *data) {
-  if (s_features_layer) features_layer_refresh_values(s_features_layer);
+  if (layout_controller_features_layer()) features_layer_refresh_values(layout_controller_features_layer());
   s_corners_timer = app_timer_register(FEATURES_REFRESH_MS, corners_timer_callback, NULL);
 }
 
@@ -621,244 +238,49 @@ static void battery_saver_phase_changed(BatterySaverPhase previous_phase, Batter
 // amount to make room -- same "make room by moving, not cropping"
 // idea analog mode's hands/canvas already used for this.
 static void unobstructed_change_handler(AnimationProgress progress, void *context) {
-  if (!s_window) return;
-  Layer *root = window_get_root_layer(s_window);
-  GRect full_bounds = layer_get_bounds(root); // the real screen size, unaffected by any obstruction
-  GRect unobstructed = layer_get_unobstructed_bounds(root);
-  int16_t obstruction_h = full_bounds.size.h - unobstructed.size.h;
-  if (obstruction_h < 0) obstruction_h = 0;
-
-  // Digital bar only (panel at the screen's bottom, right where a
-  // system notification/Quick View obstruction grows from) -- Digital
-  // top's own panel sits at the TOP instead, never touched by a bottom
-  // obstruction, so it has nothing to shift here (see the plain
-  // Digital-top canvas-shrink case further down instead, which mirrors
-  // analog's own handling).
-  if (s_data.bottom_style != 1 && !feature_layout_is_digital_top_layout(s_data.bottom_style) && s_panel_layer) {
-    // 152 -- the panel's own always-unobstructed top, fixed by
-    // apply_layout() -- not read from the layer's current frame,
-    // since that may already be shifted up from a previous
-    // obstruction change and would compound instead of staying
-    // anchored to the real, original position.
-    int16_t full_top = 152;
-    int16_t new_top = full_top - obstruction_h;
-    if (new_top < 0) new_top = 0; // clamp -- an obstruction this tall would leave no room for the panel at all otherwise
-    GRect frame = layer_get_frame(s_panel_layer);
-    if (frame.origin.y != new_top) {
-      frame.origin.y = new_top;
-      layer_set_frame(s_panel_layer, frame);
-      layer_mark_dirty(s_panel_layer);
-    }
-
-    if (s_canvas_layer) {
-      GRect canvas_frame = layer_get_frame(s_canvas_layer);
-      if (canvas_frame.size.h != new_top) {
-        canvas_frame.size.h = new_top;
-        layer_set_frame(s_canvas_layer, canvas_frame);
-        // Force an immediate full redraw at the new size rather than
-        // leaving the cached bitmap sized for the old frame -- the
-        // canvas's own throttle would otherwise just blit that stale
-        // cache back until its next scheduled minute.
-        background_layer_set_data(s_canvas_layer, &s_data);
-      }
-    }
-  }
-
-  // Analog (canvas fills the whole screen) and Digital top (canvas
-  // fills everything BELOW the fixed top panel) both just shrink the
-  // sky canvas's own bottom edge to match the obstruction, same "make
-  // room by shrinking from the edge nearest the obstruction" idea --
-  // neither has a panel down there that would need to move out of the
-  // way the way Digital bar's own does above.
-  bool canvas_tracks_unobstructed_bottom = s_data.bottom_style == 1 || feature_layout_is_digital_top_layout(s_data.bottom_style);
-  if (canvas_tracks_unobstructed_bottom && s_canvas_layer) {
-    int16_t canvas_top = feature_layout_is_digital_top_layout(s_data.bottom_style) ? DIGITAL_PANEL_H : 0;
-    int16_t new_h = unobstructed.size.h - canvas_top;
-    if (new_h < 0) new_h = 0; // clamp -- matches the panel-side clamp above for the same reason
-    GRect frame = layer_get_frame(s_canvas_layer);
-    if (frame.size.h != new_h) {
-      frame.size.h = new_h;
-      layer_set_frame(s_canvas_layer, frame);
-      // Force an immediate full redraw at the new size rather than
-      // leaving the cached bitmap sized for the old frame -- the
-      // canvas's own throttle would otherwise just blit that stale
-      // cache back until its next scheduled minute.
-      background_layer_set_data(s_canvas_layer, &s_data);
-    }
-  }
-
-  if (s_hands_layer) layer_mark_dirty(s_hands_layer);
-  if (s_features_layer) layer_mark_dirty(s_features_layer);
+  (void)context;
+  layout_controller_handle_unobstructed(progress);
 }
 
 static UnobstructedAreaHandlers s_unobstructed_handlers = {
   .change = unobstructed_change_handler
 };
 
-static void apply_layout(void) {
-  Layer *root = window_get_root_layer(s_window);
-  GRect bounds = layer_get_bounds(root);
-  uint8_t style = s_data.bottom_style;
-  // Only meaningful (and only shown on the settings page) in analog
-  // mode, but tracked unconditionally here so a change to it never gets
-  // silently ignored if it arrives alongside/after a style switch.
-  bool beneath_hands = s_data.draw_features_beneath_hands;
-
-  if (style == s_current_layout_style && beneath_hands == s_current_draw_features_beneath_hands &&
-      s_canvas_layer != NULL) {
-    return;
-  }
-  s_current_layout_style = style;
-  s_current_draw_features_beneath_hands = beneath_hands;
-
-  if (s_canvas_layer) {
-    background_layer_destroy(s_canvas_layer);
-    s_canvas_layer = NULL;
-  }
-  if (s_panel_layer) {
-    layer_destroy(s_panel_layer);
-    s_panel_layer = NULL;
-  }
-  if (s_top_gradient_layer) {
-    sky_layer_top_gradient_destroy(s_top_gradient_layer);
-    s_top_gradient_layer = NULL;
-  }
-  if (s_hands_layer) {
-    layer_destroy(s_hands_layer);
-    s_hands_layer = NULL;
-  }
-  if (s_features_layer) {
-    features_layer_destroy(s_features_layer);
-    s_features_layer = NULL;
-  }
-
-  if (style == 1) {
-    // Analog: sky canvas fills the whole screen; hands render in
-    // their own always-on-top transparent layer; no panel at all. Which
-    // of the hands layer and the features overlay gets added (and so
-    // painted) second -- i.e. which one ends up on top -- depends on
-    // the "draw features beneath hands" setting; everywhere else the
-    // features layer is always added last/on top (see below).
-    s_canvas_layer = background_layer_create(GRect(0, 0, bounds.size.w, bounds.size.h));
-    layer_add_child(root, s_canvas_layer);
-    s_hands_layer = hands_controller_create_layer(GRect(0, 0, bounds.size.w, bounds.size.h));
-    if (beneath_hands) {
-      s_features_layer = features_layer_create(layer_get_frame(s_canvas_layer));
-      layer_add_child(root, s_features_layer);
-      layer_add_child(root, s_hands_layer);
-    } else {
-      layer_add_child(root, s_hands_layer);
-    }
-  } else if (feature_layout_is_digital_top_layout(style)) {
-    // Digital top: the sky canvas is exactly Digital bar's own 152px-
-    // tall panel-less canvas (below, unchanged), just relocated to the
-    // screen's BOTTOM instead of its top -- none of its own internal
-    // astronomy/gradient math needs to know or care where its layer's
-    // frame actually sits on screen. s_top_gradient_layer fills the
-    // freed-up DIGITAL_PANEL_H strip at the real top with a plain
-    // continuation of that same gradient (see its own header comment),
-    // and s_panel_layer -- same Layer variable and draw function
-    // Digital bar itself uses, just told via feature_layout_is_digital_top_layout()
-    // to skip its own opaque background fill -- sits on top of THAT,
-    // transparent, so the gradient shows through behind the clock text.
-    // Added in exactly this bottom-to-top z-order for that to work.
-    s_canvas_layer = background_layer_create(GRect(0, DIGITAL_PANEL_H, bounds.size.w, bounds.size.h - DIGITAL_PANEL_H));
-    layer_add_child(root, s_canvas_layer);
-    s_top_gradient_layer = sky_layer_top_gradient_create(GRect(0, 0, bounds.size.w, DIGITAL_PANEL_H));
-    layer_add_child(root, s_top_gradient_layer);
-    s_panel_layer = layer_create(GRect(0, 0, bounds.size.w, DIGITAL_PANEL_H));
-    layer_set_update_proc(s_panel_layer, draw_digital_clock_panel);
-    layer_add_child(root, s_panel_layer);
-    apply_clock_font();
-  } else {
-    // Digital bar: sky canvas keeps its original top-2/3
-    // proportions; bottom third is the digital time.
-    s_canvas_layer = background_layer_create(GRect(0, 0, bounds.size.w, 152));
-    layer_add_child(root, s_canvas_layer);
-    s_panel_layer = layer_create(GRect(0, 152, bounds.size.w, bounds.size.h - 152));
-    layer_set_update_proc(s_panel_layer, draw_digital_clock_panel);
-    layer_add_child(root, s_panel_layer);
-    apply_clock_font();
-  }
-
-  // Overlays the FULL screen in every layout now -- not just reusing
-  // the sky canvas's own frame the way this used to, since that frame
-  // is only DIGITAL_PANEL_H-shrunk-from-one-side in either digital
-  // layout (see the branches above) and feature_layout_recompute()'s
-  // digital-only slots (the 3-line side columns + single bottom
-  // feature) need the real screen edge their own layout actually
-  // anchors off -- not the sky's -- to land in the right place at all.
-  // Corner features stay correctly anchored to the sky's own edge
-  // regardless (see DIGITAL_PANEL_H's own comment in features_layer.c)
-  // despite this layer being taller than the sky in either digital
-  // layout.
-  if (!s_features_layer) {
-    s_features_layer = features_layer_create(GRect(0, 0, bounds.size.w, bounds.size.h));
-    layer_add_child(root, s_features_layer);
-  }
-
-  // The countdown label always sits on top of everything else, so it
-  // needs re-adding last after the canvas underneath was just rebuilt.
-  if (s_countdown_layer) {
-    layer_remove_from_parent(s_countdown_layer);
-    layer_add_child(root, s_countdown_layer);
-  }
-
-  background_layer_set_data(s_canvas_layer, &s_data);
-  if (s_top_gradient_layer) sky_layer_top_gradient_set_data(s_top_gradient_layer, &s_data);
-  features_layer_set_data(s_features_layer, &s_data);
-
-  // Newly (re)created layers start at their full, unobstructed frame
-  // -- if Quick View already happens to be showing right when a mode
-  // switch rebuilds them, apply that immediately rather than waiting
-  // for the next .change event, matching Pebble's own recommended
-  // pattern for handling Quick View already being active on load.
-  unobstructed_change_handler(0, NULL);
-}
-
 static void window_load(Window *window) {
   Layer *root = window_get_root_layer(window);
   GRect bounds = layer_get_bounds(root);
 
-  // Added first; apply_layout() re-parents it on top of whatever it
-  // builds, both here on first load and again on any later mode
+  // Create the countdown first; the layout controller re-parents it on
+  // top of the newly composed layers whenever the layout changes.
   // switch, so its own creation only has to happen once.
-  s_countdown_layer = layer_create(GRect(0, 20, bounds.size.w, 20));
-  layer_set_update_proc(s_countdown_layer, countdown_layer_update_proc);
-  s_countdown_text_color = GColorBlack;
-  layer_add_child(root, s_countdown_layer);
+  clock_display_create_countdown(root, GRect(0, 20, bounds.size.w, 20));
 
-  apply_layout();
-  apply_clock_font(); // uses whatever was loaded from persistent storage
+  layout_controller_apply();
+  clock_display_apply_font(); // uses whatever was loaded from persistent storage
 
   refresh_status_and_maybe_canvas(true);
   hands_controller_start_startup_animation();
-  maybe_start_startup_background_animation();
+  background_animation_start(&s_data, layout_controller_canvas_layer());
 }
 
 static void window_unload(Window *window) {
-  layer_destroy(s_countdown_layer);
-  if (s_canvas_layer) background_layer_destroy(s_canvas_layer); // also releases marker renderer resources now
-  if (s_panel_layer) layer_destroy(s_panel_layer);
-  if (s_top_gradient_layer) sky_layer_top_gradient_destroy(s_top_gradient_layer);
-  if (s_hands_layer) hands_controller_destroy_layer(s_hands_layer);
-  if (s_features_layer) features_layer_destroy(s_features_layer);
+  clock_display_destroy_countdown();
+  layout_controller_unload();
   features_layer_unload_fonts();
-  font_lookup_release(&s_clock_font_slot);
 }
 
 static void comms_data_applied(CommsChangeFlags changes, void *context) {
   (void)context;
 
-  if (changes & COMMS_CHANGE_CLOCK_FONT) apply_clock_font();
-  if (changes & COMMS_CHANGE_LAYOUT) apply_layout();
-  if (s_hands_layer && (changes & COMMS_CHANGE_HANDS)) layer_mark_dirty(s_hands_layer);
-  if (s_panel_layer && (changes & COMMS_CHANGE_PANEL)) layer_mark_dirty(s_panel_layer);
-  if (s_features_layer && (changes & (COMMS_CHANGE_FEATURES | COMMS_CHANGE_FEATURE_VALUES))) {
-    features_layer_set_data(s_features_layer, &s_data);
+  if (changes & COMMS_CHANGE_CLOCK_FONT) clock_display_apply_font();
+  if (changes & COMMS_CHANGE_LAYOUT) layout_controller_apply();
+  if (layout_controller_hands_layer() && (changes & COMMS_CHANGE_HANDS)) layer_mark_dirty(layout_controller_hands_layer());
+  if (clock_display_panel_layer() && (changes & COMMS_CHANGE_PANEL)) layer_mark_dirty(clock_display_panel_layer());
+  if (layout_controller_features_layer() && (changes & (COMMS_CHANGE_FEATURES | COMMS_CHANGE_FEATURE_VALUES))) {
+    features_layer_set_data(layout_controller_features_layer(), &s_data);
   }
-  if (s_canvas_layer && (changes & COMMS_CHANGE_CANVAS)) {
-    background_layer_set_data(s_canvas_layer, &s_data);
+  if (layout_controller_canvas_layer() && (changes & COMMS_CHANGE_CANVAS)) {
+    background_layer_set_data(layout_controller_canvas_layer(), &s_data);
   }
 
   // Preserve the original invalid-payload fast path: settings that arrive
@@ -895,12 +317,15 @@ static void init(void) {
   // already have a valid data pointer at that point.
   time_service_init(&s_data, time_service_tick_handler, NULL);
   hands_controller_init(&s_data, hands_controller_invalidate, NULL);
+  clock_display_init(&s_data);
+  hourly_vibration_init(&s_data);
 
   s_window = window_create();
   window_set_window_handlers(s_window, (WindowHandlers){
     .load = window_load,
     .unload = window_unload,
   });
+  layout_controller_init(&s_data, s_window);
   window_stack_push(s_window, true);
 
   input_init_services();
@@ -922,6 +347,9 @@ static void deinit(void) {
   comms_deinit();
   background_animation_deinit();
   hands_controller_deinit();
+  hourly_vibration_deinit();
+  clock_display_deinit();
+  layout_controller_deinit();
   window_destroy(s_window);
 }
 
