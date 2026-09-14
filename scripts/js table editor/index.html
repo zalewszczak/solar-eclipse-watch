@@ -72,7 +72,7 @@
     .hidden-cols-container { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
     .hidden-col-pill { background: var(--input-bg); color: var(--text); border: 1px dashed var(--border); padding: 3px 8px; border-radius: 12px; font-size: 11px; cursor: pointer; }
 
-    .col-header-box input, .col-header-box select, select.cell-select {
+    .col-header-box input, .col-header-box select {
       background: var(--input-bg); color: var(--text); border: 1px solid var(--border); padding: 6px; border-radius: 4px; width: 100%;
     }
 
@@ -91,7 +91,7 @@
     .bool-main-btn.false-state { background: var(--btn-red); }
     .bool-main-btn.null-state { background: var(--border); color: var(--muted); }
 
-    .null-btn { border: none; border-radius: 3px; width: 24px; height: 24px; font-size: 11px; font-weight: bold; cursor: pointer; }
+    .null-btn { border: none; border-radius: 3px; width: 24px; height: 24px; font-size: 11px; font-weight: bold; cursor: pointer; flex-shrink: 0; }
     .null-btn.null-active { background: var(--btn-red); color: #fff; }
     .null-btn.null-inactive { background: var(--border); color: var(--text); }
 
@@ -160,6 +160,8 @@
     let startX = 0;
     let startWidth = 0;
 
+    const defaultSnippet = "[{description:'Paste your table here'}]";
+
     function escapeHTML(str) {
       if (str === null || str === undefined) return '';
       return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -214,7 +216,7 @@
         const srcElem = document.getElementById('srcInput');
         srcElem.value = (savedSrc && savedSrc.trim()) ? savedSrc : defaultSnippet;
       } catch (e) {
-        document.getElementById('srcInput').value = "[{description:'Paste your table here'}]";
+        document.getElementById('srcInput').value = defaultSnippet;
       }
     }
 
@@ -405,9 +407,9 @@
           if (col.type === 'number') {
             const numVal = (val !== undefined && val !== null) ? val : 0;
             bodyHTML += `<div class="num-control">
-              <button onclick="stepNumber(${rIdx},${cIdx}, -1)">-</button>
-              <input type="number" value="${numVal}" oninput="updateCell(${rIdx},${cIdx}, parseFloat(this.value) || 0)">
-              <button onclick="stepNumber(${rIdx},${cIdx}, 1)">+</button>
+              <button onclick="stepNumber(${rIdx}, ${cIdx}, -1)">-</button>
+              <input type="number" value="${numVal}" oninput="updateCell(${rIdx}, ${cIdx}, parseFloat(this.value) || 0)">
+              <button onclick="stepNumber(${rIdx}, ${cIdx}, 1)">+</button>
             </div>`;
           } else if (col.type === 'boolean') {
             const isNull = (val === null || val === undefined);
@@ -417,24 +419,28 @@
 
             bodyHTML += `<div class="bool-btn-group">
               <button type="button" class="bool-main-btn ${btnClass}" ${isNull ? 'disabled' : ''} onclick="toggleBoolValue(${rIdx}, ${cIdx})">${label}</button>
-              <button type="button" class="null-btn ${isNull ? 'null-active' : 'null-inactive'}" onclick="toggleBoolNull(${rIdx},${cIdx})">✕</button>
+              <button type="button" class="null-btn ${isNull ? 'null-active' : 'null-inactive'}" onclick="toggleBoolNull(${rIdx}, ${cIdx})">✕</button>
             </div>`;
           } else if (col.type === 'predefined') {
-            const currentStr = (val === null || val === undefined) ? '' : String(val);
+            const isNull = (val === null || val === undefined);
+            const currentStr = isNull ? '' : String(val);
             const opts = col.categoryOptions || [];
             const allOpts = Array.from(new Set([...opts, ...(currentStr ? [currentStr] : [])]));
-            let optionsHTML = '<option value="___NULL___">-- None / Null --</option>';
-            
-            allOpts.forEach(opt => {
-              optionsHTML += `<option value="${escapeHTML(opt)}"${currentStr === opt ? ' selected' : ''}>${escapeHTML(opt)}</option>`;
-            });
 
-            bodyHTML += `<select class="cell-select" onchange="updateCellPredefined(${rIdx}, ${cIdx}, this.value)">${optionsHTML}</select>`;
+            const buttonsHTML = allOpts.map((opt, optIdx) => {
+              const active = !isNull && currentStr === String(opt);
+              return `<button type="button" class="cat-btn ${active ? 'active' : 'inactive'}" onclick="selectPredefinedOption(${rIdx}, ${cIdx}, ${optIdx})">${escapeHTML(opt)}</button>`;
+            }).join('');
+
+            bodyHTML += `<div style="display: flex; align-items: center; justify-content: space-between; gap: 6px;">
+              <div class="cat-btn-group" style="flex: 1;">${buttonsHTML}</div>
+              <button type="button" class="null-btn ${isNull ? 'null-active' : 'null-inactive'}" onclick="setPredefinedNull(${rIdx}, ${cIdx})" title="Clear / Set Null">✕</button>
+            </div>`;
           } else if (col.type === 'categories') {
             const selectedArr = Array.isArray(val) ? val : [];
             const buttonsHTML = (col.categoryOptions || []).map((opt, optIdx) => {
               const active = selectedArr.includes(opt);
-              return `<button type="button" class="cat-btn ${active ? 'active' : 'inactive'}" onclick="toggleCategory(${rIdx},${cIdx}, ${optIdx})">${escapeHTML(opt)}</button>`;
+              return `<button type="button" class="cat-btn ${active ? 'active' : 'inactive'}" onclick="toggleCategory(${rIdx}, ${cIdx}, ${optIdx})">${escapeHTML(opt)}</button>`;
             }).join('');
 
             bodyHTML += `<div class="cat-btn-group">${buttonsHTML}</div>`;
@@ -482,15 +488,27 @@
 
     function updateCell(rIdx, cIdx, value) {
       const key = columnsConfig[cIdx].key;
-      if (key === '_comment') row._comment = value;
+      if (key === '_comment') rowsData[rIdx]._comment = value;
       else rowsData[rIdx][key] = value;
       updateSourceText();
     }
 
-    function updateCellPredefined(rIdx, cIdx, value) {
+    function selectPredefinedOption(rIdx, cIdx, optIdx) {
+      const col = columnsConfig[cIdx];
+      const key = col.key;
+      const currentVal = rowsData[rIdx][key];
+      const currentStr = (currentVal === null || currentVal === undefined) ? '' : String(currentVal);
+      const opts = col.categoryOptions || [];
+      const allOpts = Array.from(new Set([...opts, ...(currentStr ? [currentStr] : [])]));
+
+      rowsData[rIdx][key] = allOpts[optIdx];
+      renderTable();
+    }
+
+    function setPredefinedNull(rIdx, cIdx) {
       const key = columnsConfig[cIdx].key;
-      rowsData[rIdx][key] = (value === '___NULL___') ? null : value;
-      updateSourceText();
+      rowsData[rIdx][key] = null;
+      renderTable();
     }
 
     function toggleBoolValue(rIdx, cIdx) {
@@ -576,7 +594,7 @@
           else if (Array.isArray(val)) valFormatted = '[' + val.map(v => "'" + String(v).replace(/'/g, "\\'") + "'").join(', ') + ']';
           else valFormatted = String(val);
 
-          const entryStr = `${col.key}:${valFormatted}`;
+          const entryStr = `${col.key}: ${valFormatted}`;
           if (entryStr.length > maxLen) maxLen = entryStr.length;
         });
         colWidths[col.key] = maxLen;
@@ -596,7 +614,7 @@
           else if (Array.isArray(val)) valFormatted = '[' + val.map(v => "'" + String(v).replace(/'/g, "\\'") + "'").join(', ') + ']';
           else valFormatted = String(val);
 
-          const entryStr = `${col.key}:${valFormatted}`;
+          const entryStr = `${col.key}: ${valFormatted}`;
           parts.push(entryStr.padEnd(colWidths[col.key] || 0, ' '));
         });
 
