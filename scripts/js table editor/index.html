@@ -152,6 +152,37 @@
     const STORAGE_KEY_COLS = 'js_table_editor_cols';
     const STORAGE_KEY_STICKY = 'js_table_editor_sticky';
 
+    // Base 12 Pastel Palette
+    const PASTEL_PALETTE = [
+      '#FFB3BA', // Pastel Pink / Red
+      '#FFDFBA', // Pastel Peach / Orange
+      '#FFFFBA', // Pastel Yellow
+      '#BAFFC9', // Pastel Mint / Green
+      '#BAE1FF', // Pastel Sky Blue
+      '#E8AEFF', // Pastel Lavender
+      '#FFC6FF', // Pastel Bubblegum
+      '#BDB2FF', // Pastel Periwinkle
+      '#9BF6FF', // Pastel Aqua
+      '#CAFFBF', // Pastel Light Green
+      '#FFD6A5', // Pastel Apricot
+      '#D4A5FF'  // Pastel Soft Violet
+    ];
+    
+    const HIGH_CONTRAST_PALETTE = [
+      '#E63946',
+      '#FF6D00',
+      '#FFD600',
+      '#00C853',
+      '#0077B6',
+      '#AA00FF',
+      '#FF1493',
+      '#4361EE',
+      '#00B4D8',
+      '#70E000',
+      '#FF9E00',
+      '#7209B7'
+    ];
+
     let rowsData = [];
     let columnsConfig = [];
     let stickyColCount = 1;
@@ -160,7 +191,10 @@
     let startX = 0;
     let startWidth = 0;
 
-    const defaultSnippet = "[{description:'Paste your table here'}]";
+    const defaultSnippet = `[
+  { id: 0,  label: 'Gothic X-Small', height: 14, preview: 'font-family: Arial, sans-serif;', small: true, google: null, sizePx: 14, approx: true, categories: ['pebbleos', 'modern', 'tiny'] }, // Pebble system font
+  { id: 21, label: 'Alagard Small',  height: 19, preview: 'font-family: Pixelify Sans, sans-serif;', small: true, google: 'Pixelify Sans', weight: 600, sizePx: 19, approx: true, categories: ['pixelated', 'stylish', 'small'] }
+]`;
 
     function escapeHTML(str) {
       if (str === null || str === undefined) return '';
@@ -429,7 +463,10 @@
 
             const buttonsHTML = allOpts.map((opt, optIdx) => {
               const active = !isNull && currentStr === String(opt);
-              return `<button type="button" class="cat-btn ${active ? 'active' : 'inactive'}" onclick="selectPredefinedOption(${rIdx}, ${cIdx}, ${optIdx})">${escapeHTML(opt)}</button>`;
+              const pastelColor = HIGH_CONTRAST_PALETTE[optIdx % HIGH_CONTRAST_PALETTE.length];
+              const activeStyle = active ? `style="background-color: ${pastelColor}; color: #1e1e2e; opacity: 1; border: 1px solid rgba(0,0,0,0.2);"` : '';
+
+              return `<button type="button" class="cat-btn ${active ? 'active-predefined' : 'inactive'}" ${activeStyle} onclick="selectPredefinedOption(${rIdx}, ${cIdx}, ${optIdx})">${escapeHTML(opt)}</button>`;
             }).join('');
 
             bodyHTML += `<div style="display: flex; align-items: center; justify-content: space-between; gap: 6px;">
