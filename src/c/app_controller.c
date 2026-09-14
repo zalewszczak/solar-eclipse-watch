@@ -3,6 +3,7 @@
 #include "comms.h"
 #include "persistence.h"
 #include "battery_saver.h"
+#include "battery_saver_controller.h"
 #include "input.h"
 #include "time_service.h"
 #include "background_layer.h"
@@ -28,8 +29,6 @@ static void hands_controller_invalidate(void *context) {
 
 static EclipseData s_data;
 
-static void battery_saver_sync_phase_to_phone(void);
-
 // Battery-saver tick policy and Pebble tick subscription live in
 // time_service.c. The application still owns what each tick means visually
 // (redraws, vibrations, feature refreshes, etc.); time_service only decides
@@ -42,8 +41,7 @@ static void time_service_tick_handler(struct tm *tick_time, TimeUnits units_chan
 
   if (units_changed & MINUTE_UNIT) hourly_vibration_handle_minute(tick_time);
 
-  battery_saver_update(time(NULL));
-  battery_saver_sync_phase_to_phone();
+  battery_saver_controller_update();
 
   // Deep sleep still subscribes at MINUTE_UNIT, because Pebble has no
   // five-minute TickTimerService unit. Skip redraw work on the four minutes
@@ -68,34 +66,6 @@ static void time_service_tick_handler(struct tm *tick_time, TimeUnits units_chan
   time_service_update();
 }
 
-
-// Battery-saver policy/state is implemented in battery_saver.c.
-// This file only owns the consequences of a phase change: tick
-// subscription, the corners refresh timer, redraws, and phone sync.
-
-static void battery_saver_sync_phase_to_phone(void) {
-  static uint8_t s_last_sent_phase = 0xFF;
-  uint8_t phase = (uint8_t)battery_saver_phase();
-  if (phase == s_last_sent_phase) return;
-  if (comms_send_battery_saver_phase(phase)) s_last_sent_phase = phase;
-}
-
-static void battery_saver_phase_changed(BatterySaverPhase previous_phase, BatterySaverPhase new_phase, void *context) {
-  (void)context;
-  bool was_resting = previous_phase != BATTERY_SAVER_AWAKE;
-  bool now_resting = new_phase != BATTERY_SAVER_AWAKE;
-
-  // battery_saver_update() has already committed the new phase.
-  time_service_update();
-
-  if (now_resting && !was_resting) {
-    feature_refresh_stop();
-  } else if (!now_resting && was_resting) {
-    feature_refresh_start();
-  }
-
-  battery_saver_sync_phase_to_phone();
-}
 
 // ---- window lifecycle ----------------------------------------------------
 
@@ -175,8 +145,7 @@ static void comms_data_applied(CommsChangeFlags changes, void *context) {
     return;
   }
 
-  battery_saver_set_enabled(s_data.battery_saver_enabled);
-  battery_saver_update(time(NULL));
+  battery_saver_controller_apply_enabled(s_data.battery_saver_enabled);
   time_service_update();
   persistence_save(&s_data);
   watchface_ui_refresh_status(true);
@@ -192,7 +161,7 @@ void app_controller_init(void) {
   }
 
   persistence_load(&s_data);
-  battery_saver_init(s_data.battery_saver_enabled, time(NULL), battery_saver_phase_changed, NULL);
+  battery_saver_controller_init(&s_data);
 
   // Initialize the time service before pushing the window because Pebble may
   // invoke window_load() synchronously during window_stack_push(). The load
@@ -218,10 +187,11 @@ void app_controller_init(void) {
   feature_refresh_start();
 
   comms_init(&s_data, comms_data_applied, NULL);
-  battery_saver_sync_phase_to_phone();
+  battery_saver_controller_update();
 }
 
 void app_controller_deinit(void) {
+  battery_saver_controller_deinit();
   time_service_deinit();
   input_deinit();
   watchface_ui_deinit();
