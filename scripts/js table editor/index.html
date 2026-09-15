@@ -113,6 +113,46 @@
     .col-header-box { display: flex; flex-direction: column; gap: 4px; width: 100%; }
     .col-header-top { display: flex; justify-content: space-between; align-items: center; gap: 4px; }
     .btn-hide { background: transparent; border: none; color: var(--muted); cursor: pointer; }
+
+    /* Column Filter Controls */
+    .col-filter-trigger {
+      background: transparent; border: none; color: var(--muted);
+      cursor: pointer; font-size: 11px; padding: 2px 4px; border-radius: 3px; line-height: 1;
+    }
+    .col-filter-trigger:hover, .col-filter-trigger.is-active {
+      color: var(--accent); background: var(--input-bg);
+    }
+    .col-filter-reset {
+      background: var(--btn-red); color: #ffffff; border: none; border-radius: 50%;
+      width: 14px; height: 14px; font-size: 9px; font-weight: bold; line-height: 14px;
+      text-align: center; cursor: pointer; padding: 0; display: inline-flex;
+      align-items: center; justify-content: center;
+    }
+    .col-filter-reset:hover { opacity: 0.8; }
+
+    .col-filter-dropdown {
+      position: fixed; z-index: 1000; background: var(--card-bg);
+      border: 1px solid var(--border); border-radius: 6px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3); padding: 10px;
+      width: 220px; max-height: 320px; display: flex; flex-direction: column;
+      gap: 8px; font-size: 12px; color: var(--text);
+    }
+    .col-filter-dropdown-header {
+      display: flex; justify-content: space-between; align-items: center;
+      font-weight: bold; border-bottom: 1px solid var(--border); padding-bottom: 4px;
+    }
+    .col-filter-dropdown-actions { display: flex; gap: 8px; font-size: 11px; }
+    .col-filter-dropdown-actions button {
+      background: transparent; border: none; color: var(--accent);
+      cursor: pointer; padding: 0; text-decoration: underline;
+    }
+    .col-filter-dropdown-list {
+      overflow-y: auto; max-height: 180px; display: flex; flex-direction: column; gap: 4px;
+    }
+    .col-filter-item {
+      display: flex; align-items: center; gap: 6px; cursor: pointer; word-break: break-all;
+    }
+    .col-filter-item input { cursor: pointer; }
     
     .hidden-cols-container { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
     .hidden-col-pill { background: var(--input-bg); color: var(--text); border: 1px dashed var(--border); padding: 3px 8px; border-radius: 12px; font-size: 11px; cursor: pointer; }
@@ -202,6 +242,9 @@
     </div>
   </div>
 
+  <!-- Column Filter Floating Dropdown -->
+  <div id="columnFilterDropdown" class="col-filter-dropdown" style="display: none;"></div>
+
   <script>
     const STORAGE_KEY_SRC = 'js_table_editor_src';
     const STORAGE_KEY_COLS = 'js_table_editor_cols';
@@ -228,6 +271,10 @@
     let currentResizingCol = null;
     let startX = 0;
     let startWidth = 0;
+
+    // Column Filters State: { [colKey]: Set of allowed strings }
+    let activeColumnFilters = {};
+    let openFilterColKey = null;
 
     const defaultSnippet = "[{description:'Paste your table here'}]";
 
@@ -317,6 +364,7 @@
       if (confirm('Clear local storage and reset editor to default snippet?')) {
         localStorage.clear();
         columnsConfig = [];
+        activeColumnFilters = {};
         document.getElementById('paletteSelect').value = 'high-contrast';
         document.getElementById('srcInput').value = defaultSnippet;
         applyPalette('high-contrast');
@@ -352,12 +400,64 @@
     function resetFilter() {
       const filterInput = document.getElementById('filterInput');
       if (filterInput) filterInput.value = '';
+      activeColumnFilters = {};
+      closeColumnFilterDropdown();
       renderTable();
       if (filterInput) filterInput.focus();
     }
 
+    function getUniqueValuesForColumn(colKey) {
+      const colConfig = columnsConfig.find(c => c.key === colKey);
+      const colType = colConfig ? colConfig.type : 'string';
+      const unique = new Set();
+
+      rowsData.forEach(row => {
+        const val = colKey === '_comment' ? row._comment : row[colKey];
+        if (colType === 'categories' && Array.isArray(val)) {
+          if (val.length === 0) {
+            unique.add('(Empty)');
+          } else {
+            val.forEach(v => unique.add(String(v)));
+          }
+        } else {
+          if (val === null || val === undefined || val === '') {
+            unique.add('(Blank)');
+          } else {
+            unique.add(String(val));
+          }
+        }
+      });
+
+      return Array.from(unique).sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+    }
+
+    function rowMatchesColumnFilters(row) {
+      for (const col of columnsConfig) {
+        const colKey = col.key;
+        const activeSet = activeColumnFilters[colKey];
+        if (!activeSet) continue;
+
+        const val = colKey === '_comment' ? row._comment : row[colKey];
+        
+        if (col.type === 'categories' && Array.isArray(val)) {
+          if (val.length === 0) {
+            if (!activeSet.has('(Empty)')) return false;
+          } else {
+            const hasMatch = val.some(v => activeSet.has(String(v)));
+            if (!hasMatch) return false;
+          }
+        } else {
+          const strVal = (val === null || val === undefined || val === '') ? '(Blank)' : String(val);
+          if (!activeSet.has(strVal)) return false;
+        }
+      }
+      return true;
+    }
+
     function rowMatchesQuery(row, query) {
+      if (!rowMatchesColumnFilters(row)) return false;
       if (!query) return true;
+
       const q = query.toLowerCase();
       for (const key in row) {
         const val = row[key];
@@ -369,6 +469,119 @@
         }
       }
       return false;
+    }
+
+    function toggleColumnFilterDropdown(colKey, event) {
+      event.stopPropagation();
+      const dropdown = document.getElementById('columnFilterDropdown');
+      
+      if (openFilterColKey === colKey && dropdown.style.display !== 'none') {
+        closeColumnFilterDropdown();
+        return;
+      }
+
+      openFilterColKey = colKey;
+      renderFilterDropdownContent(colKey);
+
+      const rect = event.currentTarget.getBoundingClientRect();
+      dropdown.style.display = 'flex';
+      dropdown.style.top = (rect.bottom + 4) + 'px';
+      
+      const dropdownWidth = 220;
+      let left = rect.left;
+      if (left + dropdownWidth > window.innerWidth - 10) {
+        left = window.innerWidth - dropdownWidth - 10;
+      }
+      dropdown.style.left = Math.max(10, left) + 'px';
+    }
+
+    function closeColumnFilterDropdown() {
+      const dropdown = document.getElementById('columnFilterDropdown');
+      if (dropdown) dropdown.style.display = 'none';
+      openFilterColKey = null;
+    }
+
+    function renderFilterDropdownContent(colKey, searchFilter = '') {
+      const dropdown = document.getElementById('columnFilterDropdown');
+      const allValues = getUniqueValuesForColumn(colKey);
+      const activeSet = activeColumnFilters[colKey];
+
+      const filteredValues = searchFilter ? 
+        allValues.filter(v => v.toLowerCase().includes(searchFilter.toLowerCase())) : 
+        allValues;
+
+      let listHTML = '';
+      filteredValues.forEach(val => {
+        const isChecked = !activeSet || activeSet.has(val);
+        const valEscaped = escapeHTML(val);
+        listHTML += `
+          <label class="col-filter-item">
+            <input type="checkbox" data-val="${valEscaped}" ${isChecked ? 'checked' : ''} onchange="onFilterCheckboxChange('${colKey}')">
+            <span>${valEscaped}</span>
+          </label>
+        `;
+      });
+
+      if (filteredValues.length === 0) {
+        listHTML = `<div style="color: var(--muted); padding: 4px;">No values</div>`;
+      }
+
+      dropdown.innerHTML = `
+        <div class="col-filter-dropdown-header">
+          <span>Filter: ${escapeHTML(colKey)}</span>
+          <button class="btn-hide" onclick="closeColumnFilterDropdown()">✕</button>
+        </div>
+        <input type="text" class="filter-input" style="width: 100%; box-sizing: border-box;" placeholder="Search values..." value="${escapeHTML(searchFilter)}" oninput="renderFilterDropdownContent('${colKey}', this.value)" />
+        <div class="col-filter-dropdown-actions">
+          <button type="button" onclick="selectAllColumnFilter('${colKey}', true)">Select All</button> |
+          <button type="button" onclick="selectAllColumnFilter('${colKey}', false)">Clear All</button>
+        </div>
+        <div class="col-filter-dropdown-list">
+          ${listHTML}
+        </div>
+      `;
+    }
+
+    function onFilterCheckboxChange(colKey) {
+      const dropdown = document.getElementById('columnFilterDropdown');
+      const checkboxes = dropdown.querySelectorAll('.col-filter-dropdown-list input[type="checkbox"]');
+      const allValues = getUniqueValuesForColumn(colKey);
+      
+      const checkedVals = new Set();
+      checkboxes.forEach(cb => {
+        if (cb.checked) {
+          checkedVals.add(cb.getAttribute('data-val'));
+        }
+      });
+
+      if (checkedVals.size === allValues.length) {
+        delete activeColumnFilters[colKey];
+      } else {
+        activeColumnFilters[colKey] = checkedVals;
+      }
+
+      renderTable();
+    }
+
+    function selectAllColumnFilter(colKey, selectAll) {
+      if (selectAll) {
+        delete activeColumnFilters[colKey];
+      } else {
+        activeColumnFilters[colKey] = new Set();
+      }
+      renderTable();
+      if (openFilterColKey === colKey) {
+        renderFilterDropdownContent(colKey);
+      }
+    }
+
+    function resetColumnFilter(colKey, event) {
+      if (event) event.stopPropagation();
+      delete activeColumnFilters[colKey];
+      if (openFilterColKey === colKey) {
+        closeColumnFilterDropdown();
+      }
+      renderTable();
     }
 
     function parseTextToTable() {
@@ -525,12 +738,17 @@
         const isSticky = visibleIdx < stickyColCount;
         const stickyStyle = isSticky ? `position: sticky; left: ${leftOffsets[cIdx]}px; z-index: 35; background: var(--bg);` : '';
         const showOptionsInput = col.type === 'categories' || col.type === 'predefined';
+        const isColFiltered = !!activeColumnFilters[col.key];
 
         headHTML += `<th style="width: ${colWidth}px; min-width: ${colWidth}px; ${stickyStyle}">
           <div class="col-header-box">
             <div class="col-header-top">
               <strong>${escapeHTML(col.key === '_comment' ? 'Comment' : col.key)}</strong>
-              <button class="btn-hide" onclick="toggleColumnVisibility(${cIdx})">👁️</button>
+              <div style="display: flex; align-items: center; gap: 4px;">
+                ${isColFiltered ? `<button class="col-filter-reset" title="Reset column filter" onclick="resetColumnFilter('${col.key}', event)">✕</button>` : ''}
+                <button class="col-filter-trigger ${isColFiltered ? 'is-active' : ''}" title="Filter column values" onclick="toggleColumnFilterDropdown('${col.key}', event)">🔻</button>
+                <button class="btn-hide" onclick="toggleColumnVisibility(${cIdx})">👁️</button>
+              </div>
             </div>
             <select onchange="updateColType(${cIdx}, this.value)">
               <option value="string"${col.type === 'string' ? ' selected' : ''}>String</option>
@@ -642,9 +860,10 @@
 
       // Update row counter display
       const rowCountElem = document.getElementById('rowCountText');
+      const isFilterActive = filterQuery.length > 0 || Object.keys(activeColumnFilters).length > 0;
       if (rowCountElem) {
         rowCountElem.innerText = `Total: ${totalRows} | Filtered out: ${filteredOutCount} | Left: ${showingCount}`;
-        rowCountElem.classList.toggle('active-filter', filterQuery.length > 0);
+        rowCountElem.classList.toggle('active-filter', isFilterActive);
       }
 
       updateSourceText();
@@ -822,6 +1041,16 @@
       document.getElementById('srcInput').value = '[\n' + lines.join('\n') + '\n]';
       saveToLocalStorage();
     }
+
+    // Global listener to close column filter dropdown when clicking outside
+    document.addEventListener('click', (e) => {
+      const dropdown = document.getElementById('columnFilterDropdown');
+      if (dropdown && dropdown.style.display !== 'none') {
+        if (!dropdown.contains(e.target) && !e.target.closest('.col-filter-trigger')) {
+          closeColumnFilterDropdown();
+        }
+      }
+    });
 
     document.addEventListener('DOMContentLoaded', () => {
       initTheme();
