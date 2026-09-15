@@ -1,5 +1,6 @@
 #include "./hand_layer.h"
 #include "./hand_geometry.h"
+#include "../graphics/subpixel.h"
 
 // subpixel_round_div/BAYER4/FGPoint helpers and the subpixel_fill_polygon_fp()/
 // subpixel_fill_polygon_dithered_fp()/subpixel_fill_circle_fp()/subpixel_stroke_line_fp()/

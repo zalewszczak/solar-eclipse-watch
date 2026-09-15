@@ -450,7 +450,7 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
 
   // Hour/second markers -- analog mode only. Drawn on top of
   // everything above (sky, sun/moon, clouds, labels) so they stay
-  // visible over any part of the sky -- matching hands_layer_update_proc's
+  // visible over any part of the sky -- matching hands controller's
   // own positioning, which always uses the full unobstructed screen, so
   // markers and hands stay aligned with each other.
   // skip_marker_paint: this frame's markers get drawn afterward

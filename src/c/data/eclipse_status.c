@@ -39,7 +39,7 @@ EclipsePhase eclipse_status_get_text(const EclipseData *d, time_t now, char *buf
     return PHASE_NO_ECLIPSE;
   }
   // This field is purely about eclipse phases now -- Moon phase has
-  // its own corner content type instead (see corners_layer_update_proc
+  // its own corner content type instead (see feature layout/rendering
   // in the application controller). No eclipse today (or today's has
   // already finished) means nothing to report here at all; the caller
   // hides the whole text layer in that case rather than leaving it

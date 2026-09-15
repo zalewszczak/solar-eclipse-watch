@@ -46,7 +46,7 @@ static inline GPoint subpixel_fgpoint_to_gpoint(FGPoint fp) {
 
 // 4x4 ordered-dither matrix + ~50% threshold, shared by every dithered
 // fill/stroke below -- one copy, in subpixel.c, used directly by both
-// background_layer.c and hand_layer.c's own dithering code (not just by
+// background_layer module and hand_layer.c's own dithering code (not just by
 // the rasterizers below), so it stays `extern` rather than file-static.
 extern const uint8_t BAYER4[4][4];
 
@@ -66,7 +66,7 @@ extern const uint8_t BAYER4[4][4];
 int32_t subpixel_round_div(int32_t num, int32_t denom);
 
 // Plain integer square root (binary/digit-by-digit method, same
-// approach as background_layer.c's own isqrt32) for 64-bit inputs --
+// approach as background_layer module's own isqrt32) for 64-bit inputs --
 // needed here (rather than reusing that 32-bit one) because squared
 // sub-pixel (Q24.8) lengths overflow int32 well before the lengths
 // themselves get interesting (a ~100px edge is already ~25600 in fp

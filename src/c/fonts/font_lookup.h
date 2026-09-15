@@ -51,7 +51,7 @@ uint8_t font_lookup_height(uint8_t font_id);
 // Per-font vertical fine-tune in px, added to font_lookup_height()'s
 // result when placing text. Pulled from the old, separate per-system
 // hand-tuned tables this replaced (get_clock_font_height_offset() in
-// pebble-eclipse-watch.c, MARKER_FONT_Y_OFFSET in background_layer.c)
+// application entry point, MARKER_FONT_Y_OFFSET in background_layer module)
 // -- most fonts had the same
 // offset in every context they appeared, but a couple (Digital Dream
 // Small, Minecrafter Small) were tuned slightly differently depending

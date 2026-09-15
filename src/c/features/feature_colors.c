@@ -1,7 +1,7 @@
 #include "./feature_colors.h"
 
 GColor feature_colors_seven_stop_gradient(int32_t value, int32_t min_v, int32_t max_v) {
-  static const int16_t STOPS[7][3] = {
+  static const uint8_t STOPS[7][3] = {
     {  64, 224, 208 },  // turquoise
     { 173, 216, 230 },  // light blue
     {   0, 200,   0 },  // green

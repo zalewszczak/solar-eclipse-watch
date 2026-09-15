@@ -1,5 +1,6 @@
 #include "./weather_effects.h"
 #include "../../graphics/subpixel.h"
+#include "./weather_layout.h"
 
 typedef struct { uint8_t r, g, b; } RGB8;
 static uint8_t lerp8(uint8_t a, uint8_t b, int32_t num, int32_t den) {
@@ -16,9 +17,8 @@ static uint8_t dither_channel(uint8_t c, uint8_t b) {
 static GColor dither_pixel(RGB8 c,uint8_t b) { return GColorFromRGB(dither_channel(c.r,b)*85,dither_channel(c.g,b)*85,dither_channel(c.b,b)*85); }
 #define GROUND_H 18
 #define SKY_TOP_MARGIN 20
-#define CLOUD_CLUSTER_SLOTS 4
-static const int16_t CLUSTER_X_PCT[CLOUD_CLUSTER_SLOTS] = { 18, 45, 68, 88 };
-static const int16_t CLUSTER_Y_OFFSET[CLOUD_CLUSTER_SLOTS] = { 0, -6, 4, -3 };
+const int8_t WEATHER_CLOUD_CLUSTER_X_PCT[WEATHER_CLOUD_CLUSTER_SLOTS] = { 18, 45, 68, 88 };
+const int8_t WEATHER_CLOUD_CLUSTER_Y_OFFSET[WEATHER_CLOUD_CLUSTER_SLOTS] = { 0, -6, 4, -3 };
 
 static const GPoint RAIN_OFFSETS[5] = {
   { -16, 8 }, { -5, 15 }, { 6, 10 }, { 17, 17 }, { 0, 24 },
@@ -35,7 +35,7 @@ static int16_t compute_cloud_band_y(GRect bounds,uint8_t cloud_altitude_pct) {
 }
 static int cloud_cluster_count(uint8_t cloud_pct,bool stormy) {
   if (stormy) {
-    return CLOUD_CLUSTER_SLOTS;
+    return WEATHER_CLOUD_CLUSTER_SLOTS;
   }
   int count = 1;
   if (cloud_pct > 15) count = 2;
@@ -54,8 +54,8 @@ void weather_effects_draw_effect(GContext *ctx, GRect bounds, uint8_t condition,
     graphics_context_set_stroke_color(ctx, GColorFromRGB(40, 100, 210));
     graphics_context_set_stroke_width(ctx, condition == 4 ? 2 : 1);
     for (int c = 0; c < cluster_count; c++) {
-      int16_t cx = bounds.origin.x + (bounds.size.w * CLUSTER_X_PCT[c]) / 100;
-      int16_t base_y = band_y + CLUSTER_Y_OFFSET[c] + 15; // just below the puff cluster's underside
+      int16_t cx = bounds.origin.x + (bounds.size.w * WEATHER_CLOUD_CLUSTER_X_PCT[c]) / 100;
+      int16_t base_y = band_y + WEATHER_CLOUD_CLUSTER_Y_OFFSET[c] + 15; // just below the puff cluster's underside
       for (int i = 0; i < RAIN_OFFSET_COUNT; i++) {
         int16_t x = cx + RAIN_OFFSETS[i].x;
         int16_t y = base_y + RAIN_OFFSETS[i].y;
@@ -78,8 +78,8 @@ void weather_effects_draw_effect(GContext *ctx, GRect bounds, uint8_t condition,
     int cluster_count = cloud_cluster_count(cloud_pct < 60 ? 60 : cloud_pct, false);
     graphics_context_set_fill_color(ctx, GColorWhite);
     for (int c = 0; c < cluster_count; c++) {
-      int16_t cx = bounds.origin.x + (bounds.size.w * CLUSTER_X_PCT[c]) / 100;
-      int16_t base_y = band_y + CLUSTER_Y_OFFSET[c] + 15;
+      int16_t cx = bounds.origin.x + (bounds.size.w * WEATHER_CLOUD_CLUSTER_X_PCT[c]) / 100;
+      int16_t base_y = band_y + WEATHER_CLOUD_CLUSTER_Y_OFFSET[c] + 15;
       for (int i = 0; i < SNOW_OFFSET_COUNT; i++) {
         int16_t x = cx + SNOW_OFFSETS[i].x;
         int16_t y = base_y + SNOW_OFFSETS[i].y;
@@ -139,10 +139,10 @@ void weather_effects_draw_meteors(GContext *ctx, GRect bounds, uint8_t intensity
 // it assumes it's only being asked to draw because that check already
 // passed.
 #define AURORA_STREAK_COUNT 7
-static const int16_t AURORA_STREAK_X_PCT[AURORA_STREAK_COUNT] = { 8, 22, 38, 50, 64, 80, 94 };
+static const uint8_t AURORA_STREAK_X_PCT[AURORA_STREAK_COUNT] = { 8, 22, 38, 50, 64, 80, 94 };
 // Uneven heights (percent of the band's own max) so the streaks read
 // as a rippling curtain skyline rather than a uniform wall.
-static const int16_t AURORA_STREAK_HEIGHT_PCT[AURORA_STREAK_COUNT] = { 70, 100, 55, 85, 65, 95, 60 };
+static const uint8_t AURORA_STREAK_HEIGHT_PCT[AURORA_STREAK_COUNT] = { 70, 100, 55, 85, 65, 95, 60 };
 // Native-angle (0-65535) ripple phase offsets, so neighboring streaks
 // don't wave in lockstep.
 static const int32_t AURORA_STREAK_PHASE[AURORA_STREAK_COUNT] = { 0, 9362, 18725, 28087, 37449, 46811, 56174 };

@@ -1,29 +1,8 @@
 #include "./feature_render.h"
 #include "./feature_icons.h"
+#include "./feature_icon_assets.h"
 
 #define CORNER_INSET_PX 2
-
-static const GPoint OUTLINE_OFFSETS_THIN[4] = {
-  {-1, 0}, {1, 0}, {0, -1}, {0, 1}
-};
-
-static const GPoint OUTLINE_OFFSETS_THICK[12] = {
-  {-1, 0}, {1, 0}, {0, -1}, {0, 1},
-  {-2, 0}, {2, 0}, {0, -2}, {0, 2},
-  {1, 1}, {-1, 1}, {-1, -1}, {1, -1},
-};
-
-static void get_outline_offsets(uint8_t outline_style,
-                                const GPoint **out_offsets,
-                                int *out_count) {
-  if (outline_style >= 2) {
-    *out_offsets = OUTLINE_OFFSETS_THICK;
-    *out_count = 12;
-  } else {
-    *out_offsets = OUTLINE_OFFSETS_THIN;
-    *out_count = 4;
-  }
-}
 
 GColor feature_render_contrasting_outline_color(GColor c) {
   uint8_t r = (c.argb >> 4) & 0x03;
@@ -39,7 +18,7 @@ void feature_render_draw_text_outlined(GContext *ctx, const char *text, GFont fo
   if (outline_style != 0) {
     const GPoint *offsets;
     int offset_count;
-    get_outline_offsets(outline_style, &offsets, &offset_count);
+    feature_icon_assets_get_outline_offsets(outline_style, &offsets, &offset_count);
     graphics_context_set_text_color(ctx, feature_render_contrasting_outline_color(color));
     for (int i = 0; i < offset_count; i++) {
       GRect shifted = GRect(box.origin.x + offsets[i].x, box.origin.y + offsets[i].y,

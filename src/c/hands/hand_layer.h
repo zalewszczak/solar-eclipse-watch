@@ -13,7 +13,7 @@
 // "preset" mode on the watch side to route around this. Own file,
 // mirroring background_layer.{c,h}.
 //
-// Unlike the custom marker ring (background_layer.c), there's no cached-
+// Unlike the custom marker ring (background_layer module), there's no cached-
 // bitmap trick here -- and deliberately so. A hand's on-screen angle
 // changes on essentially every redraw (the second hand every tick, the
 // minute hand every minute), so there's no fixed set of pixels to

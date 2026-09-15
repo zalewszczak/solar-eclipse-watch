@@ -1,5 +1,6 @@
 #include "./weather_layer.h"
 #include "../../graphics/subpixel.h"
+#include "./weather_layout.h"
 
 // Treat a weather value as stale only after repeated failed refreshes.
 // Keep the last valid weather state during short-lived fetch failures.
@@ -8,8 +9,6 @@ bool weather_layer_should_show_error(const EclipseData *data) {
   if (!data->weather_ever_valid) return true;
   return data->weather_error_streak >= 10;
 }
-#include "../../graphics/subpixel.h"
-
 #define GROUND_H 18
 #define SKY_TOP_MARGIN 20
 
@@ -134,12 +133,8 @@ static int32_t cloud_field_value(int16_t px, int16_t py, const ScaledCloudSeed s
 // or down slightly so a multi-cluster sky doesn't look like the same
 // shape copy-pasted in a row. Shared with draw_weather_effect so
 // rain/snow fall from the same positions the clouds actually occupy.
-#define CLOUD_CLUSTER_SLOTS 4
-static const int16_t CLUSTER_X_PCT[CLOUD_CLUSTER_SLOTS] = { 18, 45, 68, 88 };
-static const int16_t CLUSTER_Y_OFFSET[CLOUD_CLUSTER_SLOTS] = { 0, -6, 4, -3 };
-
 static int cloud_cluster_count(uint8_t cloud_pct, bool stormy) {
-  if (stormy) return CLOUD_CLUSTER_SLOTS;
+  if (stormy) return WEATHER_CLOUD_CLUSTER_SLOTS;
   int count = 1;
   if (cloud_pct > 15) count = 2;
   if (cloud_pct > 45) count = 3;
@@ -277,8 +272,8 @@ void weather_layer_draw_clouds(GContext *ctx, GRect bounds, uint8_t cloud_pct, u
   int16_t down_h = (30 * scale_pct) / 100 + 5;
 
   for (int c = 0; c < cluster_count; c++) {
-    int16_t cx = bounds.origin.x + (bounds.size.w * CLUSTER_X_PCT[c]) / 100;
-    int16_t cy = band_y + CLUSTER_Y_OFFSET[c];
+    int16_t cx = bounds.origin.x + (bounds.size.w * WEATHER_CLOUD_CLUSTER_X_PCT[c]) / 100;
+    int16_t cy = band_y + WEATHER_CLOUD_CLUSTER_Y_OFFSET[c];
 
     // Light direction from this cluster toward the Sun, normalized to
     // ~100 magnitude -- falls back to straight up (Sun below horizon,
@@ -351,7 +346,7 @@ void weather_layer_draw_clouds(GContext *ctx, GRect bounds, uint8_t cloud_pct, u
     // base down toward the ground -- fixed zigzag shape, not
     // randomized per strike, which keeps this cheap (no RNG state to
     // carry) and is barely noticeable given how brief each flash is.
-    int16_t bx = bounds.origin.x + (bounds.size.w * CLUSTER_X_PCT[0]) / 100;
+    int16_t bx = bounds.origin.x + (bounds.size.w * WEATHER_CLOUD_CLUSTER_X_PCT[0]) / 100;
     int16_t by = band_y + 10;
     int16_t ground_y = bounds.origin.y + bounds.size.h - GROUND_H;
     int16_t span = ground_y - by;

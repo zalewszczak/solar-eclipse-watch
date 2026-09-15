@@ -175,7 +175,7 @@ static void draw_ring_mark_fp(GContext *ctx, FGPoint inner, FGPoint outer, int32
 // scheme -- same 3-way (main/accent/background) selection used all
 // over this app, just not through hand_layer.c's own private
 // resolve_scheme_color() (file-local there, and this is the only
-// place background_layer.c needs the same lookup).
+// place background_layer module needs the same lookup).
 static GColor marker_ring_color(uint8_t choice, GColor main_color, GColor accent_color, GColor bg_color) {
   switch (choice) {
     case 1: return accent_color;

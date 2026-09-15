@@ -18,7 +18,7 @@
 // `if ((t = dict_find(iter, KEY))) d->field = ...;` block.
 // Everything else (validation/clamping, derived fields like has_eclipse,
 // byte-blob arrays, the 5 consolidated groups, and anything that needs
-// to mark a layer dirty or call apply_layout()/apply_clock_font()) keeps
+// to mark a layer dirty or call apply_layout()/clock_display font handling) keeps
 // its own explicit code below, unchanged -- forcing those into this same
 // table would need a per-field side-effect callback, which is most of
 // this table's own complexity right back again for comparatively

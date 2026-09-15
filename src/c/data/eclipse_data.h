@@ -16,7 +16,7 @@
 
 // How many bright named stars space-view sky mode draws. Fixed (not
 // sent over AppMessage) -- must match src/pkjs/astro.js's STAR_CATALOG
-// length exactly, and STARS[]' own length in background_layer.c (which
+// length exactly, and STARS[]' own length in background_layer module (which
 // owns each star's display name, in the same order PKJS's catalog is
 // in) has to match too.
 #define STAR_COUNT 16
@@ -91,8 +91,8 @@ typedef enum {
   ECLIPSE_TYPE_ANNULAR = 3
 } EclipseType;
 
-// Clock font codes handled by apply_clock_font() in
-// pebble-eclipse-watch.c: 0=Leco (default), 1-16=custom .ttf/.otf
+// Clock font codes handled by clock_display font handling in
+// application entry point: 0=Leco (default), 1-16=custom .ttf/.otf
 // resources (see that switch for which), 17=Roboto, 18=Bitham Light,
 // 19=Bitham Bold. Kept as a plain uint8_t on EclipseData rather than
 // an enum, since the meaningful range doesn't fit a small one.
@@ -134,7 +134,7 @@ typedef struct {
   uint8_t humidity_pct;          // current relative humidity, 0-100
   int16_t wind_speed_kmh;        // current wind speed, km/h
 
-  // The four corners overlay (see corners_layer_update_proc in
+  // The four corners overlay (see feature layout/rendering in
   // The field is consumed by the application controller rather than by a
   // temp-range/brief-weather/battery/moon-phase readouts with a fully
   // user-picked set of up to 4 small info items, one per screen
@@ -159,7 +159,7 @@ typedef struct {
   // "Edge-middle" slots -- upper-middle, bottom-middle, middle-left,
   // middle-right -- around the analog clock face. Which of the
   // 4 are actually shown depends on bottom_style/big_analog_marker_style
-  // (see corners_layer_update_proc in pebble-eclipse-watch.c):
+  // (see feature layout/rendering in application entry point):
   // digital mode uses none of them; analog mode's procedural
   // marker styles (<3, no artwork constraints) use all 4 alongside
   // the corners; analog mode's bitmap styles (>=3) are limited to
@@ -246,7 +246,7 @@ typedef struct {
                                  // 1=Outlined (main-color text with a 4-direction-shifted contrasting
                                  // outline, same technique corner/edge feature text already uses),
                                  // 2=Soft (plain light-gray text, no background or outline). See
-                                 // draw_label() in background_layer.c.
+                                 // label rendering in marker/celestial presentation modules.
   bool vibrate_on_phase_change; // user setting: brief double vibration when the eclipse crosses
                                   // into its next phase (C1/C2/C3/C4) -- not on the "there's an
                                   // eclipse today, waiting" transition, only real contact events
@@ -258,12 +258,12 @@ typedef struct {
                                      // (same sweep-in, but chasing the SAME swept-past time the
                                      // Planets background animation (bg_anim_mode 1) is itself
                                      // sweeping through instead of the real fixed current time -- see
-                                     // hands_layer_update_proc()'s own s_data.bg_anim_mode == 1 check
+                                     // hands controller()'s own s_data.bg_anim_mode == 1 check
                                      // right below where this field is read, which is what makes mode
                                      // 2 fall back to behaving like mode 1 whenever Planets isn't
                                      // ALSO the active background animation, since there's no time
                                      // shift to chase otherwise). See s_startup_clock_anim_* in
-                                     // pebble-eclipse-watch.c and hand_layer.c's HandConfig-level
+                                     // application entry point and hand_layer.c's HandConfig-level
                                      // sweep-in support.
   uint8_t bg_anim_mode; // user setting ("Animation" section, default 0=off): radio-style, exactly one
                          // of 0=off, 1=planets (Sun/Moon/planets + the sky gradient sweep in from
@@ -288,7 +288,7 @@ typedef struct {
                              // own gating at the trigger site), 3=Both (smooth second hand AND
                              // Planet seek run together for the same window -- see
                              // shake_anim_wants_smooth_second()/shake_anim_wants_planet_seek() in
-                             // pebble-eclipse-watch.c, which centralizes mode checks so 1 and 2
+                             // application entry point, which centralizes mode checks so 1 and 2
                              // stay mutually exclusive while 3 opts into both).
   uint8_t outline_style; // user setting: 0=none, 1=thin (1px contrasting-color outline, the
                            // standard 1px outline), 2=thick (thin's same 4
@@ -306,7 +306,7 @@ typedef struct {
                                 // corner/edge refresh timer, and tells the phone (via
                                 // MESSAGE_KEY_BATTERY_SAVER_PHASE) to hold off on its own periodic
                                 // refresh until the next full hour. See the "battery saver" block
-                                // in pebble-eclipse-watch.c for the whole state machine -- s_data
+                                // in application entry point for the whole state machine -- s_data
                                 // itself only ever holds whether the feature is turned on; the
                                 // actual awake/sleep/deep-sleep phase is runtime-only state, not
                                 // persisted (s_last_shake_time/s_battery_saver_phase), since it
@@ -341,7 +341,7 @@ typedef struct {
                               // to 120.
 
   // bottom_style==1 (analog) hands -- rendered in their own
-  // always-on-top layer (see pebble-eclipse-watch.c), separate from
+  // always-on-top layer (see application entry point), separate from
   // the sky canvas underneath. Every hand the watch ever draws is one
   // of these full HandConfig field sets -- pkjs is what offers a
   // gallery of quick-pick preset buttons on top of this (see
@@ -357,7 +357,7 @@ typedef struct {
   uint8_t center_circle_radius; // 0 = off, else px
   uint8_t center_circle_color;  // 0=main, 1=accent, 2=background
 
-  // 0=minimal, 1=small, 2=big -- all three now drawn by background_layer.c's shared
+  // 0=minimal, 1=small, 2=big -- all three now drawn by background_layer module's shared
   // marker rasterizer too, via a small hardcoded MarkerRingConfig preset per style
   // (see MARKER_STYLE_PRESETS in that file) rather than their own separate procedural
   // drawing code -- same code path as style 8 (custom), just with fixed presets instead
@@ -366,7 +366,7 @@ typedef struct {
   // (RESOURCE_ID_xxx_BACKGROUND) tinted with the main color, replacing the procedural
   // markers entirely. See corner_content/upper_middle_content below for how picking a
   // bitmap style also disables the 4 corners in favor of one upper-middle slot.
-  // 8=custom -- user-built hour/second marker system, see background_layer.c and the
+  // 8=custom -- user-built hour/second marker system, see background_layer module and the
   // custom_hour_marker/custom_second_marker/marker_text fields below.
   // 9=none -- no marker ring at all (hour or second), same corner/edge-slot availability
   // as the procedural styles (all 4 corners + all 4 edge-middle slots, no bitmap mask
@@ -385,7 +385,7 @@ typedef struct {
   // independent rings (hour, second) rather than one single mask.
   bool bitmap_marker_transparent;
 
-  // Only meaningful when big_analog_marker_style == 8. See background_layer.c (the
+  // Only meaningful when big_analog_marker_style == 8. See background_layer module (the
   // merged sky-canvas-and-markers layer) for how these get drawn -- as part of its own
   // once-a-minute cached full redraw, not a separate per-tick pass.
   MarkerRingConfig custom_hour_marker;
@@ -405,7 +405,7 @@ typedef struct {
   // INNER_THICKNESS/MK_CUSTOM_SEC_INNER_THICKNESS in SIMPLE_FIELD_MAP),
   // leaving MarkerRingConfig and the packed blob's format untouched.
   // A phone that hasn't sent these yet leaves them at their power-on
-  // 0, which draw_marker_ring() in background_layer.c floors the exact
+  // 0, which draw_marker_ring() in background_layer module floors the exact
   // same way it already floors `thickness` (never below a ~1px-
   // equivalent minimum), so an unset 0 quietly behaves like 1 (the
   // sharpest possible taper) rather than needing its own special case.
@@ -453,7 +453,7 @@ typedef struct {
   uint8_t weather_icon_style; // 0=simple, 1=hollow, 2=full color -- which of the "Weather icon"/
                                 // "Temp + weather icon" corner content styles to draw. 1=hollow
                                 // and 2=full color are both implemented (see draw_weather_icon_hollow()/
-                                // draw_weather_icon_filled() in pebble-eclipse-watch.c); 0=simple is
+                                // feature weather icon rendering); 0=simple is
                                 // still a placeholder stub. Full color is a genuinely different kind of
                                 // icon from the other two -- see the "Full color weather icons" section
                                 // in README.md -- so it ignores whatever corner_color_mode the slot is
@@ -496,7 +496,7 @@ typedef struct {
   uint8_t forecast_condition[6];
   char location_name[32];    // reverse-geocoded place name, e.g. "Innsbruck, Austria"
 
-  uint8_t timezone_id;       // index into the TIMEZONES[] table in pebble-eclipse-watch.c --
+  uint8_t timezone_id;       // index into the TIMEZONES[] table in application entry point --
                                // which city's time the "Timezone" corner content shows. A
                                // settings-page-only choice in spirit (one value, not per-slot),
                                // same pattern as weather_icon_style above.
@@ -583,7 +583,7 @@ typedef struct {
   // animates continuously along its precomputed day-arc), these are
   // just re-sent as a fresh snapshot each refresh and drawn as-is
   // until the next one -- see computeVisibleStars() in astro.js and
-  // STARS[] in background_layer.c for the fixed name/order both sides
+  // STARS[] in background_layer module for the fixed name/order both sides
   // share.
   int16_t star_alt_decideg[STAR_COUNT];
   uint16_t star_az_decideg[STAR_COUNT];
@@ -656,7 +656,7 @@ typedef struct {
 
   // Hourly vibrations -- a periodic reminder buzz, independent of
   // everything else in this struct. See maybe_do_hourly_vibe() in
-  // pebble-eclipse-watch.c for the actual scheduling logic.
+  // application entry point for the actual scheduling logic.
   uint8_t hourly_vibe_mode;      // 0=off, 1=on full hours, 2=every hourly_vibe_interval_min minutes
   uint8_t hourly_vibe_interval_min; // 1-180, only meaningful for mode 2
   uint8_t hourly_vibe_pattern;   // 0=short, 1=double, 2=long -- see vibe_for_pattern()

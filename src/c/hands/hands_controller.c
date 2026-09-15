@@ -116,7 +116,7 @@ static int32_t ease_out_lut_1000(int32_t t) {
   return lo + ((hi - lo) * frac) / 50;
 }
 
-static void hands_layer_update_proc(Layer *layer, GContext *ctx) {
+static void hands_controller_update_proc(Layer *layer, GContext *ctx) {
   // Unobstructed (not full) bounds -- this layer has no background
   // fill of its own to worry about leaving gaps in (it's a pure
   // overlay on top of the sky canvas), so everything here can just
@@ -133,7 +133,7 @@ static void hands_layer_update_proc(Layer *layer, GContext *ctx) {
 
   // Markers (procedural presets, custom, and bitmap styles alike) are no
   // longer drawn here -- they're part of the sky canvas's own cached
-  // redraw now (background_layer.c), composited once per its own
+  // redraw now (background_layer module), composited once per its own
   // once-a-minute/force-redraw cadence rather than every tick this
   // always-on-top hands layer runs.
   feature_controller_ensure_corner_custom_font(s_data->corner_font);
@@ -175,7 +175,7 @@ static void hands_layer_update_proc(Layer *layer, GContext *ctx) {
     // (bg_anim_mode 1) is ALSO actually running right now do the hands
     // chase the SAME swept time the sky itself is sweeping through
     // (see canvas_update_proc's own sky_now substitution in
-    // background_layer.c) instead of the real, fixed current time --
+    // background_layer module) instead of the real, fixed current time --
     // so the hands visibly advance through the same ~2 hours the
     // planets are moving through in the background, rather than the
     // sky alone appearing to animate while the hands just swing into
@@ -184,7 +184,7 @@ static void hands_layer_update_proc(Layer *layer, GContext *ctx) {
     // Planets isn't the active background animation, since there's no
     // time shift to chase in that case. Shares BACKGROUND_ANIMATION_DURATION_MS as its own
     // total duration and ease_out_cubic_1000
-    // (identical curve to background_layer.c's own
+    // (identical curve to background_layer module's own
     // bg_anim_ease_out_1000 -- see that function's own comment) so the
     // two sweeps advance in step with each other.
     if (s_data->startup_clock_anim_mode == 2 && background_animation_is_active() && s_data->bg_anim_mode == 1) {
@@ -265,7 +265,7 @@ void hands_controller_deinit(void) {
 Layer *hands_controller_create_layer(GRect frame) {
   s_hands_layer = layer_create(frame);
   if (!s_hands_layer) return NULL;
-  layer_set_update_proc(s_hands_layer, hands_layer_update_proc);
+  layer_set_update_proc(s_hands_layer, hands_controller_update_proc);
   return s_hands_layer;
 }
 

@@ -5,7 +5,7 @@
 
 // Cached framebuffer region used by the background canvas between expensive
 // full redraws. The cache deliberately knows nothing about eclipse phases,
-// weather, celestial bodies, or overlays; background_layer.c decides WHEN a
+// weather, celestial bodies, or overlays; background_layer module decides WHEN a
 // full render is required and this module handles the framebuffer mechanics.
 
 typedef struct {
