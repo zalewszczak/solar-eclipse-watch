@@ -1,6 +1,7 @@
 #include <pebble.h>
 #include "./comms.h"
 #include "./comms_decoder.h"
+#include "../generated/message_key_index.h"
 
 #define STARTUP_REQUEST_DELAY_MS 3000
 
@@ -11,17 +12,22 @@ static AppTimer *s_retry_timer = NULL;
 static AppTimer *s_startup_timer = NULL;
 static uint16_t s_retry_delay_s = 8;
 
+// Outbound keys go through MESSAGE_KEY_MESSAGE_TYPE + MK_* for the same
+// reason the decoder's tables do: one MESSAGE_KEY_* word in .data (and
+// one relocation for the pointer to it) instead of one per key. See the
+// comment at the top of comms_decoder.c.
+
 bool comms_send_battery_saver_phase(uint8_t phase) {
   DictionaryIterator *iter;
   if (app_message_outbox_begin(&iter) != APP_MSG_OK) return false;
-  dict_write_uint8(iter, MESSAGE_KEY_BATTERY_SAVER_PHASE, phase);
+  dict_write_uint8(iter, MESSAGE_KEY_MESSAGE_TYPE + MK_BATTERY_SAVER_PHASE, phase);
   return app_message_outbox_send() == APP_MSG_OK;
 }
 
 static void request_update(void) {
   DictionaryIterator *iter;
   if (app_message_outbox_begin(&iter) != APP_MSG_OK) return;
-  dict_write_uint8(iter, MESSAGE_KEY_REQUEST_UPDATE, 1);
+  dict_write_uint8(iter, MESSAGE_KEY_MESSAGE_TYPE + MK_REQUEST_UPDATE, 1);
   app_message_outbox_send();
 }
 
@@ -46,24 +52,17 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   EclipseData *d = s_data;
   CommsChangeFlags changes = comms_decoder_apply(iter, d);
 
-  if ((dict_find(iter, MESSAGE_KEY_DATA_VALID)) && d->valid && s_retry_timer) {
-    // Real data made it through -- no need to keep pinging PKJS
-    // for it anymore.
+  // Real data exists -- no need to keep pinging PKJS for it. This used
+  // to also dict_find(DATA_VALID) first, purely to ask "did *this*
+  // message carry validity?", but the retry chain already stops itself
+  // the moment d->valid is true (see request_retry_callback), so the
+  // extra lookup and its MESSAGE_KEY_* word bought nothing.
+  if (d->valid && s_retry_timer) {
     app_timer_cancel(s_retry_timer);
     s_retry_timer = NULL;
   }
 
-  if (!d->valid) {
-    if (s_data_applied) s_data_applied(changes, s_data_context);
-    return;
-  }
-
   if (s_data_applied) s_data_applied(changes, s_data_context);
-}
-
-static void inbox_dropped_handler(AppMessageResult reason, void *context) {
-  (void)context;
-  APP_LOG(APP_LOG_LEVEL_ERROR, "Inbox dropped: %d", (int)reason);
 }
 
 void comms_init(EclipseData *data, CommsDataAppliedHandler handler, void *context) {
@@ -72,7 +71,9 @@ void comms_init(EclipseData *data, CommsDataAppliedHandler handler, void *contex
   s_data_context = context;
   s_retry_delay_s = 8;
   app_message_register_inbox_received(inbox_received_handler);
-  app_message_register_inbox_dropped(inbox_dropped_handler);
+  // No inbox_dropped handler: it only ever APP_LOG()'d the reason, which
+  // is a format string plus a call in a release binary. Re-register one
+  // temporarily if a dropped-message bug needs chasing.
   app_message_open(APPMSG_INBOX_SIZE, APPMSG_OUTBOX_SIZE);
   s_startup_timer = app_timer_register(STARTUP_REQUEST_DELAY_MS, startup_request_delay_callback, NULL);
 }

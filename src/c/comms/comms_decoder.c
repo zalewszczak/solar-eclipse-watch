@@ -6,56 +6,84 @@
 #include "../data/hand_types.h"
 #include "../data/marker_types.h"
 
-// ---- Table-driven plain-copy message fields ---------------------------
-// The watch receives a compact set of consolidated message fields.
-// 5 grouped ones -- HANDS/MARKER_RINGS/EDGE_LINES/MARKER_TEXT/COLORS,
-// handled by apply_consolidated_fields() below instead), this app has
-// ~113 AppMessage keys; roughly half resolve to nothing more than "copy
-// this value into this EclipseData field, with this one conversion" --
-// no clamping, no derived state, no layer redraw to trigger. Those are
-// handled once, generically, via this table + apply_simple_fields()
-// below, instead of each getting its own hand-written
-// `if ((t = dict_find(iter, KEY))) d->field = ...;` block.
-// Everything else (validation/clamping, derived fields like has_eclipse,
-// byte-blob arrays, the 5 consolidated groups, and anything that needs
-// to mark a layer dirty or call apply_layout()/clock_display font handling) keeps
-// its own explicit code below, unchanged -- forcing those into this same
-// table would need a per-field side-effect callback, which is most of
-// this table's own complexity right back again for comparatively
-// little further size win. Order doesn't matter: every field here is
-// independent of every other one (and of the explicit fields below) --
-// nothing here reads any s_data field, so there's no way processing
-// them via one generic loop instead of scattered inline can observe a
-// different result than the original hand-written order did. Run
-// first, before any of the explicit blocks below, purely so that
-// something like corner-content's own features_layer_set_data() call
-// (further down) always sees this message's freshly-applied values
-// rather than last message's -- moving a field out of this table
-// always needs the same "does anything downstream read it" check.
+// ---- Why (almost) everything in here is table-driven -------------------
+// This app has ~127 AppMessage keys. Written out longhand, each one costs
+// roughly 26 bytes of Thumb-2 (`ldr` the key's address out of the literal
+// pool, `ldr` the key, `bl dict_find`, test, load, store) PLUS a 4-byte
+// `MESSAGE_KEY_*` word in .data, PLUS a relocation entry in the .pbw for
+// the literal-pool pointer to it -- call it ~34 bytes of binary per key
+// before any actual field logic runs.
+//
+// So the rule in this file is: a key gets hand-written code only when it
+// needs something a table genuinely cannot express (a value transform, a
+// derived field, a saturating clamp against a large limit). Everything
+// else is a row and costs 4 or 6 bytes of .rodata.
+//
+// The tables store an *index* (MK_*, from the generated header) rather
+// than the key itself, because MESSAGE_KEY_* are extern variables
+// assigned at link time and so can't appear in a `static const`
+// initializer, while MK_* is a plain integer literal. The real key is
+// MESSAGE_KEY_MESSAGE_TYPE + MK_*, recovered at runtime -- one GOT load
+// for the whole decode instead of one per key. See message_key_index.h,
+// and the generator script, which asserts messageKeys[0] ==
+// "MESSAGE_TYPE" at generation time so this arithmetic cannot silently
+// drift (it used to be re-checked at every app launch, which cost more
+// binary than the bug it guarded against ever could).
+
+#define NELEM(a) ((uint8_t)(sizeof(a) / sizeof((a)[0])))
+
+// ---- Table 1: plain-copy fields ---------------------------------------
+// "Copy this value into this EclipseData field, with this one
+// conversion, and optionally raise one change flag." No derived state,
+// no bookkeeping beyond the flag.
+//
+// Low nibble of `type_flag` is the SimpleFieldType; the high nibble is
+// the change flag, stored as (bit index + 1) so that 0 means "no flag"
+// and the flag can be recovered branchlessly as (1u << nibble) >> 1.
+
 typedef enum {
-  F_U8,             // d->FIELD = t->value->uint8;
-  F_BOOL,           // d->FIELD = t->value->uint8 != 0;
-  F_I16,            // d->FIELD = t->value->int16;
-  F_I8_FROM_I16,    // d->FIELD = (int8_t)t->value->int16;
-  F_U16,            // d->FIELD = t->value->uint16;
-  F_U32,            // d->FIELD = t->value->uint32;
-  F_TIME,           // d->FIELD = (time_t)t->value->int32;
+  F_U8 = 0,     // d->FIELD = t->value->uint8;
+  F_BOOL,       // d->FIELD = t->value->uint8 != 0;
+  F_I16,        // d->FIELD = t->value->int16;
+  F_U16,        // d->FIELD = t->value->uint16;
+  F_U32,        // d->FIELD = t->value->uint32;
+  F_TIME,       // d->FIELD = (time_t)t->value->int32;
+  // Radio-style settings: any byte past the last valid option falls back
+  // to 0 ("off"). The limit is baked into the type so a row stays 4
+  // bytes; only these two limits exist today, add another value here if
+  // a third ever shows up. Keep these last -- the switch below treats
+  // everything from F_U8_MAX2 on as "clamped uint8".
+  F_U8_MAX2,    // d->FIELD = (v <= 2) ? v : 0;
+  F_U8_MAX3,    // d->FIELD = (v <= 3) ? v : 0;
 } SimpleFieldType;
 
-typedef struct {
-  uint8_t  key_index; // position in package.json's messageKeys array (see message_key_index.h) --
-                       // MESSAGE_KEY_MESSAGE_TYPE + key_index recovers the real MESSAGE_KEY_* value
-  SimpleFieldType type;
-  uint16_t offset;    // offsetof(EclipseData, field) -- supports dotted paths (hand_hour.style
-                       // etc.) same as any other offsetof use. EclipseData is ~1.2 KB, fits u16.
-} SimpleFieldMapping; // 4 bytes, was 12 (uint32_t message_key + enum + size_t offset)
+// Change flags, pre-shifted into the high nibble: FL_x == (bit index + 1) << 4.
+#define FL_NONE   (0u << 4)
+#define FL_FONT   (1u << 4)
+#define FL_LAYOUT (2u << 4)
+#define FL_HANDS  (3u << 4)
+#define FL_CANVAS (4u << 4)
+#define FL_PANEL  (5u << 4)
 
-// Now a plain compile-time-constant initializer list -- see message_key_index.h's
-// own comment for why MK_* (an array index) is a compile-time constant where
-// MESSAGE_KEY_* (the real, link-time-assigned key) isn't. This table lives in
-// .rodata instead of being populated into .bss by a runtime init function.
-#define SIMPLE_FIELD_MAP_COUNT 74
-static const SimpleFieldMapping SIMPLE_FIELD_MAP[SIMPLE_FIELD_MAP_COUNT] = {
+#define FLAG_BITS(tf) ((uint32_t)(1u << ((tf) >> 4)) >> 1)
+
+_Static_assert(FLAG_BITS(FL_NONE)   == 0,                       "FL_NONE must raise nothing");
+_Static_assert(FLAG_BITS(FL_FONT)   == COMMS_CHANGE_CLOCK_FONT, "FL_FONT out of sync with comms.h");
+_Static_assert(FLAG_BITS(FL_LAYOUT) == COMMS_CHANGE_LAYOUT,     "FL_LAYOUT out of sync with comms.h");
+_Static_assert(FLAG_BITS(FL_HANDS)  == COMMS_CHANGE_HANDS,      "FL_HANDS out of sync with comms.h");
+_Static_assert(FLAG_BITS(FL_CANVAS) == COMMS_CHANGE_CANVAS,     "FL_CANVAS out of sync with comms.h");
+_Static_assert(FLAG_BITS(FL_PANEL)  == COMMS_CHANGE_PANEL,      "FL_PANEL out of sync with comms.h");
+
+typedef struct {
+  uint8_t  key_index; // MESSAGE_KEY_MESSAGE_TYPE + key_index == the real key
+  uint8_t  type_flag; // SimpleFieldType | FL_*
+  uint16_t offset;    // offsetof(EclipseData, field); EclipseData is ~1.2 KB, fits u16
+} SimpleFieldMapping; // 4 bytes
+
+// Applied on every message, valid payload or not: settings have to land
+// even before the watch has ever received eclipse data.
+static const SimpleFieldMapping SIMPLE_FIELD_MAP[] = {
+  { MK_DATA_VALID, F_BOOL, offsetof(EclipseData, valid) },
   { MK_ERROR_CODE, F_U8, offsetof(EclipseData, error_code) },
   { MK_TEMP_UNIT, F_U8, offsetof(EclipseData, temp_unit) },
   { MK_WIND_SPEED_UNIT, F_U8, offsetof(EclipseData, wind_speed_unit) },
@@ -135,43 +163,166 @@ static const SimpleFieldMapping SIMPLE_FIELD_MAP[SIMPLE_FIELD_MAP_COUNT] = {
   { MK_HOURLY_VIBE_END_MIN, F_U16, offsetof(EclipseData, hourly_vibe_end_min) },
   { MK_HOURLY_VIBE_DAYS_MASK, F_U8, offsetof(EclipseData, hourly_vibe_days_mask) },
   { MK_HOURLY_VIBE_OVERRIDE_QUIET, F_BOOL, offsetof(EclipseData, hourly_vibe_override_quiet) },
+  // Settings that additionally need a redraw or a relayout. These were
+  // hand-written `if (dict_find(...))` blocks purely because of the
+  // trailing `changes |= ...`, which the high nibble now carries.
+  { MK_CLOCK_FONT, F_U8 | FL_FONT, offsetof(EclipseData, clock_font) },
+  { MK_SHOW_SECONDS, F_BOOL | FL_HANDS, offsetof(EclipseData, show_seconds) },
+  { MK_BOTTOM_STYLE, F_U8 | FL_LAYOUT, offsetof(EclipseData, bottom_style) },
+  { MK_SUN_MOON_SIZE_PCT, F_U8 | FL_CANVAS, offsetof(EclipseData, sun_moon_size_pct) },
+  { MK_SKY_MODE, F_U8 | FL_CANVAS, offsetof(EclipseData, sky_mode) },
+  { MK_LABEL_STYLE, F_U8 | FL_CANVAS, offsetof(EclipseData, label_style) },
+  { MK_BG_ANIM_MODE, F_U8_MAX2, offsetof(EclipseData, bg_anim_mode) },
+  { MK_SHAKE_ANIM_MODE, F_U8_MAX3, offsetof(EclipseData, shake_anim_mode) },
+  { MK_SHADOW_TRANSLUCENT, F_BOOL | FL_HANDS, offsetof(EclipseData, shadow_translucent) },
+  { MK_SHADOW_ANGLE, F_U16 | FL_HANDS, offsetof(EclipseData, shadow_angle_deg) },
+  { MK_DRAW_FEATURES_BENEATH_HANDS, F_BOOL | FL_LAYOUT, offsetof(EclipseData, draw_features_beneath_hands) },
+  { MK_BIG_ANALOG_MARKER_STYLE, F_U8 | FL_HANDS, offsetof(EclipseData, big_analog_marker_style) },
+  { MK_SHOW_SUN_TIME, F_BOOL | FL_PANEL, offsetof(EclipseData, show_sun_time) },
+  { MK_SHOW_ISS, F_BOOL | FL_CANVAS, offsetof(EclipseData, show_iss) },
+  { MK_SHOW_MAJOR_STARS, F_BOOL | FL_CANVAS, offsetof(EclipseData, show_major_stars) },
+  { MK_AURORA_ENABLED, F_BOOL | FL_CANVAS, offsetof(EclipseData, aurora_enabled) },
+  { MK_NIGHT_SCHEME_ENABLED, F_BOOL | FL_PANEL, offsetof(EclipseData, night_scheme_enabled) },
 };
 
+// Same shape, but applied only once a valid payload is confirmed --
+// exactly where these four sat in the hand-written version.
+static const SimpleFieldMapping SIMPLE_FIELD_MAP_VALID[] = {
+  { MK_WEATHER_ICON_STYLE, F_U8, offsetof(EclipseData, weather_icon_style) },
+  { MK_AQI_UNIT, F_U8, offsetof(EclipseData, aqi_unit) },
+  { MK_AURORA_VISIBILITY_PCT, F_U8 | FL_CANVAS, offsetof(EclipseData, aurora_visibility_pct) },
+  { MK_ALTITUDE_UNIT, F_U8, offsetof(EclipseData, altitude_unit) },
+};
 
-
-static void apply_simple_fields(DictionaryIterator *iter, EclipseData *d) {
-  const uint32_t base = MESSAGE_KEY_MESSAGE_TYPE; // one GOT load, once per call, instead of per-row
-  for (size_t i = 0; i < SIMPLE_FIELD_MAP_COUNT; i++) {
-    Tuple *st = dict_find(iter, base + SIMPLE_FIELD_MAP[i].key_index);
+static uint32_t apply_simple_fields(DictionaryIterator *iter, EclipseData *d,
+                                    const SimpleFieldMapping *map, uint8_t count) {
+  const uint32_t base = MESSAGE_KEY_MESSAGE_TYPE; // one GOT load, once, instead of per-row
+  uint32_t changes = 0;
+  for (uint8_t i = 0; i < count; i++) {
+    const SimpleFieldMapping *m = &map[i];
+    Tuple *st = dict_find(iter, base + m->key_index);
     if (!st) continue;
-    uint8_t *dst = (uint8_t *)d + SIMPLE_FIELD_MAP[i].offset;
-    switch (SIMPLE_FIELD_MAP[i].type) {
-      case F_U8:          *dst = st->value->uint8; break;
-      case F_BOOL:        *(bool *)dst = st->value->uint8 != 0; break;
-      case F_I16:         *(int16_t *)dst = st->value->int16; break;
-      case F_I8_FROM_I16:  *(int8_t *)dst = (int8_t)st->value->int16; break;
-      case F_U16:         *(uint16_t *)dst = st->value->uint16; break;
-      case F_U32:         *(uint32_t *)dst = st->value->uint32; break;
-      case F_TIME:        *(time_t *)dst = (time_t)st->value->int32; break;
+    uint8_t *dst = (uint8_t *)d + m->offset;
+    uint8_t tf = m->type_flag;
+    uint8_t type = tf & 0x0F;
+    switch (type) {
+      case F_U8:   *dst = st->value->uint8; break;
+      case F_BOOL: *(bool *)dst = st->value->uint8 != 0; break;
+      case F_I16:  *(int16_t *)dst = st->value->int16; break;
+      case F_U16:  *(uint16_t *)dst = st->value->uint16; break;
+      case F_U32:  *(uint32_t *)dst = st->value->uint32; break;
+      case F_TIME: *(time_t *)dst = (time_t)st->value->int32; break;
+      default: { // F_U8_MAX2 / F_U8_MAX3
+        uint8_t v = st->value->uint8;
+        uint8_t limit = (uint8_t)(type - F_U8_MAX2 + 2);
+        *dst = (v <= limit) ? v : 0;
+        break;
+      }
     }
+    changes |= FLAG_BITS(tf); // 0 when the high nibble is FL_NONE
+  }
+  return changes;
+}
+
+// ---- Table 2: byte-blob array fields ----------------------------------
+// Every one of these used to be its own hand-rolled loop, several of
+// them reassembling little-endian uint16/uint32 values a byte at a time
+// -- which, on a little-endian Cortex-M reading a little-endian wire
+// format, is precisely what memcpy already does, for a fraction of the
+// code. All that differs between them is destination, element size and
+// cap, so they are rows now.
+//
+// Wire contract (unchanged): PKJS sends each of these as a packed
+// little-endian byte blob; anything past the destination array's
+// capacity is dropped, and a trailing partial element is ignored.
+
+typedef struct {
+  uint8_t  key_index;
+  uint8_t  elem_size; // 1, 2 or 4 -- must be a power of two, see the mask below
+  uint16_t offset;    // offsetof(EclipseData, array)
+  uint16_t max_bytes; // sizeof that array
+} BlobFieldMapping;   // 6 bytes
+
+_Static_assert(sizeof(time_t) == 4, "PLANET_RISE/SET wire format assumes a 4-byte time_t");
+
+// Applied on every message, like SIMPLE_FIELD_MAP above.
+static const BlobFieldMapping BLOB_FIELD_MAP[] = {
+  { MK_CORNER_CONTENT, 1, offsetof(EclipseData, corner_content), 4 },
+  { MK_CORNER_COLOR_MODE, 1, offsetof(EclipseData, corner_color_mode), 4 },
+};
+
+// Applied only for valid payloads.
+static const BlobFieldMapping BLOB_FIELD_MAP_VALID[] = {
+  { MK_SEP_SAMPLES, 2, offsetof(EclipseData, sep_samples_centideg), MAX_SEP_SAMPLES * 2 },
+  { MK_MAG_SAMPLES, 1, offsetof(EclipseData, mag_pct_samples), MAX_SEP_SAMPLES },
+  { MK_FORECAST_CONDITION, 1, offsetof(EclipseData, forecast_condition), 6 },
+  { MK_SUN_ALT_SAMPLES, 2, offsetof(EclipseData, sun_alt_decideg), MAX_SKY_SAMPLES * 2 },
+  { MK_SUN_AZ_SAMPLES, 2, offsetof(EclipseData, sun_az_decideg), MAX_SKY_SAMPLES * 2 },
+  { MK_CLOUD_SAMPLES, 1, offsetof(EclipseData, cloud_pct_samples), MAX_SKY_SAMPLES },
+  { MK_MOON_ALT_SAMPLES, 2, offsetof(EclipseData, moon_alt_decideg), MAX_SKY_SAMPLES * 2 },
+  { MK_MOON_AZ_SAMPLES, 2, offsetof(EclipseData, moon_az_decideg), MAX_SKY_SAMPLES * 2 },
+  { MK_STAR_ALT_SAMPLES, 2, offsetof(EclipseData, star_alt_decideg), STAR_COUNT * 2 },
+  { MK_STAR_AZ_SAMPLES, 2, offsetof(EclipseData, star_az_decideg), STAR_COUNT * 2 },
+  { MK_PLANET_RISE, 4, offsetof(EclipseData, planet_rise), PLANET_COUNT * 4 },
+  { MK_PLANET_SET, 4, offsetof(EclipseData, planet_set), PLANET_COUNT * 4 },
+};
+
+static void apply_blob_fields(DictionaryIterator *iter, EclipseData *d,
+                              const BlobFieldMapping *map, uint8_t count) {
+  const uint32_t base = MESSAGE_KEY_MESSAGE_TYPE;
+  for (uint8_t i = 0; i < count; i++) {
+    const BlobFieldMapping *m = &map[i];
+    Tuple *t = dict_find(iter, base + m->key_index);
+    if (!t) continue;
+    uint16_t len = t->length;
+    if (len > m->max_bytes) len = m->max_bytes;
+    len &= (uint16_t)~(uint16_t)(m->elem_size - 1); // whole elements only
+    memcpy((uint8_t *)d + m->offset, t->value->data, len);
   }
 }
 
-// ---- C: consolidated settings fields -----------------------------------
+// PLANET_ALT_SAMPLES / PLANET_AZ_SAMPLES: PLANET_COUNT rows of
+// little-endian int16 samples concatenated in PlanetId order (see
+// data/eclipse_data.h) -- one message key instead of five near-duplicate
+// ones. Not a plain blob row because the wire rows are packed tight
+// while the destination rows are MAX_SKY_SAMPLES wide, so it needs a
+// strided copy. The two keys differ only in signedness, which memcpy
+// doesn't care about, so one helper serves both.
+static void apply_planet_grid(DictionaryIterator *iter, uint8_t key_index, void *dst_rows) {
+  Tuple *t = dict_find(iter, MESSAGE_KEY_MESSAGE_TYPE + key_index);
+  if (!t) return;
+  int stride = (t->length / 2) / PLANET_COUNT;   // samples per planet on the wire
+  int n = (stride > MAX_SKY_SAMPLES) ? MAX_SKY_SAMPLES : stride;
+  const uint8_t *raw = t->value->data;
+  uint8_t *dst = (uint8_t *)dst_rows;
+  for (int p = 0; p < PLANET_COUNT; p++) {
+    memcpy(dst + p * (MAX_SKY_SAMPLES * 2), raw + p * stride * 2, (size_t)n * 2);
+  }
+}
+
+// LOCATION_NAME / METEOR_SHOWER_NAME -- same shape, so one helper.
+static void apply_cstring(DictionaryIterator *iter, uint8_t key_index, char *dst, uint16_t cap) {
+  Tuple *t = dict_find(iter, MESSAGE_KEY_MESSAGE_TYPE + key_index);
+  if (!t) return;
+  strncpy(dst, t->value->cstring, cap - 1);
+  dst[cap - 1] = '\0';
+}
+
+// ---- Consolidated settings fields --------------------------------------
 // 5 grouped AppMessage keys replacing 86 individual ones:
-//   HAND_HOUR_*/HAND_MIN_*/HAND_SEC_*                -> HANDS         (42 B: 3x HandConfig)
-//   CUSTOM_HOUR_*/CUSTOM_SEC_*                        -> MARKER_RINGS  (16 B: 2x MarkerRingConfig)
-//   the 16 edge-line content/color-mode keys          -> EDGE_LINES    (16 B: 16x uint8_t)
-//   MARKER_TEXT_*                                     -> MARKER_TEXT   (8 B: packed, see below)
-//   CUSTOM_BG/TEXT/ACCENT + NIGHT_CUSTOM_BG/TEXT/ACCENT -> COLORS      (6 B: packed, see below)
+//   HAND_HOUR_*/HAND_MIN_*/HAND_SEC_*                   -> HANDS        (42 B: 3x HandConfig)
+//   CUSTOM_HOUR_*/CUSTOM_SEC_*                           -> MARKER_RINGS (16 B: 2x MarkerRingConfig)
+//   the 16 edge-line content/color-mode keys             -> EDGE_LINES   (16 B: 16x uint8_t)
+//   MARKER_TEXT_*                                        -> MARKER_TEXT  (8 B: packed, see below)
+//   CUSTOM_BG/TEXT/ACCENT + NIGHT_CUSTOM_BG/TEXT/ACCENT  -> COLORS       (6 B: packed, see below)
 //
-// Four of the five are handled here; MARKER_TEXT and COLORS get an
-// explicit byte-by-byte unpack instead of a memcpy:
+// Three of the five are a straight memcpy; MARKER_TEXT and COLORS get an
+// explicit byte-by-byte unpack instead:
 //  - HandConfig/MarkerRingConfig and the 16 edge-line fields are flat,
 //    contiguous, no-padding blocks in EclipseData -- see the
-//    _Static_assert()s below, which exist so a struct-layout change
-//    that would silently break the wire format fails the build instead
-//    of silently scrambling everyone's saved hands/markers.
+//    _Static_assert()s below, which exist so a struct-layout change that
+//    would silently break the wire format fails the build instead of
+//    silently scrambling everyone's saved hands/markers.
 //  - MarkerTextConfig has two uint16_t masks with padding around them
 //    (hour_mask/second_mask aren't at the packed-wire offsets a memcpy
 //    would assume), so MARKER_TEXT is sent as 8 packed bytes and
@@ -180,39 +331,40 @@ static void apply_simple_fields(DictionaryIterator *iter, EclipseData *d) {
 //    contiguous run, specifically to avoid folding in
 //    night_scheme_enabled (the bool that happens to sit between
 //    custom_accent and night_custom_bg in the struct) -- that key stays
-//    separate on the wire since it has its own layer_mark_dirty()
-//    side effect below that this function doesn't want to duplicate or
-//    silently drop.
+//    separate on the wire since it carries its own redraw side effect
+//    (FL_PANEL in SIMPLE_FIELD_MAP) that this function doesn't want to
+//    duplicate or silently drop.
 _Static_assert(sizeof(HandConfig) == 14, "HANDS wire format assumes a 14-byte HandConfig");
 _Static_assert(sizeof(MarkerRingConfig) == 8, "MARKER_RINGS wire format assumes an 8-byte MarkerRingConfig");
 
 static void apply_consolidated_fields(DictionaryIterator *iter, EclipseData *d) {
+  const uint32_t base = MESSAGE_KEY_MESSAGE_TYPE;
   Tuple *t;
 
-  // HANDS: 3x HandConfig, in hour/minute/second order, each in the
-  // exact field order HandConfig itself declares them (see hand_layer.h)
-  // -- src/pkjs/index.js's handsBytes() must build the array in that
-  // same order for this memcpy to land correctly.
-  if ((t = dict_find(iter, MESSAGE_KEY_HANDS)) && t->length >= 3 * sizeof(HandConfig)) {
+  // HANDS: 3x HandConfig, in hour/minute/second order, each in the exact
+  // field order HandConfig itself declares them (see hand_layer.h) --
+  // src/pkjs/index.js's handsBytes() must build the array in that same
+  // order for this memcpy to land correctly.
+  if ((t = dict_find(iter, base + MK_HANDS)) && t->length >= 3 * sizeof(HandConfig)) {
     memcpy(&d->hand_hour, t->value->data, 3 * sizeof(HandConfig));
   }
 
   // MARKER_RINGS: 2x MarkerRingConfig, hour ring then second ring, each
   // in MarkerRingConfig's own declared field order (see data/eclipse_data.h).
-  if ((t = dict_find(iter, MESSAGE_KEY_MARKER_RINGS)) && t->length >= 2 * sizeof(MarkerRingConfig)) {
+  if ((t = dict_find(iter, base + MK_MARKER_RINGS)) && t->length >= 2 * sizeof(MarkerRingConfig)) {
     memcpy(&d->custom_hour_marker, t->value->data, 2 * sizeof(MarkerRingConfig));
   }
 
-  // EDGE_LINES: the 16 upper/bottom/middle_left/middle_right
-  // line1/line2 content+color_mode uint8_t fields, in the exact order
+  // EDGE_LINES: the 16 upper/bottom/middle_left/middle_right line1/line2
+  // content+color_mode uint8_t fields, in the exact order
   // eclipse_data.h declares them.
-  if ((t = dict_find(iter, MESSAGE_KEY_EDGE_LINES)) && t->length >= 16) {
+  if ((t = dict_find(iter, base + MK_EDGE_LINES)) && t->length >= 16) {
     memcpy(&d->upper_middle_line1_content, t->value->data, 16);
   }
 
   // MARKER_TEXT: target, font_choice, offset_px (signed byte), hour_mask
   // (u16 little-endian), second_mask (u16 little-endian), roman_numerals.
-  if ((t = dict_find(iter, MESSAGE_KEY_MARKER_TEXT)) && t->length >= 8) {
+  if ((t = dict_find(iter, base + MK_MARKER_TEXT)) && t->length >= 8) {
     uint8_t *b = t->value->data;
     d->marker_text.target = b[0];
     d->marker_text.font_choice = b[1];
@@ -225,7 +377,7 @@ static void apply_consolidated_fields(DictionaryIterator *iter, EclipseData *d) 
   // COLORS: custom_bg, custom_text, custom_accent, night_custom_bg,
   // night_custom_text, night_custom_accent -- night_scheme_enabled is
   // NOT included here, see this section's own comment above.
-  if ((t = dict_find(iter, MESSAGE_KEY_COLORS)) && t->length >= 6) {
+  if ((t = dict_find(iter, base + MK_COLORS)) && t->length >= 6) {
     uint8_t *b = t->value->data;
     d->custom_bg = b[0];
     d->custom_text = b[1];
@@ -238,170 +390,45 @@ static void apply_consolidated_fields(DictionaryIterator *iter, EclipseData *d) 
 
 
 CommsChangeFlags comms_decoder_apply(DictionaryIterator *iter, EclipseData *data) {
-
   EclipseData *d = data;
-  uint32_t changes = COMMS_CHANGE_NONE;
+  const uint32_t base = MESSAGE_KEY_MESSAGE_TYPE;
   Tuple *t;
 
-  apply_simple_fields(iter, d); // see its own comment -- every plain-copy field, in one pass, before anything below can read one
-  apply_consolidated_fields(iter, d); // see its own comment -- the 5 grouped settings keys (HANDS/MARKER_RINGS/EDGE_LINES/MARKER_TEXT/COLORS)
+  // Every plain-copy setting, then the 5 grouped settings keys, then the
+  // two unconditional byte arrays. Order between them doesn't matter --
+  // no field here reads another -- but they all run before the explicit
+  // blocks below so anything downstream sees this message's freshly
+  // applied values rather than the previous message's.
+  uint32_t changes = apply_simple_fields(iter, d, SIMPLE_FIELD_MAP, NELEM(SIMPLE_FIELD_MAP));
+  apply_consolidated_fields(iter, d);
+  apply_blob_fields(iter, d, BLOB_FIELD_MAP, NELEM(BLOB_FIELD_MAP));
 
-
-  if ((t = dict_find(iter, MESSAGE_KEY_DATA_VALID))) {
-    d->valid = t->value->uint8 != 0;
-  }
-  // Parsed (and applied) before the early-return below so a
-  // font-only settings update still takes effect even if the watch
-  // hasn't received a valid eclipse payload yet.
-  if ((t = dict_find(iter, MESSAGE_KEY_CLOCK_FONT))) {
-    d->clock_font = t->value->uint8;
-    changes |= COMMS_CHANGE_CLOCK_FONT;
-  }
-  if ((t = dict_find(iter, MESSAGE_KEY_SHOW_SECONDS))) {
-    d->show_seconds = t->value->uint8 != 0;
-    changes |= COMMS_CHANGE_HANDS;
-  }
-  if ((t = dict_find(iter, MESSAGE_KEY_BOTTOM_STYLE))) {
-    d->bottom_style = t->value->uint8;
-    changes |= COMMS_CHANGE_LAYOUT;
-  }
-  if ((t = dict_find(iter, MESSAGE_KEY_SUN_MOON_SIZE_PCT))) {
-    d->sun_moon_size_pct = t->value->uint8;
-    changes |= COMMS_CHANGE_CANVAS;
-  }
-  if ((t = dict_find(iter, MESSAGE_KEY_SKY_MODE))) {
-    d->sky_mode = t->value->uint8;
-    changes |= COMMS_CHANGE_CANVAS;
-  }
-  if ((t = dict_find(iter, MESSAGE_KEY_LABEL_STYLE))) {
-    d->label_style = t->value->uint8;
-    changes |= COMMS_CHANGE_CANVAS;
-  }
-  if ((t = dict_find(iter, MESSAGE_KEY_BG_ANIM_MODE))) {
-    uint8_t v = t->value->uint8;
-    d->bg_anim_mode = (v <= 2) ? v : 0; // clamped -- used as a raw array-free switch/compare, but still worth guarding against a stray out-of-range byte
-  }
-  if ((t = dict_find(iter, MESSAGE_KEY_SHAKE_ANIM_MODE))) {
-    uint8_t v = t->value->uint8;
-    d->shake_anim_mode = (v <= 3) ? v : 0;
-  }
-  if ((t = dict_find(iter, MESSAGE_KEY_SHADOW_TRANSLUCENT))) {
-    d->shadow_translucent = t->value->uint8 != 0;
-    changes |= COMMS_CHANGE_HANDS;
-  }
-  if ((t = dict_find(iter, MESSAGE_KEY_SHADOW_ANGLE))) {
-    d->shadow_angle_deg = t->value->uint16;
-    changes |= COMMS_CHANGE_HANDS;
-  }
-  if ((t = dict_find(iter, MESSAGE_KEY_DRAW_FEATURES_BENEATH_HANDS))) {
-    d->draw_features_beneath_hands = t->value->uint8 != 0;
-    changes |= COMMS_CHANGE_LAYOUT;
-  }
-  if ((t = dict_find(iter, MESSAGE_KEY_BIG_ANALOG_MARKER_STYLE))) {
-    d->big_analog_marker_style = t->value->uint8;
-    changes |= COMMS_CHANGE_HANDS;
-  }
-  if ((t = dict_find(iter, MESSAGE_KEY_SHOW_SUN_TIME))) {
-    d->show_sun_time = t->value->uint8 != 0;
-    changes |= COMMS_CHANGE_PANEL;
-  }
-  if ((t = dict_find(iter, MESSAGE_KEY_SHOW_ISS))) {
-    d->show_iss = t->value->uint8 != 0;
-    changes |= COMMS_CHANGE_CANVAS;
-  }
-  if ((t = dict_find(iter, MESSAGE_KEY_SHOW_MAJOR_STARS))) {
-    d->show_major_stars = t->value->uint8 != 0;
-    changes |= COMMS_CHANGE_CANVAS;
-  }
-  if ((t = dict_find(iter, MESSAGE_KEY_AURORA_ENABLED))) {
-    d->aurora_enabled = t->value->uint8 != 0;
-    changes |= COMMS_CHANGE_CANVAS;
-  }
-  if ((t = dict_find(iter, MESSAGE_KEY_CORNER_CONTENT))) {
-    uint8_t *raw = t->value->data;
-    int n = t->length;
-    if (n > 4) n = 4;
-    for (int i = 0; i < n; i++) d->corner_content[i] = raw[i];
-  }
-  if ((t = dict_find(iter, MESSAGE_KEY_CORNER_COLOR_MODE))) {
-    uint8_t *raw = t->value->data;
-    int n = t->length;
-    if (n > 4) n = 4;
-    for (int i = 0; i < n; i++) d->corner_color_mode[i] = raw[i];
-  }
-  if ((t = dict_find(iter, MESSAGE_KEY_NIGHT_SCHEME_ENABLED))) {
-    d->night_scheme_enabled = t->value->uint8 != 0;
-    changes |= COMMS_CHANGE_PANEL;
-  }
-
-  // Every field parsed above this point that affects the features
-  // overlay's layout (style/marker-style/bottom-info-bar-mode, and all
-  // of the corner/edge content+color fields) has now been applied to
-  // s_data -- one recompute here replaces the many individual
-  // Mark the affected feature layer after applying the decoded values.
-  // used, since features_layer_set_data() recomputes every slot's
-  // layout AND value in one pass and marks the layer dirty. Content-
-  // only fields parsed further below (weather icon style, AQI/altitude
-  // units, ...) don't affect layout, so they instead call
-  // features_layer_refresh_values() themselves right after landing in
-  // s_data, to re-resolve just the VALUE half.
-    changes |= COMMS_CHANGE_FEATURES;
+  // features_layer_set_data() recomputes every slot's layout AND value
+  // in one pass and marks the layer dirty, so the features overlay is
+  // flagged once here rather than by each field that feeds it.
+  changes |= COMMS_CHANGE_FEATURES;
 
   if (!d->valid) return changes;
   d->error_code = 0;
 
-  if ((t = dict_find(iter, MESSAGE_KEY_ECLIPSE_TYPE))) {
+  if ((t = dict_find(iter, base + MK_ECLIPSE_TYPE))) {
     d->type = t->value->uint8;
     d->has_eclipse = d->type != ECLIPSE_TYPE_NONE;
   }
-
-  if ((t = dict_find(iter, MESSAGE_KEY_SAMPLE_COUNT))) {
+  // Saturating clamps against limits too large for the table's own
+  // small-limit types, so these two keep their own blocks.
+  if ((t = dict_find(iter, base + MK_SAMPLE_COUNT))) {
     uint8_t count = t->value->uint8;
     d->sample_count = count > MAX_SEP_SAMPLES ? MAX_SEP_SAMPLES : count;
   }
-  if ((t = dict_find(iter, MESSAGE_KEY_SEP_SAMPLES))) {
-    // Sent as a byte blob of uint16 (little-endian) values.
-    uint16_t *samples = (uint16_t *)t->value->data;
-    int n = t->length / sizeof(uint16_t);
-    if (n > MAX_SEP_SAMPLES) n = MAX_SEP_SAMPLES;
-    for (int i = 0; i < n; i++) {
-      d->sep_samples_centideg[i] = samples[i];
-    }
-  }
-  if ((t = dict_find(iter, MESSAGE_KEY_MAG_SAMPLES))) {
-    uint8_t *raw = t->value->data;
-    int n = t->length;
-    if (n > MAX_SEP_SAMPLES) n = MAX_SEP_SAMPLES;
-    for (int i = 0; i < n; i++) {
-      d->mag_pct_samples[i] = raw[i];
-    }
+  if ((t = dict_find(iter, base + MK_SKY_SAMPLE_COUNT))) {
+    uint8_t count = t->value->uint8;
+    d->sky_sample_count = count > MAX_SKY_SAMPLES ? MAX_SKY_SAMPLES : count;
   }
 
-  // "Weather in N hours" (87-92 in features_layer.c) -- forecast_temp_c
-  // is sent as (celsius + 50) per byte, 255 meaning "not available",
-  // since a plain byte array can't carry a signed value; decoded back
-  // to a real (possibly negative) Celsius reading here, with -128 as
-  // the sentinel d->forecast_temp_c itself uses for "not available"
-  // (see its own comment in data/eclipse_data.h).
-  if ((t = dict_find(iter, MESSAGE_KEY_FORECAST_TEMP_C))) {
-    uint8_t *raw = t->value->data;
-    int n = t->length;
-    if (n > 6) n = 6;
-    for (int i = 0; i < n; i++) {
-      d->forecast_temp_c[i] = (raw[i] == 255) ? -128 : ((int16_t)raw[i] - 50);
-    }
-  }
-  if ((t = dict_find(iter, MESSAGE_KEY_FORECAST_CONDITION))) {
-    uint8_t *raw = t->value->data;
-    int n = t->length;
-    if (n > 6) n = 6;
-    for (int i = 0; i < n; i++) {
-      d->forecast_condition[i] = raw[i];
-    }
-    changes |= COMMS_CHANGE_FEATURE_VALUES;
-  }
+  changes |= apply_simple_fields(iter, d, SIMPLE_FIELD_MAP_VALID, NELEM(SIMPLE_FIELD_MAP_VALID));
 
-  if ((t = dict_find(iter, MESSAGE_KEY_WEATHER_ERROR_CODE))) {
+  if ((t = dict_find(iter, base + MK_WEATHER_ERROR_CODE))) {
     d->weather_error_code = t->value->uint8;
     if (d->weather_error_code == 0) {
       d->weather_error_streak = 0;
@@ -409,155 +436,29 @@ CommsChangeFlags comms_decoder_apply(DictionaryIterator *iter, EclipseData *data
     } else if (d->weather_error_streak < 250) { // saturate well clear of overflow -- only ">= 10" is ever checked
       d->weather_error_streak++;
     }
-    changes |= COMMS_CHANGE_FEATURE_VALUES;
-  }
-  if ((t = dict_find(iter, MESSAGE_KEY_WEATHER_ICON_STYLE))) {
-    d->weather_icon_style = t->value->uint8;
-    changes |= COMMS_CHANGE_FEATURE_VALUES;
-  }
-  if ((t = dict_find(iter, MESSAGE_KEY_AQI_UNIT))) {
-    d->aqi_unit = t->value->uint8;
-    changes |= COMMS_CHANGE_FEATURE_VALUES;
-  }
-  if ((t = dict_find(iter, MESSAGE_KEY_AURORA_VISIBILITY_PCT))) {
-    d->aurora_visibility_pct = t->value->uint8;
-    changes |= COMMS_CHANGE_CANVAS;
-  }
-  if ((t = dict_find(iter, MESSAGE_KEY_ALTITUDE_UNIT))) {
-    d->altitude_unit = t->value->uint8;
-    changes |= COMMS_CHANGE_FEATURE_VALUES;
-  }
-  if ((t = dict_find(iter, MESSAGE_KEY_LOCATION_NAME))) {
-    strncpy(d->location_name, t->value->cstring, sizeof(d->location_name) - 1);
-    d->location_name[sizeof(d->location_name) - 1] = '\0';
   }
 
-  // Full-day sky background: sun altitude + cloud cover samples,
-  // The background layer owns the gradient and dithered cloud rendering.
-  if ((t = dict_find(iter, MESSAGE_KEY_SKY_SAMPLE_COUNT))) {
-    uint8_t count = t->value->uint8;
-    d->sky_sample_count = count > MAX_SKY_SAMPLES ? MAX_SKY_SAMPLES : count;
-  }
-  if ((t = dict_find(iter, MESSAGE_KEY_SUN_ALT_SAMPLES))) {
-    // Byte blob of int16 (little-endian) tenths-of-a-degree values.
-    uint8_t *raw = t->value->data;
-    int n = t->length / 2;
-    if (n > MAX_SKY_SAMPLES) n = MAX_SKY_SAMPLES;
-    for (int i = 0; i < n; i++) {
-      uint16_t u = (uint16_t)raw[i * 2] | ((uint16_t)raw[i * 2 + 1] << 8);
-      d->sun_alt_decideg[i] = (int16_t)u;
-    }
-  }
-  if ((t = dict_find(iter, MESSAGE_KEY_SUN_AZ_SAMPLES))) {
-    // Same byte-blob shape as SUN_ALT_SAMPLES, but the field itself is
-    // an unsigned uint16 (azimuth is always 0-359.9deg, never
-    // negative) -- see sun_az_decideg's own eclipse_data.h comment.
-    uint8_t *raw = t->value->data;
-    int n = t->length / 2;
-    if (n > MAX_SKY_SAMPLES) n = MAX_SKY_SAMPLES;
-    for (int i = 0; i < n; i++) {
-      d->sun_az_decideg[i] = (uint16_t)raw[i * 2] | ((uint16_t)raw[i * 2 + 1] << 8);
-    }
-  }
-  if ((t = dict_find(iter, MESSAGE_KEY_CLOUD_SAMPLES))) {
+  // "Weather in N hours" (87-92 in features_layer.c) -- forecast_temp_c
+  // is sent as (celsius + 50) per byte, 255 meaning "not available",
+  // since a plain byte array can't carry a signed value; decoded back to
+  // a real (possibly negative) Celsius reading here, with -128 as the
+  // sentinel d->forecast_temp_c itself uses for "not available" (see its
+  // own comment in data/eclipse_data.h). The one array in the protocol
+  // that isn't a straight copy, hence its own block.
+  if ((t = dict_find(iter, base + MK_FORECAST_TEMP_C))) {
     uint8_t *raw = t->value->data;
     int n = t->length;
-    if (n > MAX_SKY_SAMPLES) n = MAX_SKY_SAMPLES;
+    if (n > 6) n = 6;
     for (int i = 0; i < n; i++) {
-      d->cloud_pct_samples[i] = raw[i];
+      d->forecast_temp_c[i] = (raw[i] == 255) ? -128 : ((int16_t)raw[i] - 50);
     }
   }
-  if ((t = dict_find(iter, MESSAGE_KEY_MOON_ALT_SAMPLES))) {
-    uint8_t *raw = t->value->data;
-    int n = t->length / 2;
-    if (n > MAX_SKY_SAMPLES) n = MAX_SKY_SAMPLES;
-    for (int i = 0; i < n; i++) {
-      uint16_t u = (uint16_t)raw[i * 2] | ((uint16_t)raw[i * 2 + 1] << 8);
-      d->moon_alt_decideg[i] = (int16_t)u;
-    }
-  }
-  if ((t = dict_find(iter, MESSAGE_KEY_MOON_AZ_SAMPLES))) {
-    uint8_t *raw = t->value->data;
-    int n = t->length / 2;
-    if (n > MAX_SKY_SAMPLES) n = MAX_SKY_SAMPLES;
-    for (int i = 0; i < n; i++) {
-      d->moon_az_decideg[i] = (uint16_t)raw[i * 2] | ((uint16_t)raw[i * 2 + 1] << 8);
-    }
-  }
-  // Packed as PLANET_COUNT rows of int16 (little-endian) samples,
-  // concatenated in PlanetId order (see data/eclipse_data.h) -- one
-  // message key instead of five near-duplicate ones.
-  if ((t = dict_find(iter, MESSAGE_KEY_PLANET_ALT_SAMPLES))) {
-    uint8_t *raw = t->value->data;
-    int total_int16 = t->length / 2;
-    int per_planet = total_int16 / PLANET_COUNT;
-    if (per_planet > MAX_SKY_SAMPLES) per_planet = MAX_SKY_SAMPLES;
-    for (int p = 0; p < PLANET_COUNT; p++) {
-      for (int i = 0; i < per_planet; i++) {
-        int src_idx = p * (total_int16 / PLANET_COUNT) + i;
-        uint16_t u = (uint16_t)raw[src_idx * 2] | ((uint16_t)raw[src_idx * 2 + 1] << 8);
-        d->planet_alt_decideg[p][i] = (int16_t)u;
-      }
-    }
-  }
-  if ((t = dict_find(iter, MESSAGE_KEY_PLANET_AZ_SAMPLES))) {
-    uint8_t *raw = t->value->data;
-    int total_int16 = t->length / 2;
-    int per_planet = total_int16 / PLANET_COUNT;
-    if (per_planet > MAX_SKY_SAMPLES) per_planet = MAX_SKY_SAMPLES;
-    for (int p = 0; p < PLANET_COUNT; p++) {
-      for (int i = 0; i < per_planet; i++) {
-        int src_idx = p * (total_int16 / PLANET_COUNT) + i;
-        d->planet_az_decideg[p][i] = (uint16_t)raw[src_idx * 2] | ((uint16_t)raw[src_idx * 2 + 1] << 8);
-      }
-    }
-  }
-  if ((t = dict_find(iter, MESSAGE_KEY_PLANET_RISE))) {
-    uint8_t *raw = t->value->data;
-    int n = t->length / 4;
-    if (n > PLANET_COUNT) n = PLANET_COUNT;
-    for (int p = 0; p < n; p++) {
-      uint32_t u = (uint32_t)raw[p * 4] | ((uint32_t)raw[p * 4 + 1] << 8) |
-                   ((uint32_t)raw[p * 4 + 2] << 16) | ((uint32_t)raw[p * 4 + 3] << 24);
-      d->planet_rise[p] = (time_t)(int32_t)u;
-    }
-  }
-  if ((t = dict_find(iter, MESSAGE_KEY_PLANET_SET))) {
-    uint8_t *raw = t->value->data;
-    int n = t->length / 4;
-    if (n > PLANET_COUNT) n = PLANET_COUNT;
-    for (int p = 0; p < n; p++) {
-      uint32_t u = (uint32_t)raw[p * 4] | ((uint32_t)raw[p * 4 + 1] << 8) |
-                   ((uint32_t)raw[p * 4 + 2] << 16) | ((uint32_t)raw[p * 4 + 3] << 24);
-      d->planet_set[p] = (time_t)(int32_t)u;
-    }
-  }
-  if ((t = dict_find(iter, MESSAGE_KEY_STAR_ALT_SAMPLES))) {
-    // Byte blob of int16 (little-endian) tenths-of-a-degree values,
-    // same packing as SUN_ALT_SAMPLES above -- see star_alt_decideg's
-    // own comment in data/eclipse_data.h for why this is a flat current-
-    // snapshot array, not a full-day grid like that one.
-    uint8_t *raw = t->value->data;
-    int n = t->length / 2;
-    if (n > STAR_COUNT) n = STAR_COUNT;
-    for (int i = 0; i < n; i++) {
-      uint16_t u = (uint16_t)raw[i * 2] | ((uint16_t)raw[i * 2 + 1] << 8);
-      d->star_alt_decideg[i] = (int16_t)u;
-    }
-  }
-  if ((t = dict_find(iter, MESSAGE_KEY_STAR_AZ_SAMPLES))) {
-    // Same packing, but always non-negative (0-3600 = 0-360deg x10).
-    uint8_t *raw = t->value->data;
-    int n = t->length / 2;
-    if (n > STAR_COUNT) n = STAR_COUNT;
-    for (int i = 0; i < n; i++) {
-      d->star_az_decideg[i] = (uint16_t)raw[i * 2] | ((uint16_t)raw[i * 2 + 1] << 8);
-    }
-  }
-  if ((t = dict_find(iter, MESSAGE_KEY_METEOR_SHOWER_NAME))) {
-    strncpy(d->meteor_shower_name, t->value->cstring, sizeof(d->meteor_shower_name) - 1);
-    d->meteor_shower_name[sizeof(d->meteor_shower_name) - 1] = '\0';
-  }
+
+  apply_blob_fields(iter, d, BLOB_FIELD_MAP_VALID, NELEM(BLOB_FIELD_MAP_VALID));
+  apply_planet_grid(iter, MK_PLANET_ALT_SAMPLES, d->planet_alt_decideg);
+  apply_planet_grid(iter, MK_PLANET_AZ_SAMPLES, d->planet_az_decideg);
+  apply_cstring(iter, MK_LOCATION_NAME, d->location_name, sizeof(d->location_name));
+  apply_cstring(iter, MK_METEOR_SHOWER_NAME, d->meteor_shower_name, sizeof(d->meteor_shower_name));
 
   return changes;
 }

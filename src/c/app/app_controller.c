@@ -13,7 +13,6 @@
 #include "../features/features_layer.h"
 #include "../rendering/clock/clock_display.h"
 #include "../hands/hands_controller.h"
-#include "../generated/message_key_index.h" // MK_* is used for the startup key-index consistency check.
 #include "../data/eclipse_ui.h"
 #include "../timing/hourly_vibration.h"
 #include "./layout_controller.h"
@@ -126,7 +125,7 @@ static void comms_data_applied(CommsChangeFlags changes, void *context) {
   if (changes & COMMS_CHANGE_LAYOUT) layout_controller_apply();
   if (layout_controller_hands_layer() && (changes & COMMS_CHANGE_HANDS)) layer_mark_dirty(layout_controller_hands_layer());
   if (clock_display_panel_layer() && (changes & COMMS_CHANGE_PANEL)) layer_mark_dirty(clock_display_panel_layer());
-  if (layout_controller_features_layer() && (changes & (COMMS_CHANGE_FEATURES | COMMS_CHANGE_FEATURE_VALUES))) {
+  if (layout_controller_features_layer() && (changes & COMMS_CHANGE_FEATURES)) {
     features_layer_set_data(layout_controller_features_layer(), &s_data);
   }
   if (layout_controller_canvas_layer() && (changes & COMMS_CHANGE_CANVAS)) {
@@ -149,14 +148,12 @@ static void comms_data_applied(CommsChangeFlags changes, void *context) {
 }
 
 void app_controller_init(void) {
-  // The generated MK_* table is intentionally based on package.json's
-  // messageKeys ordering. Verify the one arithmetic assumption that the
-  // communication parser relies on so a future SDK/key-generation change
-  // fails loudly instead of silently corrupting incoming fields.
-  if (MESSAGE_KEY_WEATHER_LAST_UPDATE - MESSAGE_KEY_MESSAGE_TYPE != MK_WEATHER_LAST_UPDATE) {
-    APP_LOG(APP_LOG_LEVEL_ERROR, "message key base assumption broken -- regenerate message_key_index.h");
-  }
-
+  // The MESSAGE_KEY_MESSAGE_TYPE + MK_* assumption the decoder relies on
+  // is now verified where it can be checked for free: at generation
+  // time, in scripts/generate-message-keys.js. The equivalent runtime
+  // check that used to live here cost more binary (an error string, two
+  // more MESSAGE_KEY_* words in .data and their relocations) than it
+  // could ever save.
   persistence_load(&s_data);
   battery_saver_controller_init(&s_data);
 
