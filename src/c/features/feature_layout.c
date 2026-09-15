@@ -56,7 +56,7 @@ void feature_layout_recompute(FeaturesState *state) {
   // custom (8) uses below, just fed a fixed preset instead of a live
   // user config); bitmap styles (3-7) have no ring geometry at all, so
   // they use a fixed per-style table instead, each side independent.
-  typedef struct { int16_t top, bottom, left, right; } EdgeMargins;
+  typedef struct { int8_t top, bottom, left, right; } EdgeMargins;
   static const EdgeMargins BITMAP_STYLE_MARGINS[5] = {
     { 34, 30, 40, 35 }, // 3: Modern
     { 37, 33, 38, 33 }, // 4: Shadow

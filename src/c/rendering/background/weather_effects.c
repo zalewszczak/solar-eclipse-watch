@@ -9,12 +9,13 @@ typedef struct { uint8_t r, g, b; } RGB8;
 const int8_t WEATHER_CLOUD_CLUSTER_X_PCT[WEATHER_CLOUD_CLUSTER_SLOTS] = { 18, 45, 68, 88 };
 const int8_t WEATHER_CLOUD_CLUSTER_Y_OFFSET[WEATHER_CLOUD_CLUSTER_SLOTS] = { 0, -6, 4, -3 };
 
-static const GPoint RAIN_OFFSETS[5] = {
+typedef struct { int8_t x, y; } CompactPoint;
+static const CompactPoint RAIN_OFFSETS[5] = {
   { -16, 8 }, { -5, 15 }, { 6, 10 }, { 17, 17 }, { 0, 24 },
 };
 #define RAIN_OFFSET_COUNT 5
 
-static const GPoint SNOW_OFFSETS[6] = {
+static const CompactPoint SNOW_OFFSETS[6] = {
   { -18, 10 }, { -7, 19 }, { 4, 13 }, { 15, 23 }, { -2, 29 }, { 20, 16 },
 };
 #define SNOW_OFFSET_COUNT 6
@@ -95,10 +96,10 @@ void weather_effects_draw_effect(GContext *ctx, GRect bounds, uint8_t condition,
 // astro.js's activeMeteorShower() around whichever shower's active
 // window covers today). Only meaningful against a genuinely dark
 // sky, so the caller gates this on sun altitude.
-static const GPoint METEOR_STARTS[6] = {
+static const CompactPoint METEOR_STARTS[6] = {
   { 30, 15 }, { 80, 10 }, { 130, 20 }, { 165, 40 }, { 50, 45 }, { 110, 55 },
 };
-static const GPoint METEOR_ENDS[6] = {
+static const CompactPoint METEOR_ENDS[6] = {
   { 45, 35 }, { 100, 28 }, { 148, 40 }, { 180, 58 }, { 68, 65 }, { 128, 75 },
 };
 
@@ -130,7 +131,7 @@ static const uint8_t AURORA_STREAK_X_PCT[AURORA_STREAK_COUNT] = { 8, 22, 38, 50,
 static const uint8_t AURORA_STREAK_HEIGHT_PCT[AURORA_STREAK_COUNT] = { 70, 100, 55, 85, 65, 95, 60 };
 // Native-angle (0-65535) ripple phase offsets, so neighboring streaks
 // don't wave in lockstep.
-static const int32_t AURORA_STREAK_PHASE[AURORA_STREAK_COUNT] = { 0, 9362, 18725, 28087, 37449, 46811, 56174 };
+/* Evenly spaced native-angle phases, rounded to match the previous table exactly. */
 
 // Several vertical "curtain" streaks, each with a genuine sine-wave
 // horizontal ripple (via sin_lookup, same fixed-point trig every hand/
@@ -158,7 +159,7 @@ void weather_effects_draw_aurora(GContext *ctx, GRect bounds, uint8_t visibility
 
     for (int16_t y = top_y; y < bottom_y; y++) {
       int16_t rel = y - top_y;
-      int32_t wave_angle = (AURORA_STREAK_PHASE[s] + (int32_t)rel * 900) & 0xFFFF;
+      int32_t wave_angle = (((s * 65536 + 3) / 7) + (int32_t)rel * 900) & 0xFFFF;
       int16_t wobble = (int16_t)((6 * sin_lookup(wave_angle)) / TRIG_MAX_RATIO);
       int16_t row_cx = cx + wobble;
 

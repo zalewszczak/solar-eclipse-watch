@@ -5,13 +5,13 @@
 
 #define CELESTIAL_ARROW_W 6
 
-static const char *PLANET_NAMES[PLANET_COUNT] = { "Mercury", "Venus", "Mars", "Jupiter", "Saturn" };
-static const char *STAR_NAMES[STAR_COUNT] = {
-  "Sirius", "Canopus", "Arcturus", "Vega", "Capella", "Rigel", "Procyon", "Betelgeuse",
-  "Altair", "Aldebaran", "Antares", "Spica", "Pollux", "Fomalhaut", "Deneb", "Regulus"
-};
-static const uint8_t STAR_RADIUS[STAR_COUNT] = {
-  2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1
+static const char PLANET_NAMES[] = "Mercury\0Venus\0Mars\0Jupiter\0Saturn\0";
+static const uint8_t PLANET_NAME_OFFSETS[PLANET_COUNT] = { 0, 8, 14, 19, 27 };
+static const char STAR_NAMES[] =
+  "Sirius\0Canopus\0Arcturus\0Vega\0Capella\0Rigel\0Procyon\0Betelgeuse\0"
+  "Altair\0Aldebaran\0Antares\0Spica\0Pollux\0Fomalhaut\0Deneb\0Regulus\0";
+static const uint8_t STAR_NAME_OFFSETS[STAR_COUNT] = {
+  0, 7, 14, 23, 28, 36, 42, 50, 60, 67, 77, 85, 91, 98, 108, 114
 };
 GColor celestial_bodies_planet_color(PlanetId p) {
   switch (p) {
@@ -57,11 +57,11 @@ void celestial_bodies_draw_saturn(GContext *ctx, GPoint center, uint8_t ring_ope
 }
 
 const char *celestial_bodies_planet_name(PlanetId planet) {
-  return PLANET_NAMES[planet];
+  return planet < PLANET_COUNT ? PLANET_NAMES + PLANET_NAME_OFFSETS[planet] : "Planet";
 }
 
 const char *celestial_bodies_star_name(uint8_t star) {
-  return star < STAR_COUNT ? STAR_NAMES[star] : "Star";
+  return star < STAR_COUNT ? STAR_NAMES + STAR_NAME_OFFSETS[star] : "Star";
 }
 
 void celestial_bodies_draw_visible_planet(GContext *ctx, const EclipseData *d,
@@ -75,7 +75,7 @@ void celestial_bodies_draw_visible_planet(GContext *ctx, const EclipseData *d,
 }
 
 uint8_t celestial_bodies_star_radius(uint8_t star) {
-  return star < STAR_COUNT ? STAR_RADIUS[star] : 1;
+  return star < STAR_COUNT ? (star < 7 ? 2 : 1) : 1;
 }
 
 static int32_t planet_seek_az_offset_decideg(uint16_t az_decideg, int32_t heading_deg) {

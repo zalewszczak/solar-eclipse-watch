@@ -30,8 +30,7 @@ static GColor dither_pixel(RGB8 c, uint8_t bayer_0_15) {
 // mass. `scale_pct` scales every seed uniformly to grow/shrink the
 // whole mass with coverage.
 typedef struct {
-  int16_t dx, dy;
-  int16_t r;
+  int8_t dx, dy, r;
 } CloudSeed;
 
 static const CloudSeed CLOUD_SEEDS[13] = {

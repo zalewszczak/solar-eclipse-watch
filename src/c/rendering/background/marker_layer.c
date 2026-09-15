@@ -283,16 +283,21 @@ static void draw_marker_ring(GContext *ctx, GPoint center, GRect screen, const M
 // mark length every 3rd hour and positioned everything relative to the
 // screen radius directly) -- a deliberate simplification, tuned to look
 // reasonably close within the 0-100% reach range every style now shares.
-static const MarkerRingConfig MARKER_STYLE_HOUR_PRESETS[3] = {
-  { .style = 1, .thickness = 1, .inner_eccentricity = 0, .outer_eccentricity = 0, .inner_border_pct = 65, .outer_border_pct = 85 }, // 0: minimal
-  { .style = 1, .thickness = 1, .inner_eccentricity = 0, .outer_eccentricity = 0, .inner_border_pct = 60, .outer_border_pct = 85 }, // 1: small
-  { .style = 2, .thickness = 5, .inner_eccentricity = 0, .outer_eccentricity = 0, .inner_border_pct = 60, .outer_border_pct = 85 }, // 2: big
-};
-static const MarkerRingConfig MARKER_STYLE_SECOND_PRESETS[3] = {
-  { .style = 1, .thickness = 0, .inner_eccentricity = 0, .outer_eccentricity = 0, .inner_border_pct = 65, .outer_border_pct = 85 }, // 0: minimal -- thickness 0 = off, matches "hour markers only"
-  { .style = 1, .thickness = 1, .inner_eccentricity = 0, .outer_eccentricity = 0, .inner_border_pct = 65, .outer_border_pct = 85 }, // 1: small
-  { .style = 1, .thickness = 1, .inner_eccentricity = 0, .outer_eccentricity = 0, .inner_border_pct = 65, .outer_border_pct = 85 }, // 2: big
-};
+static const uint8_t MARKER_HOUR_THICKNESS[3] = { 1, 1, 5 };
+static const uint8_t MARKER_HOUR_INNER_PCT[3] = { 65, 60, 60 };
+static const uint8_t MARKER_SECOND_THICKNESS[3] = { 0, 1, 1 };
+static const uint8_t MARKER_SECOND_INNER_PCT[3] = { 65, 65, 65 };
+
+static void marker_layer_make_preset(MarkerRingConfig *out, uint8_t style, bool second) {
+  out->style = second ? 1 : (style == 2 ? 2 : 1);
+  out->thickness = second ? MARKER_SECOND_THICKNESS[style] : MARKER_HOUR_THICKNESS[style];
+  out->inner_eccentricity = 0;
+  out->outer_eccentricity = 0;
+  out->inner_border_pct = second ? MARKER_SECOND_INNER_PCT[style] : MARKER_HOUR_INNER_PCT[style];
+  out->outer_border_pct = 85;
+  out->translucent = false;
+  out->color = 0;
+}
 
 void marker_layer_inner_reach(uint8_t marker_style, uint8_t *out_pct, uint8_t *out_eccentricity) {
   if (marker_style > 2) { // "none" (9), or any other non-procedural style a caller shouldn't be asking about
@@ -300,19 +305,16 @@ void marker_layer_inner_reach(uint8_t marker_style, uint8_t *out_pct, uint8_t *o
     *out_eccentricity = 0;
     return;
   }
-  const MarkerRingConfig *hour = &MARKER_STYLE_HOUR_PRESETS[marker_style];
-  const MarkerRingConfig *sec = &MARKER_STYLE_SECOND_PRESETS[marker_style];
-  // Whichever ring reaches CLOSER to center (the smaller inner_border_pct)
-  // is the one that actually constrains the inner empty area -- a
-  // thickness-0 ring (style 0's second ring) still has a border_pct
-  // set, but draws nothing, so it's excluded from the comparison.
-  if (sec->thickness == 0 || hour->inner_border_pct <= sec->inner_border_pct) {
-    *out_pct = hour->inner_border_pct;
-    *out_eccentricity = hour->inner_eccentricity;
+  uint8_t hour_pct = MARKER_HOUR_INNER_PCT[marker_style];
+  uint8_t second_pct = MARKER_SECOND_INNER_PCT[marker_style];
+  uint8_t second_thickness = MARKER_SECOND_THICKNESS[marker_style];
+  // Whichever ring reaches closer to center constrains the inner empty area.
+  if (second_thickness == 0 || hour_pct <= second_pct) {
+    *out_pct = hour_pct;
   } else {
-    *out_pct = sec->inner_border_pct;
-    *out_eccentricity = sec->inner_eccentricity;
+    *out_pct = second_pct;
   }
+  *out_eccentricity = 0;
 }
 
 // Marker text's own font is resolved via font_lookup_resolve()
@@ -370,6 +372,7 @@ void marker_layer_draw(GContext *ctx, MarkerLayerState *state, GPoint center, GR
   }
 
   const MarkerRingConfig *hour_cfg, *second_cfg;
+  MarkerRingConfig hour_preset, second_preset;
   uint8_t hour_inner_thickness, second_inner_thickness;
   if (marker_style == 8) {
     hour_cfg = &d->custom_hour_marker;
@@ -378,13 +381,12 @@ void marker_layer_draw(GContext *ctx, MarkerLayerState *state, GPoint center, GR
     second_inner_thickness = d->custom_second_marker_inner_thickness;
   } else {
     uint8_t idx = (marker_style <= 2) ? marker_style : 0;
-    hour_cfg = &MARKER_STYLE_HOUR_PRESETS[idx];
-    second_cfg = &MARKER_STYLE_SECOND_PRESETS[idx];
-    // The 3 procedural presets never use style 4 (tapered), so this
-    // value is never actually read for them -- passed through anyway
-    // for a uniform call shape rather than a separate no-op overload.
-    hour_inner_thickness = hour_cfg->thickness;
-    second_inner_thickness = second_cfg->thickness;
+    marker_layer_make_preset(&hour_preset, idx, false);
+    marker_layer_make_preset(&second_preset, idx, true);
+    hour_cfg = &hour_preset;
+    second_cfg = &second_preset;
+    hour_inner_thickness = hour_preset.thickness;
+    second_inner_thickness = second_preset.thickness;
   }
 
   // Second ring first so the hour ring's marks draw on top at shared
