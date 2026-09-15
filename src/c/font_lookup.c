@@ -108,10 +108,11 @@ static const FontLookupEntry FONT_TABLE[] = {
   [50] = { .resource_id = RESOURCE_ID_LCDSOLID_FONT_18,      .height = 18, .y_offset = -3 }, // LCD
   [51] = { .resource_id = RESOURCE_ID_RADIOLAND_FONT_16,     .height = 16, .y_offset = -4 }, // Radioland
   
-  [52] = { .resource_id = RESOURCE_ID_ZEROZERO_FONT_48,      .height = 48, .y_offset = 12 }, // DS Digital Bold (Big)
+  [52] = { .resource_id = RESOURCE_ID_DSDIGIB_FONT_48,       .height = 48, .y_offset = 12 }, // DS Digital Bold (Big)
   [53] = { .resource_id = RESOURCE_ID_DSDIGIT_FONT_48,       .height = 48, .y_offset = 12 }, // DS Digital Bold Italic
   [54] = { .resource_id = RESOURCE_ID_LCDSOLID_FONT_48,      .height = 48, .y_offset = 1 }, // LCD
   [55] = { .resource_id = RESOURCE_ID_REBELREDUX_FONT_48,    .height = 48, .y_offset = 14 }, // Rebel Redux
+  [56] = { .resource_id = RESOURCE_ID_ZEROZERO_FONT_48,      .height = 48, .y_offset = 12 }, // 00TT
 };
 
 const uint8_t FONT_LOOKUP_COUNT = sizeof(FONT_TABLE) / sizeof(FONT_TABLE[0]);

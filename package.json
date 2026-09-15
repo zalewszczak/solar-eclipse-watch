@@ -252,6 +252,11 @@
         },
         {
           "type": "font",
+          "name": "DSDIGIB_FONT_48",
+          "file": "fonts/DS-DIGIB.TTF"
+        },
+        {
+          "type": "font",
           "name": "LCDSOLID_FONT_48",
           "file": "fonts/LCD_Solid.ttf"
         },
