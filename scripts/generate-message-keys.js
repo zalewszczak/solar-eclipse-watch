@@ -46,6 +46,6 @@ keys.forEach(function (name, i) {
 });
 lines.push('');
 
-var outPath = path.join(ROOT, 'src', 'c', 'message_key_index.h');
+var outPath = path.join(ROOT, 'src', 'c', 'generated', 'message_key_index.h');
 fs.writeFileSync(outPath, lines.join('\n'));
 console.log('Wrote ' + keys.length + ' key indices to ' + path.relative(ROOT, outPath));

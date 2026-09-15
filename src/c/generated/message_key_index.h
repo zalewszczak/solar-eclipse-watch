@@ -1,10 +1,10 @@
-#pragma once
-
 // GENERATED FILE -- do not hand-edit.
 // Produced by scripts/generate-message-keys.js from package.json's
 // pebble.messageKeys array. Each MK_<NAME> is that key's position in
 // the array, i.e. MESSAGE_KEY_<NAME> - MESSAGE_KEY_MESSAGE_TYPE.
 // Re-run the generator any time messageKeys changes.
+#pragma once
+
 #define MK_MESSAGE_TYPE 0
 #define MK_C1_TIME 1
 #define MK_C2_TIME 2
