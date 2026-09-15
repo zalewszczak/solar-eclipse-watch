@@ -259,7 +259,10 @@ void hand_geometry_compute_fp(FGPoint center, int32_t angle, const HandConfig *c
         for (int k = 1; k <= LEAF_HALF_SAMPLES; k++) {
           int32_t u_num = k, u_den = LEAF_HALF_SAMPLES + 1; // u in (0,1)
           int32_t ax = back_fp + subpixel_round_div((peak_ax - back_fp) * u_num, u_den);
-          int32_t angle_half_pi_u = (int32_t)(((int64_t)u_num * (TRIG_MAX_ANGLE / 4)) / u_den); // (pi/2)*u
+          int32_t angle_half_pi_u = u_num * (TRIG_MAX_ANGLE / 4) / u_den; // (pi/2)*u -- u_num <=
+            // LEAF_HALF_SAMPLES and TRIG_MAX_ANGLE/4 is 16384, so this product is
+            // nowhere near int32's range; the int64 it used to be widened to only
+            // risked pulling libgcc's 64-bit divide back in (see subpixel_div64()).
           int32_t w = (int32_t)(((int64_t)half_w_fp * sin_lookup(angle_half_pi_u)) / TRIG_MAX_RATIO);
           FGPoint p = point_at_axial_fp(center, sin_v, cos_v, ax);
           int32_t dx, dy; perp_offset_fp(sin_v, cos_v, w, &dx, &dy);
@@ -271,7 +274,10 @@ void hand_geometry_compute_fp(FGPoint center, int32_t angle, const HandConfig *c
         for (int k = 1; k <= LEAF_HALF_SAMPLES; k++) {
           int32_t u_num = k, u_den = LEAF_HALF_SAMPLES + 1; // v in (0,1), peak->tip
           int32_t ax = peak_ax + subpixel_round_div((len_fp - peak_ax) * u_num, u_den);
-          int32_t angle_half_pi_v = (int32_t)(((int64_t)u_num * (TRIG_MAX_ANGLE / 4)) / u_den); // (pi/2)*v
+          int32_t angle_half_pi_v = u_num * (TRIG_MAX_ANGLE / 4) / u_den; // (pi/2)*v -- u_num <=
+            // LEAF_HALF_SAMPLES and TRIG_MAX_ANGLE/4 is 16384, so this product is
+            // nowhere near int32's range; the int64 it used to be widened to only
+            // risked pulling libgcc's 64-bit divide back in (see subpixel_div64()).
           int32_t w = (int32_t)(((int64_t)half_w_fp * cos_lookup(angle_half_pi_v)) / TRIG_MAX_RATIO);
           FGPoint p = point_at_axial_fp(center, sin_v, cos_v, ax);
           int32_t dx, dy; perp_offset_fp(sin_v, cos_v, w, &dx, &dy);
@@ -402,8 +408,12 @@ void hand_geometry_compute_fp(FGPoint center, int32_t angle, const HandConfig *c
       for (int i = 0; i <= SERP_SEGMENTS; i++) {
         int32_t s_rel_fp = subpixel_round_div(span_fp * i, SERP_SEGMENTS);
         int32_t ax = back_fp + s_rel_fp;
-        int64_t angle_raw = ((int64_t)s_rel_fp * TRIG_MAX_ANGLE) / period_fp;
-        int32_t angle = (int32_t)(angle_raw % TRIG_MAX_ANGLE);
+        // period_fp is a runtime value, so this goes through
+        // subpixel_div64() rather than a plain int64 `/` -- see its comment
+        // in subpixel.h. period_fp is floored at 8<<SUBPIXEL_BITS by the
+        // guard above, so the quotient is well inside int32 either way.
+        int32_t angle_raw = subpixel_div64((int64_t)s_rel_fp * TRIG_MAX_ANGLE, period_fp);
+        int32_t angle = angle_raw % TRIG_MAX_ANGLE;
         int32_t sin_val = sin_lookup(angle) * dir_sign;
         int32_t dev_fp = (int32_t)(((int64_t)amp_fp * sin_val) / TRIG_MAX_RATIO);
         verts[i] = point_at_axial_fp(center, sin_v, cos_v, ax);

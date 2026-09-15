@@ -65,6 +65,35 @@ extern const uint8_t BAYER4[4][4];
 // numerically for all 60 second positions before this was written).
 int32_t subpixel_round_div(int32_t num, int32_t denom);
 
+// Truncating 64/64 division, narrowed to int32 exactly as a plain
+// `(int32_t)(num / den)` would be (including the wraparound when the true
+// quotient doesn't fit). Returns 0 for a zero divisor.
+//
+// Why this exists rather than just writing `num / den`: ARMv7-M has
+// hardware SDIV/UDIV for 32-bit operands but nothing at all for 64-bit,
+// so a single int64 division anywhere in the app drags in libgcc's
+// __aeabi_ldivmod + __udivmoddi4 + __aeabi_ldiv0 -- 928 bytes of flash,
+// for what were five division sites across three files (the ring-inset
+// vertex solve in subpixel.c, the eccentric-ring geometry in
+// marker_layer.c, and the serpentine hand's phase in hand_geometry.c).
+// Routing all of them through this one restoring-division loop drops all
+// three libgcc objects from the link. Divisions whose divisor is a
+// compile-time constant (the many `/ TRIG_MAX_RATIO`, `/ 1000` and the
+// like) never needed it -- the compiler strength-reduces those to a
+// multiply and a shift -- so those stay as they are.
+//
+// This is exact, not an approximation that narrows the operands first:
+// that alternative was measured and blows up on near-parallel polygon
+// edges, where the determinant goes tiny and the quotient goes huge.
+// Verified bit-identical to the compiler's own 64-bit division over ~20M
+// random operand pairs spanning every magnitude combination, and over ~3M
+// polygon vertices through subpixel_inset_convex_polygon_fp().
+//
+// Cost is one loop iteration per significant quotient bit, which for the
+// real geometry here measures ~12 on average (28 worst case) rather than
+// the ~64 the operand widths would suggest.
+int32_t subpixel_div64(int64_t num, int64_t den);
+
 // Plain integer square root (binary/digit-by-digit method, same
 // approach as background_layer module's own isqrt32) for 64-bit inputs --
 // needed here (rather than reusing that 32-bit one) because squared

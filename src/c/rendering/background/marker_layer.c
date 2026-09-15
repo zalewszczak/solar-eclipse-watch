@@ -53,13 +53,15 @@ static FGPoint marker_layer_point_on_ring_fp(FGPoint center, GRect screen, int32
   if (eccentricity_pct == 0) return circle_pt;
 
   int16_t reach_max = marker_max(screen_hw, screen_hh);
-  int32_t rect_hw_fp = (int32_t)(((int64_t)reach_fp * screen_hw) / reach_max);
-  int32_t rect_hh_fp = (int32_t)(((int64_t)reach_fp * screen_hh) / reach_max);
+  int32_t rect_hw_fp = subpixel_div64((int64_t)reach_fp * screen_hw, reach_max);
+  int32_t rect_hh_fp = subpixel_div64((int64_t)reach_fp * screen_hh, reach_max);
 
   int32_t adx = sin_v < 0 ? -sin_v : sin_v;
   int32_t ady = cos_v < 0 ? -cos_v : cos_v;
-  int32_t t_x = (adx == 0) ? INT32_MAX : (int32_t)(((int64_t)rect_hw_fp * TRIG_MAX_RATIO) / adx);
-  int32_t t_y = (ady == 0) ? INT32_MAX : (int32_t)(((int64_t)rect_hh_fp * TRIG_MAX_RATIO) / ady);
+  // Divisors here are runtime values, so these go through subpixel_div64()
+  // rather than a plain int64 `/` -- see its comment in subpixel.h.
+  int32_t t_x = (adx == 0) ? INT32_MAX : subpixel_div64((int64_t)rect_hw_fp * TRIG_MAX_RATIO, adx);
+  int32_t t_y = (ady == 0) ? INT32_MAX : subpixel_div64((int64_t)rect_hh_fp * TRIG_MAX_RATIO, ady);
   int32_t t = t_x < t_y ? t_x : t_y;
 
   FGPoint rect_pt = subpixel_fgpoint_new(

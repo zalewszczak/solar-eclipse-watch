@@ -25,6 +25,29 @@ int32_t subpixel_round_div(int32_t num, int32_t denom) {
   return -((-num + denom / 2) / denom);
 }
 
+// See subpixel.h for why this exists instead of a plain `num / den`.
+int32_t subpixel_div64(int64_t num, int64_t den) {
+  if (den == 0) return 0;
+  bool neg = (num < 0) != (den < 0);
+  uint64_t n = (num < 0) ? -(uint64_t)num : (uint64_t)num;
+  uint64_t d = (den < 0) ? -(uint64_t)den : (uint64_t)den;
+  uint64_t q = 0;
+  if (n >= d) {
+    // Align the divisor with the dividend's most significant bit, so the
+    // loop below runs once per bit the quotient can actually contain
+    // rather than once per bit of the operand width.
+    int shift = __builtin_clzll(d) - __builtin_clzll(n);
+    d <<= shift;
+    do {
+      q <<= 1;
+      if (n >= d) { n -= d; q |= 1; }
+      d >>= 1;
+    } while (shift--);
+  }
+  int64_t r = neg ? -(int64_t)q : (int64_t)q;
+  return (int32_t)r; // same narrowing a plain (int32_t)(num / den) would do
+}
+
 uint32_t subpixel_isqrt64_fp(int64_t v) {
   if (v <= 0) return 0;
   uint64_t x = (uint64_t)v;
@@ -371,8 +394,8 @@ bool subpixel_inset_convex_polygon_fp(const FGPoint *pts, int n, int32_t d_fp, F
     }
     int64_t t_num = (int64_t)dir_x[i] * ey - (int64_t)dir_y[i] * ex;
     out_pts[i] = subpixel_fgpoint_new(
-      offset_a[prev].x + (int32_t)((t_num * dir_x[prev]) / det),
-      offset_a[prev].y + (int32_t)((t_num * dir_y[prev]) / det)
+      offset_a[prev].x + subpixel_div64(t_num * dir_x[prev], det),
+      offset_a[prev].y + subpixel_div64(t_num * dir_y[prev], det)
     );
   }
 
