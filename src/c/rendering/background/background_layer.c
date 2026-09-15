@@ -1,4 +1,5 @@
 #include "./background_layer.h"
+#include "../render_math.h"
 #include "./background_overlays.h"
 #include "../../data/eclipse_status.h"
 #include "../../data/eclipse_ui.h"
@@ -343,12 +344,12 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
       // gray band that un-grays again beneath it.
       SkyRgb neutral_gray = { 115, 117, 120 };
       SkyRgb dark_gray = { 40, 41, 46 };
-      band_rgb.r = sky_layer_lerp8(sky_hz_rgb.r, neutral_gray.r, gray_amount, 100);
-      band_rgb.g = sky_layer_lerp8(sky_hz_rgb.g, neutral_gray.g, gray_amount, 100);
-      band_rgb.b = sky_layer_lerp8(sky_hz_rgb.b, neutral_gray.b, gray_amount, 100);
-      hz_rgb.r = sky_layer_lerp8(sky_hz_rgb.r, dark_gray.r, gray_amount, 100);
-      hz_rgb.g = sky_layer_lerp8(sky_hz_rgb.g, dark_gray.g, gray_amount, 100);
-      hz_rgb.b = sky_layer_lerp8(sky_hz_rgb.b, dark_gray.b, gray_amount, 100);
+      band_rgb.r = render_math_lerp8(sky_hz_rgb.r, neutral_gray.r, gray_amount, 100);
+      band_rgb.g = render_math_lerp8(sky_hz_rgb.g, neutral_gray.g, gray_amount, 100);
+      band_rgb.b = render_math_lerp8(sky_hz_rgb.b, neutral_gray.b, gray_amount, 100);
+      hz_rgb.r = render_math_lerp8(sky_hz_rgb.r, dark_gray.r, gray_amount, 100);
+      hz_rgb.g = render_math_lerp8(sky_hz_rgb.g, dark_gray.g, gray_amount, 100);
+      hz_rgb.b = render_math_lerp8(sky_hz_rgb.b, dark_gray.b, gray_amount, 100);
       band_y_screen = sky_layer_compute_cloud_band_y_virtual(virtual_top_y, virtual_total_h, d->cloud_altitude_pct);
     }
 

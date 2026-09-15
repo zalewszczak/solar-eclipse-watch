@@ -1,6 +1,7 @@
 #include "./weather_layer.h"
 #include "../../graphics/subpixel.h"
 #include "./weather_layout.h"
+#include "../render_math.h"
 
 // Treat a weather value as stale only after repeated failed refreshes.
 // Keep the last valid weather state during short-lived fetch failures.
@@ -14,50 +15,10 @@ bool weather_layer_should_show_error(const EclipseData *data) {
 
 typedef struct { uint8_t r, g, b; } RGB8;
 
-static uint8_t lerp8(uint8_t a, uint8_t b, int32_t num, int32_t den) {
-  if (den == 0) return a;
-  return (uint8_t)(a + ((int32_t)(b - a) * num) / den);
-}
-
-static uint8_t dither_channel(uint8_t continuous_255, uint8_t bayer_0_15) {
-  int32_t scaled = (int32_t)continuous_255 * 3;
-  int32_t level = scaled / 255;
-  int32_t rem = scaled - level * 255;
-  int32_t threshold = (bayer_0_15 * 255) / 16;
-  if (rem > threshold && level < 3) level++;
-  return (uint8_t)level;
-}
-
 static GColor dither_pixel(RGB8 c, uint8_t bayer_0_15) {
-  return GColorFromRGB(dither_channel(c.r, bayer_0_15) * 85,
-                       dither_channel(c.g, bayer_0_15) * 85,
-                       dither_channel(c.b, bayer_0_15) * 85);
+  return render_math_dither_rgb(c.r, c.g, c.b, bayer_0_15);
 }
 
-static uint16_t isqrt32(int32_t v) {
-  if (v <= 0) return 0;
-  uint32_t x = (uint32_t)v;
-  uint32_t res = 0;
-  uint32_t bit = 1u << 30;
-  while (bit > x) bit >>= 2;
-  while (bit != 0) {
-    if (x >= res + bit) {
-      x -= res + bit;
-      res = (res >> 1) + bit;
-    } else {
-      res >>= 1;
-    }
-    bit >>= 2;
-  }
-  return (uint16_t)res;
-}
-
-static int16_t compute_cloud_band_y(GRect bounds, uint8_t cloud_altitude_pct) {
-  int16_t half_h = bounds.size.h / 2;
-  int16_t lower_top = bounds.origin.y + half_h;
-  int16_t lower_bottom = bounds.origin.y + bounds.size.h - GROUND_H;
-  return lower_bottom - (((int32_t)(lower_bottom - lower_top) * cloud_altitude_pct) / 100);
-}
 
 // Each cloud mass is a continuous procedural field (a "metaball" --
 // each seed point contributes a soft, bounded falloff blob, and
@@ -190,9 +151,9 @@ static void cloud_shading_colors(uint8_t cloud_pct, bool stormy, RGB8 sun_rgb,
   // does.
   if (sun_alt_decideg > 0 && sun_alt_decideg < 300) {
     int32_t tint_pct = 100 - ((int32_t)sun_alt_decideg * 100) / 300;
-    warm->r = lerp8(warm->r, sun_rgb.r, tint_pct, 100);
-    warm->g = lerp8(warm->g, sun_rgb.g, tint_pct, 100);
-    warm->b = lerp8(warm->b, sun_rgb.b, tint_pct, 100);
+    warm->r = render_math_lerp8(warm->r, sun_rgb.r, tint_pct, 100);
+    warm->g = render_math_lerp8(warm->g, sun_rgb.g, tint_pct, 100);
+    warm->b = render_math_lerp8(warm->b, sun_rgb.b, tint_pct, 100);
   }
 
   // These bright/pale colors were the same at any hour, so clouds at
@@ -204,12 +165,12 @@ static void cloud_shading_colors(uint8_t cloud_pct, bool stormy, RGB8 sun_rgb,
   uint8_t night = cloud_night_factor(sun_alt_decideg);
   if (night > 0) {
     RGB8 night_dark = { 28, 29, 36 };
-    warm->r = lerp8(warm->r, night_dark.r, night, 100);
-    warm->g = lerp8(warm->g, night_dark.g, night, 100);
-    warm->b = lerp8(warm->b, night_dark.b, night, 100);
-    cool->r = lerp8(cool->r, night_dark.r, night, 100);
-    cool->g = lerp8(cool->g, night_dark.g, night, 100);
-    cool->b = lerp8(cool->b, night_dark.b, night, 100);
+    warm->r = render_math_lerp8(warm->r, night_dark.r, night, 100);
+    warm->g = render_math_lerp8(warm->g, night_dark.g, night, 100);
+    warm->b = render_math_lerp8(warm->b, night_dark.b, night, 100);
+    cool->r = render_math_lerp8(cool->r, night_dark.r, night, 100);
+    cool->g = render_math_lerp8(cool->g, night_dark.g, night, 100);
+    cool->b = render_math_lerp8(cool->b, night_dark.b, night, 100);
   }
 }
 
@@ -247,7 +208,7 @@ void weather_layer_draw_clouds(GContext *ctx, GRect bounds, uint8_t cloud_pct, u
   RGB8 sun_rgb = { sun_r, sun_g, sun_b };
   cloud_shading_colors(cloud_pct, stormy, sun_rgb, sun_alt_decideg, &warm_rgb, &cool_rgb);
 
-  int16_t band_y = compute_cloud_band_y(bounds, cloud_altitude_pct);
+  int16_t band_y = render_math_cloud_band_y(bounds, cloud_altitude_pct);
   int cluster_count = cloud_cluster_count(cloud_pct, stormy);
 
   uint8_t density = cloud_pct < 30 ? 30 : cloud_pct; // even thin cloud reads as a real puff, not a ghost
@@ -283,7 +244,7 @@ void weather_layer_draw_clouds(GContext *ctx, GRect bounds, uint8_t cloud_pct, u
     if (sun_up) {
       int32_t to_sun_x = sun_center.x - cx;
       int32_t to_sun_y = sun_center.y - cy;
-      int32_t mag = (int32_t)isqrt32(to_sun_x * to_sun_x + to_sun_y * to_sun_y);
+      int32_t mag = (int32_t)render_math_isqrt32(to_sun_x * to_sun_x + to_sun_y * to_sun_y);
       if (mag > 0) {
         light_dx = (to_sun_x * 100) / mag;
         light_dy = (to_sun_y * 100) / mag;
@@ -322,17 +283,17 @@ void weather_layer_draw_clouds(GContext *ctx, GRect bounds, uint8_t cloud_pct, u
         int32_t warm_frac = (facing + 1000) / 2; // 0..1000
 
         RGB8 blend;
-        blend.r = lerp8(cool_rgb.r, warm_rgb.r, warm_frac, 1000);
-        blend.g = lerp8(cool_rgb.g, warm_rgb.g, warm_frac, 1000);
-        blend.b = lerp8(cool_rgb.b, warm_rgb.b, warm_frac, 1000);
+        blend.r = render_math_lerp8(cool_rgb.r, warm_rgb.r, warm_frac, 1000);
+        blend.g = render_math_lerp8(cool_rgb.g, warm_rgb.g, warm_frac, 1000);
+        blend.b = render_math_lerp8(cool_rgb.b, warm_rgb.b, warm_frac, 1000);
         if (flash_active) {
           // Lit from within: lean hard toward white rather than the
           // normal warm/cool shading, same "brief overexposure" look
           // a real strike gives the clouds around it.
           RGB8 white = { 255, 255, 255 };
-          blend.r = lerp8(blend.r, white.r, 70, 100);
-          blend.g = lerp8(blend.g, white.g, 70, 100);
-          blend.b = lerp8(blend.b, white.b, 70, 100);
+          blend.r = render_math_lerp8(blend.r, white.r, 70, 100);
+          blend.g = render_math_lerp8(blend.g, white.g, 70, 100);
+          blend.b = render_math_lerp8(blend.b, white.b, 70, 100);
         }
         GColor color = dither_pixel(blend, bayer);
         graphics_context_set_fill_color(ctx, color);

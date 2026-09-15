@@ -3,6 +3,7 @@
 #include "./celestial_bodies.h"
 #include "../../features/feature_render.h"
 #include <string.h>
+#include "../render_math.h"
 
 #define CELESTIAL_ARROW_W 6
 
@@ -65,21 +66,10 @@ static bool body_screen_y(int16_t alt_based_y, time_t rise, time_t set, time_t n
   return true;
 }
 
-static uint16_t isqrt32(int32_t v) {
-  if (v <= 0) return 0;
-  uint32_t x = (uint32_t)v, res = 0, bit = 1u << 30;
-  while (bit > x) bit >>= 2;
-  while (bit != 0) {
-    if (x >= res + bit) { x -= res + bit; res = (res >> 1) + bit; }
-    else res >>= 1;
-    bit >>= 2;
-  }
-  return (uint16_t)res;
-}
 
 static GPoint enforce_min_separation(GPoint a, GPoint b, int32_t min_dist) {
   int32_t dx = b.x - a.x, dy = b.y - a.y;
-  int32_t dist = (int32_t)isqrt32(dx * dx + dy * dy);
+  int32_t dist = (int32_t)render_math_isqrt32(dx * dx + dy * dy);
   if (dist >= min_dist) return b;
   if (dist == 0) return GPoint(a.x + min_dist, a.y);
   return GPoint((int16_t)(a.x + (dx * min_dist) / dist),
@@ -95,7 +85,7 @@ void celestial_draw_moon_phase(GContext *ctx, GRect bounds, GPoint center, int16
     int16_t dy = y - center.y;
     int32_t term = (int32_t)radius * radius - (int32_t)dy * dy;
     if (term < 0) continue;
-    int16_t half_width = (int16_t)isqrt32(term);
+    int16_t half_width = (int16_t)render_math_isqrt32(term);
     bool gibbous = k100 > 50;
     int32_t a = gibbous ? (radius * (2 * k100 - 100)) / 100 : (radius * (100 - 2 * k100)) / 100;
     int32_t ellipse_w = (a * half_width) / (radius == 0 ? 1 : radius);

@@ -2,6 +2,7 @@
 #include "./celestial_layer.h"
 #include "./celestial_ephemeris.h"
 #include "../../graphics/subpixel.h"
+#include "../render_math.h"
 
 #define SKY_GROUND_H 18
 
@@ -43,28 +44,12 @@ static const SkyAnchor SKY_ANCHORS[] = {
 
 
 
-uint8_t sky_layer_lerp8(uint8_t a, uint8_t b, int32_t num, int32_t den) {
-  if (den == 0) return a;
-  return (uint8_t)(a + ((int32_t)(b - a) * num) / den);
-}
-
 // Convert a continuous 0-255 RGB value to Pebble's 2-bit-per-channel
 // palette using the shared 4x4 Bayer matrix. The weather renderer has
 // its own private copy because it owns atmospheric dithering; the sky
 // gradient uses the shared Bayer matrix from the graphics rasterizer module.
-static uint8_t dither_channel(uint8_t continuous_255, uint8_t bayer_0_15) {
-  int32_t scaled = (int32_t)continuous_255 * 3;
-  int32_t level = scaled / 255;
-  int32_t rem = scaled - level * 255;
-  int32_t threshold = (bayer_0_15 * 255) / 16;
-  if (rem > threshold && level < 3) level++;
-  return (uint8_t)level;
-}
-
 static GColor dither_pixel(SkyRgb c, uint8_t bayer_0_15) {
-  return GColorFromRGB(dither_channel(c.r, bayer_0_15) * 85,
-                       dither_channel(c.g, bayer_0_15) * 85,
-                       dither_channel(c.b, bayer_0_15) * 85);
+  return render_math_dither_rgb(c.r, c.g, c.b, bayer_0_15);
 }
 
 // The Sun's own disc color, white near the zenith and shifting through
@@ -126,9 +111,9 @@ SkyRgb sky_layer_sun_color_for_altitude(int16_t alt_decideg) {
     if (alt_decideg <= hi->alt_decideg && alt_decideg >= lo->alt_decideg) {
       int32_t num = hi->alt_decideg - alt_decideg;
       int32_t den = hi->alt_decideg - lo->alt_decideg;
-      out.r = sky_layer_lerp8(hi->r, lo->r, num, den);
-      out.g = sky_layer_lerp8(hi->g, lo->g, num, den);
-      out.b = sky_layer_lerp8(hi->b, lo->b, num, den);
+      out.r = render_math_lerp8(hi->r, lo->r, num, den);
+      out.g = render_math_lerp8(hi->g, lo->g, num, den);
+      out.b = render_math_lerp8(hi->b, lo->b, num, den);
       return out;
     }
   }
@@ -154,12 +139,12 @@ void sky_layer_colors_for_altitude(int16_t alt_decideg, SkyRgb *top_out, SkyRgb 
     if (alt_decideg <= hi->alt_decideg && alt_decideg >= lo->alt_decideg) {
       int32_t num = hi->alt_decideg - alt_decideg;
       int32_t den = hi->alt_decideg - lo->alt_decideg;
-      top_out->r = sky_layer_lerp8(hi->top_r, lo->top_r, num, den);
-      top_out->g = sky_layer_lerp8(hi->top_g, lo->top_g, num, den);
-      top_out->b = sky_layer_lerp8(hi->top_b, lo->top_b, num, den);
-      hz_out->r = sky_layer_lerp8(hi->hz_r, lo->hz_r, num, den);
-      hz_out->g = sky_layer_lerp8(hi->hz_g, lo->hz_g, num, den);
-      hz_out->b = sky_layer_lerp8(hi->hz_b, lo->hz_b, num, den);
+      top_out->r = render_math_lerp8(hi->top_r, lo->top_r, num, den);
+      top_out->g = render_math_lerp8(hi->top_g, lo->top_g, num, den);
+      top_out->b = render_math_lerp8(hi->top_b, lo->top_b, num, den);
+      hz_out->r = render_math_lerp8(hi->hz_r, lo->hz_r, num, den);
+      hz_out->g = render_math_lerp8(hi->hz_g, lo->hz_g, num, den);
+      hz_out->b = render_math_lerp8(hi->hz_b, lo->hz_b, num, den);
       return;
     }
   }
@@ -250,14 +235,14 @@ void sky_layer_fill_gradient(GContext *ctx, GRect bounds, int16_t virtual_top_y,
     int16_t virtual_y = virtual_top_y + y;
     SkyRgb row;
     if (virtual_y <= band_y) {
-      row.r = sky_layer_lerp8(top.r, band.r, virtual_y, upper_span > 0 ? upper_span : 1);
-      row.g = sky_layer_lerp8(top.g, band.g, virtual_y, upper_span > 0 ? upper_span : 1);
-      row.b = sky_layer_lerp8(top.b, band.b, virtual_y, upper_span > 0 ? upper_span : 1);
+      row.r = render_math_lerp8(top.r, band.r, virtual_y, upper_span > 0 ? upper_span : 1);
+      row.g = render_math_lerp8(top.g, band.g, virtual_y, upper_span > 0 ? upper_span : 1);
+      row.b = render_math_lerp8(top.b, band.b, virtual_y, upper_span > 0 ? upper_span : 1);
     } else {
       int16_t rel = virtual_y - band_y;
-      row.r = sky_layer_lerp8(band.r, hz.r, rel, lower_span > 0 ? lower_span : 1);
-      row.g = sky_layer_lerp8(band.g, hz.g, rel, lower_span > 0 ? lower_span : 1);
-      row.b = sky_layer_lerp8(band.b, hz.b, rel, lower_span > 0 ? lower_span : 1);
+      row.r = render_math_lerp8(band.r, hz.r, rel, lower_span > 0 ? lower_span : 1);
+      row.g = render_math_lerp8(band.g, hz.g, rel, lower_span > 0 ? lower_span : 1);
+      row.b = render_math_lerp8(band.b, hz.b, rel, lower_span > 0 ? lower_span : 1);
     }
 
     GColor phase_colors[4];
@@ -347,12 +332,12 @@ static void sky_layer_compute_wash(const EclipseData *d, time_t now, int16_t vir
   if (gray_amount > 0) {
     SkyRgb neutral_gray = { 115, 117, 120 };
     SkyRgb dark_gray = { 40, 41, 46 };
-    band_rgb.r = sky_layer_lerp8(sky_hz_rgb.r, neutral_gray.r, gray_amount, 100);
-    band_rgb.g = sky_layer_lerp8(sky_hz_rgb.g, neutral_gray.g, gray_amount, 100);
-    band_rgb.b = sky_layer_lerp8(sky_hz_rgb.b, neutral_gray.b, gray_amount, 100);
-    hz_rgb.r = sky_layer_lerp8(sky_hz_rgb.r, dark_gray.r, gray_amount, 100);
-    hz_rgb.g = sky_layer_lerp8(sky_hz_rgb.g, dark_gray.g, gray_amount, 100);
-    hz_rgb.b = sky_layer_lerp8(sky_hz_rgb.b, dark_gray.b, gray_amount, 100);
+    band_rgb.r = render_math_lerp8(sky_hz_rgb.r, neutral_gray.r, gray_amount, 100);
+    band_rgb.g = render_math_lerp8(sky_hz_rgb.g, neutral_gray.g, gray_amount, 100);
+    band_rgb.b = render_math_lerp8(sky_hz_rgb.b, neutral_gray.b, gray_amount, 100);
+    hz_rgb.r = render_math_lerp8(sky_hz_rgb.r, dark_gray.r, gray_amount, 100);
+    hz_rgb.g = render_math_lerp8(sky_hz_rgb.g, dark_gray.g, gray_amount, 100);
+    hz_rgb.b = render_math_lerp8(sky_hz_rgb.b, dark_gray.b, gray_amount, 100);
     band_y = sky_layer_compute_cloud_band_y_virtual(virtual_top_y, virtual_total_h, d->cloud_altitude_pct);
   }
 

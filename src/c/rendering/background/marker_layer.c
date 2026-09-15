@@ -1,4 +1,5 @@
 #include "./marker_layer.h"
+#include "../render_math.h"
 #include "./marker_bitmap.h"
 #include "./marker_text.h"
 #include <string.h>
@@ -21,10 +22,6 @@ static inline int32_t marker_div_round(int32_t num, int32_t den) {
   return (num - den / 2) / den;
 }
 
-static uint8_t marker_lerp8(uint8_t a, uint8_t b, int32_t num, int32_t den) {
-  if (den == 0) return a;
-  return (uint8_t)(a + ((int32_t)(b - a) * num) / den);
-}
 
 static int16_t marker_min(int16_t a, int16_t b) { return a < b ? a : b; }
 static int16_t marker_max(int16_t a, int16_t b) { return a > b ? a : b; }
@@ -265,10 +262,10 @@ static void draw_marker_ring(GContext *ctx, GPoint center, GRect screen, const M
     uint8_t use_inner_ecc = cfg->inner_eccentricity, use_outer_ecc = cfg->outer_eccentricity;
     if (anim_active) {
       int32_t p = marker_ease_out_1000(marker_anim_mark_progress_1000_raw(i, marks, anim_overall_progress_1000));
-      use_inner_pct = (uint8_t)marker_lerp8(100, inner_pct, p, 1000);
-      use_outer_pct = (uint8_t)marker_lerp8(100, outer_pct, p, 1000);
-      use_inner_ecc = (uint8_t)marker_lerp8(100, cfg->inner_eccentricity, p, 1000);
-      use_outer_ecc = (uint8_t)marker_lerp8(100, cfg->outer_eccentricity, p, 1000);
+      use_inner_pct = (uint8_t)render_math_lerp8(100, inner_pct, p, 1000);
+      use_outer_pct = (uint8_t)render_math_lerp8(100, outer_pct, p, 1000);
+      use_inner_ecc = (uint8_t)render_math_lerp8(100, cfg->inner_eccentricity, p, 1000);
+      use_outer_ecc = (uint8_t)render_math_lerp8(100, cfg->outer_eccentricity, p, 1000);
     }
 
     FGPoint outer_fp = marker_layer_point_on_ring_fp(center_fp, screen, sin_v, cos_v, use_outer_pct, use_outer_ecc);

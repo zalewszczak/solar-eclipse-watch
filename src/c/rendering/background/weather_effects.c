@@ -1,20 +1,9 @@
 #include "./weather_effects.h"
 #include "../../graphics/subpixel.h"
 #include "./weather_layout.h"
+#include "../render_math.h"
 
 typedef struct { uint8_t r, g, b; } RGB8;
-static uint8_t lerp8(uint8_t a, uint8_t b, int32_t num, int32_t den) {
-  if (den == 0) return a;
-  return (uint8_t)(a + ((int32_t)(b - a) * num) / den);
-}
-static uint8_t dither_channel(uint8_t c, uint8_t b) {
-  int32_t scaled=(int32_t)c*3, level=scaled/255, rem=scaled-level*255, threshold=(b*255)/16;
-  if (rem > threshold && level < 3) {
-    level++;
-  }
-  return (uint8_t)level;
-}
-static GColor dither_pixel(RGB8 c,uint8_t b) { return GColorFromRGB(dither_channel(c.r,b)*85,dither_channel(c.g,b)*85,dither_channel(c.b,b)*85); }
 #define GROUND_H 18
 #define SKY_TOP_MARGIN 20
 const int8_t WEATHER_CLOUD_CLUSTER_X_PCT[WEATHER_CLOUD_CLUSTER_SLOTS] = { 18, 45, 68, 88 };
@@ -29,10 +18,6 @@ static const GPoint SNOW_OFFSETS[6] = {
   { -18, 10 }, { -7, 19 }, { 4, 13 }, { 15, 23 }, { -2, 29 }, { 20, 16 },
 };
 #define SNOW_OFFSET_COUNT 6
-static int16_t compute_cloud_band_y(GRect bounds,uint8_t cloud_altitude_pct) {
-  int16_t half_h=bounds.size.h/2, lower_top=bounds.origin.y+half_h, lower_bottom=bounds.origin.y+bounds.size.h-GROUND_H;
-  return lower_bottom-(((int32_t)(lower_bottom-lower_top)*cloud_altitude_pct)/100);
-}
 static int cloud_cluster_count(uint8_t cloud_pct,bool stormy) {
   if (stormy) {
     return WEATHER_CLOUD_CLUSTER_SLOTS;
@@ -49,7 +34,7 @@ void weather_effects_draw_effect(GContext *ctx, GRect bounds, uint8_t condition,
   int16_t sky_h = bounds.size.h - GROUND_H; // don't draw effects over the ground strip
 
   if (condition == 2 || condition == 4) { // rain, or a storm's heavier rain
-    int16_t band_y = compute_cloud_band_y(bounds, cloud_altitude_pct);
+    int16_t band_y = render_math_cloud_band_y(bounds, cloud_altitude_pct);
     int cluster_count = cloud_cluster_count(cloud_pct < 60 ? 60 : cloud_pct, condition == 4);
     graphics_context_set_stroke_color(ctx, GColorFromRGB(40, 100, 210));
     graphics_context_set_stroke_width(ctx, condition == 4 ? 2 : 1);
@@ -74,7 +59,7 @@ void weather_effects_draw_effect(GContext *ctx, GRect bounds, uint8_t condition,
       }
     }
   } else if (condition == 3) { // snow
-    int16_t band_y = compute_cloud_band_y(bounds, cloud_altitude_pct);
+    int16_t band_y = render_math_cloud_band_y(bounds, cloud_altitude_pct);
     int cluster_count = cloud_cluster_count(cloud_pct < 60 ? 60 : cloud_pct, false);
     graphics_context_set_fill_color(ctx, GColorWhite);
     for (int c = 0; c < cluster_count; c++) {
@@ -179,9 +164,9 @@ void weather_effects_draw_aurora(GContext *ctx, GRect bounds, uint8_t visibility
 
       int32_t height_frac1000 = ((int32_t)rel * 1000) / streak_h;
       RGB8 blend;
-      blend.r = lerp8(top_color.r, base_color.r, height_frac1000, 1000);
-      blend.g = lerp8(top_color.g, base_color.g, height_frac1000, 1000);
-      blend.b = lerp8(top_color.b, base_color.b, height_frac1000, 1000);
+      blend.r = render_math_lerp8(top_color.r, base_color.r, height_frac1000, 1000);
+      blend.g = render_math_lerp8(top_color.g, base_color.g, height_frac1000, 1000);
+      blend.b = render_math_lerp8(top_color.b, base_color.b, height_frac1000, 1000);
 
       // Fades toward both edges (faint upper reach, dissolving into
       // the sky at the bottom) -- richest through the middle third.
@@ -195,7 +180,7 @@ void weather_effects_draw_aurora(GContext *ctx, GRect bounds, uint8_t visibility
       for (int16_t x = x0; x <= x1; x++) {
         uint8_t bayer = BAYER4[y & 3][x & 3];
         if (bayer >= threshold) continue;
-        graphics_context_set_fill_color(ctx, dither_pixel(blend, bayer));
+        graphics_context_set_fill_color(ctx, render_math_dither_rgb(blend.r, blend.g, blend.b, bayer));
         graphics_fill_rect(ctx, GRect(x, y, 1, 1), 0, GCornerNone);
       }
     }
