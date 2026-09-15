@@ -39,10 +39,7 @@ void sky_layer_fill_gradient(GContext *ctx, GRect bounds,
 
 // Compute the weather-adjusted sky wash shared by the main canvas and the
 // Digital-top gradient strip.
-void sky_layer_compute_wash(const EclipseData *data, time_t now,
-                            int16_t virtual_top_y, int16_t virtual_total_h,
-                            SkyRgb *out_top, SkyRgb *out_band, int16_t *out_band_y,
-                            SkyRgb *out_horizon, bool *out_flat_black);
+
 
 // Cheap daylight/twilight test used by countdown/color policy.
 bool sky_layer_is_bright(const EclipseData *data, time_t now);

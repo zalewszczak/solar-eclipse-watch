@@ -16,5 +16,3 @@ bool feature_controller_content_in_use(const EclipseData *data, uint8_t content)
 void feature_controller_ensure_corner_custom_font(uint8_t font_id);
 void feature_controller_unload_fonts(void);
 GFont feature_controller_font(uint8_t font_id);
-int16_t feature_controller_font_height(uint8_t font_id);
-int16_t feature_controller_font_y_offset(uint8_t font_id);

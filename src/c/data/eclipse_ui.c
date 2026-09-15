@@ -2,7 +2,7 @@
 #include "./eclipse_ui.h"
 #include "../rendering/background/sky_layer.h"
 
-GColor eclipse_ui_color_from_packed(uint8_t packed) {
+static GColor eclipse_ui_color_from_packed(uint8_t packed) {
   GColor color;
   color.argb = packed;
   return color;

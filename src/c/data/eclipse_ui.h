@@ -11,7 +11,6 @@ void eclipse_ui_get_active_color_scheme(const EclipseData *data, time_t now,
 
 // Reconstructs a Pebble color from the packed 2-bit-per-channel value sent
 // by the settings page.
-GColor eclipse_ui_color_from_packed(uint8_t packed);
 
 // Returns the next sunrise/sunset event represented by the supplied daily
 // data. If today's events have passed, tomorrow's sunrise is used when

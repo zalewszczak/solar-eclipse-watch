@@ -11,6 +11,5 @@ void watchface_ui_init(EclipseData *data);
 void watchface_ui_deinit(void);
 
 void watchface_ui_refresh_status(bool force_canvas);
-void watchface_ui_update_planet_seek_accuracy_label(bool active);
 
 const InputCallbacks *watchface_ui_input_callbacks(void);

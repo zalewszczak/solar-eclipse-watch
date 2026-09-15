@@ -108,10 +108,3 @@ GFont feature_controller_font(uint8_t font_id) {
   return font_lookup_resolve(&s_corner_font_slot, font_id);
 }
 
-int16_t feature_controller_font_height(uint8_t font_id) {
-  return font_lookup_height(font_id);
-}
-
-int16_t feature_controller_font_y_offset(uint8_t font_id) {
-  return font_lookup_y_offset(font_id);
-}

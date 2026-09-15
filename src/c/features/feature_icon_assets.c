@@ -32,7 +32,7 @@ void feature_icon_assets_draw_tiny(GContext *ctx, GPoint top_left, const uint8_t
 
 
 
-void feature_icon_assets_draw_bitmap_tinted_sized(GContext *ctx, GBitmap *bmp, GPoint top_left, GColor color,
+static void feature_icon_assets_draw_bitmap_tinted_sized(GContext *ctx, GBitmap *bmp, GPoint top_left, GColor color,
                                            int16_t w, int16_t h) {
   GColor *palette = gbitmap_get_palette(bmp);
   if (palette) {
@@ -55,7 +55,7 @@ void feature_icon_assets_draw_bitmap_tinted_sized(GContext *ctx, GBitmap *bmp, G
 
 
 
-void feature_icon_assets_draw_bitmap_tinted(GContext *ctx, GBitmap *bmp, GPoint top_left, GColor color) {
+static void feature_icon_assets_draw_bitmap_tinted(GContext *ctx, GBitmap *bmp, GPoint top_left, GColor color) {
   feature_icon_assets_draw_bitmap_tinted_sized(ctx, bmp, top_left, color, ICON_WIDTH, ICON_ROWS);
 }
 

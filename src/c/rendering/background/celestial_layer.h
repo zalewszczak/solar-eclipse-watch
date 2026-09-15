@@ -33,8 +33,7 @@ void celestial_layer_init(CelestialLayerState *state);
 
 const char *celestial_moon_phase_short_name(uint8_t pct, bool waxing);
 
-int16_t celestial_alt_to_y(int16_t altitude_decideg, int16_t scale_max_decideg,
-                           int16_t canvas_h, int16_t radius);
+
 
 void celestial_draw_moon_phase(GContext *ctx, GRect bounds, GPoint center, int16_t radius,
                     uint8_t phase_pct, bool waxing, GColor lit_color);

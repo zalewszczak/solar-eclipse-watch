@@ -1,7 +1,7 @@
 #include "./feature_weather_icons.h"
 #include "./feature_icon_assets.h"
 
-void feature_weather_icons_draw_hollow(GContext *ctx, GPoint top_left, uint8_t category, GColor color) {
+static void feature_weather_icons_draw_hollow(GContext *ctx, GPoint top_left, uint8_t category, GColor color) {
   switch (category) {
     case 0: // sunny
       feature_icon_assets_draw_resource(ctx, top_left, RESOURCE_ID_ICON_WEATHER_HOLLOW_SUN, color);
@@ -30,7 +30,7 @@ void feature_weather_icons_draw_hollow(GContext *ctx, GPoint top_left, uint8_t c
 
 
 
-void feature_weather_icons_draw_simple(GContext *ctx, GPoint top_left, uint8_t category, GColor color) {
+static void feature_weather_icons_draw_simple(GContext *ctx, GPoint top_left, uint8_t category, GColor color) {
   switch (category) {
     case 0: // sunny
       feature_icon_assets_draw_resource(ctx, top_left, RESOURCE_ID_ICON_WEATHER_SIMPLE_SUN, color);
@@ -59,7 +59,7 @@ void feature_weather_icons_draw_simple(GContext *ctx, GPoint top_left, uint8_t c
 
 
 
-void feature_weather_icons_draw_filled(GContext *ctx, GPoint top_left, uint8_t category, GColor color) {
+static void feature_weather_icons_draw_filled(GContext *ctx, GPoint top_left, uint8_t category, GColor color) {
   (void)color;
   switch (category) {
     case 0: // sunny

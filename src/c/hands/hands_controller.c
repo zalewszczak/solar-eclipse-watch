@@ -278,7 +278,7 @@ bool hands_controller_animation_active(void) {
   return s_startup_clock_anim_active;
 }
 
-int32_t hands_controller_animation_progress_1000(void) {
+static int32_t hands_controller_animation_progress_1000(void) {
   if (!s_startup_clock_anim_active) return 1000;
   int32_t progress = ((int32_t)s_startup_anim_elapsed_ms * 1000) / STARTUP_CLOCK_ANIM_MS;
   return progress > 1000 ? 1000 : progress;

@@ -29,10 +29,6 @@ static bool shake_anim_wants_planet_seek(uint8_t mode) {
 }
 
 // True for shake_anim_mode 1 (Smooth second hand only) or 3 (Both).
-static bool shake_anim_wants_smooth_second(uint8_t mode) {
-  return mode == 1 || mode == 3;
-}
-
 // Planet seek's compass state. The sensor callback stores a target heading;
 // the fixed-rate animation timer advances the presented heading toward it.
 // Keeping those rates separate makes the visual smoothing independent of
@@ -331,7 +327,7 @@ void input_deinit(void) {
 }
 
 bool input_shake_animation_active(void) { return s_shake_anim_active; }
-bool input_shake_animation_wants_smooth_second(uint8_t mode) { return shake_anim_wants_smooth_second(mode); }
+bool input_shake_animation_wants_smooth_second(uint8_t mode) { return mode == 1 || mode == 3; }
 int32_t input_planet_seek_heading_deg(void) { return s_planet_seek_heading_smoothed_fp >> 8; }
 bool input_planet_seek_compass_low_accuracy(void) { return s_input_planet_seek_compass_low_accuracy; }
 int32_t input_compass_feature_heading_deg(void) { return s_input_compass_feature_heading_deg; }

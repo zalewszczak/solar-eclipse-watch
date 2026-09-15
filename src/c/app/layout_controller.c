@@ -17,7 +17,7 @@ static uint8_t s_current_layout_style = 255;
 static bool s_current_draw_features_beneath_hands;
 
 Layer *layout_controller_canvas_layer(void) { return s_canvas_layer; }
-Layer *layout_controller_top_gradient_layer(void) { return s_top_gradient_layer; }
+static Layer *layout_controller_top_gradient_layer(void) { return s_top_gradient_layer; }
 Layer *layout_controller_hands_layer(void) { return s_hands_layer; }
 Layer *layout_controller_features_layer(void) { return s_features_layer; }
 

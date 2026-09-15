@@ -189,7 +189,7 @@ GColor feature_colors_weather_staleness_gradient(time_t now, time_t last_update)
 
 // Clear/sunny: white fading toward a warm golden-white as skies get
 // clearer (lower cloud_pct).
-GColor feature_colors_sunny_yellow_white_gradient(uint8_t cloud_pct) {
+static GColor feature_colors_sunny_yellow_white_gradient(uint8_t cloud_pct) {
   uint8_t clamped = cloud_pct > OVERCAST_CLOUD_THRESHOLD ? OVERCAST_CLOUD_THRESHOLD : cloud_pct;
   int32_t frac1000 = ((int32_t)(OVERCAST_CLOUD_THRESHOLD - clamped) * 1000) / OVERCAST_CLOUD_THRESHOLD;
   int16_t b = 255 - (int16_t)((85 * frac1000) / 1000);
@@ -207,7 +207,7 @@ GColor feature_colors_overcast_gray_gradient(uint8_t cloud_pct) {
 
 // Snow: white gaining a faint blue-white cast as it gets heavier
 // (denser cloud cover generally means heavier snowfall).
-GColor feature_colors_snow_white_gradient(uint8_t cloud_pct) {
+static GColor feature_colors_snow_white_gradient(uint8_t cloud_pct) {
   int32_t frac1000 = ((int32_t)cloud_pct * 1000) / 100;
   int16_t rg = 255 - (int16_t)((85 * frac1000) / 1000);
   return GColorFromRGB((uint8_t)rg, (uint8_t)rg, 255);

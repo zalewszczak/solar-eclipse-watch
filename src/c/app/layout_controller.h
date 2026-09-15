@@ -13,6 +13,5 @@ void layout_controller_unload(void);
 void layout_controller_handle_unobstructed(AnimationProgress progress);
 
 Layer *layout_controller_canvas_layer(void);
-Layer *layout_controller_top_gradient_layer(void);
 Layer *layout_controller_hands_layer(void);
 Layer *layout_controller_features_layer(void);

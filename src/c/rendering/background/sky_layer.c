@@ -316,7 +316,7 @@ void sky_layer_fill_gradient(GContext *ctx, GRect bounds, int16_t virtual_top_y,
 // need to know about at all). The two can very briefly disagree during
 // that animation; they're back in exact agreement, same as any other
 // moment, the instant it finishes.
-void sky_layer_compute_wash(const EclipseData *d, time_t now, int16_t virtual_top_y, int16_t virtual_total_h,
+static void sky_layer_compute_wash(const EclipseData *d, time_t now, int16_t virtual_top_y, int16_t virtual_total_h,
                               SkyRgb *out_top, SkyRgb *out_band, int16_t *out_band_y, SkyRgb *out_hz, bool *out_flat_black) {
   *out_flat_black = (d->sky_mode == 2);
   if (*out_flat_black) return;

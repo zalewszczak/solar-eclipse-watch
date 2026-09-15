@@ -7,7 +7,7 @@
 #define CELESTIAL_ARROW_W 6
 
 
-int16_t celestial_alt_to_y(int16_t alt_decideg, int16_t scale_max_decideg, int16_t canvas_h, int16_t radius) {
+static int16_t celestial_alt_to_y(int16_t alt_decideg, int16_t scale_max_decideg, int16_t canvas_h, int16_t radius) {
   int16_t horizon_y = canvas_h - CELESTIAL_GROUND_H;
   int16_t usable = horizon_y - CELESTIAL_SKY_TOP_MARGIN;
   if (scale_max_decideg < 50) scale_max_decideg = 50;
