@@ -258,24 +258,17 @@ uint8_t feature_icons_weather_category(uint8_t weather_condition, uint8_t cloud_
 
 
 
-int16_t feature_icons_plus_gap_width(int icon_kind) { // TODO: These values need to be reviewed for bt, steps, etc.
-  switch (icon_kind) {
-    case 1: case 2: case 5: case 6: case 7: case 8: case 9: case 10:
-    case 18: case 19: case 20: case 21: case 22: case 23: case 24: case 25: case 26: case 28:
-      return 15; // bitmap icons (10px) + 5px gap
-    case 29: case 30:
-      return 20;
-    case 3: return 13; // battery (8px wide outlined body) + 5px gap
-    case 4: return 21; // moon (radius 9, so 2*9+2 diameter box) + gap
-    case 11: return 22; // sun-time glyph (fixed 20px, drawn via direct primitives) + gap
-    case 13: return 15; // bluetooth (own case now -- see its own comment in draw_render_icon; same ~10px bitmap width as the SIMPLE_ICONS bucket) + 5px gap
-    case 14: return 20; // weather icon (16-wide box, worst case a bit wider for the sun's rays) + gap
-    case 15: return 12; // pressure trend chevron + gap
-    case 16: return 14; // wind direction arrow + gap
-    case 17: return 20; // mountain icon (16-wide box) + gap
-    case 27: return 21; // compass rose (~16px-wide box, same footprint class as moon/mountain) + 5px gap
-    default: return 0; // no icon
-  }
+// Widths include the fixed 5px gap after the icon. Keeping this as a compact
+// lookup avoids a second large switch in the feature measurement path.
+static const uint8_t s_icon_plus_gap_width[31] = {
+  [1] = 15, [2] = 15, [3] = 13, [4] = 21,
+  [5] = 15, [6] = 15, [7] = 15, [8] = 15, [9] = 15, [10] = 15,
+  [11] = 22, [13] = 15, [14] = 20, [15] = 12, [16] = 14, [17] = 20,
+  [18] = 15, [19] = 15, [20] = 15, [21] = 15, [22] = 15, [23] = 15,
+  [24] = 15, [25] = 15, [26] = 15, [27] = 21, [28] = 15, [29] = 20, [30] = 20,
+};
+
+int16_t feature_icons_plus_gap_width(int icon_kind) {
+  if ((unsigned)icon_kind >= 31u) return 0;
+  return s_icon_plus_gap_width[icon_kind];
 }
-
-
