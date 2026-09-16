@@ -97,6 +97,8 @@ static const FontLookupEntry FONT_TABLE[] = {
   [54] = { .resource_id = RESOURCE_ID_LCDSOLID_FONT_48,      .height = 48, .y_offset = 1 }, // LCD
   [55] = { .resource_id = RESOURCE_ID_REBELREDUX_FONT_48,    .height = 48, .y_offset = 14 }, // Rebel Redux
   [56] = { .resource_id = RESOURCE_ID_ZEROZERO_FONT_48,      .height = 48, .y_offset = 12 }, // 00TT
+  [57] = { .resource_id = RESOURCE_ID_SCIFLYSANS_FONT_48,    .height = 48, .y_offset = 0 }, // SciFlySans
+  [58] = { .resource_id = RESOURCE_ID_SCIFLYSANS_FONT_21,    .height = 21, .y_offset = 0 }, // SciFlySans
 };
 
 const uint8_t FONT_LOOKUP_COUNT = sizeof(FONT_TABLE) / sizeof(FONT_TABLE[0]);

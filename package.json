@@ -266,6 +266,16 @@
           "file": "fonts/RebelRedux.ttf"
         },
         {
+          "type": "font",
+          "name": "SCIFLYSANS_FONT_48",
+          "file": "fonts/SciFly-Sans.ttf"
+        },
+        {
+          "type": "font",
+          "name": "SCIFLYSANS_FONT_21",
+          "file": "fonts/SciFly-Sans.ttf"
+        },
+        {
           "type": "png",
           "menuIcon": true,
           "name": "IMAGE_MENU_ICON",
