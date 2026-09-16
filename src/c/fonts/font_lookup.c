@@ -97,8 +97,10 @@ static const FontLookupEntry FONT_TABLE[] = {
   [54] = { .resource_id = RESOURCE_ID_LCDSOLID_FONT_48,      .height = 48, .y_offset = 1 }, // LCD
   [55] = { .resource_id = RESOURCE_ID_REBELREDUX_FONT_48,    .height = 48, .y_offset = 14 }, // Rebel Redux
   [56] = { .resource_id = RESOURCE_ID_ZEROZERO_FONT_48,      .height = 48, .y_offset = 12 }, // 00TT
-  [57] = { .resource_id = RESOURCE_ID_SCIFLYSANS_FONT_48,    .height = 48, .y_offset = 8 }, // SciFlySans
-  [58] = { .resource_id = RESOURCE_ID_SCIFLYSANS_FONT_21,    .height = 21, .y_offset = 2 }, // SciFlySans
+  [57] = { .resource_id = RESOURCE_ID_SCIFLYSANS_FONT_54,    .height = 48, .y_offset = 16 }, // SciFlySans
+  [58] = { .resource_id = RESOURCE_ID_SCIFLYSANS_FONT_21,    .height = 21, .y_offset = 2 }, // SciFlySans small
+  [59] = { .resource_id = RESOURCE_ID_BITCOUNTGRID_FONT_48,  .height = 48, .y_offset = 12 }, // Bitcount Grid
+  [60] = { .resource_id = RESOURCE_ID_ZCOOL_FONT_48,         .height = 48, .y_offset = 8 }, // ZCOOL Kuai Le
 };
 
 const uint8_t FONT_LOOKUP_COUNT = sizeof(FONT_TABLE) / sizeof(FONT_TABLE[0]);

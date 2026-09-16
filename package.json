@@ -267,13 +267,23 @@
         },
         {
           "type": "font",
-          "name": "SCIFLYSANS_FONT_48",
+          "name": "SCIFLYSANS_FONT_54",
           "file": "fonts/SciFly-Sans.ttf"
         },
         {
           "type": "font",
           "name": "SCIFLYSANS_FONT_21",
           "file": "fonts/SciFly-Sans.ttf"
+        },
+        {
+          "type": "font",
+          "name": "BITCOUNTGRID_FONT_48",
+          "file": "fonts/BitcountGridDouble-Light.ttf"
+        },
+        {
+          "type": "font",
+          "name": "ZCOOL_FONT_48",
+          "file": "fonts/ZCOOLKuaiLe-Regular.ttf"
         },
         {
           "type": "png",
