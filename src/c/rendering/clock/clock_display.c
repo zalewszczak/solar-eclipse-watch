@@ -5,6 +5,7 @@
 #include "../../hands/hands_controller.h"
 #include "../../fonts/font_lookup.h"
 #include "../../data/eclipse_ui.h"
+#include "../../timing/hourly_vibration.h"
 
 static EclipseData *s_data;
 static Layer *s_panel_layer;
@@ -44,6 +45,15 @@ static void draw_digital_clock_panel(Layer *layer, GContext *ctx) {
 
   GColor bg, text_color, accent_color;
   eclipse_ui_get_active_color_scheme(s_data, now, &bg, &text_color, &accent_color);
+
+  // Hourly-vibration flash: swap foreground/background for one second
+  // out of every two, for the flash's whole duration -- see
+  // hourly_vibration.h's own comment on what triggers it.
+  if (hourly_vibration_flash_is_inverted()) {
+    GColor swap = bg;
+    bg = text_color;
+    text_color = swap;
+  }
 
   if (!is_top) {
     graphics_context_set_fill_color(ctx, bg);

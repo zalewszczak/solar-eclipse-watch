@@ -133,7 +133,7 @@ void app_controller_init(void) {
   time_service_init(&s_data, time_service_tick_handler, NULL);
   hands_controller_init(&s_data, hands_controller_invalidate, NULL);
   clock_display_init(&s_data);
-  hourly_vibration_init(&s_data);
+  hourly_vibration_init(&s_data, hands_controller_invalidate, NULL);
 
   s_window = window_create();
   window_set_window_handlers(s_window, (WindowHandlers){

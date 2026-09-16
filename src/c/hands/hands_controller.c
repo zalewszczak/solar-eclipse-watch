@@ -6,6 +6,7 @@
 #include "../rendering/background/background_animation.h"
 #include "../data/eclipse_ui.h"
 #include "../features/feature_controller.h"
+#include "../timing/hourly_vibration.h"
 
 #include "../rendering/background/background_layer.h"
 static EclipseData *s_data = NULL;
@@ -197,8 +198,19 @@ static void hands_controller_update_proc(Layer *layer, GContext *ctx) {
   HandConfig min_cfg = s_data->hand_minute;
   HandConfig sec_cfg = s_data->hand_second;
 
-  hand_layer_draw(ctx, center, hour_angle, &hour_cfg, main_color, accent_color, bg, s_data->shadow_translucent, s_data->shadow_angle_deg, hour_length_scale_1000);
-  hand_layer_draw(ctx, center, min_angle, &min_cfg, main_color, accent_color, bg, s_data->shadow_translucent, s_data->shadow_angle_deg, min_length_scale_1000);
+  // Hourly-vibration flash: for the flash's whole duration, one of
+  // the hour/minute hands (see hourly_vibration.h's own comment on
+  // which) swaps main/background color for one second out of every
+  // two -- an inverted-colors blink rather than a font change, since
+  // hands don't have one.
+  bool flash_inverted = hourly_vibration_flash_is_inverted();
+  bool flash_hour = flash_inverted && hourly_vibration_flash_targets_hour_hand();
+  bool flash_min = flash_inverted && !hourly_vibration_flash_targets_hour_hand();
+  GColor hour_main = flash_hour ? bg : main_color, hour_bg = flash_hour ? main_color : bg;
+  GColor min_main = flash_min ? bg : main_color, min_bg = flash_min ? main_color : bg;
+
+  hand_layer_draw(ctx, center, hour_angle, &hour_cfg, hour_main, accent_color, hour_bg, s_data->shadow_translucent, s_data->shadow_angle_deg, hour_length_scale_1000);
+  hand_layer_draw(ctx, center, min_angle, &min_cfg, min_main, accent_color, min_bg, s_data->shadow_translucent, s_data->shadow_angle_deg, min_length_scale_1000);
   if (s_data->show_seconds) {
     hand_layer_draw(ctx, center, sec_angle, &sec_cfg, main_color, accent_color, bg, s_data->shadow_translucent, s_data->shadow_angle_deg, sec_length_scale_1000);
   }
