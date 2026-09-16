@@ -39,15 +39,10 @@ static void composite_battery_status_get(CompositeBatteryStatus *status,
     : flat;
 }
 
-static void composite_quiet_vibe_get(bool dynamic, GColor flat, const EclipseData *data, time_t now,
-                                     bool *quiet_active, bool *vibe_on,
-                                     GColor *quiet_color, GColor *vibe_color) {
+static void composite_quiet_get(bool dynamic, GColor flat,
+                                bool *quiet_active, GColor *quiet_color) {
   *quiet_active = quiet_time_is_active();
   *quiet_color = dynamic ? (*quiet_active ? GColorRed : GColorWhite) : flat;
-  if (vibe_on) {
-    *vibe_on = feature_rules_hourly_vibe_is_scheduled_now(data, now);
-    *vibe_color = dynamic ? (*vibe_on ? GColorGreen : GColorLightGray) : flat;
-  }
 }
 
 void __attribute__((noinline)) feature_value_composite_compute(FeatureSlot *slot, uint8_t content, const EclipseData *data,
@@ -131,7 +126,7 @@ void __attribute__((noinline)) feature_value_composite_compute(FeatureSlot *slot
       GColor bt_c = status.bluetooth_color;
       bool quiet_active;
       GColor quiet_c;
-      composite_quiet_vibe_get(dynamic, flat, data, now, &quiet_active, NULL, &quiet_c, NULL);
+      composite_quiet_get(dynamic, flat, &quiet_active, &quiet_c);
 
       slot->segment_count = 3;
       feature_value_set_icon_segment(slot, 0, 3, batt_c);
@@ -148,7 +143,7 @@ void __attribute__((noinline)) feature_value_composite_compute(FeatureSlot *slot
       BatteryChargeState bs = status.battery;
       bool quiet_active;
       GColor quiet_c;
-      composite_quiet_vibe_get(dynamic, flat, data, now, &quiet_active, NULL, &quiet_c, NULL);
+      composite_quiet_get(dynamic, flat, &quiet_active, &quiet_c);
       bool connected = status.connected;
       GColor batt_c = status.battery_color;
       GColor bt_c = status.bluetooth_color;
@@ -166,40 +161,19 @@ void __attribute__((noinline)) feature_value_composite_compute(FeatureSlot *slot
       feature_value_set_text_segment(slot, 5, connected ? "ON" : "OFF", bt_c);
       return;
     }
-    case 111: { // battery + BT + Quiet Time + Hourly Vibrations, icons only
+    case 115: { // battery (icon + %) + BT + Quiet Time, icons only for BT/Quiet --
+               // battery is the one icon that also shows its own text (percentage)
       CompositeBatteryStatus status;
       composite_battery_status_get(&status, dynamic, flat);
       BatteryChargeState bs = status.battery;
       GColor batt_c = status.battery_color;
       GColor bt_c = status.bluetooth_color;
-      bool quiet_active, vibe_on;
-      GColor quiet_c, vibe_c;
-      composite_quiet_vibe_get(dynamic, flat, data, now, &quiet_active, &vibe_on, &quiet_c, &vibe_c);
-
-      slot->segment_count = 4;
-      feature_value_set_icon_segment(slot, 0, 3, batt_c);
-      slot->segments[0].icon_extra = bs.charge_percent;
-      slot->segments[0].icon_flag = bs.is_charging;
-      feature_value_set_icon_segment(slot, 1, 13, bt_c);
-      feature_value_set_icon_segment(slot, 2, 29, quiet_c);
-      slot->segments[2].icon_flag = quiet_active;
-      feature_value_set_icon_segment(slot, 3, 30, vibe_c);
-      slot->segments[3].icon_flag = !vibe_on;
-      return;
-    }
-    case 115: { // battery (icon + %) + BT + Quiet Time + Hourly Vibrations (icons only) --
-               // same as 111, except battery is the one icon that also shows its own
-      CompositeBatteryStatus status;
-      composite_battery_status_get(&status, dynamic, flat);
-      BatteryChargeState bs = status.battery;
-      GColor batt_c = status.battery_color;
-      GColor bt_c = status.bluetooth_color;
-      bool quiet_active, vibe_on;
-      GColor quiet_c, vibe_c;
-      composite_quiet_vibe_get(dynamic, flat, data, now, &quiet_active, &vibe_on, &quiet_c, &vibe_c);
+      bool quiet_active;
+      GColor quiet_c;
+      composite_quiet_get(dynamic, flat, &quiet_active, &quiet_c);
 
       snprintf(buf1, sizeof(buf1), "%d%%", bs.charge_percent);
-      slot->segment_count = 5;
+      slot->segment_count = 4;
       feature_value_set_icon_segment(slot, 0, 3, batt_c);
       slot->segments[0].icon_extra = bs.charge_percent;
       slot->segments[0].icon_flag = bs.is_charging;
@@ -207,61 +181,6 @@ void __attribute__((noinline)) feature_value_composite_compute(FeatureSlot *slot
       feature_value_set_icon_segment(slot, 2, 13, bt_c);
       feature_value_set_icon_segment(slot, 3, 29, quiet_c);
       slot->segments[3].icon_flag = quiet_active;
-      feature_value_set_icon_segment(slot, 4, 30, vibe_c);
-      slot->segments[4].icon_flag = !vibe_on;
-      return;
-    }
-    case 112: { // Quiet Time + Hourly Vibrations, icons only
-      bool quiet_active, vibe_on;
-      GColor quiet_c, vibe_c;
-      composite_quiet_vibe_get(dynamic, flat, data, now, &quiet_active, &vibe_on, &quiet_c, &vibe_c);
-
-      slot->segment_count = 2;
-      feature_value_set_icon_segment(slot, 0, 29, quiet_c);
-      slot->segments[0].icon_flag = quiet_active;
-      feature_value_set_icon_segment(slot, 1, 30, vibe_c);
-      slot->segments[1].icon_flag = !vibe_on;
-      return;
-    }
-    case 113: { // Quiet Time + Hourly Vibrations, icons + "ON"/"OFF" texts
-      bool quiet_active, vibe_on;
-      GColor quiet_c, vibe_c;
-      composite_quiet_vibe_get(dynamic, flat, data, now, &quiet_active, &vibe_on, &quiet_c, &vibe_c);
-
-      slot->segment_count = 4;
-      feature_value_set_icon_segment(slot, 0, 29, quiet_c);
-      slot->segments[0].icon_flag = false; // text carries the state here, not the icon shape
-      feature_value_set_text_segment(slot, 1, quiet_active ? "ON" : "OFF", quiet_c);
-      feature_value_set_icon_segment(slot, 2, 30, vibe_c);
-      slot->segments[2].icon_flag = false;
-      feature_value_set_text_segment(slot, 3, vibe_on ? "ON" : "OFF", vibe_c);
-      return;
-    }
-    case 114: { // battery % + Bluetooth + Quiet Time + Hourly Vibrations, icon + "ON"/"OFF" (or %) each
-      CompositeBatteryStatus status;
-      composite_battery_status_get(&status, dynamic, flat);
-      BatteryChargeState bs = status.battery;
-      bool connected = status.connected;
-      GColor batt_c = status.battery_color;
-      GColor bt_c = status.bluetooth_color;
-      bool quiet_active, vibe_on;
-      GColor quiet_c, vibe_c;
-      composite_quiet_vibe_get(dynamic, flat, data, now, &quiet_active, &vibe_on, &quiet_c, &vibe_c);
-
-      snprintf(buf1, sizeof(buf1), "%d%%", bs.charge_percent);
-      slot->segment_count = 8;
-      feature_value_set_icon_segment(slot, 0, 3, batt_c);
-      slot->segments[0].icon_extra = bs.charge_percent;
-      slot->segments[0].icon_flag = bs.is_charging;
-      feature_value_set_text_segment(slot, 1, buf1, batt_c);
-      feature_value_set_icon_segment(slot, 2, 13, bt_c);
-      feature_value_set_text_segment(slot, 3, connected ? "ON" : "OFF", bt_c);
-      feature_value_set_icon_segment(slot, 4, 29, quiet_c);
-      slot->segments[4].icon_flag = false; // text carries the state here, not the icon shape
-      feature_value_set_text_segment(slot, 5, quiet_active ? "ON" : "OFF", quiet_c);
-      feature_value_set_icon_segment(slot, 6, 30, vibe_c);
-      slot->segments[6].icon_flag = false;
-      feature_value_set_text_segment(slot, 7, vibe_on ? "ON" : "OFF", vibe_c);
       return;
     }
     case 101: { // sleep times: sleep icon, total duration, (restful duration), quality%

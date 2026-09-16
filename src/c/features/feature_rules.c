@@ -33,17 +33,6 @@ void feature_rules_to_upper_str(char *s) {
   }
 }
 
-bool feature_rules_hourly_vibe_is_scheduled_now(const EclipseData *d, time_t now) {
-  if (d->hourly_vibe_mode == 0) return false;
-  struct tm *t = localtime(&now);
-  if (!((d->hourly_vibe_days_mask >> t->tm_wday) & 1)) return false;
-  int minute_of_day = t->tm_hour * 60 + t->tm_min;
-  int start = d->hourly_vibe_start_min, end = d->hourly_vibe_end_min;
-  if (start == end) return true;
-  if (start < end) return minute_of_day >= start && minute_of_day <= end;
-  return minute_of_day >= start || minute_of_day <= end;
-}
-
 bool feature_rules_content_is_weather_derived(uint8_t content) {
   switch (content) {
     case 4: case 5: case 6: case 104: case 7: case 8: case 9:

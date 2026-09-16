@@ -113,25 +113,6 @@ void __attribute__((noinline)) feature_value_health_compute(FeatureSlot *slot, u
       feature_value_set_text_segment(slot, 1, active ? "ON" : "OFF", c);
       return;
     }
-    case 107: { // Hourly Vibrations status, icon only -- watch+buzz (on) / crossed-out (off)
-      bool on = feature_rules_hourly_vibe_is_scheduled_now(data, time(NULL));
-      GColor dyn = on ? GColorGreen : GColorLightGray;
-      GColor c = feature_value_resolve_flat_color(color_mode, dyn, main_color, accent_color);
-      slot->segment_count = 1;
-      feature_value_set_icon_segment(slot, 0, 30, c);
-      slot->segments[0].icon_flag = !on; // true = crossed-out
-      return;
-    }
-    case 108: { // Hourly Vibrations status, icon (always plain watch+buzz) + "ON"/"OFF" text
-      bool on = feature_rules_hourly_vibe_is_scheduled_now(data, time(NULL));
-      GColor dyn = on ? GColorGreen : GColorLightGray;
-      GColor c = feature_value_resolve_flat_color(color_mode, dyn, main_color, accent_color);
-      slot->segment_count = 2;
-      feature_value_set_icon_segment(slot, 0, 30, c);
-      slot->segments[0].icon_flag = false;
-      feature_value_set_text_segment(slot, 1, on ? "ON" : "OFF", c);
-      return;
-    }
     case 39: case 40: { // sleep duration (total, 39) / restful (deep) sleep duration (40)
       HealthMetric metric = (content == 39) ? HealthMetricSleepSeconds : HealthMetricSleepRestfulSeconds;
       int32_t range_secs = (content == 39) ? 9 * 3600 : 3 * 3600;

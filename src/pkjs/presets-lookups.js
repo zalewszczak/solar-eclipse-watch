@@ -359,16 +359,6 @@ var CORNER_CATEGORIES = [
         "preview": "(spkr) OFF"
       },
       {
-        "id": 107,
-        "label": "Hourly Vibrations (icon only)",
-        "preview": "(vibe)"
-      },
-      {
-        "id": 108,
-        "label": "Hourly Vibrations (icon + ON/OFF)",
-        "preview": "(vibe) ON"
-      },
-      {
         "id": 109,
         "label": "Battery + Bluetooth + Quiet Time (icons only)",
         "preview": "(batt)(bt)(quiet)"
@@ -377,21 +367,6 @@ var CORNER_CATEGORIES = [
         "id": 110,
         "label": "Battery % + Quiet Time + Bluetooth (icon + ON/OFF each)",
         "preview": "82% (spkr)OFF (bt)ON"
-      },
-      {
-        "id": 111,
-        "label": "Battery + Bluetooth + Quiet Time + Hourly Vibrations (icons only)",
-        "preview": "(batt)(bt)(quiet)(vibe)"
-      },
-      {
-        "id": 112,
-        "label": "Quiet Time + Hourly Vibrations (icons only)",
-        "preview": "(quiet)(vibe)"
-      },
-      {
-        "id": 113,
-        "label": "Quiet Time + Hourly Vibrations (icon + ON/OFF each)",
-        "preview": "(spkr)OFF (vibe)ON"
       }
     ]
   },
@@ -913,14 +888,9 @@ var CORNER_CATEGORIES = [
         "preview": "12:34"
       },
       {
-        "id": 114,
-        "label": "Battery + Bluetooth + Quiet Time + Hourly Vibrations (icon + ON/OFF or % each)",
-        "preview": "82% (bt)ON (spkr)OFF (vibe)ON"
-      },
-      {
         "id": 115,
-        "label": "Battery + Bluetooth + Quiet Time + Hourly Vibrations (% for battery only)",
-        "preview": "82% (bt)(spkr)(vibe)"
+        "label": "Battery + Bluetooth + Quiet Time (% for battery only)",
+        "preview": "82% (bt)(spkr)"
       }
     ]
   }

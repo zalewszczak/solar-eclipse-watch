@@ -74,7 +74,6 @@ static const IconResourceSet BLUETOOTH_ICON_SET = ICON_SET(BLUETOOTH);
 // 2-state styled icons -- [0] is the "off"/inactive look, [1] the
 // "on"/active one; icon_flag picks which.
 static const IconResourceSet QUIET_TIME_ICON_SET[2] = { ICON_SET(QUIET_TIME), ICON_SET(QUIET_TIME_MUTED) };
-static const IconResourceSet HOURLY_VIBE_ICON_SET[2] = { ICON_SET(HOURLY_VIBE), ICON_SET(HOURLY_VIBE_OFF) };
 static const IconResourceSet SUN_TIME_ICON_SET[2] = { ICON_SET(SUN_TIME_SET), ICON_SET(SUN_TIME_RISE) };
 #undef ICON_SET
 
@@ -233,15 +232,6 @@ void feature_icons_draw_render_icon(GContext *ctx, uint8_t icon_kind, int16_t ic
                                                    outline_style, outline_color, color, ICON_DRAW_W, ICON_DRAW_H);
       return;
     }
-    case 30: { // Hourly Vibrations -- watch+buzz / crossed-out (icon_flag: true = off/crossed).
-               // Same styled-image treatment as Quiet Time above.
-      GPoint pos = GPoint(icon_x, box_y + (row_height - ICON_ROWS) / 2);
-      const IconResourceSet *set = &HOURLY_VIBE_ICON_SET[icon_flag ? 1 : 0];
-      draw_debug_marker_point(ctx, draw_debug, pos, GColorMagenta);
-      feature_icon_assets_draw_styled_with_outline(ctx, pos, set, icon_style,
-                                                   outline_style, outline_color, color, ICON_DRAW_W, ICON_DRAW_H);
-      return;
-    }
     default:
       return;
   }
@@ -265,15 +255,15 @@ uint8_t feature_icons_weather_category(uint8_t weather_condition, uint8_t cloud_
 
 
 // Widths include the fixed 5px gap after the icon. Keeping this as a compact
-static const uint8_t s_icon_plus_gap_width[31] = {
+static const uint8_t s_icon_plus_gap_width[30] = {
   [1] = 15, [2] = 15, [3] = 13, [4] = 21,
   [5] = 15, [6] = 15, [7] = 15, [8] = 15, [9] = 15, [10] = 15,
   [11] = 22, [13] = 15, [14] = 20, [15] = 12, [16] = 14, [17] = 20,
   [18] = 15, [19] = 15, [20] = 15, [21] = 15, [22] = 15, [23] = 15,
-  [24] = 15, [25] = 15, [26] = 15, [27] = 21, [28] = 15, [29] = 20, [30] = 20,
+  [24] = 15, [25] = 15, [26] = 15, [27] = 21, [28] = 15, [29] = 20,
 };
 
 int16_t feature_icons_plus_gap_width(int icon_kind) {
-  if ((unsigned)icon_kind >= 31u) return 0;
+  if ((unsigned)icon_kind >= 30u) return 0;
   return s_icon_plus_gap_width[icon_kind];
 }

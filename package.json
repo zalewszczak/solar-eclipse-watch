@@ -485,16 +485,6 @@
         },
         {
           "type": "bitmap",
-          "name": "ICON_SIMPLE_HOURLY_VIBE",
-          "file": "images/simple/hourly_vibe.png"
-        },
-        {
-          "type": "bitmap",
-          "name": "ICON_SIMPLE_HOURLY_VIBE_OFF",
-          "file": "images/simple/hourly_vibe_off.png"
-        },
-        {
-          "type": "bitmap",
           "name": "ICON_SIMPLE_ISS",
           "file": "images/simple/iss.png"
         },
@@ -655,16 +645,6 @@
         },
         {
           "type": "bitmap",
-          "name": "ICON_HOLLOW_HOURLY_VIBE",
-          "file": "images/hollow/hourly_vibe.png"
-        },
-        {
-          "type": "bitmap",
-          "name": "ICON_HOLLOW_HOURLY_VIBE_OFF",
-          "file": "images/hollow/hourly_vibe_off.png"
-        },
-        {
-          "type": "bitmap",
           "name": "ICON_HOLLOW_ISS",
           "file": "images/hollow/iss.png"
         },
@@ -822,16 +802,6 @@
           "type": "bitmap",
           "name": "ICON_FULLCOLOR_QUIET_TIME_MUTED",
           "file": "images/fullcolor/quiet_time_muted.png"
-        },
-        {
-          "type": "bitmap",
-          "name": "ICON_FULLCOLOR_HOURLY_VIBE",
-          "file": "images/fullcolor/hourly_vibe.png"
-        },
-        {
-          "type": "bitmap",
-          "name": "ICON_FULLCOLOR_HOURLY_VIBE_OFF",
-          "file": "images/fullcolor/hourly_vibe_off.png"
         },
         {
           "type": "bitmap",
