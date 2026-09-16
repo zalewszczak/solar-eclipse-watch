@@ -1709,6 +1709,26 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    <div class="help" id="help-hourlyVibeOverrideQuiet" style="display:none;">When enabled, hourly vibrations continue during Quiet Time.</div>'
     ) : '') +
 
+'    <div class="checkbox-row" style="margin-top:14px;">' +
+'      <input type="checkbox" id="showFlights" ' + (current.showFlights ? 'checked' : '') + ' onchange="toggleFlightsOptions()">' +
+'      <label for="showFlights" style="margin:0;">Flights (shake to show nearby aircraft)</label>' +
+'      <button type="button" class="help-btn" onclick="toggleHelp(\'help-showFlights\')">?</button>' +
+'    </div>' +
+'    <div class="help" id="help-showFlights" style="display:none;">Shows nearby aircraft (and the ISS, if enabled above) as blinking points when you shake the watch. Fetched on demand from OpenSky Network, cached on the watch for 5 minutes.</div>' +
+'    <div id="flightsSubOptions" class="' + (current.showFlights ? '' : 'grayed-out') + '">' +
+'      <div class="slider-row">' +
+'        <div class="field-label-row"><label for="flightsRangeKm">Search radius <span class="val" id="flightsRangeKmVal">' + esc(current.flightsRangeKm || '50') + ' km</span></label></div>' +
+'        <div class="slider-with-buttons">' +
+'        <button type="button" class="slider-step-btn" onclick="stepSlider(\'flightsRangeKm\', -10)">&minus;</button>' +
+'        <input type="range" id="flightsRangeKm" min="10" max="150" step="10" value="' + esc(current.flightsRangeKm || '50') + '" oninput="document.getElementById(\'flightsRangeKmVal\').textContent = this.value + \' km\';">' +
+'        <button type="button" class="slider-step-btn" onclick="stepSlider(\'flightsRangeKm\', 10)">+</button>' +
+'        </div>' +
+'      </div>' +
+'      <label for="flightsApiKey">OpenSky Network username:password (optional)</label>' +
+'      <input type="text" id="flightsApiKey" placeholder="leave blank for anonymous access" value="' + esc(current.flightsApiKey) + '">' +
+'      <div class="help">An OpenSky account raises the anonymous rate limit; not required.</div>' +
+'    </div>' +
+
 '    </div>' +
 '  </fieldset>' +
 
@@ -1809,6 +1829,11 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '}' +
 'function toggleTestMode() {' +
 '  document.getElementById("testDateTime").disabled = !document.getElementById("testMode").checked;' +
+'}' +
+'function toggleFlightsOptions() {' +
+'  var on = document.getElementById("showFlights").checked;' +
+'  var el = document.getElementById("flightsSubOptions");' +
+'  if (on) { el.classList.remove("grayed-out"); } else { el.classList.add("grayed-out"); }' +
 '}' +
 // Loads raw message log entry `i` (index into rawMessageLogJson, same
 // oldest-first order rawMessageLogButtonsHtml() built its button ids

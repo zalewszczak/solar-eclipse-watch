@@ -16,4 +16,5 @@ void celestial_bodies_draw_visible_planet(GContext *ctx, const EclipseData *data
 void celestial_bodies_draw_planet_seek(GContext *ctx, GRect bounds, const EclipseData *data,
                                        const CelestialLayerState *state, time_t now,
                                        int32_t heading_deg, int32_t blend_t_1000,
-                                       uint8_t label_style, GColor main_color);
+                                       uint8_t label_style, GColor main_color,
+                                       uint16_t elapsed_ms);

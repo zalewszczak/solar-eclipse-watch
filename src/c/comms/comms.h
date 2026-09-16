@@ -23,3 +23,9 @@ void comms_deinit(void);
 // Sends the small watch-to-phone battery-saver state update.
 // Returns false if the AppMessage outbox is currently unavailable.
 bool comms_send_battery_saver_phase(uint8_t phase);
+
+// Sends REQUEST_FLIGHTS if the overhead-objects list is missing or older
+// than 5 minutes and no request is already in flight; otherwise a no-op.
+// Sets data->overhead_objects_loading so the caller can show a "loading"
+// status until comms_decoder_apply() clears it on the reply.
+void comms_maybe_request_flights(EclipseData *data);

@@ -147,6 +147,7 @@ var middleRightLine2ContentCode = settingsCodecs.middleRightLine2ContentCode;
 var middleRightLine2ColorModeCode = settingsCodecs.middleRightLine2ColorModeCode;
 var showSunTimeCode = settingsCodecs.showSunTimeCode;
 var showIssCode = settingsCodecs.showIssCode;
+var showFlightsCode = settingsCodecs.showFlightsCode;
 var showMajorStarsCode = settingsCodecs.showMajorStarsCode;
 var auroraEnabledCode = settingsCodecs.auroraEnabledCode;
 var vibrateOnPhaseChangeCode = settingsCodecs.vibrateOnPhaseChangeCode;
@@ -268,6 +269,20 @@ function skyFieldsDict(sky, cloudGrid, moonPhase, riseSet, meteorShower, cloudAl
 }
 
 function toU8(v) { return ((v % 256) + 256) % 256; }
+
+// OVERHEAD_OBJECTS: 4 bytes per object (az_deg low, az_deg high, alt_deg,
+// is_iss) -- see overhead-objects.js for the {az, alt, isIss} list shape
+// and MAX_OVERHEAD_OBJECTS in eclipse_data.h for the cap this is already
+// capped to before it ever gets here.
+function overheadObjectsBytes(objects) {
+  var bytes = [];
+  objects.forEach(function (obj) {
+    var az = Math.round(obj.az) % 360;
+    if (az < 0) az += 360;
+    bytes.push(az & 0xFF, (az >> 8) & 0xFF, toU8(Math.round(obj.alt)), obj.isIss ? 1 : 0);
+  });
+  return bytes;
+}
 
 // One hand's 14-byte HandConfig blob, in HandConfig's own field order
 // (see hand_layer.h): style, width, length, back_offset, middle_offset,
@@ -415,6 +430,7 @@ function populateSettingsFields(dict) {
   dict['EDGE_LINES'] = edgeLinesBytes();
   dict['SHOW_SUN_TIME'] = showSunTimeCode();
   dict['SHOW_ISS'] = showIssCode();
+  dict['SHOW_FLIGHTS'] = showFlightsCode();
   dict['AURORA_ENABLED'] = auroraEnabledCode();
   dict['VIBRATE_ON_PHASE_CHANGE'] = vibrateOnPhaseChangeCode();
   dict['STARTUP_CLOCK_ANIM_MODE'] = startupClockAnimModeCode();
@@ -732,5 +748,6 @@ module.exports = {
   sendInvalid: sendInvalid,
   sendEclipseData: sendEclipseData,
   sendNoEclipseToday: sendNoEclipseToday,
-  buildFullKeysetDict: buildFullKeysetDict
+  buildFullKeysetDict: buildFullKeysetDict,
+  overheadObjectsBytes: overheadObjectsBytes
 };

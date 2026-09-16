@@ -5,6 +5,7 @@
 #include "./input.h"
 #include "../features/feature_controller.h"
 #include "../rendering/background/background_layer.h"
+#include "../comms/comms.h"
 
 static EclipseData *s_data;
 static InputCallbacks s_callbacks;
@@ -147,6 +148,7 @@ static void maybe_start_shake_animation(void) {
   if (s_shake_anim_timer) app_timer_cancel(s_shake_anim_timer);
   s_shake_anim_timer = app_timer_register(SHAKE_ANIM_FRAME_MS, shake_anim_timer_callback, NULL);
   if (shake_anim_wants_planet_seek(s_data->shake_anim_mode)) {
+    if (s_data->show_flights || s_data->show_iss) comms_maybe_request_flights(s_data);
 
     s_planet_seek_heading_has_reading = false;
     compass_service_subscribe(planet_seek_compass_handler);

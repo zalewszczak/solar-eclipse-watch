@@ -13,6 +13,16 @@
 // Fixed number of bright stars in Space view; must match PKJS catalog.
 #define STAR_COUNT 16
 
+// Shake-triggered "overhead objects" list (ISS + nearby flights), sent as
+// one packed blob -- see comms_decoder.c's own _Static_assert on its size.
+#define MAX_OVERHEAD_OBJECTS 6
+
+typedef struct {
+  uint16_t az_deg;  // 0-359, plain degrees (matches iss_az_deg's convention)
+  int8_t alt_deg;   // elevation above horizon; not drawn when <= 0
+  uint8_t is_iss;   // 0 = flight, 1 = ISS -- only used to pick the label text
+} OverheadObject; // 4 bytes
+
 // AppMessage chunk types. Values must match PKJS MSG_TYPE.
 typedef enum {
   MSG_TYPE_STATUS = 0,      // status/error/location
@@ -266,6 +276,15 @@ typedef struct {
   time_t iss_next_pass;     // next visible pass start; 0 if none.
 
   uint8_t iss_error_code;   // current refresh error code, 0=ok.
+
+  // Shake ("Planet Seek") overhead-objects list -- ISS plus nearby flights,
+  // fetched on demand; see hourly_vibration.h-style comment analogue in
+  // input.c's maybe_start_shake_animation() for what triggers a refetch.
+  bool show_flights;                          // "Flights" toggle in Other settings.
+  OverheadObject overhead_objects[MAX_OVERHEAD_OBJECTS];
+  uint8_t overhead_object_count;
+  time_t overhead_objects_computed_at;        // 0 = never fetched.
+  bool overhead_objects_loading;              // watch-local only; never sent over the wire.
 
   // Aurora data and display settings.
   bool aurora_enabled;      // fetch and display aurora data.

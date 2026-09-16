@@ -147,7 +147,7 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
       celestial_bodies_draw_planet_seek(ctx, bounds, d, &state->celestial, now,
                                        state->planet_seek_heading_deg,
                                        celestial_bodies_planet_seek_eased_t_1000(state->planet_seek_elapsed_ms, d),
-                                       d->label_style, main_color);
+                                       d->label_style, main_color, state->planet_seek_elapsed_ms);
     }
     if (state->bg_anim_active && d->bg_anim_mode == 1) {
       celestial_layer_draw_bg_anim_planets(ctx, bounds, d, &state->celestial);
@@ -299,7 +299,7 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
     celestial_bodies_draw_planet_seek(ctx, bounds, d, &state->celestial, now,
                                        state->planet_seek_heading_deg,
                                        celestial_bodies_planet_seek_eased_t_1000(state->planet_seek_elapsed_ms, d),
-                                       d->label_style, main_color);
+                                       d->label_style, main_color, state->planet_seek_elapsed_ms);
   }
   if (state->bg_anim_active && d->bg_anim_mode == 2) {
     background_overlays_draw_marker_animation(ctx, &state->markers, d, bounds, now, state->bg_anim_elapsed_ms, BACKGROUND_ANIMATION_DURATION_MS);

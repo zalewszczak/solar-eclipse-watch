@@ -164,7 +164,12 @@
       "HOURLY_VIBE_END_MIN",
       "HOURLY_VIBE_DAYS_MASK",
       "HOURLY_VIBE_OVERRIDE_QUIET",
-      "SHOW_MAJOR_STARS"
+      "SHOW_MAJOR_STARS",
+      "SHOW_FLIGHTS",
+      "REQUEST_FLIGHTS",
+      "OVERHEAD_OBJECTS",
+      "OVERHEAD_OBJECT_COUNT",
+      "OVERHEAD_OBJECTS_COMPUTED_AT"
     ],
     "resources": {
       "media": [

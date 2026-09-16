@@ -551,5 +551,6 @@ module.exports = {
   refreshAndSend: refreshAndSend,
   scheduleRefresh: scheduleRefresh,
   startBatterySaverHourlyCheck: startBatterySaverHourlyCheck,
-  setBatterySaverPhase: setBatterySaverPhase
+  setBatterySaverPhase: setBatterySaverPhase,
+  getLocation: getLocation
 };

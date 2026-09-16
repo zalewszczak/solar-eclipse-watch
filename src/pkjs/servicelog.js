@@ -109,13 +109,14 @@ function serviceStatus(service) {
   return allFailed ? 'red' : 'yellow';
 }
 
-var SERVICES = ['weather', 'openweathermap', 'airquality', 'aurora', 'iss', 'geocode'];
+var SERVICES = ['weather', 'openweathermap', 'airquality', 'aurora', 'iss', 'flights', 'geocode'];
 var SERVICE_LABELS = {
   weather: 'Weather',
   openweathermap: 'OpenWeatherMap',
   airquality: 'Air quality',
   aurora: 'Aurora',
   iss: 'ISS',
+  flights: 'Flights',
   geocode: 'Geocoding'
 };
 
