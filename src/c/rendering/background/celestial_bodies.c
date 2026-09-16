@@ -153,7 +153,8 @@ static void draw_planet_seek_body(GContext *ctx, GRect bounds, const char *name,
 void celestial_bodies_draw_planet_seek(GContext *ctx, GRect bounds, const EclipseData *d,
                                       const CelestialLayerState *state, time_t now,
                                       int32_t heading_deg, int32_t blend_t_1000,
-                                      uint8_t label_style, GColor main_color) {
+                                      uint8_t label_style, GColor main_color,
+                                      uint16_t elapsed_ms) {
   uint8_t pct = d->sun_moon_size_pct > 0 ? d->sun_moon_size_pct : 100;
   int16_t sun_r = (CELESTIAL_SUN_R_NORMAL * pct) / 100; if (sun_r < 4) sun_r = 4;
   int16_t moon_r = (CELESTIAL_MOON_R_NORMAL * pct) / 100; if (moon_r < 4) moon_r = 4;
@@ -179,8 +180,25 @@ void celestial_bodies_draw_planet_seek(GContext *ctx, GRect bounds, const Eclips
                              GColorWhite, heading_deg, blend_t_1000, label_style, main_color, false, 0, false, false, 0);
     }
   }
-  if (state->iss_visible) {
-    draw_planet_seek_body(ctx, bounds, "ISS", (uint16_t)(d->iss_az_deg * 10), state->iss_center,
-                           CELESTIAL_ISS_R, GColorWhite, heading_deg, blend_t_1000, label_style, main_color, false, 0, false, false, 0);
+  // Overhead objects: ISS (when show_iss is on) and nearby flights (when
+  // show_flights is on) unified into one dynamic, cyan-blinking-point list
+  // -- see comms_maybe_request_flights() for how/when it gets (re)fetched.
+  // This replaces the old ISS-only draw here; the ambient, always-on ISS
+  // dot drawn on the regular (non-shake) sky canvas is untouched and still
+  // uses its own state->iss_visible/state->iss_center. Blinks by skipping
+  // the whole draw (body + label) for half of every second; no "normal"
+  // on-canvas position exists for these (they're shake-only), so they
+  // always seek in from the center of the compass view rather than
+  // blending from one.
+  if ((d->show_flights || d->show_iss) && ((elapsed_ms / 500) % 2) == 0) {
+    GPoint center_pt = GPoint(bounds.origin.x + bounds.size.w / 2, bounds.origin.y + bounds.size.h / 2);
+    for (int i = 0; i < d->overhead_object_count && i < MAX_OVERHEAD_OBJECTS; i++) {
+      const OverheadObject *obj = &d->overhead_objects[i];
+      if (obj->alt_deg <= 0) continue;
+      draw_planet_seek_body(ctx, bounds, obj->is_iss ? "ISS" : "Flight",
+                             (uint16_t)(obj->az_deg * 10), center_pt, 2, GColorCyan,
+                             heading_deg, blend_t_1000, label_style, GColorCyan,
+                             false, 0, false, false, 0);
+    }
   }
 }

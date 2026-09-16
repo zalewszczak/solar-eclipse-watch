@@ -59,7 +59,9 @@ static void watchface_ui_update_planet_seek_accuracy_label(bool active) {
 
   time_t now = time(NULL);
   bool bright = sky_layer_is_bright(s_data, now);
-  if (active && input_planet_seek_compass_low_accuracy()) {
+  if (active && s_data->overhead_objects_loading) {
+    clock_display_set_countdown("Loading flights...", bright ? GColorBlack : GColorWhite, false);
+  } else if (active && input_planet_seek_compass_low_accuracy()) {
     char text[40];
     if ((now % 2) != 0) {
       snprintf(text, sizeof(text), "Low compass accuracy");

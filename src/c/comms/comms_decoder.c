@@ -116,6 +116,9 @@ static const SimpleFieldMapping SIMPLE_FIELD_MAP[] = {
   { MK_ISS_ERROR_CODE, F_U8, offsetof(EclipseData, iss_error_code) },
   { MK_WEATHER_LAST_UPDATE, F_TIME, offsetof(EclipseData, weather_last_update) },
   { MK_DRAW_DEBUG, F_BOOL, offsetof(EclipseData, draw_debug) },
+  { MK_SHOW_FLIGHTS, F_BOOL, offsetof(EclipseData, show_flights) },
+  { MK_OVERHEAD_OBJECT_COUNT, F_U8, offsetof(EclipseData, overhead_object_count) },
+  { MK_OVERHEAD_OBJECTS_COMPUTED_AT, F_TIME, offsetof(EclipseData, overhead_objects_computed_at) },
   // Kept separate from MARKER_RINGS because they are independent fields.
   { MK_CUSTOM_HOUR_INNER_THICKNESS, F_U8, offsetof(EclipseData, custom_hour_marker_inner_thickness) },
   { MK_CUSTOM_SEC_INNER_THICKNESS, F_U8, offsetof(EclipseData, custom_second_marker_inner_thickness) },
@@ -199,7 +202,10 @@ _Static_assert(sizeof(time_t) == 4, "PLANET_RISE/SET wire format assumes a 4-byt
 static const BlobFieldMapping BLOB_FIELD_MAP[] = {
   { MK_CORNER_CONTENT, 1, offsetof(EclipseData, corner_content), 4 },
   { MK_CORNER_COLOR_MODE, 1, offsetof(EclipseData, corner_color_mode), 4 },
+  { MK_OVERHEAD_OBJECTS, 4, offsetof(EclipseData, overhead_objects), MAX_OVERHEAD_OBJECTS * 4 },
 };
+
+_Static_assert(sizeof(OverheadObject) == 4, "OVERHEAD_OBJECTS wire format assumes a 4-byte OverheadObject");
 
 // Applied only for valid payloads.
 static const BlobFieldMapping BLOB_FIELD_MAP_VALID[] = {
@@ -309,6 +315,14 @@ CommsChangeFlags comms_decoder_apply(DictionaryIterator *iter, EclipseData *data
   uint32_t changes = apply_simple_fields(iter, d, SIMPLE_FIELD_MAP, NELEM(SIMPLE_FIELD_MAP));
   apply_consolidated_fields(iter, d);
   apply_blob_fields(iter, d, BLOB_FIELD_MAP, NELEM(BLOB_FIELD_MAP));
+
+  // Any response to REQUEST_FLIGHTS (success or failure) carries a fresh
+  // OVERHEAD_OBJECTS_COMPUTED_AT -- PKJS sends it either way, so its mere
+  // presence is enough to clear the watch's own "still waiting" flag,
+  // whether or not the list itself is empty.
+  if (dict_find(iter, base + MK_OVERHEAD_OBJECTS_COMPUTED_AT)) {
+    d->overhead_objects_loading = false;
+  }
 
   // Feature layout and values are recomputed for every decoded message.
   changes |= COMMS_CHANGE_FEATURES;

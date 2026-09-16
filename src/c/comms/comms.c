@@ -21,6 +21,21 @@ bool comms_send_battery_saver_phase(uint8_t phase) {
   return app_message_outbox_send() == APP_MSG_OK;
 }
 
+#define OVERHEAD_OBJECTS_MAX_AGE_S (5 * 60)
+
+void comms_maybe_request_flights(EclipseData *data) {
+  if (!data || data->overhead_objects_loading) return;
+  time_t now = time(NULL);
+  bool fresh = data->overhead_objects_computed_at != 0 &&
+               (now - data->overhead_objects_computed_at) < OVERHEAD_OBJECTS_MAX_AGE_S;
+  if (fresh) return;
+
+  DictionaryIterator *iter;
+  if (app_message_outbox_begin(&iter) != APP_MSG_OK) return;
+  dict_write_uint8(iter, MESSAGE_KEY_MESSAGE_TYPE + MK_REQUEST_FLIGHTS, 1);
+  if (app_message_outbox_send() == APP_MSG_OK) data->overhead_objects_loading = true;
+}
+
 static void request_update(void) {
   DictionaryIterator *iter;
   if (app_message_outbox_begin(&iter) != APP_MSG_OK) return;

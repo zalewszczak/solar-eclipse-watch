@@ -488,6 +488,7 @@ function middleRightLine2ColorModeCode() {
 
 function showSunTimeCode() { return getSetting('CONFIG_SHOW_SUN_TIME', 'false') === 'true' ? 1 : 0; }
 function showIssCode() { return getSetting('CONFIG_SHOW_ISS', 'false') === 'true' ? 1 : 0; }
+function showFlightsCode() { return getSetting('CONFIG_SHOW_FLIGHTS', 'false') === 'true' ? 1 : 0; }
 function showMajorStarsCode() { return getSetting('CONFIG_SHOW_MAJOR_STARS', 'true') === 'true' ? 1 : 0; }
 function auroraEnabledCode() { return getSetting('CONFIG_AURORA_ENABLED', 'false') === 'true' ? 1 : 0; }
 function vibrateOnPhaseChangeCode() { return getSetting('CONFIG_VIBRATE_ON_PHASE_CHANGE', 'false') === 'true' ? 1 : 0; }
@@ -702,6 +703,7 @@ module.exports = {
   middleRightLine2ColorModeCode: middleRightLine2ColorModeCode,
   showSunTimeCode: showSunTimeCode,
   showIssCode: showIssCode,
+  showFlightsCode: showFlightsCode,
   showMajorStarsCode: showMajorStarsCode,
   auroraEnabledCode: auroraEnabledCode,
   vibrateOnPhaseChangeCode: vibrateOnPhaseChangeCode,

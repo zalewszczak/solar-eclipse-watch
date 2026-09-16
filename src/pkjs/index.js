@@ -89,13 +89,14 @@ var KEY_TYPE_MAP = (function () {
   assign(MSG_TYPE.SKY_EFFECTS, [
     'AURORA_KP_X10', 'AURORA_VISIBILITY_PCT', 'AURORA_ERROR_CODE',
     'METEOR_INTENSITY', 'METEOR_SHOWER_NAME',
-    'ISS_ALT', 'ISS_AZ', 'ISS_COMPUTED_AT', 'ISS_NEXT_PASS', 'ISS_ERROR_CODE'
+    'ISS_ALT', 'ISS_AZ', 'ISS_COMPUTED_AT', 'ISS_NEXT_PASS', 'ISS_ERROR_CODE',
+    'OVERHEAD_OBJECTS', 'OVERHEAD_OBJECT_COUNT', 'OVERHEAD_OBJECTS_COMPUTED_AT'
   ]);
 
   assign(MSG_TYPE.FEATURES, [
     'CORNER_FONT', 'CORNER_CONTENT', 'CORNER_COLOR_MODE',
     'EDGE_LINES',
-    'SHOW_SUN_TIME', 'SHOW_ISS', 'AURORA_ENABLED',
+    'SHOW_SUN_TIME', 'SHOW_ISS', 'SHOW_FLIGHTS', 'AURORA_ENABLED',
     'DAILY_STEP_GOAL'
   ]);
 
@@ -449,6 +450,10 @@ var refreshAndSend = refreshManager.refreshAndSend;
 var scheduleRefresh = refreshManager.scheduleRefresh;
 var startBatterySaverHourlyCheck = refreshManager.startBatterySaverHourlyCheck;
 
+// ---- overhead objects (shake/"Planet Seek" view: ISS + nearby flights) --
+var overheadObjects = require('./overhead-objects');
+var overheadObjectsBytes = messageEncoder.overheadObjectsBytes;
+
 // ---- Pebble lifecycle --------------------------------------------------
 
 Pebble.addEventListener('ready', function () {
@@ -482,6 +487,36 @@ Pebble.addEventListener('appmessage', function (e) {
   // since 0 (awake) is a legitimate, meaningful value here, not "absent".
   if (e && e.payload && e.payload.BATTERY_SAVER_PHASE !== undefined) {
     refreshManager.setBatterySaverPhase(e.payload.BATTERY_SAVER_PHASE);
+  }
+  // Fired on a shake when the watch's own cached overhead-objects list
+  // (ISS + flights, for the Planet Seek view) is missing or older than
+  // 5 minutes -- see comms_maybe_request_flights() on the watch side.
+  // Fetches are on-demand only, never on the regular refresh timer, so a
+  // shake that lands while one's still in flight just gets nothing new
+  // (the watch's own loading flag only clears once a reply arrives).
+  if (e && e.payload && e.payload.REQUEST_FLIGHTS) {
+    refreshManager.getLocation(function (err, lat, lon) {
+      if (err) {
+        console.log('eclipse-watch: overhead objects: no location - ' + err.message);
+        sendFlatDict({ 'OVERHEAD_OBJECTS_COMPUTED_AT': Math.floor(Date.now() / 1000) });
+        return;
+      }
+      var opts = {
+        showIss: getSetting('CONFIG_SHOW_ISS', 'false') === 'true',
+        showFlights: getSetting('CONFIG_SHOW_FLIGHTS', 'false') === 'true',
+        flightsRadiusKm: parseInt(getSetting('CONFIG_FLIGHTS_RANGE_KM', '50'), 10) || 50,
+        flightsApiKey: getSetting('CONFIG_FLIGHTS_API_KEY', '')
+      };
+      overheadObjects.buildOverheadObjectList(lat, lon, opts, function (objects) {
+        sendFlatDict({
+          'OVERHEAD_OBJECTS': overheadObjectsBytes(objects),
+          'OVERHEAD_OBJECT_COUNT': objects.length,
+          // Sent whether or not anything came back -- this is what clears
+          // the watch's "loading" flag either way (comms_decoder.c).
+          'OVERHEAD_OBJECTS_COMPUTED_AT': Math.floor(Date.now() / 1000)
+        });
+      });
+    });
   }
 });
 
@@ -643,6 +678,9 @@ Pebble.addEventListener('showConfiguration', function () {
     stepGoal: getSetting('CONFIG_STEP_GOAL', '10000'),
     showSunTime: getSetting('CONFIG_SHOW_SUN_TIME', 'false') === 'true',
     showIss: getSetting('CONFIG_SHOW_ISS', 'false') === 'true',
+    showFlights: getSetting('CONFIG_SHOW_FLIGHTS', 'false') === 'true',
+    flightsRangeKm: getSetting('CONFIG_FLIGHTS_RANGE_KM', '50'),
+    flightsApiKey: getSetting('CONFIG_FLIGHTS_API_KEY', ''),
     showMajorStars: getSetting('CONFIG_SHOW_MAJOR_STARS', 'true') === 'true',
     auroraEnabled: getSetting('CONFIG_AURORA_ENABLED', 'false') === 'true',
     vibrateOnPhaseChange: getSetting('CONFIG_VIBRATE_ON_PHASE_CHANGE', 'false') === 'true',
@@ -919,6 +957,9 @@ Pebble.addEventListener('webviewclosed', function (e) {
   setSetting('CONFIG_STEP_GOAL', settings.CONFIG_STEP_GOAL || '10000');
   setSetting('CONFIG_SHOW_SUN_TIME', settings.CONFIG_SHOW_SUN_TIME ? 'true' : 'false');
   setSetting('CONFIG_SHOW_ISS', settings.CONFIG_SHOW_ISS ? 'true' : 'false');
+  setSetting('CONFIG_SHOW_FLIGHTS', settings.CONFIG_SHOW_FLIGHTS ? 'true' : 'false');
+  setSetting('CONFIG_FLIGHTS_RANGE_KM', settings.CONFIG_FLIGHTS_RANGE_KM || '50');
+  setSetting('CONFIG_FLIGHTS_API_KEY', settings.CONFIG_FLIGHTS_API_KEY || '');
   setSetting('CONFIG_SHOW_MAJOR_STARS', settings.CONFIG_SHOW_MAJOR_STARS === false ? 'false' : 'true');
   setSetting('CONFIG_AURORA_ENABLED', settings.CONFIG_AURORA_ENABLED ? 'true' : 'false');
   setSetting('CONFIG_VIBRATE_ON_PHASE_CHANGE', settings.CONFIG_VIBRATE_ON_PHASE_CHANGE ? 'true' : 'false');
