@@ -3,13 +3,14 @@
 // Moved out of config-page.js (configuration architecture extraction,
 // JS8 fifth slice).
 
-var presetsLookups = require('../presets-lookups');
-var ROMAN_INCOMPATIBLE_FONTS = presetsLookups.ROMAN_INCOMPATIBLE_FONTS;
 var configTemplate = require('./config-template');
 var esc = configTemplate.esc;
 var modeButtonGroupHtml = configTemplate.modeButtonGroupHtml;
 var colorRoleButtonGroupHtml = configTemplate.colorRoleButtonGroupHtml;
-var fontOptionsHtml = require('./config-fonts').fontOptionsHtml;
+var configFonts = require('./config-fonts');
+var fontOptionsHtml = configFonts.fontOptionsHtml;
+var fontLookupEntry = configFonts.fontLookupEntry;
+var fontFlag = configFonts.fontFlag;
 
 function markBtnGridHtml(kind, maskStr) {
   var mask = parseInt(maskStr, 10);
@@ -177,6 +178,8 @@ function customMarkerModalHtml(kind, title, thicknessMax) {
 // Save, since there's no risk of an inconsistent in-between state the
 // way there is with the ring geometry popups.
 function textMarkerModalHtml(current) {
+  var markerTextFontId = parseInt(current.markerTextFont || '0', 10);
+  var markerTextRomanOk = fontFlag(fontLookupEntry(markerTextFontId).romanOk);
   return (
 '<div class="modal-overlay" id="textMarkerModal" onclick="if (event.target === this) closeTextMarkerEditor();">' +
 '  <div class="modal-box">' +
@@ -200,10 +203,10 @@ function textMarkerModalHtml(current) {
 '      </button>' +
 
 '      <div class="checkbox-row" style="margin-top:12px;">' +
-'        <input type="checkbox" id="markerTextRoman" onchange="refreshAllFontTriggerLabels()" ' + (current.markerTextRoman === 'true' && !ROMAN_INCOMPATIBLE_FONTS[current.markerTextFont] ? 'checked' : '') + ' ' + (ROMAN_INCOMPATIBLE_FONTS[current.markerTextFont] ? 'disabled' : '') + '>' +
+'        <input type="checkbox" id="markerTextRoman" onchange="refreshAllFontTriggerLabels()" ' + (current.markerTextRoman === 'true' && markerTextRomanOk ? 'checked' : '') + ' ' + (markerTextRomanOk ? '' : 'disabled') + '>' +
 '        <label for="markerTextRoman" style="margin:0;">Roman numerals</label>' +
 '      </div>' +
-'      <div class="help" id="markerTextRomanHelp">' + (ROMAN_INCOMPATIBLE_FONTS[current.markerTextFont] ? 'This font does not support Roman numerals correctly.' : 'Shows I, II, III... instead of 1, 2, 3....') + '</div>' +
+'      <div class="help" id="markerTextRomanHelp">' + (markerTextRomanOk ? 'Shows I, II, III... instead of 1, 2, 3....' : 'This font does not support Roman numerals correctly.') + '</div>' +
 
 '      <div class="slider-row">' +
 '        <label for="markerTextOffset">Offset from index <span class="val" id="markerTextOffsetVal">' + esc(current.markerTextOffset || '0') + 'px</span></label>' +

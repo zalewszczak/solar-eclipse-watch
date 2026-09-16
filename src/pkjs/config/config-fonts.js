@@ -13,8 +13,8 @@ var esc = require('./config-template').esc;
 
 // Same "don't silently do the opposite of what was written" fix as
 // secondsAvailableForDigital()'s parseInt change below, for
-// FONT_LOOKUP's boolean fields (mainClock, small, italic) instead of
-// its numeric ones. A plain `f.mainClock` truthy check treats the
+// FONT_LOOKUP's boolean fields (mainClock, small, italic, romanOk)
+// instead of its numeric ones. A plain `f.mainClock` truthy check treats the
 // STRING 'false' as true (any non-empty string is truthy in JS), so a
 // value that's accidentally been quoted -- an easy mistake, since
 // `mainClock: false` and `small: false` are both written explicitly
@@ -175,6 +175,7 @@ function fontOptionsHtml(selectedId, onlyMainClock) {
 }
 
 module.exports = {
+  fontFlag: fontFlag,
   googleFontsHref: googleFontsHref,
   cdnFontLinks: cdnFontLinks,
   fontLookupEntry: fontLookupEntry,

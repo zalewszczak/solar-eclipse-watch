@@ -38,7 +38,6 @@ var FONT_LOOKUP = PRESETS_LOOKUPS.FONT_LOOKUP;
 var FONT_CATEGORIES = PRESETS_LOOKUPS.FONT_CATEGORIES;
 var COLOR_SCHEMES = PRESETS_LOOKUPS.COLOR_SCHEMES;
 var CORNER_COLOR_MODE_LABELS = PRESETS_LOOKUPS.CORNER_COLOR_MODE_LABELS;
-var ROMAN_INCOMPATIBLE_FONTS = PRESETS_LOOKUPS.ROMAN_INCOMPATIBLE_FONTS;
 var CORNER_CATEGORIES = PRESETS_LOOKUPS.CORNER_CATEGORIES;
 var HAND_PRESETS = PRESETS_LOOKUPS.HAND_PRESETS;
 
@@ -183,14 +182,11 @@ var configFeatures = require('./config/config-features');
 var CORNER_CONTENT_OPTIONS = configFeatures.CORNER_CONTENT_OPTIONS;
 var cornerContentOptionsHtml = configFeatures.cornerContentOptionsHtml;
 
-// Fonts known not to render Roman numerals correctly (missing/wrong
-// glyphs for some of the letters int_to_roman() needs) -- the Roman
-// numerals checkbox gets disabled (and, if it was checked, force-
-// unchecked) whenever one of these is selected for marker text. Only
-// verified for these three so far (Leco Medium, Leco Large, Bitham
-// Medium 34 in FONT_LOOKUP's own ids) -- add more here as they're
-// checked -- see int_to_roman() in background_layer.c for what it
-// actually needs (I, V, X, L, C, D, M).
+// Whether a font renders Roman numerals correctly now lives on
+// FONT_LOOKUP itself (each entry's own `romanOk` field) -- see its
+// comment in presets-lookups.js. The Roman numerals checkbox in the
+// numerals editor gets disabled (and, if it was checked, force-
+// unchecked) whenever the selected marker-text font has `romanOk: false`.
 
 // A 12-button grid for picking which hour numerals (kind='hour', labels
 // 12,1..11) or which every-5-second slots (kind='sec', labels 0,5..55)
@@ -3081,7 +3077,7 @@ require('./config/config-preview') +
 '  var font = document.getElementById("markerTextFont").value;' +
 '  var romanBox = document.getElementById("markerTextRoman");' +
 '  var romanHelp = document.getElementById("markerTextRomanHelp");' +
-'  var incompatible = !!ROMAN_INCOMPATIBLE_FONTS[font];' +
+'  var incompatible = !fontFlag(fontLookupEntry(font).romanOk);' +
 '  romanBox.disabled = incompatible;' +
 '  if (incompatible) romanBox.checked = false;' +
 '  if (romanHelp) romanHelp.textContent = incompatible ?' +
