@@ -4,84 +4,39 @@
 #include "./hand_types.h"
 #include "./marker_types.h"
 
-// How many separation samples we keep for interpolating the sun/moon
-// gap smoothly between contact times. Must match SAMPLE_COUNT sent
-// from PKJS (see src/pkjs/astro.js MAX_SAMPLES).
+// Eclipse separation samples; must match PKJS SAMPLE_COUNT.
 #define MAX_SEP_SAMPLES 12
 
-// How many sun-altitude / cloud-cover samples we keep, spanning the
-// whole day (roughly hourly). Must match SKY_SAMPLE_COUNT sent from
-// PKJS (see src/pkjs/astro.js MAX_SKY_SAMPLES).
+// Full-day sky samples; must match PKJS MAX_SKY_SAMPLES.
 #define MAX_SKY_SAMPLES 26
 
-// How many bright named stars space-view sky mode draws. Fixed (not
-// sent over AppMessage) -- must match src/pkjs/astro.js's STAR_CATALOG
-// length exactly, and STARS[]' own length in background_layer module (which
-// owns each star's display name, in the same order PKJS's catalog is
-// in) has to match too.
+// Fixed number of bright stars in Space view; must match PKJS catalog.
 #define STAR_COUNT 16
 
-// ---------------------------------------------------------------------
-// AppMessage chunking
-//
-// PKJS sends eclipse, weather, sky, feature, and presentation settings
-// through several purpose-built AppMessage dictionaries per refresh cycle.
-// Each dictionary is tagged with MESSAGE_KEY_MESSAGE_TYPE so the C side
-// can identify the subset of fields it contains. Keeping the chunks small
-// avoids requiring one AppMessage buffer large enough for the full payload.
-//
-// The decoder remains tolerant of partial dictionaries: each chunk is
-// applied independently and MESSAGE_TYPE is used for logging and validation.
-//
-// per refresh cycle, one at a time (see sendChunk()/pumpSendQueue() in
-// index.js), each tagged with MESSAGE_KEY_MESSAGE_TYPE so the C side
-// (and anyone reading a packet capture) can tell which subset of keys
-// to expect. comms.c still applies each field with dict_find()
-// per key it cares about -- that's already tolerant of a partial
-// dictionary -- so MESSAGE_TYPE isn't required for correctness, only
-// for logging/validation and so a chunk's *shape* is documented in one
-// place. Keep this enum's values in sync with the MSG_TYPE object at
-// the top of src/pkjs/index.js.
+// AppMessage chunk types. Values must match PKJS MSG_TYPE.
 typedef enum {
-  MSG_TYPE_STATUS = 0,      // DATA_VALID, ERROR_CODE, LOCATION_NAME
-  MSG_TYPE_ECLIPSE = 1,     // contact times, magnitude, separation/mag sample arrays
-  MSG_TYPE_WEATHER = 2,     // current conditions: temps, humidity, wind, AQI, ...
-  MSG_TYPE_ASTRONOMY = 3,   // sun/moon/planet/star position samples, rise/set times
-  MSG_TYPE_SKY_EFFECTS = 4, // aurora, meteor shower, ISS pass
-  MSG_TYPE_FEATURES = 5,    // corner/edge content-slot selection + what feeds them
-  MSG_TYPE_SETTINGS = 6,    // clock face cosmetics: hands, markers, colors, units, fonts
+  MSG_TYPE_STATUS = 0,      // status/error/location
+  MSG_TYPE_ECLIPSE = 1,     // eclipse data
+  MSG_TYPE_WEATHER = 2,     // current weather
+  MSG_TYPE_ASTRONOMY = 3,   // Sun/Moon/planet/star data
+  MSG_TYPE_SKY_EFFECTS = 4, // aurora/meteors/ISS
+  MSG_TYPE_FEATURES = 5,    // feature layout/content
+  MSG_TYPE_SETTINGS = 6,    // display settings
 } MsgType;
 
-// Largest of the chunks above is MSG_TYPE_ASTRONOMY, at roughly:
-//   4B dict header + ~23 tuples (7B overhead each) + sample-array
-//   payload bytes (5 planets x 26 samples x 2 arrays x 2B, plus
-//   sun/moon/star/cloud arrays) -- works out to ~1060 bytes as of the
-//   current MAX_SKY_SAMPLES/PLANET_COUNT/STAR_COUNT. APPMSG_INBOX_SIZE
-//   below rounds that up with headroom for future fields; if you add
-//   samples/planets/stars, re-check this against the actual size
-//   (APP_LOG the return value of dict_write_end() from PKJS, or watch
-//   for APP_MSG_BUFFER_OVERFLOW in inbox_dropped_handler) and bump it.
-//
-// Outbox only ever carries the watch's own tiny REQUEST_UPDATE ping
-// back to the phone, so it stays small regardless of how big the
-// inbound chunks get.
-//
-// See app_message_open()'s docs for why sizing to the biggest actual
-// chunk (not app_message_inbox_size_maximum()) is the point of all
-// this: https://developer.rebble.io/docs/c/Foundation/AppMessage/#app_message_open
+// Sized for the largest inbound AppMessage chunk.
 #define APPMSG_INBOX_SIZE 1200
 #define APPMSG_OUTBOX_SIZE 64
 
-// Eclipse phase, derived on-watch from the current time vs the
-// contact times we were sent.
+// Eclipse phase derived from current time and contact times.
 typedef enum {
-  PHASE_NO_ECLIPSE = 0,   // nothing happening today
-  PHASE_BEFORE_C1,        // waiting for first contact
-  PHASE_PARTIAL_IN,       // moon encroaching (C1 -> C2 or C1 -> max)
-  PHASE_TOTAL,            // totality / annularity (C2 -> C3)
-  PHASE_PARTIAL_OUT,      // moon receding (max/C3 -> C4)
-  PHASE_DONE,             // C4 has passed, sun is (or should be) whole again
-  PHASE_NIGHT              // sun already below horizon before/after eclipse
+  PHASE_NO_ECLIPSE = 0, // no eclipse or no status to show
+  PHASE_BEFORE_C1,      // before first contact
+  PHASE_PARTIAL_IN,     // coverage increasing
+  PHASE_TOTAL,          // totality or annularity
+  PHASE_PARTIAL_OUT,    // coverage decreasing
+  PHASE_DONE,           // after last contact
+  PHASE_NIGHT           // Sun below the horizon
 } EclipsePhase;
 
 typedef enum {
@@ -91,15 +46,7 @@ typedef enum {
   ECLIPSE_TYPE_ANNULAR = 3
 } EclipseType;
 
-// Clock font codes handled by clock_display font handling in
-// application entry point: 0=Leco (default), 1-16=custom .ttf/.otf
-// resources (see that switch for which), 17=Roboto, 18=Bitham Light,
-// 19=Bitham Bold. Kept as a plain uint8_t on EclipseData rather than
-// an enum, since the meaningful range doesn't fit a small one.
-
-// Which slot each planet occupies in the arrays below -- keep this in
-// sync with PLANET_NAMES in celestial_bodies.c and the concatenation
-// order PKJS uses when building PLANET_ALT_SAMPLES/RISE/SET.
+// Planet array order; must match PKJS and celestial_bodies.c.
 typedef enum {
   PLANET_MERCURY = 0,
   PLANET_VENUS,
@@ -110,68 +57,32 @@ typedef enum {
 } PlanetId;
 
 typedef struct {
-  bool valid;              // has the watch ever received a good payload?
-  uint8_t error_code;       // 0=none, 1=no location, 2=calc error, 3=send failed
-  bool has_eclipse;         // is there any eclipse today at this location?
-  uint8_t clock_font;         // unified font id (see font_lookup.h) for the main clock digits, applies
-                                // regardless of data validity
-  uint8_t temp_unit;          // user setting: 0=Celsius, 1=Fahrenheit, 2=Kelvin
-  uint8_t wind_speed_unit;    // user setting: 0=km/h, 1=mph, 2=m/s, 3=knots
-  bool show_seconds;          // user setting: show seconds (grayed out in settings for wide fonts)
-  bool show_sun_time;          // user setting: replace the week number with the upcoming sunrise/sunset
-                                 // time (plus an arrow + horizon-sun icon). Digital mode only -- small-
-                                 // analog mode's own week/sun-time readout is now just one of its 4
-                                 // user-picked feature rows (content 16 = sunrise/sunset, 19 = week
-                                 // number), so this toggle no longer has anything to do there.
-  int16_t temp_high_c;        // today's forecast high, whole degrees Celsius
-  int16_t temp_low_c;         // today's forecast low, whole degrees Celsius
-  uint8_t uv_index_x10;        // today's max UV index, x10 fixed point (e.g. 53 = UV 5.3)
-  uint8_t uv_index_current_x10; // current-hour UV index (as opposed to uv_index_x10's daily max), same x10
-                                  // fixed point -- separate corner/edge content id (104, "Current UV
-                                  // index") from the original "UV index" (6, the daily max), since the
-                                  // two answer different questions and someone may want either or both.
-  uint8_t rain_chance_pct;      // today's max precipitation probability, 0-100
-  uint8_t humidity_pct;          // current relative humidity, 0-100
-  int16_t wind_speed_kmh;        // current wind speed, km/h
+  // Payload/status state.
+  bool valid;              // true after a valid payload has been received.
+  uint8_t error_code;      // 0=none, 1=no location, 2=calculation, 3=send failure.
+  bool has_eclipse;        // true when an eclipse occurs today.
+  uint8_t clock_font;      // main clock font ID.
 
-  // The four corners overlay (see feature layout/rendering in
-  // The field is consumed by the application controller rather than by a
-  // temp-range/brief-weather/battery/moon-phase readouts with a fully
-  // user-picked set of up to 4 small info items, one per screen
-  // corner. Indexed 0=top-left, 1=top-right, 2=bottom-left,
-  // 3=bottom-right.
-  //
-  // corner_content: 0=none, 1=heart rate, 2=steps today, 3=step goal
-  // %, 4=high/low temp, 5=current conditions, 6=UV index, 7=rain
-  // chance, 8=humidity, 9=wind, 10=battery, 11=Moon phase.
-  //
-  // corner_color_mode: 0=solid monochrome (main color), 1=solid
-  // accent, 2=translucent accent (dithered), 3=dynamic (value-driven
-  // gradient/rule, specific to each content type -- see
-  // corner_color_for()).
+  uint8_t temp_unit;       // 0=C, 1=F, 2=K.
+  uint8_t wind_speed_unit; // 0=km/h, 1=mph, 2=m/s, 3=knots.
+  bool show_seconds;       // show seconds in the main clock.
+  bool show_sun_time;      // digital mode: show next sunrise/sunset instead of week number.
+
+  int16_t temp_high_c;
+  int16_t temp_low_c;
+  uint8_t uv_index_x10;    // daily maximum UV index ×10.
+  uint8_t uv_index_current_x10; // current UV index ×10.
+
+  uint8_t rain_chance_pct; // daily maximum precipitation probability.
+  uint8_t humidity_pct;     // current relative humidity.
+  int16_t wind_speed_kmh;  // current wind speed.
+
+  // Corner feature content and color modes.
   uint8_t corner_content[4];
   uint8_t corner_color_mode[4];
-  uint16_t daily_step_goal;     // user-set target for the "step goal %" corner content --
-                                 // Pebble's HealthService has no API to read a system-level
-                                 // goal, so (like every other Pebble health app) this app
-                                 // keeps its own
+  uint16_t daily_step_goal; // app-local step goal.
 
-  // "Edge-middle" slots -- upper-middle, bottom-middle, middle-left,
-  // middle-right -- around the analog clock face. Which of the
-  // 4 are actually shown depends on bottom_style/big_analog_marker_style
-  // (see feature layout/rendering in application entry point):
-  // digital mode uses none of them; analog mode's procedural
-  // marker styles (<3, no artwork constraints) use all 4 alongside
-  // the corners; analog mode's bitmap styles (>=3) are limited to
-  // whichever slots that specific mask graphic's design actually has
-  // room for (upper-middle alone for shadow/bell, upper+left for
-  // tally, upper+bottom for modern/fancy), and suppress the 4 corners
-  // entirely since the mask already fills most of the screen. Same
-  // content/color-mode codes as the corners (content 12 = short date).
-  // Upper-middle and bottom-middle each hold two independently-chosen
-  // lines rather than one -- when line 2 is content 0 (none), only
-  // line 1 draws, vertically re-centered within the pair's slot
-  // rather than left sitting at the "line 1 of 2" position.
+  // Shared analog edge slots; digital layouts reuse these fields.
   uint8_t upper_middle_line1_content;
   uint8_t upper_middle_line1_color_mode;
   uint8_t upper_middle_line2_content;
@@ -188,496 +99,193 @@ typedef struct {
   uint8_t middle_right_line1_color_mode;
   uint8_t middle_right_line2_content;
   uint8_t middle_right_line2_color_mode;
-  // Dual-purpose: analog mode (bottom_style 1) uses all 8 fields above
-  // exactly as their names say. Digital mode (bottom_style 0/2/3/4)
-  // reuses the SAME 8 fields for its own 7 slots instead of its own
-  // dedicated ones -- the two modes are mutually exclusive, so
-  // whichever one isn't active leaves these fields completely dormant,
-  // and reusing them saves both the extra bytes and the extra
-  // AppMessage keys/traffic a second set would cost. The mapping (see
-  // feature_layout_recompute()'s digital branch in features_layer.c
-  // for where this is actually applied): middle_left_line1/2 -> left
-  // column rows 1/2, upper_middle_line1 -> left column row 3,
-  // middle_right_line1/2 -> right column rows 1/2, upper_middle_line2
-  // -> right column row 3, bottom_middle_line1 -> the single bottom
-  // feature. bottom_middle_line2 is the one field with no digital-mode
-  // role (7 slots needed, 8 fields available).
 
-  // Colors: raw packed GColor argb bytes (one of the 64 real Pebble
-  // display colors), reconstructed on-watch via a GColor union rather
-  // than shipped as separate RGB components -- guarantees whatever the
-  // user picked is one of the 64 real colors, not an arbitrary (and
-  // possibly unsupported) RGB triple. The named presets shown in the
-  // settings page are a phone-side-only convenience (see COLOR_SCHEMES
-  // in config-page.js) -- picking one just fills these three fields in
-  // with that preset's colors before sending, so the watch only ever
-  // sees concrete colors and has no concept of "preset" at all.
+  // Day color scheme, stored as packed Pebble color values.
   uint8_t custom_bg;
   uint8_t custom_text;
   uint8_t custom_accent;
 
-  // Optional separate colors applied between sunset and sunrise, same
-  // encoding as the day colors above.
+  // Optional night color scheme.
   bool night_scheme_enabled;
   uint8_t night_custom_bg;
   uint8_t night_custom_text;
   uint8_t night_custom_accent;
 
-  uint8_t bottom_style;       // 0=digital bar (big time+date), 1=analog (fullscreen hands over the sky, no bottom bar),
-                               // 2=digital bar + right-side features, 3=digital bar + left-side features,
-                               // 4=digital bar + both sides -- see the upper/bottom/middle_left/middle_right
-                               // fields' own dual-purpose comment above for what digital mode uses them for.
-                               // 5/7/8/9 are Digital top's own mirror of 0/2/3/4 (no/right/left/both sides,
-                               // same +2/+3/+4 side-code arithmetic, just offset by +5 -- 6 is deliberately
-                               // skipped, kept free as a spacer rather than implying anything) -- same panel
-                               // content, just drawn transparently at the screen's TOP instead of drawn
-                               // opaque at its bottom, with the sky/element canvas below it (not above) as
-                               // a result. See feature_layout_digital_side_mode()/feature_layout_is_digital_top_layout() in
-                               // features_layer.h for how the two pieces (which sides, top-vs-bottom) get
-                               // pulled back apart wherever the code needs one without the other. Any value
-                               // other than 1 draws a digital clock somewhere; only 1 is analog.
+  // 1 = analog; other values select digital layouts.
+  uint8_t bottom_style;
 
-  uint8_t sun_moon_size_pct;   // 25/50/75/100, scales SUN_R_NORMAL/MOON_R_NORMAL. Ignored during
-                                 // an active eclipse (and in big-analogue's fullscreen-sun mode) --
-                                 // both of those already have their own dedicated sizing.
-  uint8_t shake_label_seconds; // how long the shake-to-reveal name labels stay up, in seconds
-  uint8_t label_style;         // user setting ("Astronomy" section, right below shake_label_seconds):
-                                 // 0=Boxed (opaque rounded rect, white text -- the original look),
-                                 // 1=Outlined (main-color text with a 4-direction-shifted contrasting
-                                 // outline, same technique corner/edge feature text already uses),
-                                 // 2=Soft (plain light-gray text, no background or outline). See
-                                 // label rendering in marker/celestial presentation modules.
-  bool vibrate_on_phase_change; // user setting: brief double vibration when the eclipse crosses
-                                  // into its next phase (C1/C2/C3/C4) -- not on the "there's an
-                                  // eclipse today, waiting" transition, only real contact events
-  uint8_t startup_clock_anim_mode; // user setting ("Animation" section, default 1): radio-style,
-                                     // exactly one of 0=off, 1=animate clock (hands/digits sweep in
-                                     // from a "cold start" position -- 00:00, or hands at 12 -- up to
-                                     // the real current time on app launch, rather than just appearing
-                                     // already showing it; under 1.5s), 2=planet sweep time shift
-                                     // (same sweep-in, but chasing the SAME swept-past time the
-                                     // Planets background animation (bg_anim_mode 1) is itself
-                                     // sweeping through instead of the real fixed current time -- see
-                                     // hands controller()'s own s_data.bg_anim_mode == 1 check
-                                     // right below where this field is read, which is what makes mode
-                                     // 2 fall back to behaving like mode 1 whenever Planets isn't
-                                     // ALSO the active background animation, since there's no time
-                                     // shift to chase otherwise). See s_startup_clock_anim_* in
-                                     // application entry point and hand_layer.c's HandConfig-level
-                                     // sweep-in support.
-  uint8_t bg_anim_mode; // user setting ("Animation" section, default 0=off): radio-style, exactly one
-                         // of 0=off, 1=planets (Sun/Moon/planets + the sky gradient sweep in from
-                         // their position a couple hours ago), 2=markers (big-analog HOUR markers
-                         // only -- second markers are excluded and always drawn normally --
-                         // animate in from off-screen, see marker_layer_draw()'s own comment on why
-                         // they're not genuinely cached rather than just skipped-from-animation).
-                         // Only one kind of element animates at a time -- see canvas_update_proc's
-                         // own gating at each of its 2 uses (the sky_now substitution and the
-                         // marker_layer_draw() call).
-  uint8_t shake_anim_mode; // user setting ("On shake animation" section, default 0=off): radio-
-                             // style, exactly one of 0=off, 1=smooth second hand (continuous
-                             // sub-second motion instead of per-second jumps, for as long as
-                             // shake_label_seconds), 2="Planet seek" (points the sky view at
-                             // whatever 90deg slice of the horizon the watch's compass is currently
-                             // facing, for as long as shake_label_seconds -- weather is suppressed
-                             // for the duration; the Sun/Moon/planets keep the same altitude
-                             // they'd show in the normal, non-rotated view, just repositioned
-                             // left-to-right across the screen by compass-relative azimuth, with
-                             // off-screen bodies shown as an edge-pinned label + arrow instead.
-                             // Unavailable whenever today has an eclipse -- see s_data.has_eclipse's
-                             // own gating at the trigger site), 3=Both (smooth second hand AND
-                             // Planet seek run together for the same window -- see
-                             // shake_anim_wants_smooth_second()/shake_anim_wants_planet_seek() in
-                             // application entry point, which centralizes mode checks so 1 and 2
-                             // stay mutually exclusive while 3 opts into both).
-  uint8_t outline_style; // user setting: 0=none, 1=thin (1px contrasting-color outline, the
-                           // standard 1px outline), 2=thick (thin's same 4
-                           // cardinal 1px offsets PLUS 4 cardinal 2px offsets PLUS 4 diagonal
-                           // 1px offsets -- 12 total, see OUTLINE_OFFSETS_THICK in
-                           // features_layer.c) -- behind corner/edge text, the big-analog date,
-                           // the eclipse phase text, and (procedurally, non-translucent mode
-                           // only) corner/edge icons. Hands have their own per-hand
-                           // outline_enabled instead (HandConfig, in hand_hour/hand_minute/
-                           // hand_second below) -- this setting doesn't touch them.
-  bool battery_saver_enabled; // user setting ("Updates" section, default off): "Preserve battery
-                                // when watch is not in use" -- once no shake has been detected for
-                                // 2h, then 4h, the watch progressively drops to a once-a-minute
-                                // then once-every-5-minutes redraw cadence, stops the independent
-                                // corner/edge refresh timer, and tells the phone (via
-                                // MESSAGE_KEY_BATTERY_SAVER_PHASE) to hold off on its own periodic
-                                // refresh until the next full hour. See the "battery saver" block
-                                // in application entry point for the whole state machine -- s_data
-                                // itself only ever holds whether the feature is turned on; the
-                                // actual awake/sleep/deep-sleep phase is runtime-only state, not
-                                // persisted (s_last_shake_time/s_battery_saver_phase), since it
-                                // should always start fresh (awake) right after a relaunch rather
-                                // than resume however idle the watch happened to be last time it
-                                // was running.
-  uint8_t corner_font; // unified font id (see font_lookup.h) for corner/edge feature text and the
-                         // big-analog date text; default (1 = System Medium) matches the old
-                         // corner_font_size default
+  uint8_t sun_moon_size_pct; // 25, 50, 75 or 100 percent.
 
-  bool shadow_translucent; // user setting ("Style" section): whether every hand's shadow draws
-                             // solid black or a dithered translucent black -- ~50% normally, ~25%
-                             // when that particular hand is itself translucent too. A single
-                             // global style choice, unlike shadow_enabled/distance which are
-                             // per-hand -- see hand_layer.h. Defaults to true (translucent).
-  bool draw_features_beneath_hands; // user setting ("Style" section, analog only): when
-                                      // true, apply_layout() adds the features overlay layer
-                                      // BEFORE the hands layer instead of after, so hands draw
-                                      // on top of corners/edges info instead of under it.
-                                      // Meaningless (and hidden on the settings page) outside
-                                      // bottom_style == 1. Declared here (right after
-                                      // shadow_translucent, ahead of shadow_angle_deg below)
-                                      // purely to close what would otherwise be a 1-byte
-                                      // alignment gap in front of that uint16_t -- no relation
-                                      // to shadow otherwise.
-  uint16_t shadow_angle_deg; // user setting ("Style" section, right below shadow_translucent):
-                              // single shared light-source direction for every hand's shadow, 0-359,
-                              // same "0 = 12 o'clock, clockwise" convention as every other angle in
-                              // this project. All 3 hands share one physical light source, so a
-                              // separately-adjustable angle per hand (as this briefly was) made no
-                              // real sense -- only shadow_enabled/distance stayed per-hand. Defaults
-                              // to 120.
+  uint8_t shake_label_seconds; // label visibility duration.
+  uint8_t label_style;     // 0=boxed, 1=outlined, 2=soft.
 
-  // bottom_style==1 (analog) hands -- rendered in their own
-  // always-on-top layer (see application entry point), separate from
-  // the sky canvas underneath. Every hand the watch ever draws is one
-  // of these full HandConfig field sets -- pkjs is what offers a
-  // gallery of quick-pick preset buttons on top of this (see
-  // config-page.js's hand style picker popup and its lookup table of
-  // presets), but a preset is just a shortcut for filling these same
-  // fields; the watch itself has no separate "preset" mode to branch
-  // on; the struct stores only the fields consumed by the renderer.
-  // big_analog_hand_style/big_analog_hands_transparent/
-  // big_analog_hands_shadow/hand_preset_contrast_style for that.
+  bool vibrate_on_phase_change; // vibrate at C1/C2/C3/C4.
+
+  uint8_t startup_clock_anim_mode; // 0=off, 1=clock sweep, 2=planet-time sweep.
+
+  uint8_t bg_anim_mode;    // 0=off, 1=planets, 2=hour markers.
+
+  uint8_t shake_anim_mode;  // 0=off, 1=smooth seconds, 2=planet seek.
+
+  uint8_t outline_style;   // 0=none, 1=thin, 2=thick.
+
+  bool battery_saver_enabled; // reduce updates to save power.
+
+  uint8_t corner_font;     // feature text font ID.
+
+  bool shadow_translucent; // draw hand shadows dithered.
+
+  bool draw_features_beneath_hands; // analog mode layering.
+
+  uint16_t shadow_angle_deg; // shadow direction in degrees.
+
+  // Analog hand and marker configuration.
   HandConfig hand_hour;
   HandConfig hand_minute;
   HandConfig hand_second;
-  uint8_t center_circle_radius; // 0 = off, else px
-  uint8_t center_circle_color;  // 0=main, 1=accent, 2=background
+  uint8_t center_circle_radius; // 0 disables the center circle.
+  uint8_t center_circle_color; // 0=main, 1=accent, 2=background.
 
-  // 0=minimal, 1=small, 2=big -- all three now drawn by background_layer module's shared
-  // marker rasterizer too, via a small hardcoded MarkerRingConfig preset per style
-  // (see MARKER_STYLE_PRESETS in that file) rather than their own separate procedural
-  // drawing code -- same code path as style 8 (custom), just with fixed presets instead
-  // of the user's own custom_hour_marker/custom_second_marker.
-  // 3=modern, 4=shadow, 5=tally, 6=bell, 7=fancy -- each a user-supplied bitmap mask
-  // (RESOURCE_ID_xxx_BACKGROUND) tinted with the main color, replacing the procedural
-  // markers entirely. See corner_content/upper_middle_content below for how picking a
-  // bitmap style also disables the 4 corners in favor of one upper-middle slot.
-  // 8=custom -- user-built hour/second marker system, see background_layer module and the
-  // custom_hour_marker/custom_second_marker/marker_text fields below.
-  // 9=none -- no marker ring at all (hour or second), same corner/edge-slot availability
-  // as the procedural styles (all 4 corners + all 4 edge-middle slots, no bitmap mask
-  // eating into that room). Shown first in the settings-page dropdown despite the high
-  // numeric value, to keep 0-8 backward compatible with already-installed configs.
-  uint8_t big_analog_marker_style;
+  uint8_t big_analog_marker_style; // bitmap/procedural analog marker style.
 
-  // Only meaningful for bitmap marker styles (3-7 above) -- dithers the
-  // mask's tint to ~67% opacity instead of solid, same alpha-forcing
-  // technique tint_marker_bitmap() already used, just driven by its own
-  // setting now rather than reusing big_analog_hands_transparent (that
-  // coupling made bitmap markers dim whenever hands transparency was
-  // toggled, whether or not that's what the user actually wanted for
-  // the markers). Procedural/custom marker rings use MarkerRingConfig's
-  // own per-ring translucent field above instead, since those are two
-  // independent rings (hour, second) rather than one single mask.
-  bool bitmap_marker_transparent;
+  bool bitmap_marker_transparent; // use transparent bitmap marker background.
 
-  // Only meaningful when big_analog_marker_style == 8. See background_layer module (the
-  // merged sky-canvas-and-markers layer) for how these get drawn -- as part of its own
-  // once-a-minute cached full redraw, not a separate per-tick pass.
   MarkerRingConfig custom_hour_marker;
   MarkerRingConfig custom_second_marker;
   MarkerTextConfig marker_text;
 
-  // Inner/base-edge thickness for the "tapered" ring style (style 4 --
-  // see MarkerRingConfig's own style comment), one per ring, only
-  // meaningful when the matching custom_*_marker.style above is 4.
-  // Deliberately NOT fields on MarkerRingConfig itself: that struct's
-  // size is load-bearing for the MARKER_RINGS wire blob (see
-  // comms.c's own _Static_assert(sizeof(MarkerRingConfig)
-  // == 8, ...) and comms.c's memcpy of exactly
-  // 2 * sizeof(MarkerRingConfig) bytes) -- growing it here would have
-  // needed a matching phone-side wire format change, so these two are
-  // sent as their own separate simple fields instead (MK_CUSTOM_HOUR_
-  // INNER_THICKNESS/MK_CUSTOM_SEC_INNER_THICKNESS in SIMPLE_FIELD_MAP),
-  // leaving MarkerRingConfig and the packed blob's format untouched.
-  // A phone that hasn't sent these yet leaves them at their power-on
-  // 0, which draw_marker_ring() in background_layer module floors the exact
-  // same way it already floors `thickness` (never below a ~1px-
-  // equivalent minimum), so an unset 0 quietly behaves like 1 (the
-  // sharpest possible taper) rather than needing its own special case.
   uint8_t custom_hour_marker_inner_thickness;
   uint8_t custom_second_marker_inner_thickness;
 
-  time_t c1;                // first contact (moon touches sun's edge)
-  time_t c2;                // start of totality/annularity (0 if partial-only)
-  time_t max_t;              // greatest eclipse (always set if has_eclipse)
-  time_t c3;                // end of totality/annularity (0 if partial-only)
-  time_t c4;                // last contact (moon fully clear of sun)
-  time_t sunset;             // today's sunset, caps the animation
+  // Eclipse contacts and animation samples.
+  time_t c1;
+  time_t c2;
+  time_t max_t;
+  time_t c3;
+  time_t c4;
+  time_t sunset;
 
-  uint8_t magnitude_pct;    // 0-100, fraction of the sun's disc covered at max
-  uint8_t type;              // one of the EclipseType enum values -- stored as a plain uint8_t rather
-                               // than the enum itself (same reasoning clock_font's own comment gives:
-                               // a C enum defaults to a 4-byte int, and the 4 real values here fit a
-                               // single byte with room to spare) -- compare/assign against the
-                               // ECLIPSE_TYPE_* constants exactly as before, they're still just ints.
+  uint8_t magnitude_pct;    // maximum Sun coverage, 0-100.
+  uint8_t type;             // EclipseType value.
 
-  int16_t pos_angle_deg;    // direction (0-359) the moon approaches from,
-                             // in on-screen "clock" degrees, 0 = straight up
+  int16_t pos_angle_deg;    // Moon approach direction; 0 = up.
 
-  // Separation samples across [sample_start, sample_start + (count-1)*interval]
-  // in hundredths of a degree, animates the gap between the two
-  // discs without the watch needing to redo orbital mechanics.
-  time_t sample_start;
-  uint32_t sample_interval_s;
-  uint8_t sample_count;
-  uint8_t radius_ratio_pct;                  // moon radius / sun radius at greatest eclipse, x100;
-                                               // <100 = annular (ring stays visible), >=100 = total.
-                                               // Declared here (right after sample_count, ahead of
-                                               // the two arrays below) purely to close what would
-                                               // otherwise be a 1-byte alignment gap in front of
-                                               // sep_samples_centideg -- still the same "separation
-                                               // samples" field group either way.
-  uint16_t sep_samples_centideg[MAX_SEP_SAMPLES];
-  uint8_t mag_pct_samples[MAX_SEP_SAMPLES]; // live "% of Sun covered", same grid as above
+  time_t sample_start;       // first separation sample time.
+  uint32_t sample_interval_s; // sample spacing in seconds.
+  uint8_t sample_count;      // number of valid samples.
+  uint8_t radius_ratio_pct; // Moon/sun radius ×100 at greatest eclipse.
 
-  uint8_t cloud_cover_pct;   // 0-100 averaged over the eclipse window
-  uint8_t vis_score_pct;     // 0-100 "chance you'll actually see it" score
-  uint8_t weather_sources;   // how many weather sources were averaged
-  uint8_t weather_condition; // 0=clear/cloudy (handled by cloud_cover_pct alone),
-                              // 1=fog, 2=rain, 3=snow, 4=thunderstorm
-  uint8_t weather_icon_style; // 0=simple, 1=hollow, 2=full color -- which of the "Weather icon"/
-                                // "Temp + weather icon" corner content styles to draw. 1=hollow
-                                // and 2=full color are both implemented (see draw_weather_icon_hollow()/
-                                // feature weather icon rendering); 0=simple is
-                                // still a placeholder stub. Full color is a genuinely different kind of
-                                // icon from the other two -- see the "Full color weather icons" section
-                                // in README.md -- so it ignores whatever corner_color_mode the slot is
-                                // set to; the other two styles are single-color silhouettes tinted by it.
-                                // A settings-page-only choice in spirit (there's exactly one value, not
-                                // per-slot), sent like any other setting since the watch has no other way
-                                // to know it.
-  int16_t weather_temp_c;    // current temperature, whole degrees Celsius (converted to F on-watch if the user prefers)
-  // Robust per-service error reporting -- see servicelog.js's
-  // classifyError() on the PKJS side for what these values mean (an
-  // HTTP status if the fetch got a response at all, one of a handful
-  // of small ERR_* codes otherwise). 0 = this refresh's weather fetch
-  // was fine. weather_error_streak counts consecutive refreshes that
-  // arrived with a nonzero code (reset to 0 the moment one arrives
-  // with 0), capped well below 255 so it can never wrap around.
-  // weather_ever_valid latches true the first time a real weather
-  // reading is ever received, and never goes back to false -- see
-  // weather_layer_should_show_error() in weather_layer.c for how the
-  // three combine to decide whether a corner slot shows "ERR ###"
-  // instead of the (possibly stale, but still real) last-known
-  // reading.
+  uint16_t sep_samples_centideg[MAX_SEP_SAMPLES]; // separation ×100 degrees.
+  uint8_t mag_pct_samples[MAX_SEP_SAMPLES]; // Sun coverage percentage.
+
+  // Weather conditions for the eclipse window.
+  uint8_t cloud_cover_pct; // average cloud cover during eclipse.
+  uint8_t vis_score_pct;   // estimated visibility percentage.
+  uint8_t weather_sources; // number of weather sources used.
+  uint8_t weather_condition; // 0=clear/cloudy, 1=fog, 2=rain, 3=snow, 4=storm.
+
+  uint8_t weather_icon_style; // 0=simple, 1=hollow, 2=full color.
+
+  int16_t weather_temp_c;  // current temperature in Celsius.
+
+  // Weather fetch status and freshness.
   uint8_t weather_error_code;
   uint8_t weather_error_streak;
   bool weather_ever_valid;
-  time_t weather_last_update;  // epoch time of this device's last successful weather fetch (stamped
-                                 // phone-side, same instant weatherOk gates WEATHER_TEMP_C etc. in
-                                 // index.js's sendEclipseData()/sendNoEclipseToday()) -- 0 if never
-                                 // yet fetched. Feeds the "last weather update" corner content's
-                                 // white->red staleness gradient in features_layer.c.
-  // "Weather in N hours" corner content (features_layer.c ids 87-92):
-  // temperature_2m/weathercode at hour now+1..now+6, from the same
-  // Open-Meteo hourly array the current-conditions fields above are
-  // read from -- see weather.js's getDailyCloudGrid(). Index 0 = 1h
-  // from now, index 5 = 6h from now. forecast_temp_c uses -128 as its
-  // "not available" sentinel (a real forecast temperature this extreme
-  // never occurs, unlike 0 which is a perfectly ordinary reading).
-  // forecast_condition shares the same 0-N condition codes
-  // weather_condition/conditionFromWmoCode() use elsewhere.
+  time_t weather_last_update;
+
+  // Forecast for the next 1-6 hours.
   int16_t forecast_temp_c[6];
   uint8_t forecast_condition[6];
-  char location_name[32];    // reverse-geocoded place name, e.g. "Innsbruck, Austria"
+  char location_name[32];  // reverse-geocoded place name.
 
-  uint8_t timezone_id;       // index into the TIMEZONES[] table in application entry point --
-                               // which city's time the "Timezone" corner content shows. A
-                               // settings-page-only choice in spirit (one value, not per-slot),
-                               // same pattern as weather_icon_style above.
+  uint8_t timezone_id;     // index into the timezone table.
 
-  // Weather-extra fields (pressure/wind direction/dew point/air
-  // quality) -- all from the same Open-Meteo source as cloud_cover_pct
-  // etc. above, added for the "Pressure"/"Wind direction"/"Air quality"/
-  // "Dew point" corner content types.
-  int16_t wind_dir_deg;      // 0-359, compass bearing the wind is blowing FROM (meteorological convention)
-  int16_t dew_point_c;       // whole degrees Celsius (converted on-watch like weather_temp_c)
-  int16_t pressure_hpa;      // sea-level-adjusted, hectopascals (~950-1050 in practice)
-  uint8_t pressure_trend;    // 0=flat, 1=rising, 2=falling -- vs. ~3 hours ago
-  uint8_t aqi_unit;          // user setting: 0=show aqi_us, 1=show aqi_eu -- declared here (right
-                               // after pressure_trend, ahead of the two uint16_t AQI fields below)
-                               // purely to close what would otherwise be a 1-byte alignment gap in
-                               // front of aqi_us; still the same "weather-extra" field group either
-                               // way.
-  uint16_t aqi_us;           // US EPA AQI scale (0-500+), 0 = not available
-  uint16_t aqi_eu;           // European AQI scale (0-100+), 0 = not available
+  // Additional weather data.
+  int16_t wind_dir_deg;    // meteorological wind direction, degrees.
+  int16_t dew_point_c;     // dew point in Celsius.
+  int16_t pressure_hpa;    // sea-level pressure in hPa.
+  uint8_t pressure_trend;  // 0=flat, 1=rising, 2=falling.
+  uint8_t aqi_unit;        // 0=US AQI, 1=EU AQI.
 
-  // GPS altitude -- meters above the WGS84 ellipsoid, same source
-  // already used for the horizon-dip correction (see astro.js), just
-  // also exposed as a corner content type here. -32000 = sentinel for
-  // "not available" (many phones don't report GPS altitude, and manual-
-  // coordinates location mode never has it) -- a real altitude can
-  // legitimately be negative or exactly 0, so those can't double as
-  // the "missing" signal.
-  int16_t altitude_m;
-  uint8_t altitude_unit;     // user setting: 0=meters, 1=feet
+  uint16_t aqi_us;         // 0 means unavailable.
+  uint16_t aqi_eu;         // 0 means unavailable.
 
-  // Full-day sky background data: sun altitude (drives the sky
-  // gradient colour) and cloud cover (drives the dithered cloud
-  // puffs), both on the same time grid so one pair of start/interval
-  // covers both arrays. Moon altitude rides the same grid too, for
-  // its own rise/set animation.
+  int16_t altitude_m;      // WGS84 ellipsoid height; -32000 = unavailable.
+  uint8_t altitude_unit;   // 0=meters, 1=feet.
+
+  // Full-day Sun, Moon, cloud and planet position samples.
   time_t sky_sample_start;
-  uint32_t sky_sample_interval_s;
-  uint8_t sky_sample_count;
-  int16_t sun_alt_decideg[MAX_SKY_SAMPLES];   // altitude x10, e.g. 123 = 12.3 deg
-  uint16_t sun_az_decideg[MAX_SKY_SAMPLES];   // true-north-relative azimuth x10, 0-3599 -- for
-                                                // "Planet seek" (see shake_anim_mode's own comment
-                                                // further down); same grid as sun_alt_decideg
-  uint8_t cloud_pct_samples[MAX_SKY_SAMPLES]; // 0-100 straight percentage
-  uint8_t cloud_altitude_pct;                  // 0=low cloud, 100=high cloud (from Open-Meteo's
-                                                 // low/mid/high cloud-cover split), biases cloud
-                                                 // cluster height within the lower half of the sky
-  uint8_t sky_mode;                            // user setting ("Style" section): 0=Weather sky
-                                                 // (default -- gradient + clouds/weather effects,
-                                                 // everything above), 1=Clear sky (same day/night
-                                                 // gradient, but never draws clouds/weather effects
-                                                 // or the overcast gray haze), 2=Space view (no
-                                                 // gradient at all -- a fixed dark background, Sun/
-                                                 // Moon/planets still only shown above the horizon
-                                                 // but with no atmospheric haze/color (see the Sun's
-                                                 // own comment on sky_colors_for_altitude() -- Space
-                                                 // view skips its reddening entirely, for the same
-                                                 // "no atmosphere" reason), and (show_major_stars
-                                                 // permitting) the STAR_COUNT bright stars always
-                                                 // visible, day or night, since there's no atmosphere
-                                                 // left to scatter sunlight and wash them out).
-  bool show_major_stars;      // user setting, Space view only: true (the default) draws the
-                               // STAR_COUNT bright-star field described above; false limits Space
-                               // view to the Sun, Moon, planets, and the sky-effects layer (aurora,
-                               // ISS, meteor showers) if those are otherwise enabled -- for a
-                               // sparser look, or on a watch where 16 extra circles every redraw is
-                               // worth skipping. Only ever consulted when sky_mode == 2; every
-                               // other sky_mode never draws this field's own star layer regardless.
-  int16_t moon_alt_decideg[MAX_SKY_SAMPLES];  // altitude x10, same grid as sun
-  uint16_t moon_az_decideg[MAX_SKY_SAMPLES];  // azimuth x10 -- same convention as sun_az_decideg
+  uint32_t sky_sample_interval_s; // sample spacing in seconds.
+  uint8_t sky_sample_count;       // number of valid samples.
+  int16_t sun_alt_decideg[MAX_SKY_SAMPLES]; // altitude ×10 degrees.
+  uint16_t sun_az_decideg[MAX_SKY_SAMPLES]; // true-north azimuth ×10 degrees.
 
-  // Same grid again, one row per PlanetId -- kept as a 2D array
-  // (rather than 5 separately-named fields) so both the AppMessage
-  // parsing and the drawing code can loop over PLANET_COUNT instead
-  // of duplicating near-identical code per planet.
+  uint8_t cloud_pct_samples[MAX_SKY_SAMPLES]; // 0-100 cloud cover.
+  uint8_t cloud_altitude_pct; // 0=low, 100=high cloud.
+
+  uint8_t sky_mode;         // 0=weather, 1=clear, 2=Space.
+
+  bool show_major_stars;    // Space view star field.
+
+  int16_t moon_alt_decideg[MAX_SKY_SAMPLES]; // altitude ×10 degrees.
+  uint16_t moon_az_decideg[MAX_SKY_SAMPLES]; // azimuth ×10 degrees.
+
   int16_t planet_alt_decideg[PLANET_COUNT][MAX_SKY_SAMPLES];
-  uint16_t planet_az_decideg[PLANET_COUNT][MAX_SKY_SAMPLES]; // azimuth x10 -- same convention as sun_az_decideg
+  uint16_t planet_az_decideg[PLANET_COUNT][MAX_SKY_SAMPLES]; // azimuth ×10 degrees.
   time_t planet_rise[PLANET_COUNT];
   time_t planet_set[PLANET_COUNT];
 
-  // Space-view sky mode's bright-star field -- current alt/az only
-  // (x10 degrees, like every other _decideg field here), NOT a full-
-  // day grid like sun/moon/planet_alt_decideg above. Stars barely move
-  // within a single refresh interval, so unlike the Sun (which
-  // animates continuously along its precomputed day-arc), these are
-  // just re-sent as a fresh snapshot each refresh and drawn as-is
-  // until the next one -- see computeVisibleStars() in astro.js and
-  // STARS[] in background_layer module for the fixed name/order both sides
-  // share.
   int16_t star_alt_decideg[STAR_COUNT];
   uint16_t star_az_decideg[STAR_COUNT];
 
-  // Saturn's ring-opening angle as seen from Earth, 0-100 (0 = edge
-  // on/invisible, 100 = maximally open) -- real rings, narrow near a
-  // ring-plane crossing and widening over Saturn's ~29.5-year orbit.
-  uint8_t saturn_ring_open_pct;
+  uint8_t saturn_ring_open_pct; // 0-100 ring opening.
 
-  // Shared vertical-scale reference (the higher of today's max sun
-  // and max moon altitude) so both bodies' rise/set motion is drawn
-  // on one consistent degrees-to-pixels scale rather than each
-  // being independently stretched to fill the frame.
-  int16_t sky_scale_max_alt_decideg;
+  int16_t sky_scale_max_alt_decideg; // shared altitude scale ×10 degrees.
 
-  uint8_t moon_phase_pct;   // 0-100 illuminated fraction (0=new, 100=full)
-  bool moon_waxing;         // true = growing toward full, false = shrinking toward new
+  uint8_t moon_phase_pct;  // illuminated fraction, 0-100.
+  bool moon_waxing;        // true when phase is increasing.
 
-  // Today's actual rise/set times (0 = none found -- e.g. the body
-  // doesn't cross the horizon that day), drives the on-watch
-  // rise/set animation by real time rather than by re-deriving it
-  // from the (deliberately compressed) altitude-to-pixel scale.
-  time_t sun_rise;
-  time_t sun_set;
-  time_t sun_rise_tomorrow; // used once `now` is past both sun_rise and sun_set today,
-                             // so eclipse_ui_get_next_sun_event() has a next event to fall back to
-                             // instead of reporting "no event".
+  time_t sun_rise;         // today’s sunrise; 0 if unavailable.
+  time_t sun_set;          // today’s sunset; 0 if unavailable.
+  time_t sun_rise_tomorrow; // fallback next sunrise.
+
   time_t moon_rise;
   time_t moon_set;
 
-  // 0-100, ramps up/down around whichever major annual meteor
-  // shower's active window (if any) covers today -- see astro.js's
-  // activeMeteorShower(). 0 when none are active.
-  uint8_t meteor_intensity;
-  char meteor_shower_name[16]; // e.g. "Perseids", "Geminids" -- empty when meteor_intensity is 0
+  // Active meteor shower, if any.
+  uint8_t meteor_intensity; // active-shower intensity, 0-100.
+  char meteor_shower_name[16]; // empty when no shower is active.
 
-  bool show_iss;              // user setting: depict the ISS when a fresh-enough position is available
-  int16_t iss_alt_deg;         // whole degrees, snapshot at iss_computed_at (not continuously propagated)
-  uint16_t iss_az_deg;          // 0-359, compass bearing
-  time_t iss_computed_at;       // when this snapshot was computed phone-side; the watch treats it as
-                                  // stale (and doesn't draw it) once too much time has passed, since
-                                  // the ISS moves fast enough that a stale snapshot would be visibly wrong
-  time_t iss_next_pass;         // start time of the next visible pass (observer dark + ISS above ~10 deg
-                                  // + ISS itself sunlit) found by astro.js's findNextIssPass(), searched
-                                  // forward from "now" at fetch time -- 0 if none found in that window
-                                  // (window and thresholds documented on findNextIssPass() itself). Used
-                                  // by the "Next ISS pass" corner content; independent of iss_alt_deg/
-                                  // iss_az_deg/show_iss above, which are the separate "draw it on the sky
-                                  // view right now" snapshot and its own on/off setting.
-  uint8_t iss_error_code;       // 0 = this refresh's ISS fetch was fine (or ISS wasn't in use at all).
-                                  // See weather_error_code's own comment above for what a nonzero value
-                                  // means -- ISS doesn't get the same 10-refresh grace/streak treatment,
-                                  // just a code available for diagnostics/future use.
+  // ISS visibility and current-pass data.
+  bool show_iss;            // draw current ISS position when fresh.
+  int16_t iss_alt_deg;      // snapshot altitude in degrees.
+  uint16_t iss_az_deg;      // snapshot azimuth in degrees.
+  time_t iss_computed_at;   // time of the ISS position snapshot.
 
-  bool aurora_enabled;          // user setting ("Astronomy" section): whether auroras are fetched/shown
-                                  // at all -- gates both the "Aurora Kp index" corner content option
-                                  // (removed from the settings-page dropdown entirely when off, not just
-                                  // hidden) and the sky-view aurora glow itself.
-  uint8_t aurora_kp_x10;         // current planetary Kp index x10 (e.g. 43 = Kp 4.3), from NOAA SWPC --
-                                  // see fetchAuroraKp() in weather.js. 0 if aurora_enabled is off or the
-                                  // fetch failed; doesn't by itself mean "no aurora", just "no reading".
-  uint8_t aurora_visibility_pct; // 0-100 rough estimate of whether the current Kp index reaches the
-                                  // user's own geomagnetic latitude -- see astro.js's
-                                  // auroraVisibilityScore()/geomagneticLatitudeDeg(). Gates whether the
-                                  // sky view's aurora glow actually draws (still also needs a dark sky);
-                                  // the Kp index itself is shown/colored regardless, since a Kp reading
-                                  // is informative on its own even when the estimate says "not from here".
-  uint8_t aurora_error_code;    // 0 = this refresh's aurora fetch was fine (or aurora_enabled is off).
-                                  // Same meaning/source as weather_error_code and iss_error_code above.
+  time_t iss_next_pass;     // next visible pass start; 0 if none.
 
-  // Hourly vibrations -- a periodic reminder buzz, independent of
-  // everything else in this struct. See maybe_do_hourly_vibe() in
-  // application entry point for the actual scheduling logic.
-  uint8_t hourly_vibe_mode;      // 0=off, 1=on full hours, 2=every hourly_vibe_interval_min minutes
-  uint8_t hourly_vibe_interval_min; // 1-180, only meaningful for mode 2
-  uint8_t hourly_vibe_pattern;   // 0=short, 1=double, 2=long -- see vibe_for_pattern()
-  uint16_t hourly_vibe_start_min; // minutes since midnight (0-1439), inclusive
-  uint16_t hourly_vibe_end_min;   // minutes since midnight (0-1439), inclusive. start==end (including
-                                    // the 0==0 default) means "all 24 hours", not a single-minute window --
-                                    // see hourly_vibe_time_in_range() -- and start > end wraps past midnight
-                                    // (e.g. 22:00-6:00 covers the overnight span) rather than being empty.
-  uint8_t hourly_vibe_days_mask; // bit i set = active on the day struct tm's own tm_wday == i would report
-                                    // (bit 0 = Sunday .. bit 6 = Saturday) -- matches config-page.js's
-                                    // HOURLY_VIBE_DAY_LABELS ordering exactly, so no reindexing either side.
-  bool hourly_vibe_override_quiet; // true (the default): vibrate even while Quiet Time is active. false:
-                                    // skip vibrating whenever quiet_time_is_active() says Quiet Time is on.
+  uint8_t iss_error_code;   // current refresh error code, 0=ok.
 
-  bool draw_debug;                // drawing the bounding boxes of certain elements for debug purposes
+  // Aurora data and display settings.
+  bool aurora_enabled;      // fetch and display aurora data.
+
+  uint8_t aurora_kp_x10;    // Kp index ×10.
+
+  uint8_t aurora_visibility_pct; // estimated local visibility, 0-100.
+
+  uint8_t aurora_error_code; // current refresh error code, 0=ok.
+
+  // Hourly vibration schedule.
+  uint8_t hourly_vibe_mode; // 0=off, 1=hourly, 2=interval.
+  uint8_t hourly_vibe_interval_min; // interval for mode 2.
+  uint8_t hourly_vibe_pattern; // 0=short, 1=double, 2=long.
+  uint16_t hourly_vibe_start_min; // start minute of day.
+  uint16_t hourly_vibe_end_min; // end minute; equal means all day.
+
+  uint8_t hourly_vibe_days_mask; // bit 0=Sun through bit 6=Sat.
+
+  bool hourly_vibe_override_quiet; // vibrate during Quiet Time when true.
+
+  bool draw_debug;
 } EclipseData;
-
-// Rendering/UI helpers live in eclipse_ui.h.
-// Input state accessors live in input.h.
-// Sunrise/sunset helpers are declared by the background rendering modules.
-// glyph is now a plain image drawn straight from features_layer.c's
-// draw_render_icon() (icon_kind 11), via the shared draw_icon_resource_
-// with_outline_sized() helper every other bitmap corner icon uses, so
-// there's no separate cross-file drawing function left to declare.

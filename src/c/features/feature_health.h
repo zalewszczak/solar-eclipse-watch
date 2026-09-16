@@ -5,9 +5,6 @@
 #include <stdint.h>
 
 // Small facade around Pebble HealthService used by the feature-value layer.
-// Keeping HealthService calls here makes features_layer.c independent of the
-// SDK's health iteration/accessibility details while preserving the existing
-// on-watch behavior.
 
 typedef struct {
   time_t earliest_start;

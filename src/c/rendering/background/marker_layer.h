@@ -7,8 +7,6 @@
 #include "../../graphics/subpixel.h"
 
 // State owned exclusively by the marker renderer. The background canvas
-// embeds one instance so bitmap resources and the custom marker font remain
-// tied to that canvas instance rather than becoming global application state.
 typedef struct {
   GBitmap *bitmap;
   uint8_t bitmap_style;

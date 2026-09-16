@@ -12,10 +12,7 @@ static AppTimer *s_retry_timer = NULL;
 static AppTimer *s_startup_timer = NULL;
 static uint16_t s_retry_delay_s = 8;
 
-// Outbound keys go through MESSAGE_KEY_MESSAGE_TYPE + MK_* for the same
-// reason the decoder's tables do: one MESSAGE_KEY_* word in .data (and
-// one relocation for the pointer to it) instead of one per key. See the
-// comment at the top of comms_decoder.c.
+// MK_* indexes are added to MESSAGE_KEY_MESSAGE_TYPE to recover wire keys.
 
 bool comms_send_battery_saver_phase(uint8_t phase) {
   DictionaryIterator *iter;
@@ -52,11 +49,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   EclipseData *d = s_data;
   CommsChangeFlags changes = comms_decoder_apply(iter, d);
 
-  // Real data exists -- no need to keep pinging PKJS for it. This used
-  // to also dict_find(DATA_VALID) first, purely to ask "did *this*
-  // message carry validity?", but the retry chain already stops itself
-  // the moment d->valid is true (see request_retry_callback), so the
-  // extra lookup and its MESSAGE_KEY_* word bought nothing.
+  // Stop retrying once valid data has arrived.
   if (d->valid && s_retry_timer) {
     app_timer_cancel(s_retry_timer);
     s_retry_timer = NULL;
@@ -71,9 +64,7 @@ void comms_init(EclipseData *data, CommsDataAppliedHandler handler, void *contex
   s_data_context = context;
   s_retry_delay_s = 8;
   app_message_register_inbox_received(inbox_received_handler);
-  // No inbox_dropped handler: it only ever APP_LOG()'d the reason, which
-  // is a format string plus a call in a release binary. Re-register one
-  // temporarily if a dropped-message bug needs chasing.
+  // No inbox_dropped handler; dropped messages require no recovery here.
   app_message_open(APPMSG_INBOX_SIZE, APPMSG_OUTBOX_SIZE);
   s_startup_timer = app_timer_register(STARTUP_REQUEST_DELAY_MS, startup_request_delay_callback, NULL);
 }

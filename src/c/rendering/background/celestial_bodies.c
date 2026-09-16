@@ -111,63 +111,21 @@ static void draw_planet_seek_body(GContext *ctx, GRect bounds, const char *name,
                                   bool is_moon, uint8_t moon_phase_pct, bool moon_waxing,
                                   bool is_saturn, uint8_t saturn_ring_open_pct) {
   int32_t offset_decideg = planet_seek_az_offset_decideg(az_decideg, heading_deg);
-  // Deliberately NOT gated on a raw (pre-blend) "is this within the
-  // compass's current +-45 deg view" check anymore -- visibility is
-  // arrow-vs-body BEFORE blend_t_1000 was ever applied, so a body outside
-  // that cone stayed an arrow for the animation's entire run, however far
-  // blend eased back toward 0 -- only the arrow's OWN x position glided;
-  // its shape never did, so the switch to the real body/moon-phase glyph
-  // once Planet seek actually ended was an abrupt swap regardless of how
-  // gently the position itself had eased. compass_x/blended_x below are
-  // computed unconditionally instead, so as blend eases toward 0 this
-  // body's blended position converges on normal_center (always on-screen,
-  // being a body the normal draw path would show anyway) the same way an
-  // in-view body's already did -- naturally crossing into the on-screen
-  // check and switching from arrow to the real glyph partway through the
-  // ease-out, at very nearly the same pixel either shape would occupy,
-  // rather than staying an arrow right up to the final instant.
+// Deliberately NOT gated on a raw (pre-blend) "is this within the
   int32_t compass_x = bounds.origin.x + bounds.size.w / 2 + (int32_t)((int64_t)offset_decideg * bounds.size.w / 900);
   int16_t blended_x = (int16_t)(normal_center.x + (((int32_t)compass_x - normal_center.x) * blend_t_1000) / 1000);
   GPoint pos = GPoint(blended_x, normal_center.y);
   if (pos.x >= bounds.origin.x - radius && pos.x <= bounds.origin.x + bounds.size.w + radius) {
-    // Every other body-drawing path in this file (celestial_layer_update(),
-    // the normal celestial-layer body renderer and the startup-animation
-    // planets()) special-cases Saturn through draw_saturn() for its rings;
-    // keep this case explicit rather than falling through to the plain-circle branch
-    // for every planet including Saturn, so it rendered ringless for the
-    // whole Planet-seek animation and only grew rings the instant the mode
-    // switched back to the normal draw path -- the same kind of abrupt
-    // shape swap the arrow-vs-body fix above addresses, just for Saturn
-    // specifically rather than off-view bodies generally.
+// Every other body-drawing path in this file (celestial_layer_update(),
     if (is_moon) celestial_draw_moon_phase(ctx, bounds, pos, radius, moon_phase_pct, moon_waxing, fill_color);
     else if (is_saturn) celestial_bodies_draw_saturn(ctx, pos, saturn_ring_open_pct);
     else { graphics_context_set_fill_color(ctx, fill_color); graphics_fill_circle(ctx, pos, radius); }
-    // On-screen case: the body itself is drawn above, but the label was
-    // missing here entirely -- only the off-screen/edge-arrow branch
-    // below ever called a label draw, so a shake-revealed body that
-    // stayed in FOV throughout its Planet-seek animation never got a
-    // name label, and one only appeared once the body's blended
-    // position crossed off-screen and hit draw_planet_seek_edge_label()
-    // instead. Reuse the same near-point label helper the non-Planet-
-    // seek path uses (celestial_layer_draw_labels() above); it already
-    // clamps itself to bounds.
+// On-screen case: the body itself is drawn above, but the label was
     celestial_layer_draw_label(ctx, bounds, pos, name, label_style, main_color);
     return;
   }
   bool pin_right = pos.x > bounds.origin.x + bounds.size.w / 2;
-  // Clamp the SAME blended `pos.x` used for the on-screen check above,
-  // rather than separately interpolating the arrow toward its own
-  // edge_arrow_x target -- both use the same target so the transition remains
-  // endpoints (edge_arrow_x vs compass_x) that only happened to agree
-  // once blend reached exactly 0/1000, so at every blend value in
-  // between, the arrow's position and the body's position disagreed --
-  // sometimes by dozens of pixels -- and the instant `pos.x` crossed
-  // the on-screen boundary above, whichever shape got drawn jumped
-  // straight to its own, different target position. Clamping `pos.x`
-  // itself to the nearest edge keeps the two continuous: right at the
-  // crossing, `pos.x` is (by the check above) already within ~`radius`
-  // of this same edge, so the clamped arrow tip and the body's own
-  // position are never more than a few pixels apart.
+// Clamp the SAME blended `pos.x` used for the on-screen check above,
   int16_t clamped_x = pin_right ? bounds.origin.x + bounds.size.w - 2 : bounds.origin.x + 2;
   GPoint arrow_tip = GPoint(clamped_x, normal_center.y);
   draw_planet_seek_edge_label(ctx, bounds, arrow_tip, pin_right, name, label_style, main_color);

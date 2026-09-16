@@ -2,9 +2,7 @@
 
 #include <pebble.h>
 
-// Configuration for one analog hand. This is a domain type shared by the
-// watch data model, hand geometry, rendering, and AppMessage decoding.
-// It intentionally contains no hand-rendering declarations.
+// Configuration shared by hand data, geometry, rendering and decoding.
 typedef struct {
   uint8_t style;
   uint8_t width;

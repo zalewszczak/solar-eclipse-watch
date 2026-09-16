@@ -27,7 +27,6 @@ FeatureSleepSpan feature_health_get_sleep_span(void) {
   time_t day_ago = now - 24 * 3600;
 
   // HealthActivitySleep is already a single-bit mask value. Keep the
-  // full iterator so multiple sleep segments are merged into one span.
   health_service_activities_iterate(
       HealthActivitySleep, day_ago, now, HealthIterationDirectionPast,
       sleep_span_iterator_cb, &span);

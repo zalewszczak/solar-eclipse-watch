@@ -5,8 +5,6 @@
 #include "../fonts/font_lookup.h"
 
 // The feature layer is intentionally thin. Feature layout, value resolution,
-// icon rendering and pixel-level rendering are implemented by dedicated
-// modules; this file owns only the Pebble Layer lifecycle and invalidation.
 
 static void features_layer_update_proc(Layer *layer, GContext *ctx) {
   FeaturesState *state = (FeaturesState *)layer_get_data(layer);

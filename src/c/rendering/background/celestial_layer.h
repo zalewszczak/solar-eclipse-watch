@@ -39,9 +39,6 @@ void celestial_draw_moon_phase(GContext *ctx, GRect bounds, GPoint center, int16
                     uint8_t phase_pct, bool waxing, GColor lit_color);
 
 // Computes and caches every point-like celestial body used by the sky canvas.
-// Normal body painting is optional because Planet Seek and the startup
-// animation deliberately repaint the bodies as overlays instead of baking
-// their positions into the cached sky bitmap.
 void celestial_layer_update(CelestialLayerState *state, GContext *ctx, GRect bounds,
                             const EclipseData *data, time_t now, time_t sky_now,
                             bool skip_body_paint, bool suppress_other_bodies,

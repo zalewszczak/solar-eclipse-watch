@@ -22,10 +22,6 @@ uint8_t sky_layer_interp_cloud_pct(const EclipseData *d, time_t t) {
 // ---- sky colour -------------------------------------------------------
 
 // Piecewise-linear colour ramp keyed on sun altitude. Two colours per
-// anchor: one for the top of the sky (zenith-ish), one for the
-// horizon glow (concentrated near the bottom of the canvas) -- lets
-// sunrise/sunset render as a warm band low down under a still-blue
-// (or already-dark) upper sky, the way it actually looks.
 typedef struct {
   int16_t alt_decideg;
   uint8_t top_r, top_g, top_b;
@@ -45,22 +41,11 @@ static const SkyAnchor SKY_ANCHORS[] = {
 
 
 // Convert a continuous 0-255 RGB value to Pebble's 2-bit-per-channel
-// palette using the shared 4x4 Bayer matrix. The weather renderer has
-// its own private copy because it owns atmospheric dithering; the sky
-// gradient uses the shared Bayer matrix from the graphics rasterizer module.
 static GColor dither_pixel(SkyRgb c, uint8_t bayer_0_15) {
   return render_math_dither_rgb(c.r, c.g, c.b, bayer_0_15);
 }
 
 // The Sun's own disc color, white near the zenith and shifting through
-// yellow/orange to a deep red right at the horizon -- real sunlight
-// reddens as it travels through more atmosphere at low altitude
-// (Rayleigh scattering strips out blue/green wavelengths first, the
-// same physical effect SKY_ANCHORS above already models for the sky
-// itself). Same anchor-lerp technique as sky_layer_colors_for_altitude()
-// below, just a much shorter table covering only the Sun's own
-// visible range (alt_decideg > 0, thanks to sun_up's own gating at
-// the call site) rather than the whole day/night cycle.
 typedef struct {
   int16_t alt_decideg;
   uint8_t r, g, b;
@@ -75,17 +60,6 @@ static const SunColorAnchor SUN_COLOR_ANCHORS[] = {
 #define SUN_COLOR_ANCHOR_COUNT (int)(sizeof(SUN_COLOR_ANCHORS) / sizeof(SUN_COLOR_ANCHORS[0]))
 
 // The Sun's own color wherever it's shown in a "space view" instead
-// of the normal sky -- sky_layer_sun_color_for_altitude() above models how
-// Earth's atmosphere reddens sunlight near the horizon, which doesn't
-// mean anything in a view that isn't really representing an
-// atmospheric vantage point at a specific moment in the first place:
-// an eclipse's fullscreen Sun already ignores the real altitude
-// entirely for its own positioning (see fullscreen_sun's own comment
-// in canvas_update_proc), Planet seek repositions bodies by compass
-// heading rather than altitude, and the "Planets" startup animation
-// fast-forwards through several hours of real sky in under 2 seconds.
-// A flat, recognizably-sun yellow-orange reads better in all three
-// than a color shift whose real-world meaning doesn't apply.
 #define SUN_COLOR_SPACE_R 255
 #define SUN_COLOR_SPACE_G 190
 #define SUN_COLOR_SPACE_B 60
@@ -154,21 +128,6 @@ void sky_layer_colors_for_altitude(int16_t alt_decideg, SkyRgb *top_out, SkyRgb 
 }
 
 // Digital top layout only: same "where does the cloud deck's graying
-// kick in" math, just computed against
-// a conceptual gradient span (virtual_top_y/virtual_total_y) taller
-// than any one physical layer -- see sky_layer_fill_gradient()'s own
-// comment for why that split exists at all. Returns a value in that
-// SAME virtual coordinate space (0 = the conceptual gradient's own
-// top), for sky_layer_fill_gradient()'s band_y param, not a screen y.
-// lower_top/lower_bottom are both measured from that same absolute 0,
-// not from virtual_top_y -- this call's own slice start plays no part
-// in where the band zone sits in the full 228px picture, only in which
-// portion of it this slice happens to paint (that mapping lives in
-// sky_layer_fill_gradient() itself). virtual_top_y is therefore unused
-// here; kept as a parameter purely so both call sites keep passing the
-// exact same (virtual_top_y, virtual_total_h) pair they already pass to
-// sky_layer_fill_gradient() right after, rather than two subtly
-// different argument lists for what's conceptually the same span.
 int16_t sky_layer_compute_cloud_band_y_virtual(int16_t virtual_top_y, int16_t virtual_total_h, uint8_t cloud_altitude_pct) {
   (void)virtual_top_y;
   int16_t half_h = virtual_total_h / 2;
@@ -179,52 +138,9 @@ int16_t sky_layer_compute_cloud_band_y_virtual(int16_t virtual_top_y, int16_t vi
 }
 
 // Fills `bounds` with a dithered vertical gradient from `top` down to
-// `hz`, optionally kinking through a third `band` color at `band_y`
-// along the way -- this is how overcast/rainy conditions show up as a
-// grayer lower sky, like the view crossing beneath a cloud deck seen
-// from a plane window, rather than the whole sky stretching through
-// unbroken blue regardless of weather. Pass band_y at or past the
-// bottom row (and band == hz) to skip the effect entirely and get a
-// plain two-point gradient.
-//
-// virtual_top_y/virtual_total_h decouple "where do row 0 and the last
-// row sit for the top-to-band-to-hz color math" (a CONCEPTUAL gradient
-// span, in the same coordinate space band_y is given in) from `bounds`
-// itself (the REAL pixels actually painted) -- ordinarily callers just
-// pass bounds.origin.y/bounds.size.h straight through, making the two
-// spans identical (a plain single-bounds gradient, same as before this
-// split existed), but Digital top's own gradient-only strip needs to
-// paint just its own DIGITAL_PANEL_H-tall slice of a conceptual
-// gradient that's actually 228px tall overall (matching the full
-// screen), so the colors it shows line up seamlessly with where the
-// sky canvas's OWN (separately painted, unmodified-since-Digital-bar)
-// gradient wash picks up right where this strip leaves off, rather
-// than each independently stretching the same top/band/hz colors
-// across its own much-shorter span and visibly disagreeing at the
-// seam. Each row's true continuous colour is computed first, then
-// every pixel in that row is ordered-dithered down to the palette
-// individually -- that's what turns hard colour bands into a smooth-
-// looking blend on real hardware. Row colours only depend on y, so the
-// per-row RGB lerp happens once; only the 4 possible x-phases of the
-// Bayer matrix are then dithered and cached before sweeping across the
-// row, to avoid redoing that work per pixel.
 void sky_layer_fill_gradient(GContext *ctx, GRect bounds, int16_t virtual_top_y, int16_t virtual_total_h,
                                   SkyRgb top, SkyRgb band, int16_t band_y, SkyRgb hz) {
-  // virtual_bottom_y, upper_span and the upper-branch lerp position
-  // below are all measured from the conceptual gradient's own absolute
-  // top (virtual y 0) -- NOT from virtual_top_y, which is only this
-  // call's own slice's starting offset within that gradient (used
-  // solely to map each local row `y` to its absolute `virtual_y`,
-  // right below). Folding virtual_top_y into the span/position values
-  // as well double-counts it for any
-  // slice that doesn't start at the very top -- Digital top's own sky
-  // canvas, whose virtual_top_y is DIGITAL_PANEL_H, is exactly that
-  // case: every one of its rows got lerped as though it were
-  // DIGITAL_PANEL_H rows closer to `top` than it actually is, visibly
-  // disagreeing with sky_layer_top_gradient_*()'s own strip (whose
-  // virtual_top_y of 0 happens to make the same bug invisible there)
-  // right at the seam between the two. The lower branch already used
-  // absolute virtual_y/band_y and didn't need this fix.
+// virtual_bottom_y, upper_span and the upper-branch lerp position
   int16_t virtual_bottom_y = virtual_total_h - 1;
   if (band_y > virtual_bottom_y) band_y = virtual_bottom_y;
   if (band_y < 0) band_y = 0;
@@ -267,40 +183,8 @@ void sky_layer_fill_gradient(GContext *ctx, GRect bounds, int16_t virtual_top_y,
 }
 
 // Ordinarily (Analog, Digital bar) the conceptual gradient span IS
-// `bounds` itself -- callers just pass bounds.origin.y/bounds.size.h
-// straight through for virtual_top_y/virtual_total_h, reproducing the
-// plain single-bounds formula this function replaced exactly. Digital
-// top's own gradient calls (both the sky canvas's own, and
-// sky_layer_top_gradient_*()'s) are the only ones that pass something
-// taller -- see canvas_update_proc()'s own local virtual_top_y/
-// virtual_total_h for why.
 
 // Digital top layout only: computes the same "what should the plain
-// sky wash look like right now" colors canvas_update_proc()'s own
-// gradient block below works out inline (sun altitude -> top/horizon
-// colors, then weather-driven graying toward a band/horizon color and
-// where that graying band sits) -- factored out here so
-// sky_layer_top_gradient_*()'s own thin gradient-only strip can call the
-// exact same logic instead of a second, hand-duplicated copy that
-// could quietly drift out of sync with the sky canvas's own version
-// over time. Returns via out_flat_black instead of drawing anything
-// itself for sky_mode 2 (Space) -- that mode has no gradient at all
-// (flat near-black, handled by canvas_update_proc()'s own separate
-// branch) -- callers fill flat black themselves rather than this
-// function reaching for a GContext it doesn't otherwise need.
-//
-// Deliberately uses the REAL current sun altitude (interp_sun_alt_
-// decideg(d, now), `now` being whatever the caller passes) rather than
-// chasing canvas_update_proc()'s own sky_now animated-sweep
-// substitution (see that function's own local `sky_now` and the
-// "Planets" background-animation comment above it) -- reproducing that
-// whole eased-sweep state machine here, just to keep a 76px sliver
-// with no sun/moon/stars in it in perfect lockstep during a well-
-// under-2-second startup animation, isn't worth either the code size
-// or coupling this function to CanvasState (which it otherwise has no
-// need to know about at all). The two can very briefly disagree during
-// that animation; they're back in exact agreement, same as any other
-// moment, the instant it finishes.
 static void sky_layer_compute_wash(const EclipseData *d, time_t now, int16_t virtual_top_y, int16_t virtual_total_h,
                               SkyRgb *out_top, SkyRgb *out_band, int16_t *out_band_y, SkyRgb *out_hz, bool *out_flat_black) {
   *out_flat_black = (d->sky_mode == 2);
@@ -346,13 +230,6 @@ static void sky_layer_compute_wash(const EclipseData *d, time_t now, int16_t vir
 
 
 // ---- Digital top's own gradient-only strip ------------------------------
-// See this pair's own declaration comment in background_layer.h for
-// the "why a separate tiny module instead of another background_layer_
-// create() frame" reasoning. Layer-local state is just the EclipseData
-// pointer -- no cache, no animation/tick bookkeeping, nothing else this
-// needs to remember between redraws (sky_layer_compute_wash() is cheap
-// enough -- a handful of lerps, no per-pixel work of its own -- to just
-// re-run in full on every call rather than caching its own result).
 typedef struct {
   EclipseData *data;
 } TopGradientState;
@@ -372,15 +249,7 @@ static void top_gradient_update_proc(Layer *layer, GContext *ctx) {
   SkyRgb top, band, hz;
   int16_t band_y;
   bool flat_black;
-  // virtual_top_y 0 / virtual_total_h 228 -- this strip is always the
-  // TOP slice of one conceptual gradient spanning the app's fixed
-  // 200x228 screen (see the marker ring's own `GRect screen = GRect(0,
-  // 0, 200, 228)` in features_layer.c for the same fixed-screen-size
-  // convention elsewhere), the sky canvas's own bottom slice
-  // continuing it from DIGITAL_PANEL_H down to 228 (see
-  // canvas_update_proc()'s own matching virtual_top_y/virtual_total_h
-  // for that other end) -- the two are laid out edge-to-edge with no
-  // gap, so together they cover the whole thing exactly once.
+// virtual_top_y 0 / virtual_total_h 228 -- this strip is always the
   sky_layer_compute_wash(d, time(NULL), 0, 228, &top, &band, &band_y, &hz, &flat_black);
   if (flat_black) {
     graphics_context_set_fill_color(ctx, GColorBlack);
@@ -411,9 +280,6 @@ void sky_layer_top_gradient_set_data(Layer *layer, EclipseData *data) {
 
 
 // Cheap (no redraw needed) check for whether the sky is currently
-// bright enough that the overlaid countdown label should use dark
-// text instead of light -- lets that label stay legible over the
-// gradient without needing to redraw the whole canvas every second.
 bool sky_layer_is_bright(const EclipseData *d, time_t now) {
   if (!d->valid || d->sky_sample_count == 0) return true;
   int16_t alt = celestial_interp_sun_alt_decideg(d, now);

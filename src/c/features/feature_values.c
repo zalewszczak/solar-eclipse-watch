@@ -9,16 +9,7 @@
 #include "../rendering/background/weather_layer.h"
 #include <stdio.h>
 
-// ---- unified position resolution ---------------------------------------
-//
-// The one and only place any slot's content gets positioned: measures
-// each already-filled-in segment (icon widths are the same fixed
-// per-icon-kind lookup every icon always used, text is measured
-// against the corner font) and resolves every segment's x_offset/width
-// relative to the slot's own box_x, according to the slot's left/
-// center/right alignment. Runs once per recompute, never at draw time --
-// features_draw_slot() just reads x_offset/width straight off each
-// segment.
+// unified position resolution
 
 void feature_values_compute_slot(FeatureSlot *slot, const EclipseData *data,
                                  GColor main_color, GColor accent_color, GColor bg_color,
@@ -56,7 +47,6 @@ void feature_values_compute_slot(FeatureSlot *slot, const EclipseData *data,
   }
 
   // Weather-service errors override the cluster's normal value so the
-  // failure is always visible and consistently styled.
   if (feature_rules_content_is_weather_derived(content) && weather_layer_should_show_error(data)) {
     char err_buf[10];
     snprintf(err_buf, sizeof(err_buf), "ERR %d", data->weather_error_code);

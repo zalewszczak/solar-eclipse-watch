@@ -2,8 +2,7 @@
 
 #include <pebble.h>
 
-// Low-frequency refresh scheduler for feature-slot values.
-#define FEATURES_REFRESH_MS 60000
+#define FEATURES_REFRESH_MS 60000 // Refresh feature values once per minute.
 
 void feature_refresh_init(void);
 void feature_refresh_deinit(void);

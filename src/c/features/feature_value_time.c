@@ -113,7 +113,7 @@ void __attribute__((noinline)) feature_value_date_compute(FeatureSlot *slot, uin
   feature_value_set_text_segment(slot, 0, buf, feature_value_resolve_flat_color(color_mode, dyn, main_color, accent_color));
 }
 
-// ---- timezone cluster ---------------------------------------------------
+// timezone cluster
 
 void __attribute__((noinline)) feature_value_timezone_compute(FeatureSlot *slot, uint8_t content, uint8_t color_mode,
                                     GColor main_color, GColor accent_color, time_t now) {
@@ -134,8 +134,7 @@ void __attribute__((noinline)) feature_value_timezone_compute(FeatureSlot *slot,
   feature_value_set_text_segment(slot, 0, buf, feature_value_resolve_flat_color(color_mode, feature_timezone_daylight_color(local_hour24), main_color, accent_color));
 }
 
-// ---- sky/astronomy cluster: moon phase, location, sunrise/sunset,
-// planets, meteor shower, Saturn rings, ISS, aurora, compass ---------
+// sky/astronomy cluster: moon phase, location, sunrise/sunset,
 
 
 void __attribute__((noinline)) feature_value_sky_compute(FeatureSlot *slot, uint8_t content, const EclipseData *data,
@@ -273,9 +272,7 @@ void __attribute__((noinline)) feature_value_sky_compute(FeatureSlot *slot, uint
       return;
     }
     case 85: { // Compass -- active (real heading) for 15s after a shake, then asleep until the next one.
-               // Needs 2 colors at once (north arrow vs the other 3) rather than one flat color --
-               // "mono"/"accent"/Pill still mean one shared color for the whole icon; only "color"
-               // mode splits into accent (north) + main (other 3).
+               // Needs 2 colors at once (north arrow vs the other 3) rather than one flat color
       bool asleep = input_compass_feature_is_asleep();
       if (asleep) {
         snprintf(buf, sizeof(buf), "---");
@@ -307,9 +304,4 @@ void __attribute__((noinline)) feature_value_sky_compute(FeatureSlot *slot, uint
   }
 }
 
-// ---- combo cluster: multi-icon/multi-value content (97-102, 109-115) --
-//
-// Per request, these share ONE flat color (always main_color, not
-// accent -- there's no single sensible "accent" reading across a
-// multi-icon combo) for mono/accent/Pill modes, and only split into
-// independently-gradient-colored segments under "color" mode (3).
+// combo cluster: multi-icon/multi-value content (97-102, 109-115)

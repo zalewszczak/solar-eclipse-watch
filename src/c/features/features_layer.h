@@ -4,9 +4,6 @@
 #include "../data/eclipse_data.h"
 
 // Pebble Layer wrapper for the always-on-top feature-slot overlay.
-// Slot layout, value computation, feature fonts and rendering are owned by
-// the feature_* modules; this header exposes only the layer lifecycle and
-// refresh operations needed by layout/application code.
 
 #define FEATURES_MAX_SLOTS 12
 

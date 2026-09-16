@@ -63,15 +63,7 @@ static void draw_digital_clock_panel(Layer *layer, GContext *ctx) {
     strftime(time_buf, sizeof(time_buf), clock_is_24h_style() ? "%H:%M" : "%I:%M", t);
   }
 
-  // Shifts away from whichever single side-feature column is active
-  // (feature_layout_digital_side_mode() 2 or 3, regardless of which layout), or stays
-  // centered/full-width otherwise (0, or 4 with both columns on -- see
-  // feature_layout_digital_clock_area()'s own comment for why "both" doesn't shrink
-  // the clock further). The features_layer overlay draws the side
-  // columns themselves and the single bottom feature, which is a
-  // user-selectable content slot rather than a fixed date/sun-time row.
-  // content slot instead) -- this layer only ever draws the clock
-  // digits.
+  // Shift the clock away from the active side-feature column.
   int16_t clock_x, clock_w;
   feature_layout_digital_clock_area(s_data->bottom_style, bounds.size.w, &clock_x, &clock_w);
   int16_t font_h = font_lookup_height(s_data->clock_font) + font_lookup_y_offset(s_data->clock_font);
@@ -85,7 +77,7 @@ static void draw_digital_clock_panel(Layer *layer, GContext *ctx) {
   GRect clock_rect = GRect(bounds.origin.x + clock_x, bounds.origin.y + clock_y, clock_w, font_h);
   GTextAlignment alignment = GTextAlignmentCenter;
 
-  // Trick to avoid clipping of shifted clocks and not having text trimmed (...) or having clock outside of the screen in extreme cases
+  // Reduce spacing if the shifted clock would clip.
   uint8_t side = feature_layout_digital_side_mode(s_data->bottom_style);
   if (side == 2) { // right side only -- shift left
     int16_t initial_allowed_area = clock_rect.size.w;
@@ -94,7 +86,7 @@ static void draw_digital_clock_panel(Layer *layer, GContext *ctx) {
     if (calculated_size.w >= initial_allowed_area) {
       alignment = GTextAlignmentLeft;
     } else {
-      // revert spacing coz we fit
+      // Restore spacing after the fit check.
       clock_rect.size.w -= 30;
     }
   } else if (side == 3) { // left side only -- shift right
@@ -105,7 +97,7 @@ static void draw_digital_clock_panel(Layer *layer, GContext *ctx) {
     if (calculated_size.w >= initial_allowed_area) {
       alignment = GTextAlignmentRight;
     } else {
-      // revert spacing coz we fit
+      // Restore spacing after the fit check.
       clock_rect.size.w -= 30;
       clock_rect.origin.x += 30;
     }
@@ -118,15 +110,7 @@ static void draw_digital_clock_panel(Layer *layer, GContext *ctx) {
   }
 
   // ---- big time ----
-  // Digital top only: routed through the shared outline primitive
-  // (same one corner/edge text and the countdown label already use)
-  // instead of a plain graphics_draw_text() -- this is the one clock
-  // panel with sky visible directly behind it, so it's the one place
-  // outline_style's existing "stay readable over any part of the sky"
-  // job actually applies to the clock digits themselves. Digital bar's
-  // own opaque backing has never needed this, so passing outline_style
-  // 0 there (via features_draw_text_outlined's own no-op-at-0 handling) keeps
-  // its look pixel-identical to before.
+  // Digital top uses the shared outlined-text renderer; Digital bar remains unoutlined.
   if (is_top) {
     feature_render_draw_text_outlined(ctx, time_buf, s_clock_font, clock_rect, GTextOverflowModeTrailingEllipsis, alignment, text_color, s_data->outline_style);
   } else {
@@ -142,29 +126,12 @@ static void draw_digital_clock_panel(Layer *layer, GContext *ctx) {
 
 
 
-// The countdown/status label uses a dedicated Layer with its own
-// update_proc so it can draw a custom outline. It reads
-// own update_proc instead -- reads whatever refresh_status_and_maybe_
-// canvas() last stored in s_countdown_buf/s_countdown_text_color
-// rather than taking them as parameters, since layer update_procs
-// have a fixed signature.
+// Countdown/status uses a dedicated layer so it can draw outlined text.
 static void countdown_layer_update_proc(Layer *layer, GContext *ctx) {
   GRect bounds = layer_get_bounds(layer);
   GFont font = fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD);
 
-  // This label floats directly over the busy sky view in Analog mode
-  // and (since its own panel is transparent) Digital top too -- both
-  // have real sky right behind it at this label's fixed position (near
-  // the screen's top edge). Normally feature_render_draw_text_outlined()'s 4-shifted-
-  // copy outline keeps it legible against any background there, but
-  // with that setting off there's nothing else backing the text, so it
-  // can disappear into a similarly-colored patch of sky. Give it a
-  // solid pill background in that specific case instead
-  // (feature_render_contrasting_outline_color() picks black or white, whichever
-  // contrasts with the text color) -- outline mode already handles
-  // legibility fine on its own, and Digital bar's own panel is already
-  // a solid color the text sits on, so neither of those needs this
-  // extra background.
+  // Add a contrasting pill only when outline mode is disabled on a transparent panel.
   if (s_data->outline_style == 0 && (s_data->bottom_style == 1 || feature_layout_is_digital_top_layout(s_data->bottom_style)) && s_countdown_buf[0] != '\0') {
     GSize text_size = graphics_text_layout_get_content_size(s_countdown_buf, font, bounds,
                                                               GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter);

@@ -33,7 +33,6 @@ void __attribute__((noinline)) feature_value_weather_compute(FeatureSlot *slot, 
       int16_t lo = feature_rules_convert_temp(data->temp_low_c, data->temp_unit);
       if (color_mode == 3) {
         // "color" mode splits high and low into their own independently
-        // gradient-colored segments instead of sharing one flat color.
         char hi_buf[8], lo_buf[8];
         snprintf(hi_buf, sizeof(hi_buf), "H%d", hi);
         snprintf(lo_buf, sizeof(lo_buf), "L%d", lo);
@@ -212,12 +211,10 @@ void __attribute__((noinline)) feature_value_weather_compute(FeatureSlot *slot, 
       int16_t shown = feature_rules_convert_temp(data->forecast_temp_c[idx], data->temp_unit);
       snprintf(buf, sizeof(buf), "+%dh %d", hrs_ahead, shown);
       // Same shape as "temp + weather icon" (32): plain 7-stop gradient,
-      // not the condition-based color -- per the "Temperature readouts
-      // (including temp+weather icon)" rule.
       c = feature_value_resolve_flat_color(color_mode, feature_colors_seven_stop_gradient(data->forecast_temp_c[idx], -10, 40), main_color, accent_color);
       slot->segment_count = 2;
       feature_value_set_icon_segment(slot, 0, 14, c);
-      slot->segments[0].icon_extra = feature_icons_weather_category(data->forecast_condition[idx], 50); // no forecast cloud% sent separately -- 50 is a neutral middle guess, only affects which of a few near-identical icon glyphs gets picked
+      slot->segments[0].icon_extra = feature_icons_weather_category(data->forecast_condition[idx], 50); // no forecast cloud% sent separately -- 50 is a neutral middle guess, only affects which of a few near-identical i...
       feature_value_set_text_segment(slot, 1, buf, c);
       return;
     }
@@ -237,10 +234,6 @@ void __attribute__((noinline)) feature_value_weather_compute(FeatureSlot *slot, 
       GColor c = feature_value_resolve_flat_color(color_mode, dyn, main_color, accent_color);
       if (content == 94) {
         // Short version only -- the long version's own "Last updated"
-        // text already says what this is, so the icon would be
-        // redundant there; the short version is just a bare time, so
-        // a small two-arrows-chasing "refresh" glyph (icon_kind 28) is
-        // what tells you what that time actually means at a glance.
         slot->segment_count = 2;
         feature_value_set_icon_segment(slot, 0, 28, c);
         feature_value_set_text_segment(slot, 1, buf, c);

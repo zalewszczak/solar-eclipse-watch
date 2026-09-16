@@ -2,82 +2,24 @@
 #include "./hand_geometry.h"
 #include "../graphics/subpixel.h"
 
-// subpixel_round_div/BAYER4/FGPoint helpers and the subpixel_fill_polygon_fp()/
-// subpixel_fill_polygon_dithered_fp()/subpixel_fill_circle_fp()/subpixel_stroke_line_fp()/
-// subpixel_stroke_polygon_fp()/subpixel_stroke_circle_fp() rasterizers this file relies on
-// all now live in subpixel.h (included via hand_layer.h) -- shared with
-// background marker ring. Both paths use the same fixed-point rasterizer
-// so outlines and hollow shapes share the same rounding and step-count rules.
+// Hand shapes are built once, then reused for fill, outline, and shadow passes.
 
 static GColor resolve_scheme_color(uint8_t choice, GColor main_color, GColor accent_color, GColor bg_color) {
   if (choice == 1) return accent_color;
   if (choice == 2) return bg_color;
-  return main_color; // choice 0, and any unrecognized value
+  return main_color; 
 }
 
-// ---- hand shape geometry ---------------------------------------------
-//
-// Every hand shape (existing dot/triangle/square, plus dauphine/sword/
-// spade/arrow/pomme below) is built from a small, fixed set of convex
-// primitives -- 1-2 polygons (3-5 points each) and 0-2 circles --
-// packed into a HandGeometry. The fill/outline/shadow passes below all
-// just iterate whatever's in here, so a new style only ever needs to
-// change hand_geometry_compute_fp(), never the three drawing passes
-// themselves. (Circles matter for round caps like the dot style's
-// pivot/tip caps or the pomme's rounded thick section, and for the
-// spade's droplet tip -- everything else is a plain filled polygon.)
-//
-// Every polygon here MUST be convex: subpixel_fill_polygon_fp() (and the
-// dithered/thin variants) all test membership via
-// subpixel_point_in_convex_polygon_fp(), same as before this file supported
-// more than one shape. Any style whose real shape isn't convex on its
-// own (pomme's thick+thin sections; spade/arrow's line-or-triangle
-// base plus a separate tip ornament) is decomposed into 2 separate
-// convex polygons instead of one -- see each style's own comment
-// below for its exact point layout.
-// 12, not 5 -- style 8/leaf's single smooth convex outline (back point,
-// LEAF_HALF_SAMPLES interior points either side of the peak on each of
-// its two flanks, the peak itself, and the tip point) needs every one
-// of the 12 slots that shape's own comment works out; every other
-// style still needs at most 5. Must stay <= subpixel.h's own
-// SUBPIXEL_MAX_RING_PTS -- subpixel_inset_convex_polygon_fp()/subpixel_fill_polygon_ring_fp()
-// (the "hollow thickness" feature) take whatever poly this file hands
-// them, sight unseen, into their own fixed-size local arrays of that size.
+
 #define HAND_MAX_POLY_PTS 12
-// 6, not 2 -- style 10/serpentine discretizes its squiggly centerline
-// into SERP_SEGMENTS separate straight quads (one convex HandPoly
-// each, since the overall squiggle itself is emphatically NOT convex
-// and can't be one polygon the way every other style's shape is).
-// Every other style still needs at most 2.
+
+
 #define HAND_MAX_POLYS 6
-// 3, not 2 -- style 6/spade needs its rounded-line base's own 2 round
-// caps (from append_capsule_fp(..., round_caps=true)) PLUS its own
-// separate droplet-tip circle, 3 circles total in the one hand. Every
-// other style needs at most 2 (the round-capped base styles) or 0.
-// Spade can require three circle primitives, so the geometry buffer must
-// reserve space for all three entries on every redraw.
-// triggered) and corrupting whatever stack memory followed it, which
-// is what actually crashed the watch -- not a divide-by-zero (ARM's
-// integer divide instructions just return 0 on divide-by-zero, they
-// don't trap), a genuine out-of-bounds write.
+
+
 #define HAND_MAX_CIRCLES 3
 
-// Style-specific geometry is built by hand_geometry.c. Keeping the point
-// construction separate from rasterization makes the drawing passes below
-// independent of the number and complexity of supported hand styles.
 
-// Draws just the hand's shape (no outline underlay) in `color`, at
-// `center`. `dithered` selects a genuine ~50% stipple fill (see
-// fill_polygon_dithered() above) instead of a solid one -- this is
-// what HandConfig.translucent actually means now, not the 1px
-// stroke-only look an earlier version of this file used.
-// Takes an already-computed HandGeometry rather than a center/angle to
-// compute its own -- hand_layer_draw() computes geometry exactly ONCE
-// per hand and shares it with draw_hand_outline_from_geometry() below.
-// Both paths draw the same shape at the same center/angle, so geometry is
-// computed once per hand instead of repeating the fixed-point/trigonometric work.
-// measurable cost given this runs every second, for every hand with
-// both a fill and an outline (the common case).
 static void draw_hand_shape_from_geometry(GContext *ctx, const HandGeometry *geo, const HandConfig *cfg,
                                            GColor color, bool dithered) {
   int32_t hollow_thickness_fp = (int32_t)cfg->hollow_thickness << SUBPIXEL_BITS;
@@ -102,19 +44,8 @@ static void draw_hand_shape_from_geometry(GContext *ctx, const HandGeometry *geo
     else subpixel_fill_circle_fp(ctx, c->center, c->radius_fp, color, dithered);
   }
 }
-// A genuine perimeter outline for hand_layer_draw()'s outline_enabled
-// pass -- subpixel_stroke_polygon_fp()/subpixel_stroke_circle_fp() (a real, clean 1px
-// boundary line, whether opaque or dithered -- see subpixel.h for the
-// rounding fix that makes that boundary line actually land where it's
-// supposed to). Replaces the earlier "draw 4 shifted copies of the
-// filled shape" technique, which isn't actually an outline at all -- for
-// an opaque hand it merely approximates one by blurring the silhouette
-// outward, and for a translucent hand it doesn't work at all: dithering
-// 4 offset copies of an already-dithered fill just smears the same
-// stipple pattern into a slightly bigger blob, not a clean ring around
-// the shape.
-// Same "takes an already-computed geometry" shape as draw_hand_shape_
-// from_geometry() above, for the same reason -- see its own comment.
+
+
 static void draw_hand_outline_from_geometry(GContext *ctx, const HandGeometry *geo,
                                              GColor color, bool dithered) {
   for (int i = 0; i < geo->n_polys; i++) {
@@ -125,15 +56,8 @@ static void draw_hand_outline_from_geometry(GContext *ctx, const HandGeometry *g
   }
 }
 
-// Bayer-dithered polygon/circle fills at an arbitrary density, not just
-// subpixel_fill_polygon_dithered_fp()/subpixel_fill_circle_fp()'s fixed ~50% -- shadows need
-// a second, lighter ~25% density (see draw_hand_shadow_once_fp() below),
-// and duplicating the scan logic here (rather than changing the shared
-// subpixel.h versions or their callers) matches this project's own
-// stated convention for small self-contained helpers like this -- see
-// subpixel.h's top-of-file comment. `threshold` is compared directly
-// against BAYER4's 0-15 values (skip when >= threshold): 8 reproduces
-// the original ~50%, 4 gives ~25%.
+
+// Fill with a selectable Bayer-4 density; 8 is ~50%, 4 is ~25%.
 static void fill_polygon_dithered_level_fp(GContext *ctx, const FGPoint *pts, int n, GColor color, uint8_t threshold) {
   int32_t min_x_fp = pts[0].x, max_x_fp = pts[0].x;
   int32_t min_y_fp = pts[0].y, max_y_fp = pts[0].y;
@@ -185,15 +109,8 @@ static void fill_circle_dithered_level_fp(GContext *ctx, FGPoint center, int32_t
   }
 }
 
-// A drop shadow of the hand's own shape, translated (never rotated
-// relative to the hand -- a real shadow's direction is fixed by the
-// light source, not by whatever the hand itself currently points at) by
-// shadow_distance_px in shadow_angle_deg's direction (a single shared
-// angle for all 3 hands -- see hand_layer_draw()'s own comment for why),
-// then filled in black -- solid if shadow_translucent_style is off,
-// otherwise dithered at ~50%, or ~25% when the hand itself
-// (cfg->translucent) is also translucent. Drawn before the outline/fill
-// in hand_layer_draw() below, so it always sits underneath both.
+
+// Draw the hand shadow using the configured shadow angle and density.
 static void draw_hand_shadow_once_fp(GContext *ctx, FGPoint center, int32_t angle, const HandConfig *cfg,
                                       bool shadow_translucent_style, uint16_t shadow_angle_deg) {
   if (!cfg->shadow_enabled) return;
@@ -221,7 +138,7 @@ static void draw_hand_shadow_once_fp(GContext *ctx, FGPoint center, int32_t angl
     return;
   }
 
-  uint8_t threshold = cfg->translucent ? 4 : 8; // ~25% vs ~50% Bayer density
+  uint8_t threshold = cfg->translucent ? 4 : 8; 
   for (int i = 0; i < geo.n_polys; i++) {
     fill_polygon_dithered_level_fp(ctx, geo.polys[i].pts, geo.polys[i].n, GColorBlack, threshold);
   }
@@ -230,16 +147,17 @@ static void draw_hand_shadow_once_fp(GContext *ctx, FGPoint center, int32_t angl
   }
 }
 
+// Compute geometry once and reuse it for shadow, outline, and fill.
 void hand_layer_draw(GContext *ctx, GPoint center, int32_t angle, const HandConfig *cfg,
                       GColor main_color, GColor accent_color, GColor bg_color,
                       bool shadow_translucent_style, uint16_t shadow_angle_deg,
                       uint16_t length_scale_1000) {
-  // Scaled-length copy for the startup animation's "grows out from a
-  // center dot" phase -- everything below just keeps using `cfg` as
-  // before, now possibly pointing at this shrunk copy instead of the
-  // caller's real one. Width/back_offset/outline/shadow all stay at
-  // their real configured size regardless -- only the hand's own
-  // length grows in.
+  
+  
+  
+  
+  
+  
   HandConfig scaled_cfg;
   if (length_scale_1000 < 1000) {
     scaled_cfg = *cfg;
@@ -251,36 +169,36 @@ void hand_layer_draw(GContext *ctx, GPoint center, int32_t angle, const HandConf
 
   draw_hand_shadow_once_fp(ctx, center_fp, angle, cfg, shadow_translucent_style, shadow_angle_deg);
 
-  // Computed once and shared by the outline and fill steps below --
-  // Both paths draw the exact same shape at the exact same center/angle,
-  // so the shared geometry avoids duplicate branching and trigonometric work.
-  // This runs every second for every visible hand, so avoiding a
-  // second full geometry computation whenever a hand has both an
-  // outline and a fill (the common case) is a real, continuous saving,
-  // not just a one-off. The shadow above still computes its own (see
-  // draw_hand_shadow_once_fp()'s own comment) since it draws at a
-  // genuinely different, translated center.
+  
+  
+  
+  
+  
+  
+  
+  
+  
   HandGeometry geo;
   hand_geometry_compute_fp(center_fp, angle, cfg, &geo);
 
-  GColor hand_color = GColorClear; // resolved below if actually needed (cfg->color != 3)
+  GColor hand_color = GColorClear; 
   if (cfg->color != 3) {
     hand_color = resolve_scheme_color(cfg->color, main_color, accent_color, bg_color);
   }
 
   if (cfg->outline_enabled) {
-    // A real perimeter trace now (see draw_hand_outline_from_geometry
-    // above), dithered too when the hand is translucent, so the
-    // outline doesn't look more solid than the fill it's outlining.
-    // The "on shake" gradient effect (if active) is applied inside
-    // draw_hand_outline_from_geometry() itself now, per pixel -- see
-    // its own comment -- rather than resolved to one flat color up
-    // here.
+    
+    
+    
+    
+    
+    
+    
     GColor outline_color = resolve_scheme_color(cfg->outline_color, main_color, accent_color, bg_color);
     draw_hand_outline_from_geometry(ctx, &geo, outline_color, cfg->translucent);
   }
 
-  if (cfg->color != 3) { // 3 = "none" -- skip the fill, outline (if any) still drew above
+  if (cfg->color != 3) { 
     draw_hand_shape_from_geometry(ctx, &geo, cfg, hand_color, cfg->translucent);
   }
 }

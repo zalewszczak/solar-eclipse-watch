@@ -21,14 +21,6 @@ static GColor dither_pixel(RGB8 c, uint8_t bayer_0_15) {
 
 
 // Each cloud mass is a continuous procedural field (a "metaball" --
-// each seed point contributes a soft, bounded falloff blob, and
-// overlapping seeds' contributions add together) rather than a
-// handful of discrete circles, so the silhouette merges into one
-// organic, irregular shape with soft edges instead of visibly
-// separate blobs. Seed positions/radii are deliberately irregular
-// (not a grid or ring) so the summed field reads as an actual cloud
-// mass. `scale_pct` scales every seed uniformly to grow/shrink the
-// whole mass with coverage.
 typedef struct {
   int8_t dx, dy, r;
 } CloudSeed;
@@ -43,14 +35,6 @@ static const CloudSeed CLOUD_SEEDS[13] = {
 #define CLOUD_FIELD_THRESHOLD 400
 
 // A CLOUD_SEEDS[] entry pre-scaled by whichever scale_pct the current
-// draw_clouds_realistic() call is using, so cloud_field_value() (called
-// once per candidate pixel -- up to tens of thousands of times per full
-// redraw) doesn't have to redo these 3 divisions on every single call.
-// scale_pct is constant for an entire draw_clouds_realistic() call (it
-// depends only on cloud_pct/stormy, not on which cluster or pixel is
-// being evaluated), so all the per-pixel loop actually needs is the
-// already-scaled (sx, sy, r2) -- see scale_cloud_seeds() below, which
-// computes this array exactly once per call instead of once per pixel.
 typedef struct {
   int16_t sx, sy;
   int32_t r2;
@@ -67,14 +51,6 @@ static void scale_cloud_seeds(int16_t scale_pct, ScaledCloudSeed out[CLOUD_SEED_
 }
 
 // Sum of each seed's smooth falloff contribution at (px, py), offset
-// from the cluster's own center. Each seed contributes
-// max(0, 1-(d/r)^2)^2 (scaled to a ~0-1000 range) -- bounded and
-// well-behaved close to the seed's own center (unlike a raw inverse-
-// square metaball kernel, which blows up there), while still merging
-// smoothly with its neighbors: two adjacent seeds' overlap region
-// sums well past the threshold even though neither alone would clear
-// it there, which is what makes the union read as one continuous
-// mass instead of a cluster of separate circles.
 static int32_t cloud_field_value(int16_t px, int16_t py, const ScaledCloudSeed seeds[CLOUD_SEED_COUNT]) {
   int32_t field = 0;
   for (int i = 0; i < CLOUD_SEED_COUNT; i++) {
@@ -83,16 +59,12 @@ static int32_t cloud_field_value(int16_t px, int16_t py, const ScaledCloudSeed s
     int32_t r2 = seeds[i].r2;
     if (d2 >= r2) continue;
     int32_t frac = ((r2 - d2) * 1000) / r2; // 0..1000, (1 - t^2)*1000
-    field += (frac * frac) / 1000;           // ~(1-t^2)^2, still ~0..1000 per seed
+    field += (frac * frac) / 1000;           // ~0..1000 contribution per seed.
   }
   return field;
 }
 
 // Up to 4 cloud masses across the band; how many are actually drawn
-// scales with coverage (see cloud_cluster_count), each one nudged up
-// or down slightly so a multi-cluster sky doesn't look like the same
-// shape copy-pasted in a row. Shared with draw_weather_effect so
-// rain/snow fall from the same positions the clouds actually occupy.
 static int cloud_cluster_count(uint8_t cloud_pct, bool stormy) {
   if (stormy) return WEATHER_CLOUD_CLUSTER_SLOTS;
   int count = 1;
@@ -103,17 +75,6 @@ static int cloud_cluster_count(uint8_t cloud_pct, bool stormy) {
 }
 
 // Warm (sun-facing) / cool (shadow-facing) color pairs -- blended
-// per pixel by how directly that point faces the Sun's actual
-// on-screen position (see draw_clouds), the way real clouds pick up
-// warm light on their sunward side and read cool/blue-gray in their
-// own shadow. Thin cloud stays close to white either way; heavier
-// cover and storms push both ends darker and more saturated toward
-// gray, per the same coverage/storminess logic as before.
-// 0 (full daylight brightness) .. 100 (fully night-darkened) -- ramps
-// linearly as the Sun sinks from the horizon (alt 0) to -10deg, well
-// past the -6deg (-60 decideg) civil-twilight threshold used
-// elsewhere for "sky_is_dark", so clouds visibly dim through sunset/
-// sunrise rather than popping instantly dark/bright at a threshold.
 static uint8_t cloud_night_factor(int16_t sun_alt_decideg) {
   if (sun_alt_decideg >= 0) return 0;
   if (sun_alt_decideg <= -100) return 100;
@@ -136,18 +97,7 @@ static void cloud_shading_colors(uint8_t cloud_pct, bool stormy, RGB8 sun_rgb,
     cool->r = 222; cool->g = 226; cool->b = 232;
   }
 
-  // The sunlit side of the cloud should actually look lit BY the Sun's
-  // own current color (see sun_color_for_altitude() above) -- washed-
-  // out white-yellow at midday, deepening through orange to red right
-  // at the horizon, the same real sunset/sunrise glow that colors the
-  // undersides of real clouds. Blended in rather than replacing warm
-  // outright, and tapered to nothing by 30deg up (past that the Sun's
-  // own color is close enough to white that blending toward it
-  // wouldn't visibly change anything anyway) so this only actually
-  // does anything through the low-sun/golden-hour range. The cool
-  // (shadowed) side is deliberately left alone -- a cloud's shadowed
-  // face doesn't take on the Sun's direct color the way its lit face
-  // does.
+// The sunlit side of the cloud should actually look lit BY the Sun's
   if (sun_alt_decideg > 0 && sun_alt_decideg < 300) {
     int32_t tint_pct = 100 - ((int32_t)sun_alt_decideg * 100) / 300;
     warm->r = render_math_lerp8(warm->r, sun_rgb.r, tint_pct, 100);
@@ -155,12 +105,7 @@ static void cloud_shading_colors(uint8_t cloud_pct, bool stormy, RGB8 sun_rgb,
     warm->b = render_math_lerp8(warm->b, sun_rgb.b, tint_pct, 100);
   }
 
-  // These bright/pale colors were the same at any hour, so clouds at
-  // night looked identical to a bright overcast afternoon -- clearly
-  // wrong against a near-black night sky. Darken both warm and cool
-  // toward a dark near-black gray as the Sun sinks, same idea (and
-  // same lerp8-toward-a-target-color trick) as the overcast horizon
-  // darkening above.
+// These bright/pale colors were the same at any hour, so clouds at
   uint8_t night = cloud_night_factor(sun_alt_decideg);
   if (night > 0) {
     RGB8 night_dark = { 28, 29, 36 };
@@ -174,30 +119,6 @@ static void cloud_shading_colors(uint8_t cloud_pct, bool stormy, RGB8 sun_rgb,
 }
 
 // "Realistic" cloud style -- metaball field with sun-relative
-// warm/cool lighting (see cloud_field_value above). More CPU-hungry
-// per redraw than the "Simple" style below (per-pixel field
-// evaluation across 13 seeds vs. plain circle fills), traded for a
-// painterly, organically-shaped result.
-//
-// `cloud_altitude_pct` biases where in the lower half of the canvas
-// the deck sits (see compute_cloud_band_y). Cluster count and puff
-// scale both grow with coverage -- a mostly-clear sky shows one
-// modest wisp, an overcast one fills the band with several
-// overlapping masses -- and low visibility thickens the haze density
-// a little further on top of that, since poor visibility in real
-// weather usually means denser moisture in the air generally, not
-// just more cloud. `sun_center`/`sun_up` drive the per-pixel warm/cool
-// lighting: each cluster gets its own light direction toward the
-// Sun's actual current position (clusters on either side of it
-// naturally end up lit from opposite sides), falling back to a
-// flat overhead light when the Sun's below the horizon.
-//
-// `flash_active` (see canvas_update_proc's storm-flash comment for
-// the timing) briefly lights the cloud mass from within -- every
-// pixel's blend leans toward white rather than its normal warm/cool
-// shading -- and drops a jagged bolt down from the cloud base,
-// exactly like a real strike briefly overexposing the clouds around
-// it while a thin bright channel reaches the ground.
 void weather_layer_draw_clouds(GContext *ctx, GRect bounds, uint8_t cloud_pct, uint8_t cloud_altitude_pct,
                          uint8_t visibility_pct, bool stormy, GPoint sun_center, bool sun_up, bool flash_active,
                          int16_t sun_alt_decideg, uint8_t sun_r, uint8_t sun_g, uint8_t sun_b) {
@@ -215,15 +136,10 @@ void weather_layer_draw_clouds(GContext *ctx, GRect bounds, uint8_t cloud_pct, u
   if (density > 96) density = 96; // never fully opaque outside real storm cover
   if (stormy && density < 92) density = 92;
 
-  int16_t scale_pct = 70 + (cloud_pct * 60) / 100; // 70%..130% across the coverage range
+  int16_t scale_pct = 70 + (cloud_pct * 60) / 100; // 70%..130% by cloud coverage.
   if (stormy && scale_pct < 130) scale_pct = 130;
 
-  // Scaled once here rather than inside cloud_field_value() itself --
-  // scale_pct is the same for every cluster and every pixel this whole
-  // call draws, so redoing these 13 seeds' divisions per-pixel (as the
-  // would be wasteful across what can be tens of thousands
-  // of candidate pixels in a single redraw. See ScaledCloudSeed's own
-  // comment above.
+// Scaled once here rather than inside cloud_field_value() itself --
   ScaledCloudSeed scaled_seeds[CLOUD_SEED_COUNT];
   scale_cloud_seeds(scale_pct, scaled_seeds);
 
@@ -235,10 +151,7 @@ void weather_layer_draw_clouds(GContext *ctx, GRect bounds, uint8_t cloud_pct, u
     int16_t cx = bounds.origin.x + (bounds.size.w * WEATHER_CLOUD_CLUSTER_X_PCT[c]) / 100;
     int16_t cy = band_y + WEATHER_CLOUD_CLUSTER_Y_OFFSET[c];
 
-    // Light direction from this cluster toward the Sun, normalized to
-    // ~100 magnitude -- falls back to straight up (Sun below horizon,
-    // or degenerate zero-distance case) so lighting stays well-defined
-    // at night rather than undefined/erratic.
+// Light direction from this cluster toward the Sun, normalized to
     int32_t light_dx = 0, light_dy = -100;
     if (sun_up) {
       int32_t to_sun_x = sun_center.x - cx;
@@ -264,9 +177,7 @@ void weather_layer_draw_clouds(GContext *ctx, GRect bounds, uint8_t cloud_pct, u
         int32_t field = cloud_field_value(px, py, scaled_seeds);
         if (field < CLOUD_FIELD_THRESHOLD) continue;
 
-        // Soft edge: pixels just past the threshold get reduced
-        // density, full density once well inside -- reads as a soft
-        // painted edge rather than a hard silhouette cutoff.
+// Soft edge: pixels just past the threshold get reduced
         int32_t edge_pct = ((field - CLOUD_FIELD_THRESHOLD) * 100) / CLOUD_FIELD_THRESHOLD;
         if (edge_pct > 100) edge_pct = 100;
         int32_t local_density = ((int32_t)density * (60 + (edge_pct * 40) / 100)) / 100;
@@ -286,9 +197,7 @@ void weather_layer_draw_clouds(GContext *ctx, GRect bounds, uint8_t cloud_pct, u
         blend.g = render_math_lerp8(cool_rgb.g, warm_rgb.g, warm_frac, 1000);
         blend.b = render_math_lerp8(cool_rgb.b, warm_rgb.b, warm_frac, 1000);
         if (flash_active) {
-          // Lit from within: lean hard toward white rather than the
-          // normal warm/cool shading, same "brief overexposure" look
-          // a real strike gives the clouds around it.
+// Lit from within: lean hard toward white rather than the
           RGB8 white = { 255, 255, 255 };
           blend.r = render_math_lerp8(blend.r, white.r, 70, 100);
           blend.g = render_math_lerp8(blend.g, white.g, 70, 100);
@@ -302,10 +211,7 @@ void weather_layer_draw_clouds(GContext *ctx, GRect bounds, uint8_t cloud_pct, u
   }
 
   if (flash_active) {
-    // A single jagged bolt from the first (always-present) cluster's
-    // base down toward the ground -- fixed zigzag shape, not
-    // randomized per strike, which keeps this cheap (no RNG state to
-    // carry) and is barely noticeable given how brief each flash is.
+// A single jagged bolt from the first (always-present) cluster's
     int16_t bx = bounds.origin.x + (bounds.size.w * WEATHER_CLOUD_CLUSTER_X_PCT[0]) / 100;
     int16_t by = band_y + 10;
     int16_t ground_y = bounds.origin.y + bounds.size.h - GROUND_H;

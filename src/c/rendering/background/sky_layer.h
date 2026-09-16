@@ -4,8 +4,6 @@
 #include "../../data/eclipse_data.h"
 
 // Continuous RGB representation used while constructing the sky gradient.
-// It is deliberately kept at 8 bits/channel until the final ordered-dither
-// step converts each pixel to Pebble's 2-bit-per-channel palette.
 typedef struct {
   uint8_t r, g, b;
 } SkyRgb;
@@ -30,8 +28,6 @@ int16_t sky_layer_compute_cloud_band_y_virtual(int16_t virtual_top_y,
 void sky_layer_colors_for_altitude(int16_t alt_decideg, SkyRgb *top_out, SkyRgb *horizon_out);
 
 // Paint a dithered vertical sky gradient. The virtual coordinates allow the
-// Digital-top strip and the main canvas to render two seamless slices of the
-// same conceptual 228px gradient.
 void sky_layer_fill_gradient(GContext *ctx, GRect bounds,
                              int16_t virtual_top_y, int16_t virtual_total_h,
                              SkyRgb top, SkyRgb band, int16_t band_y, SkyRgb horizon);

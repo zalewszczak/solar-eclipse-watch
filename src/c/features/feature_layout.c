@@ -39,23 +39,8 @@ void feature_layout_recompute(FeaturesState *state) {
   bool is_bitmap_style = is_analog && marker_style >= 3 && marker_style != 8 && marker_style != 9;
 
   // Which of the 12 slots actually apply for the current marker/
-  // bottom_style is decided entirely on the phone (see
-  // computeSlotAvailability()/CORNER_CATEGORIES in config-page.js and
-  // the availability check in index.js's dict-building step) -- by the
-  // time a content field reaches here, it's already 0 ("None") for any
-  // slot that shouldn't show for the current style, so this file just
-  // builds every slot from whatever content it was given, unconditionally,
-  // and trusts a content of 0 to mean "draws nothing" (already true --
-  // see feature_values_compute_slot()'s own content==0 early return)
-  // rather than keeping its own separate copy of "which styles support
-  // which slots" to decide that upfront.
 
   // Inner-empty-area margins: procedural presets (0/1/2) and "none" (9)
-  // are calculated from that style's own marker-ring geometry via
-  // marker_layer_inner_reach() (same marker_layer_point_on_ring() technique
-  // custom (8) uses below, just fed a fixed preset instead of a live
-  // user config); bitmap styles (3-7) have no ring geometry at all, so
-  // they use a fixed per-style table instead, each side independent.
   typedef struct { int8_t top, bottom, left, right; } EdgeMargins;
   static const EdgeMargins BITMAP_STYLE_MARGINS[5] = {
     { 34, 30, 40, 35 }, // 3: Modern
@@ -206,42 +191,11 @@ void feature_layout_recompute(FeaturesState *state) {
   }
 
   // Digital-mode-only equivalent of the 4 blocks above -- the 8 edge
-  // slot indices are unused by any analog "show_*" block when
-  // !is_analog (none of those ran), so it's safe to repurpose 7 of
-  // them here: SLOT_LEFT_L1/L2 + SLOT_UPPER_L1 as the 3-line left
-  // column, SLOT_RIGHT_L1/L2 + SLOT_UPPER_L2 as the 3-line right
-  // column, SLOT_BOTTOM_L1 as the single bottom feature (SLOT_BOTTOM_L2
-  // stays unused). Deliberately reuses the SAME 8 EclipseData fields
-  // analog mode's upper/bottom/left/right-middle content uses (see
-  // their own dual-purpose comment in data/eclipse_data.h) rather than a
-  // separate set of digital-only fields -- the two modes never run at
-  // once, so there's nothing to actually preserve by keeping them
-  // apart, and sharing saves both the extra bytes on the watch and the
-  // extra AppMessage keys/traffic a second set would cost. Which side
-  // columns actually apply for the current bottom_style (0/2/3/4) is
-  // decided phone-side same as everything else here -- the content
-  // fields already arrive zeroed for whichever side isn't turned on,
-  // so both columns are just built unconditionally below.
   if (!is_analog) {
     int16_t clock_x, clock_w;
     feature_layout_digital_clock_area(d->bottom_style, 200, &clock_x, &clock_w);
 
-    // 1 = nearest the clock, 3 = nearest the screen's own outer edge --
-    // anchored off whichever edge is adjacent to the clock for the
-    // CURRENT layout (the panel's own top for Digital bar, since the
-    // clock sits near there with the sky above it; the panel's own
-    // bottom for Digital top, mirrored, since the clock sits near
-    // THERE with the sky below it instead) via is_top/top_offset vs
-    // bottom_shift -- same row_1/2/3_off magnitudes either way, so
-    // Digital top's column reads as a literal vertical flip of Digital
-    // bar's rather than a separately-tuned layout. Bottom-anchored (not
-    // top-anchored off a fixed panel offset) in the Digital bar case so
-    // a shrinking screen during a system notification shifts the whole
-    // stack up together, same as the corners already do, rather than
-    // the top row drifting away from the panel it's meant to sit
-    // inside -- Digital top has no such obstruction to react to (system
-    // notifications only ever eat into the screen's bottom), so being
-    // top-anchored there costs nothing.
+    // 1 = nearest the clock, 3 = nearest the screen's own outer edge
     int16_t row1_off = CORNER_ROW_H * 2, row2_off = CORNER_ROW_H, row3_off = 0;
     state->slots[SLOT_LEFT_L1] = (FeatureSlot){
       .active = true, .content = d->middle_left_line1_content, .color_mode = d->middle_left_line1_color_mode,
@@ -288,14 +242,6 @@ void feature_layout_recompute(FeaturesState *state) {
     };
 
     // Single bottom feature -- reuses bottom_middle_line1 (analog's
-    // upper of its own 2-line pair; bottom_middle_line2 has no
-    // digital-mode role, 7 slots needed against 8 available fields).
-    // Shares clock_x/clock_w with the clock text itself
-    // (clock_display_create_panel() uses the
-    // exact same feature_layout_digital_clock_area() call), always centered within
-    // that band, anchored to the screen's own outer edge -- the true
-    // bottom for Digital bar, the true top for Digital top (row 3's own
-    // edge in both cases, per the comment above).
     state->slots[SLOT_BOTTOM_L1] = (FeatureSlot){
       .active = true, .content = d->bottom_middle_line1_content, .color_mode = d->bottom_middle_line1_color_mode,
       .is_top = is_digital_top, .is_left = true, .is_middle = false, .is_edge = false,
@@ -307,20 +253,6 @@ void feature_layout_recompute(FeaturesState *state) {
   }
 
   // Corners always just draw whatever d->corner_content[] says, for
-  // every marker style including bitmap ones -- defaulting that to
-  // "off" for bitmap styles (and offering an "enable corner features"
-  // override) is the settings page's job, not this file's.
-  //
-  // Top corners (TL/TR): anchored to the screen's own top edge for
-  // Analog and Digital bar (both have open sky right there), but
-  // pulled DOWN by DIGITAL_PANEL_H for Digital top -- that layout's
-  // panel sits at the top instead, so its own sky begins
-  // DIGITAL_PANEL_H down, and these two need to land at THAT boundary
-  // instead of the screen's real top edge (features_layer's frame
-  // spans the full screen in every layout -- see apply_layout() -- so
-  // without this they'd land inside the transparent panel itself,
-  // overlapping the clock). Exact mirror of bottom_corner_shift below,
-  // just for the opposite pair of corners.
   int16_t top_corner_shift = is_digital_top ? DIGITAL_PANEL_H : 0;
   state->slots[SLOT_CORNER_TL] = (FeatureSlot){
     .active = true, .content = d->corner_content[0], .color_mode = d->corner_color_mode[0],
@@ -337,18 +269,6 @@ void feature_layout_recompute(FeaturesState *state) {
     .needs_second_refresh = feature_rules_content_needs_second_refresh(d->corner_content[1]),
   };
   // Bottom corners (BL/BR): stay anchored to the SKY's own bottom
-  // edge, not the full screen's -- meaningfully different only in
-  // Digital bar, where the sky canvas only occupies the screen's top
-  // portion and the digital clock's own bottom panel fills the rest.
-  // features_layer's own frame spans the FULL screen in every layout
-  // (see apply_layout()), so a plain bottom_shift of 0 here would put
-  // these two corners down inside the digital panel instead of at the
-  // sky's own bottom-left/-right -- adding DIGITAL_PANEL_H's worth of
-  // shift pulls them back up to the sky boundary. Analog mode has no
-  // separate panel (sky already fills the screen) and Digital top's
-  // own sky already reaches all the way to the real screen bottom (its
-  // panel is up at the TOP instead -- see top_corner_shift above), so
-  // bottom_shift stays 0 for both of those.
   int16_t bottom_corner_shift = (is_analog || is_digital_top) ? 0 : DIGITAL_PANEL_H;
   state->slots[SLOT_CORNER_BL] = (FeatureSlot){
     .active = true, .content = d->corner_content[2], .color_mode = d->corner_color_mode[2],

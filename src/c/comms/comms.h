@@ -11,10 +11,7 @@ typedef enum {
   COMMS_CHANGE_HANDS          = 1u << 2,
   COMMS_CHANGE_CANVAS         = 1u << 3,
   COMMS_CHANGE_PANEL          = 1u << 4,
-  // Raised on every decoded message: features_layer_set_data()
-  // recomputes each slot's layout AND value in one pass, so there was
-  // never a point in the separate "values only" flag this used to sit
-  // next to -- every consumer checked them together.
+  // Feature values and layout are recomputed for every decoded message.
   COMMS_CHANGE_FEATURES       = 1u << 5,
 } CommsChangeFlags;
 

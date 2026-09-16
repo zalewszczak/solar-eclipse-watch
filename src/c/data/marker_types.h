@@ -2,8 +2,7 @@
 
 #include <pebble.h>
 
-// Configuration for one procedural marker ring. Rendering code consumes this
-// type, but the configuration itself belongs to the watch data model.
+// Configuration for one procedural marker ring.
 typedef struct {
   uint8_t style;
   uint8_t thickness;
@@ -15,8 +14,7 @@ typedef struct {
   uint8_t color;
 } MarkerRingConfig;
 
-// Numeric/Roman marker-label configuration. One configuration selects either
-// the hour ring or the second ring; both cannot be rendered simultaneously.
+// Configuration for hour/second marker labels.
 typedef struct {
   uint8_t target;
   uint8_t font_choice;

@@ -6,9 +6,6 @@
 #include "./feature_layout.h"
 
 // The controller owns feature-state refresh orchestration and the shared
-// custom corner/edge font cache. It deliberately does not know how slots
-// are positioned or rendered; those concerns belong to feature_layout and
-// feature_render respectively.
 
 static FontSlot s_corner_font_slot = FONT_SLOT_EMPTY;
 

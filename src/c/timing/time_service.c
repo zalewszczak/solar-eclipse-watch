@@ -5,8 +5,7 @@
 #include "../features/feature_controller.h"
 #include "../rendering/background/background_layer.h"
 
-// Content ids that display a live seconds value -- see the corresponding
-// corner/edge content table in the configuration page.
+// Feature content IDs that require per-second updates.
 static const uint8_t SECOND_PRECISION_CONTENT_IDS[] = { 63, 69, 70, 71, 72 };
 
 static const EclipseData *s_data;

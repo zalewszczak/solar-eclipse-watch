@@ -4,9 +4,6 @@
 #include "../data/eclipse_data.h"
 
 // Small feature-domain rules shared by the value, layout and refresh paths.
-// Keeping these here prevents features_layer.c from accumulating unrelated
-// conversion/classification helpers while leaving the actual slot machinery
-// in one place.
 
 int16_t feature_rules_convert_temp(int16_t celsius, uint8_t temp_unit);
 int16_t feature_rules_apparent_temp_c(int16_t temp_c, int16_t wind_kmh, uint8_t humidity_pct);

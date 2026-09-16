@@ -74,10 +74,7 @@ void weather_effects_draw_effect(GContext *ctx, GRect bounds, uint8_t condition,
       }
     }
   } else if (condition == 1) { // fog
-    // Ground-hugging haze: density ramps up toward the horizon and
-    // fades going up, the way real fog actually behaves (thickest
-    // near the ground, thinning with altitude), rather than a
-    // uniform sparkle spread evenly over the whole sky.
+// Ground-hugging haze: density ramps up toward the horizon and
     graphics_context_set_fill_color(ctx, GColorWhite);
     for (int16_t y = 0; y < sky_h; y++) {
       int32_t density_pct = ((int32_t)y * 55) / (sky_h > 0 ? sky_h : 1) + 10; // 10%..65%
@@ -92,10 +89,6 @@ void weather_effects_draw_effect(GContext *ctx, GRect bounds, uint8_t condition,
 }
 
 // Fixed streak positions/angles for meteor showers -- how many are
-// actually drawn scales with meteor_intensity (0-100, ramped by
-// astro.js's activeMeteorShower() around whichever shower's active
-// window covers today). Only meaningful against a genuinely dark
-// sky, so the caller gates this on sun altitude.
 static const CompactPoint METEOR_STARTS[6] = {
   { 30, 15 }, { 80, 10 }, { 130, 20 }, { 165, 40 }, { 50, 45 }, { 110, 55 },
 };
@@ -118,12 +111,6 @@ void weather_effects_draw_meteors(GContext *ctx, GRect bounds, uint8_t intensity
 }
 
 // ---- aurora -------------------------------------------------------------
-// Kp-index-driven upper-sky glow. Only ever considered when it's dark
-// (aurora_visible below, computed in canvas_update_proc) and
-// aurora_enabled is on; the caller further gates on
-// aurora_visibility_pct (see data/eclipse_data.h) before calling this --
-// it assumes it's only being asked to draw because that check already
-// passed.
 #define AURORA_STREAK_COUNT 7
 static const uint8_t AURORA_STREAK_X_PCT[AURORA_STREAK_COUNT] = { 8, 22, 38, 50, 64, 80, 94 };
 // Uneven heights (percent of the band's own max) so the streaks read
@@ -134,11 +121,6 @@ static const uint8_t AURORA_STREAK_HEIGHT_PCT[AURORA_STREAK_COUNT] = { 70, 100, 
 /* Evenly spaced native-angle phases, rounded to match the previous table exactly. */
 
 // Several vertical "curtain" streaks, each with a genuine sine-wave
-// horizontal ripple (via sin_lookup, same fixed-point trig every hand/
-// marker in this app already uses) and a top-to-bottom color blend --
-// green at the base fading toward violet/magenta higher up (redder/
-// more magenta overall as Kp climbs), the classic look of a real
-// display's lower green arc topped by faint red/purple structure.
 
 void weather_effects_draw_aurora(GContext *ctx, GRect bounds, uint8_t visibility_pct, uint8_t kp_x10) {
   int16_t top_y = bounds.origin.y + SKY_TOP_MARGIN;

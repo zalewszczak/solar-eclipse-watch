@@ -31,24 +31,12 @@ void marker_text_draw(GContext *ctx, GPoint center, GRect screen, FontSlot *font
   const MarkerRingConfig *ring = is_hour ? hour_cfg : second_cfg;
   uint16_t mask = is_hour ? text_cfg->hour_mask : text_cfg->second_mask;
   if (mask == 0) return;
-  // Same "hour only" scoping as marker_layer_draw()'s own two ring
-  // calls: text markers sitting on the second ring's positions don't
-  // animate in either, regardless of what the caller passed in.
+// Same "hour only" scoping as marker_layer_draw()'s own two ring
   if (!is_hour) { anim_active = false; anim_overall_progress_1000 = 0; }
 
   GFont font = font_lookup_resolve(font_slot, text_cfg->font_choice);
   int16_t fh = font_lookup_height(text_cfg->font_choice) + font_lookup_y_offset(text_cfg->font_choice);
-  // Size the box from the selected font rather than a fixed pixel height.
-  // This keeps large custom display fonts and small system fonts aligned.
-  // Big custom display fonts (up
-  // to ~48px tall, e.g. Digital Dream/Minecrafter/Bebas Big) are
-  // selectable here too, that flat 30px wasn't even wide enough for a
-  // single glyph at that size, let alone a 2-3 character mark like
-  // "12" or a Roman numeral ("XII") -- text overflowing its own draw
-  // box like that is what was showing up as a trailing "…" instead of
-  // the actual mark. 2x the font's own height comfortably fits the
-  // widest label this ring ever draws (a 2-digit number or a short
-  // Roman numeral) at any font size, small or big alike.
+// Size the box from the selected font rather than a fixed pixel height.
   int16_t box_w = fh * 2 + 8, box_h = fh + 6;
 
   graphics_context_set_text_color(ctx, color);
@@ -65,28 +53,16 @@ void marker_text_draw(GContext *ctx, GPoint center, GRect screen, FontSlot *font
     }
     GPoint pos = marker_layer_point_on_ring(center, screen, angle, offset_text_pct, ring->thickness == 0 ? 100 : ring->inner_eccentricity);
    
-//    int32_t sin_v = sin_lookup(angle), cos_v = cos_lookup(angle);
-//    GPoint pos = GPoint(
-//      base.x + div_round((int32_t)text_cfg->offset_px * sin_v, TRIG_MAX_RATIO),
-//      base.y - div_round((int32_t)text_cfg->offset_px * cos_v, TRIG_MAX_RATIO));
+// int32_t sin_v = sin_lookup(angle), cos_v = cos_lookup(angle);
 
     char buf[8];
     int label = is_hour ? (i == 0 ? 12 : i) : (i * 5);
-    // "Animate background on start": each label counts up from 0 to
-    // its real value, using the same 12-mark clockwise stagger (mark
-    // index i is also the mark's own 12-o'clock-relative position
-    // here, same as draw_marker_ring's) but an accelerating curve
-    // instead of a decelerating one -- see marker_layer_ease_in_1000's own
-    // comment for why.
+// "Animate background on start": each label counts up from 0 to
     if (anim_active) {
       int32_t local = marker_anim_mark_progress_1000_raw(i, 12, anim_overall_progress_1000);
       int32_t eased = marker_layer_ease_in_1000(local);
       label = (int)(((int32_t)label * eased) / 1000);
-      // Hour markers never legitimately target 0 (i==0 maps to 12
-      // above), so label==0 here only ever means this particular
-      // mark's own staggered count-up hasn't actually started yet --
-      // skip drawing it at all rather than showing a static "0"
-      // placeholder for however long its stagger window hasn't opened.
+// Hour markers never legitimately target 0 (i==0 maps to 12
       if (label == 0) continue;
     }
     if (text_cfg->roman_numerals && label > 0) int_to_roman(label, buf, sizeof(buf));

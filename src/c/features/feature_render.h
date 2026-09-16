@@ -4,8 +4,6 @@
 #include "./feature_slot.h"
 
 // Shared feature rendering primitives.  This module owns the pixel-level
-// drawing and segment measurement used by the feature overlay; it does not
-// decide which content belongs in a slot or where the slot itself lives.
 
 GColor feature_render_contrasting_outline_color(GColor c);
 

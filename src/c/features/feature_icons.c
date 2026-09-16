@@ -98,9 +98,6 @@ void feature_icons_draw_render_icon(GContext *ctx, uint8_t icon_kind, int16_t ic
     }
     case 11: { // sunrise/sunset glyph -- now a plain image (see resources/images/
                // icon_sun_time_rise.png / icon_sun_time_set.png), drawn the exact
-               // same way every other bitmap corner icon is (feature_icon_assets_draw_resource_
-               // with_outline, just at this glyph's own wider/shorter size)
-               // instead of being hand-drawn with fill primitives every frame.
       GPoint pos = GPoint(icon_x, box_y + (row_height - SUN_TIME_ICON_ROWS) / 2);
       uint32_t sun_time_resource = icon_flag ? RESOURCE_ID_ICON_SUN_TIME_RISE : RESOURCE_ID_ICON_SUN_TIME_SET;
       draw_debug_marker_point(ctx, draw_debug, pos, GColorMagenta);
@@ -133,13 +130,6 @@ void feature_icons_draw_render_icon(GContext *ctx, uint8_t icon_kind, int16_t ic
       GPoint pos = GPoint(icon_x, box_y + (row_height - ICON_ROWS) / 2 - 2);
       uint8_t category = (uint8_t)icon_extra;
       // Full color (style 2) draws its outline pass using style 1
-      // (hollow)'s own silhouette instead of its real style --
-      // draw_weather_icon_filled() ignores whatever color it's given
-      // (it's a true-color+alpha image, no tint to apply), so shifting
-      // IT around would just stack identical copies of the same
-      // multi-color icon instead of a contrasting silhouette behind
-      // it. Hollow's outline shape in outline_color gives it a real
-      // outline without needing a second baked asset.
       if (do_outline) {
         uint8_t outline_icon_style = (weather_icon_style == 2) ? 1 : weather_icon_style;
         for (int i = 0; i < offs_n; i++) {
@@ -185,16 +175,6 @@ void feature_icons_draw_render_icon(GContext *ctx, uint8_t icon_kind, int16_t ic
     }
     case 13: { // bluetooth -- own case rather than the generic SIMPLE_ICONS
                // bucket above: that bucket draws each bitmap right-anchored
-               // within its own 16px box (icon_x - ICON_WIDTH + x_nudge),
-               // which is fine for a bitmap that's always the FIRST/only
-               // segment in its slot, but bluetooth routinely follows
-               // another segment (battery icon, a "NN%" text) -- and a
-               // right-anchored draw there lands up to (ICON_WIDTH -
-               // x_nudge) px to the LEFT of icon_x, i.e. back on top of
-               // whatever precedes it, cancelling out that segment's own
-               // trailing gap entirely. Left-anchored at icon_x instead,
-               // matching every other multi-segment-capable icon kind
-               // (battery, moon, compass, ...) below.
       GPoint pos = GPoint(icon_x, box_y + (row_height - ICON_ROWS) / 2);
       feature_icon_assets_draw_resource_with_outline(ctx, pos, RESOURCE_ID_ICON_BLUETOOTH, outline_style, outline_color, color);
       return;
@@ -215,12 +195,6 @@ void feature_icons_draw_render_icon(GContext *ctx, uint8_t icon_kind, int16_t ic
     }
     case 29: { // Quiet Time -- speaker / crossed-out speaker (icon_flag: true = active/muted).
                // Exported to a real image (see resources/images/icon_quiet_time.png /
-               // icon_quiet_time_muted.png) and drawn the exact same way every other
-               // bitmap corner icon is (feature_icon_assets_draw_resource_with_outline, standard
-               // ICON_WIDTH x ICON_ROWS size) -- was hand-drawn with fill/gpath
-               // primitives every frame; a plain resource lookup + the shared tinted-
-               // bitmap draw already every other icon_kind here reuses costs
-               // meaningfully less code than that custom drawing function did.
       GPoint pos = GPoint(icon_x, box_y + (row_height - ICON_ROWS) / 2);
       uint32_t quiet_time_resource = icon_flag ? RESOURCE_ID_ICON_QUIET_TIME_MUTED : RESOURCE_ID_ICON_QUIET_TIME;
       draw_debug_marker_point(ctx, draw_debug, pos, GColorMagenta);
@@ -229,7 +203,6 @@ void feature_icons_draw_render_icon(GContext *ctx, uint8_t icon_kind, int16_t ic
     }
     case 30: { // Hourly Vibrations -- watch+buzz / crossed-out (icon_flag: true = off/crossed).
                // Same "exported to a real image" treatment as Quiet Time above (see
-               // resources/images/icon_hourly_vibe.png / icon_hourly_vibe_off.png).
       GPoint pos = GPoint(icon_x, box_y + (row_height - ICON_ROWS) / 2);
       uint32_t hourly_vibe_resource = icon_flag ? RESOURCE_ID_ICON_HOURLY_VIBE_OFF : RESOURCE_ID_ICON_HOURLY_VIBE;
       draw_debug_marker_point(ctx, draw_debug, pos, GColorMagenta);
@@ -259,7 +232,6 @@ uint8_t feature_icons_weather_category(uint8_t weather_condition, uint8_t cloud_
 
 
 // Widths include the fixed 5px gap after the icon. Keeping this as a compact
-// lookup avoids a second large switch in the feature measurement path.
 static const uint8_t s_icon_plus_gap_width[31] = {
   [1] = 15, [2] = 15, [3] = 13, [4] = 21,
   [5] = 15, [6] = 15, [7] = 15, [8] = 15, [9] = 15, [10] = 15,

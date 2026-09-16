@@ -4,8 +4,6 @@
 #include "../../data/eclipse_data.h"
 
 // Weather and atmospheric effects rendered over the sky.
-// The background canvas remains responsible for deciding visibility and
-// supplying the current Sun color; this module owns the procedural artwork.
 void weather_layer_draw_clouds(GContext *ctx, GRect bounds, uint8_t cloud_pct,
                                uint8_t cloud_altitude_pct, uint8_t visibility_pct,
                                bool stormy, GPoint sun_center, bool sun_up,

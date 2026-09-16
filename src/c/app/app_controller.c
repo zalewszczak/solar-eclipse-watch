@@ -29,11 +29,7 @@ static void hands_controller_invalidate(void *context) {
 
 static EclipseData s_data;
 
-// Battery-saver tick policy and Pebble tick subscription live in
-// time_service.c. The application still owns what each tick means visually
-// (redraws, vibrations, feature refreshes, etc.); time_service only decides
-// SECOND_UNIT versus MINUTE_UNIT and forwards the resulting tick here.
-
+// Tick subscription policy lives in time_service.c; this callback owns visual work.
 // ---- tick + click ---------------------------------------------------------
 
 static void time_service_tick_handler(struct tm *tick_time, TimeUnits units_changed, void *context) {
@@ -43,9 +39,7 @@ static void time_service_tick_handler(struct tm *tick_time, TimeUnits units_chan
 
   battery_saver_controller_update();
 
-  // Deep sleep still subscribes at MINUTE_UNIT, because Pebble has no
-  // five-minute TickTimerService unit. Skip redraw work on the four minutes
-  // between five-minute boundaries.
+  // Deep sleep uses MINUTE_UNIT; process only five-minute boundaries.
   bool deep_sleep_skip = (battery_saver_phase() == BATTERY_SAVER_DEEP_SLEEP) && (tick_time->tm_min % 5 != 0);
   if (!deep_sleep_skip) {
     watchface_ui_refresh_status(false);
@@ -54,38 +48,20 @@ static void time_service_tick_handler(struct tm *tick_time, TimeUnits units_chan
     }
   }
 
-  // Seconds-precision feature slots piggyback on SECOND_UNIT rather than
-  // maintaining another wake source.
+  // Seconds-precision feature slots use SECOND_UNIT.
   if (time_service_is_seconds() && layout_controller_features_layer()) {
     features_layer_refresh_second_slots(layout_controller_features_layer());
   }
 
-  // Re-check on every tick because an eclipse can enter or leave its active
-  // contact window without a settings update. The time service changes
-  // subscription granularity only when it actually needs to.
+  // Re-check eclipse activity on each tick.
   time_service_update();
 }
 
 
 // ---- window lifecycle ----------------------------------------------------
 
-// Creates the right set of layers for the current bottom_style, tearing
-// down and rebuilding whatever's there if the style actually changed.
-// Needed (rather than just resizing existing layers) because the sky
-// canvas's cache bitmap is sized once at creation and Pebble has no
-// API to resize a layer's internal state afterward -- a mode switch
-// that changes the canvas's height means destroying and recreating
-// it, not just adjusting its frame. Idempotent: safe to call after
-// every settings update even when the style didn't change, since it
-// no-ops in that case.
-// Reacts to Timeline Quick View (or any future system overlay using
-// this same API) appearing/disappearing at the bottom of the screen.
-// Keep the digital panel's top edge anchored to the obstruction so its
-// content remains fully visible as the available height changes. The panel
-// shifts upward by the amount consumed by the system overlay.
-// it) intact, with the sky canvas above it shrinking by that same
-// amount to make room -- same "make room by moving, not cropping"
-// idea analog mode's hands/canvas already used for this.
+// Rebuild layers when bottom_style changes; the sky cache is sized at creation.
+// Keep the digital panel above system overlays and shrink the sky to match.
 static void unobstructed_change_handler(AnimationProgress progress, void *context) {
   (void)context;
   layout_controller_handle_unobstructed(progress);
@@ -99,9 +75,7 @@ static void window_load(Window *window) {
   Layer *root = window_get_root_layer(window);
   GRect bounds = layer_get_bounds(root);
 
-  // Create the countdown first; the layout controller re-parents it on
-  // top of the newly composed layers whenever the layout changes.
-  // switch, so its own creation only has to happen once.
+  // Create the countdown once; layout changes re-parent it as needed.
   clock_display_create_countdown(root, GRect(0, 20, bounds.size.w, 20));
 
   layout_controller_apply();
@@ -132,9 +106,7 @@ static void comms_data_applied(CommsChangeFlags changes, void *context) {
     background_layer_set_data(layout_controller_canvas_layer(), &s_data);
   }
 
-  // Preserve the original invalid-payload fast path: settings that arrive
-  // before the first valid eclipse payload are applied and rendered, but
-  // battery-saver/tick policy is not re-evaluated until valid data exists.
+  // Apply early settings, but defer tick-policy changes until valid eclipse data exists.
   if (!s_data.valid) {
     persistence_save(&s_data);
     watchface_ui_refresh_status(true);
@@ -157,10 +129,7 @@ void app_controller_init(void) {
   persistence_load(&s_data);
   battery_saver_controller_init(&s_data);
 
-  // Initialize the time service before pushing the window because Pebble may
-  // invoke window_load() synchronously during window_stack_push(). The load
-  // path computes the countdown's precision, so the scheduling policy must
-  // already have a valid data pointer at that point.
+  // Initialize time service before pushing the window; window_load() may run synchronously.
   time_service_init(&s_data, time_service_tick_handler, NULL);
   hands_controller_init(&s_data, hands_controller_invalidate, NULL);
   clock_display_init(&s_data);

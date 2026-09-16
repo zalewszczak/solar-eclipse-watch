@@ -24,11 +24,6 @@ static const TimezoneInfo TIMEZONES[] = {
 #define TIMEZONE_COUNT (int)(sizeof(TIMEZONES) / sizeof(TIMEZONES[0]))
 
 // civil_from_days()/days_from_civil() -- the well-known constant-time
-// Gregorian-calendar<->epoch-days conversion (Howard Hinnant's
-// "civil_from_days"/"days_from_civil"), used instead of gmtime() so this
-// doesn't depend on anything beyond plain integer arithmetic. Verified
-// numerically against Python's datetime for round-trips across leap
-// years and the epoch boundary before use.
 static void civil_from_days(int32_t z, int *y, int *m, int *d) {
   z += 719468;
   int32_t era = (z >= 0 ? z : z - 146096) / 146097;
@@ -60,7 +55,6 @@ static int day_of_week_from_days(int32_t days) {
 }
 
 // The Nth Sunday of a month as epoch days (nth=1 => first Sunday,
-// nth=-1 => last Sunday).
 static int32_t nth_sunday_epoch_days(int year, int month, int nth) {
   if (nth > 0) {
     int32_t d1 = days_from_civil(year, month, 1);
@@ -76,11 +70,6 @@ static int32_t nth_sunday_epoch_days(int year, int month, int nth) {
 }
 
 // Whether US-rule DST is active at this exact UTC instant. Transition
-// hours are approximated with a single fixed UTC hour common to
-// continental US zones (2am local standard time is ~7am UTC for the
-// March start, ~6am UTC for the November end) -- exact for the correct
-// calendar day either way, could be off by up to a couple hours right
-// at the transition instant itself for the westernmost zones.
 static bool is_us_dst(int32_t epoch_days, int32_t secs_of_day, int year) {
   int32_t start = nth_sunday_epoch_days(year, 3, 2) * 86400 + 7 * 3600;
   int32_t end = nth_sunday_epoch_days(year, 11, 1) * 86400 + 6 * 3600;
@@ -89,7 +78,6 @@ static bool is_us_dst(int32_t epoch_days, int32_t secs_of_day, int year) {
 }
 
 // EU-rule DST -- exact, since the EU rule is itself defined in UTC
-// terms (01:00 UTC on the last Sunday of March/October).
 static bool is_eu_dst(int32_t epoch_days, int32_t secs_of_day, int year) {
   int32_t start = nth_sunday_epoch_days(year, 3, -1) * 86400 + 3600;
   int32_t end = nth_sunday_epoch_days(year, 10, -1) * 86400 + 3600;
@@ -98,7 +86,6 @@ static bool is_eu_dst(int32_t epoch_days, int32_t secs_of_day, int year) {
 }
 
 // Resolves a TimezoneInfo's actual current UTC offset in minutes,
-// including DST if applicable right now.
 int16_t feature_timezone_current_offset_min(const TimezoneInfo *tz, time_t utc_now) {
   int32_t epoch_days = (int32_t)(utc_now / 86400);
   int32_t secs_of_day = (int32_t)(utc_now % 86400);
@@ -111,12 +98,6 @@ int16_t feature_timezone_current_offset_min(const TimezoneInfo *tz, time_t utc_n
 }
 
 // Discrete three-band read of a remote timezone's local hour: white
-// through the day, black overnight, and a light-gray "twilight" band
-// around sunrise/sunset -- deliberately a simple fixed-hour heuristic
-// (06:00-08:00 sunrise, 18:00-20:00 sunset) rather than real sun-
-// altitude astronomy, which isn't available for an arbitrary remote
-// timezone the way it is for the user's own location via
-// sky_layer_is_bright().
 GColor feature_timezone_daylight_color(int local_hour24) {
   if (local_hour24 >= 8 && local_hour24 < 18) return GColorWhite;  // day
   if (local_hour24 < 6 || local_hour24 >= 20) return GColorBlack;  // night

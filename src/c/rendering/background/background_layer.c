@@ -15,51 +15,29 @@
 #include "./background_cache.h"
 #include "./background_animation.h"
 
-// ---------------------------------------------------------------------------
 // Marker rendering lives in marker_layer.c. The background canvas owns the
-// cached sky and decides WHEN markers need to be painted; marker_layer owns
-// the geometry, text, bitmap resources, and marker animation itself.
-// ---------------------------------------------------------------------------
 
 // Height of the black "horizon" strip at the bottom of the canvas --
-// also where altitude 0 lines up, so the sun/moon visibly sink behind
-// it as they set (it's drawn last, on top, so it naturally clips
-// whatever's behind it once a disc's center passes below this line).
-// Shared sky-canvas geometry. Celestial body positioning uses the same
-// horizon and top-margin values through celestial_layer.h.
 #define SKY_TOP_MARGIN 20
 
 
 // 4x4 ordered (Bayer) dither matrix, values 0-15. The same matrix is
-// shared with the fixed-point rasterizer so all dithered rendering uses
-// identical thresholds. It is used to
-// stipple the cloud puffs at a density proportional to cloud cover %,
-// rather than drawing them as flat filled shapes -- keeps them looking
-// like e-paper "clouds" rather than solid gray blobs, and lets the sky
-// and sun show through underneath.
 
 typedef struct {
   EclipseData *data;
-  bool show_labels; // shake-to-reveal Sun/Moon/planet name labels
-  int last_eclipse_phase;   // see celestial_compute_eclipse_phase(): forces an immediate redraw
+  bool show_labels;
+  int last_eclipse_phase;
                               // the moment this changes, rather than waiting for the
                               // normal once-a-minute cadence to happen to catch up
-  time_t last_eclipse_max;   // d->max_t last seen -- lets the "just passed greatest eclipse"
-                               // vibration below tell "still the same eclipse, already
-                               // handled" apart from "a genuinely new eclipse's max time
-                               // just arrived", across the repeated set_data() calls a
-                               // normal refresh cycle causes throughout the same eclipse day
-  bool max_vibrated;          // fired the "at maximum eclipse" vibration yet for last_eclipse_max?
-  bool last_iss_visible;     // same idea, for the ISS appearing/disappearing
+  time_t last_eclipse_max;
+// vibration below tell "still the same eclipse, already
+  bool max_vibrated;
+  bool last_iss_visible;
   time_t storm_flash_end;    // 0 = no lightning flash in progress; otherwise the time
                                // (see draw_clouds_realistic's storm-flash comment) the
                                // current flash finishes and the sky reverts to normal
   bool storm_flash_was_active; // storm_flash_end > now as of the last tick -- lets the
-                                 // once-a-second throttle check (which runs before the
-                                 // expensive full redraw below even happens) notice the
-                                 // instant a flash starts or ends and force a redraw for
-                                 // just that transition, without abandoning the normal
-                                 // once-a-minute cadence the rest of the time
+// once-a-second throttle check (which runs before the
   bool bg_anim_active;       // "animate background on start" -- see background_layer_set_background_animation()
   uint16_t bg_anim_elapsed_ms; // and canvas_update_proc's own use of both these fields
   bool planet_seek_active;      // "Planet seek" (shake_anim_mode 2 or 3) -- see
@@ -106,18 +84,7 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
     return;
   }
 
-  // "Animate background on start": sweeps the Sun/Moon/planets' own
-  // effective observation time from a couple hours ago up to the real
-  // `now`, eased to slow down toward the end -- since sky_colors_for_
-  // altitude()/the Sun's own color/planet-visibility-threshold below
-  // all key off whichever altitude this produces, substituting it in
-  // place of `now` for just those position/color lookups (NOT
-  // anything else in this function -- eclipse timing, the weather-
-  // driven cloud coverage amount, the user's own day/night color
-  // scheme, and the countdown label all keep using the real `now`)
-  // cascades the sweep across the sky gradient, the Sun's disc color,
-  // and every body's screen position all at once from this one
-  // substitution point.
+// "Animate background on start": sweeps the Sun/Moon/planets' own
   time_t sky_now = now;
   if (state->bg_anim_active && d->bg_anim_mode == 1) {
     int32_t progress = ((int32_t)state->bg_anim_elapsed_ms * 1000) / BACKGROUND_ANIMATION_DURATION_MS;
@@ -127,41 +94,16 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
     sky_now = past + (time_t)(((int64_t)(now - past) * eased) / 1000);
   }
 
-  // Computed early -- cheap (just interpolation, no drawing) -- since
-  // the throttle decision below needs sky darkness to tell whether
-  // the ISS's visibility just changed.
+// Computed early -- cheap (just interpolation, no drawing) -- since
   int16_t alt = celestial_interp_sun_alt_decideg(d, sky_now);
   bool sky_is_dark = alt <= -60;
-  // Space-view sky mode has no atmosphere to dim the sky in the first
-  // place, so its celestial bodies (planets, ISS) are never gated by
-  // brightness -- only by whether they're actually above the horizon,
-  // same as the Sun/Moon already are in every mode. Stars get their
-  // own separate always-drawn treatment further down, since they
-  // don't exist at all outside this mode.
+// Space-view sky mode has no atmosphere to dim the sky in the first
   bool sky_dark_for_bodies = sky_is_dark || d->sky_mode == 2;
 
-  // Shared by every Sun/Moon/planet paint call below: skip painting
-  // the body into this frame (it still gets fully positioned/sized as
-  // normal, just not drawn) whenever something else is going to draw
-  // it separately, on top of whatever gets cached here, instead --
-  // Planet seek (see its own celestial.sun_center comment above) and now
-  // "Planets" background-on-start mode too, which had the same
-  // "duplicate" bug Planet seek was built to avoid: painting the
-  // Sun/Moon/planets straight into the frame that becomes the reusable background cache
-  // meant the LAST animated frame's positions stayed baked into that
-  // cache, and every SUBSEQUENT blit-from-cache redraw (this canvas's
-  // normal once-a-minute throttle) kept showing them there even as
-  // real time moved the bodies elsewhere -- a second, stale copy
-  // wherever they'd been mid-sweep, alongside the real one. See
-  // celestial_layer_draw_bg_anim_planets() below for the actual fix.
+// Shared by every Sun/Moon/planet paint call below: skip painting
   bool skip_body_paint = state->planet_seek_active || (state->bg_anim_active && d->bg_anim_mode == 1);
 
-  // Same "skip it here, draw it fresh as an overlay after the cache
-  // capture" trick as skip_body_paint above, now for the "Markers"
-  // background-on-start mode -- see background_overlays_draw_marker_animation()'s
-  // own comment for why its backdrop can be captured once (unlike
-  // mode 1's, which keeps changing throughout the sweep) and only the
-  // overlaid element needs to be fresh every frame.
+// Same "skip it here, draw it fresh as an overlay after the cache
   bool skip_marker_paint = state->bg_anim_active && d->bg_anim_mode == 2;
 
   int current_phase = celestial_compute_eclipse_phase(d, now);
@@ -169,57 +111,18 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
   bool phase_just_changed = current_phase != state->last_eclipse_phase;
   bool was_first_draw = (state->last_eclipse_phase == -1);
 
-  // Fires once per eclipse at the moment of greatest eclipse itself
-  // (d->max_t, always populated regardless of type), independent of the
-  // phase-boundary vibration below -- that one only ever fires for
-  // total/annular eclipses (crossing C1/C2/C3/C4), so a plain partial
-  // eclipse never had ANY vibration at its actual visual climax before
-  // this. Tracks last_eclipse_max (not just a bool) so repeated
-  // set_data() calls for the same eclipse during a normal refresh
-  // cycle don't re-arm and re-fire this after it's already happened,
-  // while a genuinely new eclipse (different max time) correctly does.
+// Fires once per eclipse at the moment of greatest eclipse itself
   if (d->max_t != state->last_eclipse_max) {
     state->last_eclipse_max = d->max_t;
     state->max_vibrated = false;
   }
   bool just_passed_max = d->has_eclipse && d->max_t != 0 && !state->max_vibrated && now >= d->max_t;
 
-  // The sky/sun/moon/clouds/planets barely change within a minute,
-  // and this is an e-paper display, so the expensive part of this
-  // redraw is self-throttled to once a minute -- tracked here rather
-  // than only relying on the caller not to mark us dirty too often,
-  // so the guarantee holds regardless of what triggers the redraw.
-  // New data (set_data), a label toggle (set_show_labels), crossing
-  // an eclipse phase boundary (C1/C2/C3/C4), passing the moment of
-  // greatest eclipse, or the ISS appearing or disappearing all force
-  // through immediately, since those are visible state changes that
-  // must show up right away rather than waiting for the next
-  // scheduled minute.
-  //
-  // Critically, the seconds *in between* don't just skip drawing --
-  // Pebble doesn't guarantee a layer's previous pixels survive until
-  // its next update_proc call, so doing nothing here flickered. The
-  // real fix is a cached bitmap: on a full redraw we draw everything
-  // as before, then capture the just-drawn framebuffer region into
-  // the reusable background cache via the documented graphics_capture_frame_buffer() API;
-  // on the throttled seconds we just blit that cached bitmap back,
-  // which is cheap and always leaves valid pixels on screen.
-  // Realistic-cloud lightning during a storm: a cheap per-second check
-  // (not itself a redraw -- just arithmetic) for whether a flash
-  // should start or stop right now, so a strike can appear/disappear
-  // on the actual second it's due rather than waiting for the next
-  // scheduled once-a-minute redraw. Deliberately NOT a general
-  // exception to the once-a-minute throttle -- outside an active
-  // storm this is always false and costs nothing extra; see
-  // draw_clouds_realistic() for what a flash actually looks like.
+// The sky/sun/moon/clouds/planets barely change within a minute,
   bool storm_now = d->sky_mode == 0 && d->weather_condition == 4;
   bool flash_currently_active = storm_now && now < state->storm_flash_end;
   if (storm_now && !flash_currently_active) {
-    // Deterministic pseudo-random hash of the current second, not a
-    // real RNG (nothing here needs cryptographic quality, and this
-    // avoids persisting extra seed state) -- gives each second during
-    // a storm roughly a 1-in-43 chance of being a strike, averaging
-    // one flash every ~40s.
+// Deterministic pseudo-random hash of the current second, not a
     uint32_t h = (uint32_t)now * 2654435761u;
     if ((h & 0xFF) < 6) {
       state->storm_flash_end = now + 1; // strikes read as a single ~1s flash
@@ -255,20 +158,11 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
     return;
   }
 
-  // A brief double-buzz on a real contact-time crossing (C1/C2/C3/C4,
-  // i.e. current_phase 2-5) -- not on app launch happening to land
-  // mid-eclipse (was_first_draw), and not on the earlier "there's an
-  // eclipse today, waiting" 0->1 transition, which isn't really the
-  // start of anything happening yet.
+// A brief double-buzz on a real contact-time crossing (C1/C2/C3/C4,
   if (phase_just_changed && !was_first_draw && current_phase >= 2 && d->vibrate_on_phase_change) {
     vibes_double_pulse();
   }
-  // Same idea, but for the moment of greatest eclipse itself (see
-  // just_passed_max above) -- this is the one that actually fires for
-  // a plain partial eclipse, and for total/annular ones it's a second,
-  // near-simultaneous buzz alongside the C2 phase-boundary one above
-  // (max isn't guaranteed to land exactly at C2), which is a minor,
-  // harmless redundancy rather than a bug.
+// Same idea, but for the moment of greatest eclipse itself (see
   if (just_passed_max && !was_first_draw && d->vibrate_on_phase_change) {
     vibes_double_pulse();
   }
@@ -280,11 +174,7 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
   uint8_t cloud_pct = sky_layer_interp_cloud_pct(d, now);
   bool stormy = d->weather_condition == 4;
 
-  // sky_mode: 0=Weather sky (below, unchanged), 1=Clear sky (same
-  // day/night gradient, but weather_enabled below skips the haze and
-  // the cloud/weather-effect calls further down), 2=Space view (no
-  // gradient at all -- flat near-black, handled entirely in this
-  // branch instead of falling through to sky_layer_fill_gradient()).
+// sky_mode: 0=Weather sky (below, unchanged), 1=Clear sky (same
   bool weather_enabled = d->sky_mode == 0;
   if (d->sky_mode == 2) {
     graphics_context_set_fill_color(ctx, GColorBlack);
@@ -293,28 +183,12 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
     SkyRgb sky_top_rgb, sky_hz_rgb;
     sky_layer_colors_for_altitude(alt, &sky_top_rgb, &sky_hz_rgb);
 
-    // Digital top layout only: this canvas is the BOTTOM
-    // DIGITAL_PANEL_H..(DIGITAL_PANEL_H+bounds.size.h) slice of a
-    // conceptually 228px-tall gradient whose top DIGITAL_PANEL_H rows
-    // are painted separately by sky_layer_top_gradient_*() (the
-    // transparent panel's own reserved strip -- see that module's own
-    // comment) -- computing this canvas's OWN band/horizon math
-    // against that same taller virtual span, instead of just its own
-    // local bounds, is what makes the two independently-drawn pieces
-    // line up into one seamless gradient rather than each stretching
-    // the same top/band/hz colors across its own shorter span and
-    // visibly disagreeing at the seam. Every other layout keeps the
-    // virtual span identical to `bounds` itself -- i.e. no change at
-    // all from before this existed.
+// Digital top layout only: this canvas is the BOTTOM
     bool is_digital_top = feature_layout_is_digital_top_layout(d->bottom_style);
     int16_t virtual_top_y = is_digital_top ? DIGITAL_PANEL_H : bounds.origin.y;
     int16_t virtual_total_h = is_digital_top ? (DIGITAL_PANEL_H + bounds.size.h) : bounds.size.h;
 
-    // Beneath an overcast deck the sky reads grayer, like the view
-    // crossing under cloud cover from a plane window -- the effect
-    // ramps in past 35% cover, and rain/snow/storm push it further
-    // gray on top of whatever the coverage alone would give. Skipped
-    // entirely in Clear sky mode -- no weather means no haze either.
+// Beneath an overcast deck the sky reads grayer, like the view
     uint8_t gray_amount = 0;
     if (weather_enabled) {
       if (cloud_pct > 35) {
@@ -332,16 +206,7 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
     SkyRgb hz_rgb = sky_hz_rgb; // what actually reaches fill_sky_gradient_ex's horizon row
     int16_t band_y_screen = virtual_top_y + virtual_total_h; // off-canvas: no visible band by default
     if (gray_amount > 0) {
-      // The gradient can fade back UP to the raw (often bright/
-      // warm, especially at sunset/sunrise) horizon color right at
-      // the bottom row, undoing the graying effect exactly where a
-      // heavy deck should block the most light -- straight down,
-      // near the ground. Now the horizon row darkens too, toward a
-      // much darker target than the band itself (which sits right at
-      // the cloud deck's own height, not blocked by anything above
-      // it yet) -- so a heavy storm reads as "darkening further the
-      // lower/closer to the ground you look" rather than just a flat
-      // gray band that un-grays again beneath it.
+// The gradient can fade back UP to the raw (often bright/
       SkyRgb neutral_gray = { 115, 117, 120 };
       SkyRgb dark_gray = { 40, 41, 46 };
       band_rgb.r = render_math_lerp8(sky_hz_rgb.r, neutral_gray.r, gray_amount, 100);
@@ -356,13 +221,7 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
     sky_layer_fill_gradient(ctx, bounds, virtual_top_y, virtual_total_h, sky_top_rgb, band_rgb, band_y_screen, hz_rgb);
   }
 
-  // "Dark enough to see planets/meteors" -- same threshold used
-  // elsewhere for picking light vs dark overlay text, reused here for
-  // consistency rather than inventing a second one. Meteors are an
-  // atmospheric-entry phenomenon -- with no atmosphere left in space-
-  // view mode, there's nothing for one to burn up in, so this stays
-  // gated by the real sky_is_dark (not sky_dark_for_bodies) and is
-  // additionally suppressed outright in that mode.
+// "Dark enough to see planets/meteors" -- same threshold used
   bool meteors_visible = sky_is_dark && d->meteor_intensity > 0 && d->sky_mode != 2;
   GPoint meteor_label_point = GPoint(bounds.origin.x + bounds.size.w / 2, bounds.origin.y + 40);
   if (meteors_visible) {
@@ -385,29 +244,14 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
                          skip_body_paint, suppress_other_bodies_for_eclipse,
                          sun_fill_color, sun_outline_color);
 
-  // Aurora: dark sky, opted in, and the current Kp index plausibly
-  // reaches this latitude (see data/eclipse_data.h's aurora_visibility_pct
-  // comment) -- an atmospheric phenomenon like clouds, so it's absent
-  // in Space view (sky_mode == 2, "no atmosphere") same as meteors,
-  // but unlike clouds/weather it's NOT gated by weather_enabled --
-  // Clear sky mode still shows it (arguably the more realistic
-  // combination: clear skies are exactly when aurora is best seen).
-  // Threshold of 15 (not >0) avoids drawing a barely-there glow for a
-  // visibility estimate this approximate.
+// Aurora: dark sky, opted in, and the current Kp index plausibly
   bool aurora_visible = d->sky_mode != 2 && d->aurora_enabled && sky_is_dark && d->aurora_visibility_pct > 15;
   GPoint aurora_label_point = GPoint(bounds.origin.x + bounds.size.w / 2, bounds.origin.y + SKY_TOP_MARGIN + 20);
   if (aurora_visible) {
     weather_effects_draw_aurora(ctx, bounds, d->aurora_visibility_pct, d->aurora_kp_x10);
   }
 
-  // Cloud clusters, drawn last so they visibly sit in front of (and
-  // can partially obscure) the sun/moon, same as real clouds. Skipped
-  // entirely outside Weather sky mode -- Clear sky and Space view
-  // both represent weather-free skies by definition -- and, per
-  // request, during Planet seek too (its own separate reason: weather
-  // is suppressed for the whole animation, not just this one frame,
-  // so it doesn't get baked into the bodies-free cache Planet seek
-  // reuses every frame -- see celestial.sun_center's own comment above).
+// Cloud clusters, drawn last so they visibly sit in front of (and
   if (weather_enabled && !state->planet_seek_active) {
     SkyRgb cached_sun_rgb = fullscreen_sun
       ? sky_layer_space_sun_color()
@@ -418,24 +262,11 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
     weather_effects_draw_effect(ctx, bounds, d->weather_condition, cloud_pct, d->cloud_altitude_pct);
   }
 
-  // Shake-to-reveal: brief name labels next to whichever bodies are
-  // actually on screen right now. Needs its own main_color -- the
-  // scheme lookup below is otherwise only computed further down,
-  // scoped to the big-analog marker-drawing block, and shake labels
-  // apply in every mode.
+// Shake-to-reveal: brief name labels next to whichever bodies are
   if (state->show_labels) {
     GColor label_bg, label_main_color, label_accent;
     eclipse_ui_get_active_color_scheme(d, now, &label_bg, &label_main_color, &label_accent);
-    // Sun/Moon/planets/stars/ISS only get their plain static label
-    // OUTSIDE Planet seek -- during it, draw_planet_seek_overlay()
-    // (called separately, above) already drew each one its own live,
-    // compass-tracked label, so drawing this fixed one too would lay
-    // a second, non-moving label right on top of it. Aurora and
-    // meteor showers below have no planet-seek equivalent of their
-    // own (they're diffuse/wide-area sky elements, not a single
-    // point-like body), so they keep revealing at their normal fixed
-    // position regardless of mode -- per the request, they shouldn't
-    // be panned around by the compass the way a point body is.
+// Sun/Moon/planets/stars/ISS only get their plain static label
     if (!state->planet_seek_active) {
       celestial_layer_draw_labels(ctx, bounds, d, &state->celestial, d->label_style, label_main_color);
     }
@@ -449,45 +280,14 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
     }
   }
 
-  // Hour/second markers -- analog mode only. Drawn on top of
-  // everything above (sky, sun/moon, clouds, labels) so they stay
-  // visible over any part of the sky -- matching hands controller's
-  // own positioning, which always uses the full unobstructed screen, so
-  // markers and hands stay aligned with each other.
-  // skip_marker_paint: this frame's markers get drawn afterward
-  // instead, by background_overlays_draw_marker_animation(), so the cache stays
-  // marker-free for every subsequent cheap frame to blit and overlay
-  // onto -- same "skip it here, draw it fresh as an overlay after"
-  // trick skip_body_paint uses above for bg_anim_mode 1's bodies.
+// Hour/second markers -- analog mode only. Drawn on top of
   if (d->bottom_style == 1 && !skip_marker_paint) {
     GColor bg, main_color, accent_color;
     eclipse_ui_get_active_color_scheme(d, now, &bg, &main_color, &accent_color);
     marker_layer_draw(ctx, &state->markers, center, bounds, d, main_color, accent_color, bg, false, 0, d->draw_debug);
   }
 
-  // Cache the base composition before drawing transient overlays. The cache
-  // module owns the framebuffer capture/copy details; this layer only decides
-  // which composition belongs in the reusable backdrop.
-  //
-  // background_cache_capture() reads raw pixels straight out of the
-  // hardware framebuffer (graphics_capture_frame_buffer()), which is
-  // addressed in ABSOLUTE screen coordinates -- unlike every other
-  // drawing call in this function, which goes through `ctx` and is
-  // automatically translated by Pebble from this layer's own LOCAL
-  // bounds (always origin (0,0)) to wherever the layer's frame actually
-  // sits on screen. `bounds` here is that local rect, so passing it
-  // Passing the raw capture straight through makes the capture read (and the next
-  // cache-hit blit above re-draw) the wrong rows whenever this layer
-  // isn't pinned to the screen's own top -- exactly Digital top's case,
-  // where the sky canvas's frame starts at (0, DIGITAL_PANEL_H) rather
-  // than (0, 0): the cache captured the screen's TOP DIGITAL_PANEL_H
-  // rows (actually the transparent clock panel's own area) instead of
-  // this layer's real ones, then blitted that back shifted down by
-  // DIGITAL_PANEL_H on every throttled redraw -- the blank-then-
-  // shifted-view glitch. Converting the local origin to its real
-  // on-screen position first fixes the capture; the cache-hit blit
-  // above doesn't need the same treatment since it draws through `ctx`
-  // like everything else here, not the raw framebuffer.
+// Cache the base composition before drawing transient overlays. The cache
   GPoint capture_screen_origin = layer_convert_point_to_screen(layer, bounds.origin);
   GRect capture_bounds = GRect(capture_screen_origin.x, capture_screen_origin.y, bounds.size.w, bounds.size.h);
   background_cache_capture(&state->cache, ctx, capture_bounds);
@@ -553,28 +353,13 @@ void background_layer_set_background_animation(Layer *layer, bool active, uint16
   bool was_active = state->bg_anim_active;
   state->bg_anim_active = active;
   state->bg_anim_elapsed_ms = elapsed_ms;
-  // Marker animation changes only its transient overlay on top of an
-  // otherwise reusable backdrop, so only entry/exit requires a full redraw.
-  // Planet animation is different: its sky-time substitution changes the
-  // gradient and Sun color during the sweep, so it needs a full redraw while
-  // frame -- forced unconditionally here whenever it's the active
-  // mode; state->data may not be set
-  // yet the very first time this is ever called (app launch, before
-  // the first background_layer_set_data()); forcing in that case too is
-  // the safe default.
+// Marker animation changes only its transient overlay on top of an
   uint8_t mode = state->data ? state->data->bg_anim_mode : 1;
   if (mode == 1 || active != was_active) background_cache_invalidate(&state->cache);
   layer_mark_dirty(layer);
 }
 
 // Deliberately does NOT force a full redraw the way background_layer_set_
-// bg_anim() above does -- Planet seek's whole point is to redraw ONLY
-// the repositioned bodies each frame on top of a cached backdrop
-// (see canvas_update_proc's own "Planet seek" section), so forcing
-// the full, expensive gradient+clouds+markers pipeline on every single
-// 33ms tick would defeat that entirely. Just updates state and marks
-// the layer dirty so canvas_update_proc runs -- it decides for itself
-// whether that means a full redraw or the lightweight Planet-seek path.
 void background_layer_set_planet_seek(Layer *layer, bool active, uint16_t elapsed_ms, int32_t heading_deg) {
   CanvasState *state = (CanvasState *)layer_get_data(layer);
   bool was_active = state->planet_seek_active;
@@ -586,10 +371,6 @@ void background_layer_set_planet_seek(Layer *layer, bool active, uint16_t elapse
 }
 
 // Lightweight per-second nudge: marks the layer dirty (so the OS
-// invokes canvas_update_proc), but does NOT force a redraw -- the
-// canvas's own once-a-minute throttle inside canvas_update_proc
-// decides whether anything actually gets recomputed. Safe to call
-// every second without it costing a full redraw every time.
 void background_layer_tick(Layer *layer) {
   layer_mark_dirty(layer);
 }

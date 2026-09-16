@@ -189,9 +189,6 @@ void __attribute__((noinline)) feature_value_composite_compute(FeatureSlot *slot
     }
     case 115: { // battery (icon + %) + BT + Quiet Time + Hourly Vibrations (icons only) --
                // same as 111, except battery is the one icon that also shows its own
-               // percentage text (matching how battery already behaves everywhere
-               // else -- see compute_health_value's own case 10 comment); the other
-               // 3 stay icon-only, same as 111.
       CompositeBatteryStatus status;
       composite_battery_status_get(&status, dynamic, flat);
       BatteryChargeState bs = status.battery;

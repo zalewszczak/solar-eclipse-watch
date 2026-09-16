@@ -24,15 +24,6 @@ static int16_t celestial_alt_to_y(int16_t alt_decideg, int16_t scale_max_decideg
 }
 
 // Linear azimuth-to-x mapping the star field and ISS already used --
-// the full 0-360 deg compass circle unrolled across the screen's own
-// width, so x=0 is due north and x=canvas_w is back around to north
-// The Sun, Moon, and planets share the same vertical mapping as the sky.
-// fixed horizontal "lanes" instead (screen-center, 2/3-across, and a
-// handful of hardcoded per-planet percentages) with only their Y
-// reflecting real altitude -- harmless as a stylized layout, but
-// inconsistent with stars/ISS already moving with real bearing, and
-// not what a "sky view" reads as to someone expecting compass-accurate
-// positions. Sun/Moon/planets now share this same mapping.
 static int16_t celestial_az_decideg_to_x(uint16_t az_decideg, int16_t canvas_w) {
   return (int16_t)(((int32_t)canvas_w * az_decideg) / 3600);
 }
@@ -332,16 +323,7 @@ void celestial_layer_draw_bg_anim_planets(GContext *ctx, GRect bounds,
     if (p == PLANET_SATURN) celestial_bodies_draw_saturn(ctx, state->planet_center[p], d->saturn_ring_open_pct);
     else { graphics_context_set_fill_color(ctx, celestial_bodies_planet_color((PlanetId)p)); graphics_fill_circle(ctx, state->planet_center[p], CELESTIAL_PLANET_R); }
   }
-  // Space view's star field -- celestial_layer_update() above already
-  // computes state->star_visible[]/star_center[] every frame regardless
-  // of skip_body_paint (same as it does for the Sun/Moon/planets), but
-  // Repaint these bodies explicitly here so the cached background remains
-  // never appeared for the ~2s "animate background on start" sweep and
-  // only popped in once bg_anim_mode 1 ended and the normal (non-
-  // skip_body_paint) draw path took over. Same plain white fill circle
-  // celestial_layer_update() itself uses; no per-star animation of
-  // their own to blend since -- unlike the Sun/Moon/planets -- stars
-  // don't move with the sweep's altitude/azimuth interpolation at all.
+// Space view's star field -- celestial_layer_update() above already
   for (int s = 0; s < STAR_COUNT; s++) {
     if (!state->star_visible[s]) continue;
     graphics_context_set_fill_color(ctx, GColorWhite);

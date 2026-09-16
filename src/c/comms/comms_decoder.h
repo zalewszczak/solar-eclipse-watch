@@ -4,7 +4,5 @@
 #include "./comms.h"
 #include "../data/eclipse_data.h"
 
-// Applies one AppMessage dictionary to EclipseData and returns the set of
-// presentation domains whose inputs changed. This module owns wire-format
-// decoding; comms.c retains transport, retry, and lifecycle policy.
+// Decodes one AppMessage dictionary into EclipseData and reports changed domains.
 CommsChangeFlags comms_decoder_apply(DictionaryIterator *iter, EclipseData *data);

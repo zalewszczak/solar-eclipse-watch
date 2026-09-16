@@ -5,8 +5,6 @@
 #include "./feature_slot.h"
 
 // Refresh orchestration for the feature-slot cache. This module coordinates
-// value computation, segment measurement and the shared custom feature font,
-// but leaves layout and pixel rendering to their dedicated modules.
 void feature_controller_set_data(FeaturesState *state, EclipseData *data);
 void feature_controller_refresh_values(FeaturesState *state);
 void feature_controller_refresh_second_slots(FeaturesState *state);

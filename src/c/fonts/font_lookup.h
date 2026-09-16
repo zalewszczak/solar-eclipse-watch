@@ -18,15 +18,7 @@
  * Gothic 14) rather than crashing.
  */
 
-// A resource-backed custom font needs an explicit load/unload
-// lifecycle (fonts_load_custom_font()/fonts_unload_custom_font());
-// a system font doesn't (fonts_get_system_font() just returns a
-// pointer into ROM, and it's always safe to call). Every caller that
-// resolves a font id owns one of these -- there's no single shared
-// "currently loaded" slot, because the clock face, corner content,
-// and marker text can each have a genuinely different custom font
-// loaded at the very same time, and Pebble happily allows that (each
-// costs its own share of heap, nothing more).
+// Custom fonts require per-slot load/unload; system fonts are ROM-backed.
 typedef struct {
   GFont loaded_font;   // NULL if nothing (custom) is currently loaded in this slot
   uint8_t loaded_id;    // which font id loaded_font corresponds to; 255 = none

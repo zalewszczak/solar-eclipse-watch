@@ -5,9 +5,8 @@
 
 typedef void (*HandsControllerInvalidateHandler)(void *context);
 
-// Application-level controller for the big-analog hand layer and the
-// one-shot startup clock animation. Low-level hand geometry remains in
-// hand_layer.c.
+// Controls the big-analog hand layer and one-shot startup animation.
+
 
 void hands_controller_init(EclipseData *data, HandsControllerInvalidateHandler handler, void *context);
 void hands_controller_deinit(void);

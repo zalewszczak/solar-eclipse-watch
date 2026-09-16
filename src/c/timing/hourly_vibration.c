@@ -3,20 +3,20 @@
 
 static EclipseData *s_data;
 
+// Equal endpoints mean all day; start > end denotes a midnight-crossing range.
 static bool time_in_range(int minute_of_day) {
   int start = s_data->hourly_vibe_start_min;
   int end = s_data->hourly_vibe_end_min;
 
-  // Equal endpoints, including the default 0 == 0, mean all 24 hours.
   if (start == end) return true;
 
-  // A range that crosses midnight is represented by start > end.
   if (start < end) {
     return minute_of_day >= start && minute_of_day <= end;
   }
   return minute_of_day >= start || minute_of_day <= end;
 }
 
+// Unknown vibration patterns fall back to the original short pulse.
 static void trigger_vibration(void) {
   switch (s_data->hourly_vibe_pattern) {
     case 1:
@@ -26,7 +26,7 @@ static void trigger_vibration(void) {
       vibes_long_pulse();
       break;
     default:
-      // 0, and any unrecognized value, retain the original short pulse.
+
       vibes_short_pulse();
       break;
   }

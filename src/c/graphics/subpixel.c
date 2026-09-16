@@ -1,9 +1,5 @@
 #include "./subpixel.h"
 
-// See subpixel.h's own comment (item F in the size-reduction pass) for why
-// these bodies live here, in one shared .c file, instead of as `static`
-// functions duplicated into every header-includer's own translation unit.
-
 // ---- shared tables -----------------------------------------------------
 
 const uint8_t BAYER4[4][4] = {
@@ -13,8 +9,7 @@ const uint8_t BAYER4[4][4] = {
   {15,  7, 13,  5}
 };
 
-// Only used internally (coverage9 sampling below), so this one stays
-// file-static rather than extern -- nothing outside subpixel.c needs it.
+// Internal offsets for 3x3 coverage sampling.
 static const int32_t SUBPIXEL_AA_OFFSETS3[3] = { -SUBPIXEL_SCALE / 3, 0, SUBPIXEL_SCALE / 3 };
 
 // ---- small shared helpers -----------------------------------------------
@@ -29,7 +24,7 @@ uint32_t subpixel_isqrt64_fp(int64_t v) {
   if (v <= 0) return 0;
   uint64_t x = (uint64_t)v;
   uint64_t res = 0;
-  uint64_t bit = (uint64_t)1 << 62; // highest even power of 4 <= any 64-bit value
+  uint64_t bit = (uint64_t)1 << 62; // Highest power-of-4 bit.
   while (bit > x) bit >>= 2;
   while (bit != 0) {
     if (x >= res + bit) {
@@ -268,7 +263,7 @@ void subpixel_stroke_line_fp(GContext *ctx, FGPoint a, FGPoint b, GColor color, 
   int32_t dx = b.x - a.x;
   int32_t dy = b.y - a.y;
   int32_t max_len = abs(dx) > abs(dy) ? abs(dx) : abs(dy);
-  int32_t steps = (max_len + SUBPIXEL_MASK) >> SUBPIXEL_BITS; // ceiling, not floor
+  int32_t steps = (max_len + SUBPIXEL_MASK) >> SUBPIXEL_BITS; // Ceiling division.
   if (steps == 0) steps = 1;
 
   int32_t x_inc = dx / steps;
@@ -328,7 +323,7 @@ void subpixel_stroke_circle_fp(GContext *ctx, FGPoint center, int32_t radius_fp,
   }
 }
 
-// ---- inline ("hollow thickness") ring fills -----------------------------
+// ---- inline stroke fills ------------------------------------------------
 
 bool subpixel_inset_convex_polygon_fp(const FGPoint *pts, int n, int32_t d_fp, FGPoint *out_pts) {
   if (d_fp <= 0 || n < 3 || n > SUBPIXEL_MAX_RING_PTS) return false;
@@ -337,19 +332,19 @@ bool subpixel_inset_convex_polygon_fp(const FGPoint *pts, int n, int32_t d_fp, F
   for (int i = 0; i < n; i++) { centroid.x += pts[i].x; centroid.y += pts[i].y; }
   centroid.x /= n; centroid.y /= n;
 
-  FGPoint offset_a[SUBPIXEL_MAX_RING_PTS]; // each edge's own offset start point
-  int32_t dir_x[SUBPIXEL_MAX_RING_PTS], dir_y[SUBPIXEL_MAX_RING_PTS]; // and direction (B - A)
+  FGPoint offset_a[SUBPIXEL_MAX_RING_PTS];
+  int32_t dir_x[SUBPIXEL_MAX_RING_PTS], dir_y[SUBPIXEL_MAX_RING_PTS];
 
   for (int i = 0; i < n; i++) {
     FGPoint a = pts[i], b = pts[(i + 1) % n];
     int32_t ex = b.x - a.x, ey = b.y - a.y;
     int64_t len_sq = (int64_t)ex * ex + (int64_t)ey * ey;
-    if (len_sq == 0) return false; // degenerate (coincident) edge -- bail to a solid fallback
+    if (len_sq == 0) return false; // Degenerate edge.
     int32_t elen = (int32_t)subpixel_isqrt64_fp(len_sq);
 
-    // two candidate perpendiculars; pick whichever points toward the centroid
+    // Choose the inward-facing perpendicular.
     int32_t nx = -ey, ny = ex;
-    int32_t mx = a.x + ex / 2, my = a.y + ey / 2; // edge midpoint
+    int32_t mx = a.x + ex / 2, my = a.y + ey / 2; // Edge midpoint.
     int64_t dot = (int64_t)(centroid.x - mx) * nx + (int64_t)(centroid.y - my) * ny;
     if (dot < 0) { nx = -nx; ny = -ny; }
 
@@ -363,10 +358,10 @@ bool subpixel_inset_convex_polygon_fp(const FGPoint *pts, int n, int32_t d_fp, F
     int prev = (i - 1 + n) % n;
     int64_t ex = (int64_t)offset_a[i].x - offset_a[prev].x;
     int64_t ey = (int64_t)offset_a[i].y - offset_a[prev].y;
-    // line(prev): offset_a[prev] + t*dir[prev]; line(i): offset_a[i] + s*dir[i]
+    // Intersect adjacent offset edges.
     int64_t det = (int64_t)dir_x[i] * dir_y[prev] - (int64_t)dir_x[prev] * dir_y[i];
     if (det == 0) {
-      out_pts[i] = offset_a[i]; // parallel edges -- fall back to the offset edge's own start point
+      out_pts[i] = offset_a[i]; // Parallel edges.
       continue;
     }
     int64_t t_num = (int64_t)dir_x[i] * ey - (int64_t)dir_y[i] * ex;

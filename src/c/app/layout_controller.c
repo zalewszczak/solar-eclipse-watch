@@ -64,8 +64,7 @@ void layout_controller_handle_unobstructed(AnimationProgress progress) {
   int16_t obstruction_h = full_bounds.size.h - unobstructed.size.h;
   if (obstruction_h < 0) obstruction_h = 0;
 
-  // Digital bar keeps its clock panel at the bottom, moving it upward by
-  // the obstruction height. Its sky canvas shrinks to the same boundary.
+  // Digital bar moves its panel above the obstruction and shrinks the sky to match.
   if (s_data->bottom_style != 1 &&
       !feature_layout_is_digital_top_layout(s_data->bottom_style) &&
       clock_display_panel_layer()) {
@@ -90,7 +89,7 @@ void layout_controller_handle_unobstructed(AnimationProgress progress) {
     }
   }
 
-  // Analog and Digital-top layouts shrink their sky canvas from the bottom.
+  // Analog and Digital-top shrink the sky canvas from the bottom.
   bool canvas_tracks_unobstructed_bottom =
       s_data->bottom_style == 1 ||
       feature_layout_is_digital_top_layout(s_data->bottom_style);

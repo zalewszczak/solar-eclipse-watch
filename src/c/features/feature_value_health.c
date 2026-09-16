@@ -66,8 +66,7 @@ void __attribute__((noinline)) feature_value_health_compute(FeatureSlot *slot, u
       feature_value_set_icon_segment(slot, 0, 3, c);
       slot->segments[0].icon_extra = bs.charge_percent;
       slot->segments[0].icon_flag = bs.is_charging;
-      // battery is the one icon that also always shows its own text (percentage) --
-      // matches the icon+text shape every other health content uses.
+      // battery is the one icon that also always shows its own text (percentage)
       slot->segment_count = 2;
       feature_value_set_text_segment(slot, 1, buf, c);
       return;
@@ -187,9 +186,4 @@ void __attribute__((noinline)) feature_value_health_compute(FeatureSlot *slot, u
   }
 }
 
-// ---- weather cluster: temperature, conditions, UV, rain/wind/humidity,
-// pressure/AQI/visibility/cloud cover, and the "last weather update"
-// readouts. All of these (per feature_rules_content_is_weather_derived() below) can
-// be overridden wholesale to a red "ERR ###" by
-// features_recompute_slot_value()'s shared tail once this function
-// returns, so nothing in here needs to check for a fetch error itself.
+// weather cluster: temperature, conditions, UV, rain/wind/humidity,
