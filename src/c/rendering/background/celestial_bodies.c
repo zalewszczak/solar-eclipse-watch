@@ -2,6 +2,7 @@
 #include "./celestial_layer.h"
 #include "./celestial_ephemeris.h"
 #include "../../features/feature_render.h"
+#include <string.h>
 
 #define CELESTIAL_ARROW_W 6
 
@@ -10,9 +11,26 @@ static const uint8_t PLANET_NAME_OFFSETS[PLANET_COUNT] = { 0, 8, 14, 19, 27 };
 static const char STAR_NAMES[] =
   "Sirius\0Canopus\0Arcturus\0Vega\0Capella\0Rigel\0Procyon\0Betelgeuse\0"
   "Altair\0Aldebaran\0Antares\0Spica\0Pollux\0Fomalhaut\0Deneb\0Regulus\0";
-static const uint8_t STAR_NAME_OFFSETS[STAR_COUNT] = {
-  0, 7, 14, 23, 28, 36, 42, 50, 60, 67, 77, 85, 91, 98, 108, 114
-};
+// Computed once from STAR_NAMES itself (see star_name_offsets() below)
+// rather than hand-maintained: a hardcoded offset table silently goes
+// stale the moment a name in STAR_NAMES is edited without recomputing
+// every offset after it by hand, which is exactly what happened here
+// (most of these offsets pointed one-or-two bytes short, into the
+// previous star's null terminator, so those stars rendered blank).
+static uint8_t s_star_name_offsets[STAR_COUNT];
+static bool s_star_name_offsets_ready = false;
+
+static const uint8_t *star_name_offsets(void) {
+  if (!s_star_name_offsets_ready) {
+    uint8_t off = 0;
+    for (int i = 0; i < STAR_COUNT; i++) {
+      s_star_name_offsets[i] = off;
+      off = (uint8_t)(off + strlen(STAR_NAMES + off) + 1);
+    }
+    s_star_name_offsets_ready = true;
+  }
+  return s_star_name_offsets;
+}
 GColor celestial_bodies_planet_color(PlanetId p) {
   switch (p) {
     case PLANET_MERCURY: return GColorLightGray;
@@ -61,7 +79,7 @@ const char *celestial_bodies_planet_name(PlanetId planet) {
 }
 
 const char *celestial_bodies_star_name(uint8_t star) {
-  return star < STAR_COUNT ? STAR_NAMES + STAR_NAME_OFFSETS[star] : "Star";
+  return star < STAR_COUNT ? STAR_NAMES + star_name_offsets()[star] : "Star";
 }
 
 void celestial_bodies_draw_visible_planet(GContext *ctx, const EclipseData *d,
