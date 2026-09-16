@@ -910,7 +910,7 @@ cdnFontLinks() +
 '    <input type="hidden" id="slotEditCategory">' +
 '    <label for="slotEditContent" style="margin-top:10px;">Content</label>' +
 '    <select id="slotEditContent" onchange="onSlotEditContentChange()">' + cornerContentOptionsHtml(0) + '</select>' +
-'    <div class="help" id="slotEditCategoryHelp" style="display:none;">DST is calculated for current-era US and EU rules -- Sydney and Auckland don\'t adjust for DST yet.</div>' +
+'    <div class="help" id="slotEditCategoryHelp" style="display:none;">Shows the time-zone option used for the selected location. Daylight saving rules may vary by location.</div>' +
 '    <div class="mode-btn-group" id="slotEditColorGroup" style="margin-top:10px;">' +
 '      <button type="button" class="mode-btn" onclick="slotEditorSelectColor(0)">MONO</button>' +
 '      <button type="button" class="mode-btn" onclick="slotEditorSelectColor(1)">ACC</button>' +
@@ -973,7 +973,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    <button type="button" class="slider-step-btn" onclick="stepSlider(\'centerCircleRadius\', 1)">+</button>' +
 '    </div>' +
 '    </div>' +
-'    <div class="help">0 = off.</div>' +
+'    <div class="help">Set the radius to 0 to hide the center circle.</div>' +
 '    <label for="centerCircleColor">Color</label>' +
 '    <select id="centerCircleColor">' + schemeColorOptionsHtml(current.centerCircleColor) + '</select>' +
 
@@ -997,7 +997,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
         { value: 'false', label: 'Solid' },
         { value: 'true', label: 'Translucent' }
       ], current.shadowTranslucent !== 'false' ? 'true' : 'false', 'selectShadowTranslucent') +
-'    <div class="help">Applies to every hand\'s shadow, preset or custom -- translucent dithers to ~50% (~25% for a hand that\'s itself semi-transparent), solid is fully opaque black.</div>' +
+'    <div class="help">Applies the selected shadow style to all analog hands. Translucent uses dithering to make the shadow lighter.</div>' +
 
 '    <div class="slider-row">' +
 '      <label for="shadowAngle">Shadow angle <span class="val" id="shadowAngleVal">' + (current.shadowAngle || '120') + '&deg;</span></label>' +
@@ -1007,7 +1007,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      <button type="button" class="slider-step-btn" onclick="stepSlider(\'shadowAngle\', 1)">+</button>' +
 '      </div>' +
 '    </div>' +
-'    <div class="help">One shared light-source direction for every hand\'s shadow, preset or custom -- separate angles per hand would just be confusing since they all come from the same light.</div>' +
+'    <div class="help">Sets the direction of the shadow for all analog hands.</div>' +
 
 '    <button type="button" class="modal-cancel-btn" onclick="closeShadowStyleEditor()" style="margin-top:14px;">Close</button>' +
 '  </div>' +
@@ -1135,7 +1135,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      <button type="button" class="mode-btn' + (isAnalog ? ' active' : '') + '" onclick="selectBottomStyle(\'analog\')">' + MODE_BTN_ICONS.analog + '<span>ANALOG</span></button>' +
 '    </div>' +
 '    <input type="hidden" id="bottomStyleValue" value="' + esc(bottomStyleVal) + '">' +
-'    <div class="help" id="help-bottomStyle" style="display:none;">Digital bar puts the clock in a solid panel at the bottom of the screen. Digital top puts that same panel at the TOP instead, but transparent -- the sky gradient shows through behind the clock, and the panel\'s own area is otherwise left empty of sky elements (sun/moon/stars/clouds), mirroring the bar\'s own reserved space flipped to the top; the outline setting below can also help the clock text stay readable over it. Analog fills the whole screen with fullscreen hands over the sky/eclipse view -- no panel at all.</div>' +
+'    <div class="help" id="help-bottomStyle" style="display:none;">Choose the clock layout: DIGITAL BAR, DIGITAL TOP, or full-screen ANALOG.</div>' +
 
 '    <div id="digitalOnlySettings" class="subsection" style="' + (isDigitalBar || isDigitalTop ? '' : 'display:none;') + '">' +
 '      <label for="clockFont">Clock font</label>' +
@@ -1152,7 +1152,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      <button type="button" class="help-btn" onclick="toggleHelp(\'help-showSeconds\')">?</button>' +
 '    </div>' +
 '    <div class="help" id="secondsHelp" style="' + (secondsUnsupported ? '' : 'display:none;') + '">' + esc(secondsHelpText) + '</div>' +
-'    <div class="help" id="help-showSeconds" style="display:none;">Used by both layouts -- the digital clock\'s own seconds digits, and whether analog draws a second hand at all (gates the Custom style\'s "Edit second hand" below, too).</div>' +
+'    <div class="help" id="help-showSeconds" style="display:none;">Shows seconds on the digital clock or adds a second hand in Analog mode.</div>' +
 
 '    <div id="bigAnalogSettings" class="subsection" style="' + (isAnalog ? '' : 'display:none;') + '">' +
 
@@ -1160,7 +1160,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      <div class="subsection-body" id="subsec-hands" style="display:none;">' +
 '      <div class="field-label-row"><label>Hand style</label><button type="button" class="help-btn" onclick="toggleHelp(\'help-handStyle\')">?</button></div>' +
 '      <button type="button" class="marker-edit-btn" id="handStyleTriggerBtn" style="margin-top:8px;" onclick="openHandStyleModal()">Hand style: <span id="handStyleTriggerLabel"></span> &rsaquo;</button>' +
-'      <div class="help" id="help-handStyle" style="display:none;">To show the date behind the hands, pick "Short date" as a line in the Features section below (bottom-middle line 1 does this by default).</div>' +
+'      <div class="help" id="help-handStyle" style="display:none;">Choose the shape of the analog hands. Custom lets you edit each hand.</div>' +
 
 '      <div id="customHandSection">' +
 '        <button type="button" class="marker-edit-btn" onclick="openHandEditor(\'hour\')">Edit hour hand: <span id="handHourStatusLabel"></span> &rsaquo;</button>' +
@@ -1192,7 +1192,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '        <input type="checkbox" id="bitmapMarkerTransparent" ' + (current.bitmapMarkerTransparent ? 'checked' : '') + ' onchange="updatePreview()">' +
 '        <label for="bitmapMarkerTransparent" style="margin:0;">Semi transparent markers (see the sky through them)</label>' +
 '      </div>' +
-'      <div class="help" id="help-indicesStyle" style="display:none;">Bitmap styles are tinted with your main color (see the preview above) and their mask art shows behind the hands there once you\'ve added a resource PNG for that style. Which edge-middle info slots they support varies by style -- some are off by default so they don\'t overlap the artwork; see "Incompatible features" in the Features section below if you want them anyway. When an eclipse is actually happening, the Sun fills the whole screen as a background behind the hands.</div>' +
+'      <div class="help" id="help-indicesStyle" style="display:none;">Choose the hour/second markers around the analog face. Custom lets you edit them.</div>' +
 
 '      <div id="customMarkerSection" style="' + (current.bigAnalogMarkerStyle === '8' ? '' : 'display:none;') + '">' +
 '        <button type="button" class="marker-edit-btn" onclick="openCustomMarkerEditor(\'hour\')">Edit hour indices: <span id="cmHourStatusLabel"></span> &rsaquo;</button>' +
@@ -1210,7 +1210,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      <button type="button" class="mode-btn' + (current.skyMode === '2' ? ' active' : '') + '" data-value="2" onclick="selectSkyMode(\'2\')">' + MODE_BTN_ICONS.skySpace + '<span>SPACE</span></button>' +
 '    </div>' +
 '    <input type="hidden" id="skyMode" value="' + esc(current.skyMode || '0') + '">' +
-'    <div class="help" id="help-skyMode" style="display:none;">Weather sky shows clouds/rain/snow and the day-night gradient. Clear sky keeps the gradient but never draws weather. Space view drops the gradient entirely for a fixed dark sky, always shows the Sun/Moon/planets when above the horizon regardless of time of day, and (see "Show major stars" in the Astronomy section) can add a field of bright named stars (tap/shake to reveal names).</div>' +
+'    <div class="help" id="help-skyMode" style="display:none;">Weather adds weather effects; Clear keeps a simple day/night sky; Space uses a space background.</div>' +
 
 '    <div class="field-label-row"><label style="margin-top:12px;">Label style</label><button type="button" class="help-btn" onclick="toggleHelp(\'help-labelStyle\')">?</button></div>' +
       modeButtonGroupHtml('labelStyleGroup', 'labelStyle', [
@@ -1218,7 +1218,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
         { value: '1', label: 'OUTLINED', icon: MODE_BTN_ICONS.labelOutlined },
         { value: '2', label: 'SOFT', icon: MODE_BTN_ICONS.labelSoft }
       ], current.labelStyle || '0') +
-'    <div class="help" id="help-labelStyle" style="display:none;">Boxed is an opaque rounded box with white text (the original look). Outlined uses your main color with a contrasting outline. Soft is plain light-gray text with no background or outline. Used for the shake-to-reveal Sun/Moon/ISS/Aurora name labels, in both layouts.</div>' +
+'    <div class="help" id="help-labelStyle" style="display:none;">Choose the style of temporary labels shown when you interact with the watch.</div>' +
 
 '    <div class="subsection">' +
 '      <div class="field-label-row"><label>Outline text and icons for contrast</label><button type="button" class="help-btn" onclick="toggleHelp(\'help-outlineStyle\')">?</button></div>' +
@@ -1228,7 +1228,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
         { value: '2', label: 'Thick' }
       ], current.outlineStyle || '1', 'onOutlineStyleChange') +
 '    </div>' +
-'    <div class="help" id="help-outlineStyle" style="display:none;">Adds an outline (in your color scheme\'s background color) behind corner/edge text and icons, the analog date, the eclipse phase text, and (Digital top layout only, since that\'s the one clock with sky visible right behind it) the main clock digits themselves -- so they stay readable over any part of the sky. Thick adds a wider 2px cardinal shift plus 1px diagonal shifts on top of Thin\'s own 1px cardinal outline. Icons only get it outside translucent/transparent mode. Hands have their own separate outline setting, per hand, in the Style section.</div>' +
+'    <div class="help" id="help-outlineStyle" style="display:none;">Adds an outline to text and icons to keep them readable over the background.</div>' +
 
 '  </fieldset>' +
 
@@ -1267,7 +1267,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      <label for="bitmapCornerOverride" style="margin:0;">Incompatible features (may overlap the design)</label>' +
 '      <button type="button" class="help-btn" onclick="toggleHelp(\'help-bitmapCornerOverride\')">?</button>' +
 '    </div>' +
-'    <div class="help" id="help-bitmapCornerOverride" style="display:none;">Your current bitmap marker style\'s artwork doesn\'t leave room for every feature slot -- corners and side edges are grayed out above by default so they don\'t overlap it. Check this box to enable all of them anyway.</div>' +
+'    <div class="help" id="help-bitmapCornerOverride" style="display:none;">Allows features to use areas that may overlap some bitmap marker designs.</div>' +
 
 '    <div class="subsection" id="digitalSidesSection" style="' + ((isDigital && !clockFontIsWide) ? '' : 'display:none;') + '">' +
 '      <div class="field-label-row"><label>Side features</label><button type="button" class="help-btn" onclick="toggleHelp(\'help-digitalSides\')">?</button></div>' +
@@ -1278,7 +1278,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      <input type="hidden" id="digitalSides" value="' + esc(digitalSidesVal) + '">' +
 '      <input type="hidden" id="digitalSidesPreferred" value="' + esc(digitalSidesPreferredVal) + '">' +
 '      <div class="help tooltip-warning" id="digitalSidesExclusiveTip" style="display:none;">This font only fits one side at a time -- picking a side turns the other off.</div>' +
-'      <div class="help" id="help-digitalSides" style="display:none;">' + esc(digitalSidesHelpTextVal) + '</div>' +
+'      <div class="help" id="help-digitalSides" style="display:none;">Choose whether information appears on the left, right, or both sides when supported by the selected font.</div>' +
 '    </div>' +
 '    <div class="help" id="digitalSidesWideHelp" style="' + ((isDigital && clockFontIsWide) ? '' : 'display:none;') + '">This font runs too wide for side features -- pick a narrower one in the Style section to use them.</div>' +
 
@@ -1290,7 +1290,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      <span class="font-picker-preview" id="cornerFontTriggerPreview"></span>' +
 '      <span class="font-picker-name" id="cornerFontTriggerName"></span>' +
 '    </button>' +
-'    <div class="help" id="help-cornerFont" style="display:none;">Applies to corner/edge feature text and the analog date. Bigger display fonts are hidden by default in the picker -- see "Show incompatible fonts" there.</div>' +
+'    <div class="help" id="help-cornerFont" style="display:none;">Sets the font used for feature text and the analog date.</div>' +
 
 '    <div id="weatherIconStyleRow">' +
 '      <div class="field-label-row"><label>Weather icon style</label><button type="button" class="help-btn" onclick="toggleHelp(\'help-weatherIconStyle\')">?</button></div>' +
@@ -1303,7 +1303,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '        <span class="font-picker-preview weather-icon-style-preview"></span>' +
 '        <span class="font-picker-name"></span>' +
 '      </button>' +
-'      <div class="help" id="help-weatherIconStyle" style="display:none;">"Simple" is a placeholder for now. Hollow follows the slot\'s own color mode like any other icon; Full color is a genuine multi-color image with its own baked-in colors (see README.md), so it ignores the slot\'s color mode entirely. Applies wherever a Weather icon feature is picked below.</div>' +
+'      <div class="help" id="help-weatherIconStyle" style="display:none;">Choose how weather icons are drawn in feature slots.</div>' +
 '    </div>' +
 
 '    <div style="display:none;" id="slotDataStore">' +
@@ -1336,7 +1336,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    <div class="subsection">' +
 '      <div class="field-label-row"><label for="stepGoal">Daily step goal (used by "Step goal %")</label><button type="button" class="help-btn" onclick="toggleHelp(\'help-stepGoal\')">?</button></div>' +
 '      <input type="number" id="stepGoal" min="1000" max="60000" step="500" value="' + esc(current.stepGoal || '10000') + '">' +
-'      <div class="help" id="help-stepGoal" style="display:none;">Pebble doesn\'t expose a system step goal, so this app keeps its own -- same as every other Pebble health app.</div>' +
+'      <div class="help" id="help-stepGoal" style="display:none;">Sets the step target used by the Steps feature.</div>' +
 '    </div>' +
 
 '    <div class="checkbox-row subsection" id="drawFeaturesBeneathHandsRow">' +
@@ -1344,7 +1344,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      <label for="drawFeaturesBeneathHands" style="margin:0;">Draw features beneath hands</label>' +
 '      <button type="button" class="help-btn" onclick="toggleHelp(\'help-drawFeaturesBeneathHands\')">?</button>' +
 '    </div>' +
-'    <div class="help" id="help-drawFeaturesBeneathHands" style="display:none;">Big-analog mode only -- corners/edges info here normally draws on top of the hands; enable this to tuck it underneath instead.</div>' +
+'    <div class="help" id="help-drawFeaturesBeneathHands" style="display:none;">In Analog mode, draws feature text underneath the hands instead of on top.</div>' +
 '    </div>' +
 '  </fieldset>' +
 '  <fieldset>' +
@@ -1375,7 +1375,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '        </span>' +
 '        <span class="color-preset-chevron">&rsaquo;</span>' +
 '      </button>' +
-'      <div class="help" id="help-colorSchemePreset" style="display:none;">Applies that preset\'s three colors immediately -- picking one is the same as tapping each swatch above and choosing that exact color.</div>' +
+'      <div class="help" id="help-colorSchemePreset" style="display:none;">Applies a ready-made set of main, accent, and background colors.</div>' +
 '      <input type="hidden" id="customBgValue" value="' + esc(current.customBg || '255') + '">' +
 '      <input type="hidden" id="customTextValue" value="' + esc(current.customText || '192') + '">' +
 '      <input type="hidden" id="customAccentValue" value="' + esc(current.customAccent || '192') + '">' +
@@ -1432,7 +1432,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '        </span>' +
 '        <span class="color-preset-chevron">&rsaquo;</span>' +
 '      </button>' +
-'      <div class="help" id="help-nightSchemePreset" style="display:none;">Applies that preset\'s three colors immediately -- picking one is the same as tapping each swatch above and choosing that exact color.</div>' +
+'      <div class="help" id="help-nightSchemePreset" style="display:none;">Applies a ready-made set of night colors.</div>' +
 '      <input type="hidden" id="nightCustomBgValue" value="' + esc(current.nightCustomBg || '192') + '">' +
 '      <input type="hidden" id="nightCustomTextValue" value="' + esc(current.nightCustomText || '255') + '">' +
 '      <input type="hidden" id="nightCustomAccentValue" value="' + esc(current.nightCustomAccent || '255') + '">' +
@@ -1452,7 +1452,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
         { value: '2', label: 'Planet sweep time shift' }
       ], current.startupClockAnimMode || '1') +
 '    </div>' +
-'    <div class="help" id="help-startupClockAnim" style="display:none;">On launch, the hands/digits sweep in from a cold-start position up to the current time, under 1.5s, instead of just appearing already showing it. "Planet sweep time shift" plays the same sweep but chases the same couple-hours-ago starting point the "Planets" background animation below is itself sweeping through, so the hands and the sky advance together -- if that background animation isn\'t also set to Planets, this behaves the same as "Animate clock" since there\'s no time shift to follow.</div>' +
+'    <div class="help" id="help-startupClockAnim" style="display:none;">Choose how the clock appears when the watchface starts.</div>' +
 
 '    <div class="subsection">' +
 '      <div class="field-label-row"><label>Animate background on start</label><button type="button" class="help-btn" onclick="toggleHelp(\'help-bgAnimMode\')">?</button></div>' +
@@ -1462,7 +1462,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
         { value: '2', label: 'Indices (analog hour indices animate in; seconds draw normally)' }
       ], current.bgAnimMode || '0') +
 '    </div>' +
-'    <div class="help" id="help-bgAnimMode" style="display:none;">Off by default: exactly one of the above sweeps into place on launch, under 1.5s.</div>' +
+'    <div class="help" id="help-bgAnimMode" style="display:none;">Choose the animation used when the sky/background appears.</div>' +
 
 '    <div class="subsection">' +
 '      <div class="field-label-row"><label>On shake animation</label><button type="button" class="help-btn" onclick="toggleHelp(\'help-shakeAnimMode\')">?</button></div>' +
@@ -1473,7 +1473,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
         { value: '3', label: 'Both' }
       ], current.shakeAnimMode || '0') +
 '    </div>' +
-'    <div class="help" id="help-shakeAnimMode" style="display:none;">Off by default: runs for as long as the shake labels stay up (see the duration slider just below). "Planet seek" points the sky view at whichever 90&deg; slice of the horizon your compass currently faces, repositioning the Sun/Moon/planets to match as you turn -- weather is hidden for the duration, and it never runs on a day with an eclipse. "Both" runs Smooth second hand and Planet seek together; picking just one of the two runs only that one.</div>' +
+'    <div class="help" id="help-shakeAnimMode" style="display:none;">Choose what happens when you shake the watch.</div>' +
 
 '    <div class="subsection">' +
 '      <div class="slider-row">' +
@@ -1485,7 +1485,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '        </div>' +
 '      </div>' +
 '    </div>' +
-'    <div class="help" id="help-shakeLabelSeconds" style="display:none;">How long a shake keeps "Smooth second hand"/"Planet seek" above running, and how long shake-revealed star name labels stay on screen -- both share this one window.</div>' +
+'    <div class="help" id="help-shakeLabelSeconds" style="display:none;">Sets how long shake-triggered animations and temporary labels remain active.</div>' +
 '    </div>' +
 
 '    </div>' +
@@ -1527,7 +1527,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
         { value: 'F', label: '\u00b0F' },
         { value: 'K', label: 'K' }
       ], current.tempUnit || 'C') +
-'    <div class="help" id="help-tempUnit" style="display:none;">Used everywhere temperature is shown, including the Features section below.</div>' +
+'    <div class="help" id="help-tempUnit" style="display:none;">Sets the temperature unit used throughout the watchface.</div>' +
 
 '    <div class="field-label-row"><label style="margin-top:10px;">Wind speed unit</label><button type="button" class="help-btn" onclick="toggleHelp(\'help-windSpeedUnit\')">?</button></div>' +
       modeButtonGroupHtml('windSpeedUnitGroup', 'windSpeedUnit', [
@@ -1536,21 +1536,21 @@ handEditorModalHtml('sec', 'Edit second hand') +
         { value: 'ms', label: 'M/S' },
         { value: 'kn', label: 'KNOTS' }
       ], current.windSpeedUnit || 'kmh') +
-'    <div class="help" id="help-windSpeedUnit" style="display:none;">Used by the "Wind" corner content.</div>' +
+'    <div class="help" id="help-windSpeedUnit" style="display:none;">Sets the unit used by the Wind feature.</div>' +
 
 '    <div class="field-label-row"><label style="margin-top:10px;">Air quality index scale</label><button type="button" class="help-btn" onclick="toggleHelp(\'help-aqiUnit\')">?</button></div>' +
       modeButtonGroupHtml('aqiUnitGroup', 'aqiUnit', [
         { value: '0', label: 'US AQI' },
         { value: '1', label: 'EUROPEAN' }
       ], current.aqiUnit || '0') +
-'    <div class="help" id="help-aqiUnit" style="display:none;">Used by the "Air quality" corner content.</div>' +
+'    <div class="help" id="help-aqiUnit" style="display:none;">Sets the scale used by the Air Quality feature.</div>' +
 
 '    <div class="field-label-row"><label style="margin-top:10px;">Altitude unit</label><button type="button" class="help-btn" onclick="toggleHelp(\'help-altitudeUnit\')">?</button></div>' +
       modeButtonGroupHtml('altitudeUnitGroup', 'altitudeUnit', [
         { value: '0', label: 'METERS' },
         { value: '1', label: 'FEET' }
       ], current.altitudeUnit || '0') +
-'    <div class="help" id="help-altitudeUnit" style="display:none;">Used by the "Altitude" corner content. Comes from GPS, so it needs "Use GPS automatically" turned on in Location below, and not every phone reports it -- shows "N/A" when it\'s not available.</div>' +
+'    <div class="help" id="help-altitudeUnit" style="display:none;">Sets the unit used by the Altitude feature.</div>' +
 
 '    </div>' +
 '  </fieldset>' +
@@ -1566,35 +1566,35 @@ handEditorModalHtml('sec', 'Edit second hand') +
         { value: '50', label: 'SMALL', icon: MODE_BTN_ICONS.sunMoon50 },
         { value: '25', label: 'X-SMALL', icon: MODE_BTN_ICONS.sunMoon25 }
       ], current.sunMoonSize || '75') +
-'    <div class="help" id="help-sunMoonSize" style="display:none;">Ignored during an actual eclipse, which sizes the Sun and Moon by their real geometry instead.</div>' +
+'    <div class="help" id="help-sunMoonSize" style="display:none;">Sets the normal Sun and Moon size. During an eclipse, their size follows the actual eclipse geometry.</div>' +
 
 '    <div class="checkbox-row subsection' + (current.skyMode === '2' ? '' : ' grayed-out') + '" id="showMajorStarsRow">' +
 '      <input type="checkbox" id="showMajorStars" ' + (current.showMajorStars === false ? '' : 'checked') + ' onchange="updatePreview()">' +
 '      <label for="showMajorStars" style="margin:0;">Show major stars</label>' +
 '      <button type="button" class="help-btn" onclick="toggleHelp(\'help-showMajorStars\')">?</button>' +
 '    </div>' +
-'    <div class="help" id="help-showMajorStars" style="display:none;">Space sky style only (grayed out otherwise, but still remembers your choice for whenever you switch back to it -- see the Style section). On by default; turning it off limits Space view to the Sun, Moon, planets, and sky effects (aurora, ISS, meteor showers) below -- no star field.</div>' +
+'    <div class="help" id="help-showMajorStars" style="display:none;">Shows a field of major stars in Space mode.</div>' +
 
 '    <div class="checkbox-row subsection">' +
 '      <input type="checkbox" id="showIss" ' + (current.showIss ? 'checked' : '') + '>' +
 '      <label for="showIss" style="margin:0;">Show the ISS when overhead (experimental)</label>' +
 '      <button type="button" class="help-btn" onclick="toggleHelp(\'help-showIss\')">?</button>' +
 '    </div>' +
-'    <div class="help" id="help-showIss" style="display:none;">Fetches live orbital data each refresh. Position is a snapshot, not continuously tracked, and doesn\'t account for the station being in Earth\'s shadow -- it can occasionally show when it wouldn\'t really be visible.</div>' +
+'    <div class="help" id="help-showIss" style="display:none;">Shows the International Space Station when its calculated position places it overhead.</div>' +
 
 '    <div class="checkbox-row subsection">' +
 '      <input type="checkbox" id="auroraEnabled" ' + (current.auroraEnabled ? 'checked' : '') + ' onchange="onAuroraEnabledChange()">' +
 '      <label for="auroraEnabled" style="margin:0;">Show auroras (experimental)</label>' +
 '      <button type="button" class="help-btn" onclick="toggleHelp(\'help-auroraEnabled\')">?</button>' +
 '    </div>' +
-'    <div class="help" id="help-auroraEnabled" style="display:none;">Fetches NOAA\'s current planetary Kp index each refresh and estimates whether it\'s bright enough to reach your latitude -- a rough approximation (real aurora visibility also depends on local weather/light pollution), not a precise forecast. When on, an "Aurora Kp index" option becomes available in the Features section below, and the sky itself paints a faint aurora glow when conditions and darkness line up. Turning this off removes that option from every feature slot it might currently be set to.</div>' +
+'    <div class="help" id="help-auroraEnabled" style="display:none;">Shows an estimated aurora when conditions and darkness suggest it may be visible.</div>' +
 
 '    <div class="checkbox-row subsection">' +
 '      <input type="checkbox" id="vibrateOnPhaseChange" ' + (current.vibrateOnPhaseChange ? 'checked' : '') + '>' +
 '      <label for="vibrateOnPhaseChange" style="margin:0;">Vibrate when the eclipse reaches its next phase</label>' +
 '      <button type="button" class="help-btn" onclick="toggleHelp(\'help-vibrateOnPhaseChange\')">?</button>' +
 '    </div>' +
-'    <div class="help" id="help-vibrateOnPhaseChange" style="display:none;">A brief double buzz right as C1/C2/C3/C4 happens -- not on ordinary day-to-day changes.</div>' +
+'    <div class="help" id="help-vibrateOnPhaseChange" style="display:none;">Gives a short vibration when the eclipse changes phase.</div>' +
 
 '    </div>' +
 '  </fieldset>' +
@@ -1617,7 +1617,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    <input type="number" step="any" id="lat" ' + manualDisabled + ' placeholder="e.g. 40.7128" value="' + esc(current.lat) + '" oninput="onManualCoordsInput()" onblur="onManualCoordsBlur()">' +
 '    <label for="lon">Manual longitude (decimal degrees)</label>' +
 '    <input type="number" step="any" id="lon" ' + manualDisabled + ' placeholder="e.g. -74.0060" value="' + esc(current.lon) + '" oninput="onManualCoordsInput()" onblur="onManualCoordsBlur()">' +
-'    <div class="help" id="help-manualCoords" style="display:none;">Only used when GPS is turned off above.</div>' +
+'    <div class="help" id="help-manualCoords" style="display:none;">Used when automatic GPS is off. The location affects eclipse, astronomy, weather and other location-based data.</div>' +
 // Cached resolved display name for the coordinates above -- see the
 // Location sub-header's own compute function and
 // reverseGeocodeAndCacheLocationName() further down for how this gets
@@ -1635,7 +1635,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      <label for="batterySaverEnabled" style="margin:0;">Preserve battery when watch is not in use</label>' +
 '      <button type="button" class="help-btn" onclick="toggleHelp(\'help-batterySaverEnabled\')">?</button>' +
 '    </div>' +
-'    <div class="help" id="help-batterySaverEnabled" style="display:none;">If the watch goes 2 hours without being shaken, it redraws only once a minute and shows "Zzz" where the eclipse status normally sits; after 4 hours that drops further to once every 5 minutes ("Zzzzzzz"), and the phone holds off on its own periodic refresh until the next full hour too. Any shake wakes it back up immediately. Off by default.</div>' +
+'    <div class="help" id="help-batterySaverEnabled" style="display:none;">Reduces updates after long periods without interaction to save battery.</div>' +
 '    <div class="slider-row">' +
 '      <div class="field-label-row"><label for="updateMins">Refresh interval <span class="val" id="updateMinsVal">' + esc(current.updateMins) + ' min</span></label><button type="button" class="help-btn" onclick="toggleHelp(\'help-updateMins\')">?</button></div>' +
 '      <div class="slider-with-buttons">' +
@@ -1644,15 +1644,15 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      <button type="button" class="slider-step-btn" onclick="stepSlider(\'updateMins\', 5)">+</button>' +
 '      </div>' +
 '    </div>' +
-'    <div class="help" id="help-updateMins" style="display:none;">The watch won\'t re-fetch more often than this unless your location changes by more than ~10km.</div>' +
+'    <div class="help" id="help-updateMins" style="display:none;">Sets the minimum time between automatic data refreshes. A significant location change can trigger an earlier refresh.</div>' +
 '    <div class="field-label-row">' +
 '      <button type="button" class="secondary-btn" onclick="save(true)">Force refresh now</button>' +
 '      <button type="button" class="help-btn" onclick="toggleHelp(\'help-forceRefresh\')">?</button>' +
 '    </div>' +
-'    <div class="help" id="help-forceRefresh" style="display:none;">Fetches fresh data on the same terms as a normal refresh, bypassing the "don\'t refetch if recent and unmoved" skip. See the Debug section below to inspect exactly what gets sent.</div>' +
+'    <div class="help" id="help-forceRefresh" style="display:none;">Fetches fresh data now instead of waiting for the normal refresh interval.</div>' +
 
 '    <div class="field-label-row" style="margin-top:14px;"><label style="margin:0;">Service status</label><button type="button" class="help-btn" onclick="toggleHelp(\'help-serviceStatus\')">?</button></div>' +
-'    <div class="help" id="help-serviceStatus" style="display:none;">Service status, as of when this page was opened -- gray: never used yet; green: last fetch worked; yellow: last fetch failed but some of the last 10 worked; red: last 10 all failed. Tap the (i) on yellow/red for details.</div>' +
+'    <div class="help" id="help-serviceStatus" style="display:none;">Shows the recent result of each data service. Tap a warning or error for details.</div>' +
       serviceStatusRowsHtml(current) +
 '    <input type="hidden" id="serviceLogsJson" value="' + esc(JSON.stringify(current.serviceLogs || {})) + '">' +
 '    </div>' +
@@ -1692,7 +1692,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    <input type="time" id="hourlyVibeStartTime" value="' + esc(current.hourlyVibeStartTime || '00:00') + '" onchange="onHourlyVibeTimeChange(\'hourlyVibeStartTime\')">' +
 '    <label for="hourlyVibeEndTime">End time</label>' +
 '    <input type="time" id="hourlyVibeEndTime" value="' + esc(current.hourlyVibeEndTime || '00:00') + '" onchange="onHourlyVibeTimeChange(\'hourlyVibeEndTime\')">' +
-'    <div class="help" id="help-hourlyVibeTimeRange" style="display:none;">Both ends included -- e.g. 8:00 to 22:00 vibrates at 8:00 and at 22:00, not just in between. Leave both at 00:00 (the default) for all 24 hours. "On full hours" mode rounds these to the nearest whole hour automatically.</div>' +
+'    <div class="help" id="help-hourlyVibeTimeRange" style="display:none;">The start and end times are included. Set both to 00:00 to allow vibrations all day.</div>' +
 
 '    <label style="margin-top:12px;">Active days</label>' +
 '    <div class="day-toggle-group" id="hourlyVibeDaysGroup">' +
@@ -1710,7 +1710,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      <label for="hourlyVibeOverrideQuiet" style="margin:0;">Override quiet time</label>' +
 '      <button type="button" class="help-btn" onclick="toggleHelp(\'help-hourlyVibeOverrideQuiet\')">?</button>' +
 '    </div>' +
-'    <div class="help" id="help-hourlyVibeOverrideQuiet" style="display:none;">On (default): hourly vibrations still happen even while your watch\'s Quiet Time is active. Turn off to let Quiet Time suppress them like any other notification.</div>'
+'    <div class="help" id="help-hourlyVibeOverrideQuiet" style="display:none;">When enabled, hourly vibrations continue during Quiet Time.</div>'
     ) : '') +
 
 '    </div>' +
@@ -1727,14 +1727,14 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    </div>' +
 '    <label for="testDateTime">Test date &amp; time</label>' +
 '    <input type="datetime-local" id="testDateTime" ' + testDisabled + ' value="' + esc(current.testDateTime) + '">' +
-'    <div class="help" id="help-testMode" style="display:none;">Overrides "now" for the eclipse calculation only (e.g. a known historical/future eclipse date), so you can preview the watchface without waiting for one. Set your watch\'s own clock to this same date/time too, so the countdown on-screen lines up with the data sent over.</div>' +
+'    <div class="help" id="help-testMode" style="display:none;">Uses the selected date and time for eclipse calculations so you can preview another date.</div>' +
 '    <div class="checkbox-row subsection">' +
 '      <input type="checkbox" id="drawDebug" ' + (current.drawDebug ? 'checked' : '') + '>' +
 '      <label for="drawDebug" style="margin:0;">Draw debug bounding boxes</label>' +
 '    </div>' +
 '    <div class="subsection">' +
 '      <div class="field-label-row"><label>Last 10 raw messages sent to watch</label><button type="button" class="help-btn" onclick="toggleHelp(\'help-rawMessageLog\')">?</button></div>' +
-'      <div class="help" id="help-rawMessageLog" style="display:none;">Chunking (see AppMessage chunking) means one refresh/save now sends several small messages instead of one big one -- these are the individual chunks, most recent first. Tap one to load it below.</div>' +
+'      <div class="help" id="help-rawMessageLog" style="display:none;">Shows recently sent data messages for troubleshooting.</div>' +
       rawMessageLogButtonsHtml(current) +
 '      <input type="hidden" id="rawMessageLogJson" value="' + esc(JSON.stringify(current.rawMessageLog || [])) + '">' +
 '      <label for="debugData" style="margin-top:10px;">Raw data (editable)</label>' +
@@ -1745,12 +1745,12 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '        <label for="debugOverrideEnabled" style="margin:0;">Override data sent to watch with the text above</label>' +
 '        <button type="button" class="help-btn" onclick="toggleHelp(\'help-debugOverrideEnabled\')">?</button>' +
 '      </div>' +
-'      <div class="help" id="help-debugOverrideEnabled" style="display:none;">Pick a chunk above to load its exact JSON payload here, or edit it freely. Enabling the checkbox sends exactly this text (as one message, unchunked) instead of the normally-computed data on every future refresh, useful for testing specific values without needing real conditions to match. Invalid JSON is ignored and the app falls back to normal data rather than failing to send anything.</div>' +
+'      <div class="help" id="help-debugOverrideEnabled" style="display:none;">Sends the edited test data instead of normal calculated data. Nothing is saved.</div>' +
 '    </div>' +
 
 '    <div class="subsection">' +
 '      <div class="field-label-row"><label>Full keyset (every current value)</label><button type="button" class="help-btn" onclick="toggleHelp(\'help-fullKeyset\')">?</button></div>' +
-'      <div class="help" id="help-fullKeyset" style="display:none;">Regenerated fresh every time this page opens: every key the watch could receive, filled in with whatever\'s actually configured right now (settings) plus the last real eclipse/weather/astronomy data that was computed (may be blank/zeroed fields if nothing\'s been fetched yet). Edit anything below, then send it as-is -- this bypasses your other settings and the normal data sources entirely for this one send; nothing here gets saved, and Save above is unaffected by it.</div>' +
+'      <div class="help" id="help-fullKeyset" style="display:none;">Shows all available data fields and their current values. A manual send affects that send only.</div>' +
 '      <textarea id="fullKeysetData" rows="16" style="width:100%; box-sizing:border-box; font-family:monospace; font-size:11px;">' + esc(current.fullKeysetJson || '{}') + '</textarea>' +
 '      <button type="button" class="secondary-btn" id="copyFullKeysetBtn" style="width:auto; margin-top:6px; padding:6px 12px;" onclick="copyTextareaContent(\'fullKeysetData\', \'copyFullKeysetBtn\')">Copy</button>' +
 '      <button type="button" class="secondary-btn" style="width:auto; margin-top:6px; margin-left:6px; padding:6px 12px;" onclick="sendFullKeysetToWatch()">Send to watch now</button>' +

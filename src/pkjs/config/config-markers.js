@@ -81,7 +81,7 @@ function customMarkerModalHtml(kind, title, thicknessMax) {
         { value: '2', label: 'Square' },
         { value: '4', label: 'Tapered' }
       ], '0', styleChangeFn) +
-'    <div class="help" id="' + p + 'NoneHelp" style="display:none;">This ring is turned off -- pick any other shape to bring it back with its last settings.</div>' +
+'    <div class="help" id="' + p + 'NoneHelp" style="display:none;">Turns this ring off. Choose another shape to restore it with its previous settings.</div>' +
 
 '    <div id="' + p + 'GeometryWrap">' +
 
@@ -93,7 +93,7 @@ function customMarkerModalHtml(kind, title, thicknessMax) {
 '      <button type="button" class="slider-step-btn" onclick="stepSlider(\'' + p + 'Thickness\', 1)">+</button>' +
 '      </div>' +
 '    </div>' +
-'    <div class="help" id="' + p + 'ThicknessHelp">Each mark is drawn directly between its inner and outer border points below -- no separate length setting.</div>' +
+'    <div class="help" id="' + p + 'ThicknessHelp">Sets the thickness of each marker between its inner and outer edges.</div>' +
 
 '    <div class="slider-row" id="' + p + 'InnerThicknessRow" style="display:none;">' +
 '      <label for="' + p + 'InnerThickness">Inner thickness <span class="val" id="' + p + 'InnerThicknessVal"></span></label>' +
@@ -103,7 +103,7 @@ function customMarkerModalHtml(kind, title, thicknessMax) {
 '      <button type="button" class="slider-step-btn" onclick="stepSlider(\'' + p + 'InnerThickness\', 1)">+</button>' +
 '      </div>' +
 '    </div>' +
-'    <div class="help" id="' + p + 'InnerThicknessHelp" style="display:none;">Tapered only: this is the width at the ring\'s inner (base) edge -- "Thickness" above becomes the outer (end) edge\'s width instead. Set one of the two to 1 and the other higher for a sharp triangle; equal values look the same as Square.</div>' +
+'    <div class="help" id="' + p + 'InnerThicknessHelp" style="display:none;">For Tapered markers, sets the width at the inner edge. Use different values to make the marker wider at one end.</div>' +
 
 '    <div class="slider-row">' +
 '      <label for="' + p + 'InnerEcc">Inner eccentricity <span class="val" id="' + p + 'InnerEccVal"></span></label>' +
@@ -121,7 +121,7 @@ function customMarkerModalHtml(kind, title, thicknessMax) {
 '      <button type="button" class="slider-step-btn" onclick="stepSlider(\'' + p + 'OuterEcc\', 1)">+</button>' +
 '      </div>' +
 '    </div>' +
-'    <div class="help">0 = circle, 100 = a rectangle fitted to the screen edges -- this is what "bends" each mark around corners as it changes.</div>' +
+'    <div class="help">Controls how the markers follow the watch face: 0 is circular and 100 follows the screen edges.</div>' +
 
 '    <div class="slider-row">' +
 '      <label for="' + p + 'InnerBorder">Inner border <span class="val" id="' + p + 'InnerBorderVal"></span></label>' +
@@ -139,19 +139,19 @@ function customMarkerModalHtml(kind, title, thicknessMax) {
 '      <button type="button" class="slider-step-btn" onclick="stepSlider(\'' + p + 'OuterBorder\', 1)">+</button>' +
 '      </div>' +
 '    </div>' +
-'    <div class="help">Outer can\'t go below inner -- it gets pulled up automatically if you drag inner past it.</div>' +
+'    <div class="help">Sets the inner and outer positions of the marker ring. The outer position cannot move inside the inner position.</div>' +
 
 '    <div class="checkbox-row" style="margin-top:12px;">' +
 '      <input type="checkbox" id="' + p + 'Translucent">' +
 '      <label for="' + p + 'Translucent" style="margin:0;">Semi-transparent</label>' +
 '    </div>' +
-'    <div class="help">Dithers this ring (independent of the hour/second ring\'s own setting, and of Semi-transparent hands) to ~50% so the sky shows through.</div>' +
+'    <div class="help">Makes the markers appear about 50% transparent so the background shows through.</div>' +
 
 '    <label style="margin-top:12px;">Color</label>' +
       colorRoleButtonGroupHtml(p + 'ColorGroup', p + 'Color', '0', false) +
-'    <div class="help">Independent of the hour/second ring\'s own color -- pick a different one for each if you want them to stand apart.</div>' +
+'    <div class="help">Sets the color of this marker ring independently from the other ring.</div>' +
 
-'    <label style="margin-top:12px;">Presets (translated from the procedural styles)</label>' +
+'    <label style="margin-top:12px;">Presets</label>' +
 '    <div class="preset-btn-row">' +
 '      <button type="button" onclick="applyMarkerPreset(\'' + kind + '\', \'minimal\')">Minimal</button>' +
 '      <button type="button" onclick="applyMarkerPreset(\'' + kind + '\', \'small\')">Small</button>' +
@@ -189,7 +189,7 @@ function textMarkerModalHtml(current) {
         { value: '1', label: 'On hours' },
         { value: '2', label: 'Every 5s' }
       ], current.markerTextTarget || '0', 'selectMarkerTextTarget') +
-'    <div class="help">Numbers can go on the hour ring or the second ring, not both at once.</div>' +
+'    <div class="help">Choose whether to show numbers on the hour ring, every 5-second mark, or neither.</div>' +
 
 '    <div id="markerTextOptions" style="' + (current.markerTextTarget && current.markerTextTarget !== '0' ? '' : 'display:none;') + '">' +
 '      <label for="markerTextFont" style="margin-top:10px;">Font</label>' +
@@ -203,7 +203,7 @@ function textMarkerModalHtml(current) {
 '        <input type="checkbox" id="markerTextRoman" onchange="refreshAllFontTriggerLabels()" ' + (current.markerTextRoman === 'true' && !ROMAN_INCOMPATIBLE_FONTS[current.markerTextFont] ? 'checked' : '') + ' ' + (ROMAN_INCOMPATIBLE_FONTS[current.markerTextFont] ? 'disabled' : '') + '>' +
 '        <label for="markerTextRoman" style="margin:0;">Roman numerals</label>' +
 '      </div>' +
-'      <div class="help" id="markerTextRomanHelp">' + (ROMAN_INCOMPATIBLE_FONTS[current.markerTextFont] ? 'Not available with this font -- its glyphs don\'t support Roman numerals correctly.' : 'Shows I, II, III... instead of 1, 2, 3... -- independent of the font above.') + '</div>' +
+'      <div class="help" id="markerTextRomanHelp">' + (ROMAN_INCOMPATIBLE_FONTS[current.markerTextFont] ? 'This font does not support Roman numerals correctly.' : 'Shows I, II, III... instead of 1, 2, 3....') + '</div>' +
 
 '      <div class="slider-row">' +
 '        <label for="markerTextOffset">Offset from index <span class="val" id="markerTextOffsetVal">' + esc(current.markerTextOffset || '0') + 'px</span></label>' +
@@ -213,7 +213,7 @@ function textMarkerModalHtml(current) {
 '        <button type="button" class="slider-step-btn" onclick="stepSlider(\'markerTextOffset\', 1)">+</button>' +
 '        </div>' +
 '      </div>' +
-'      <div class="help">Positive nudges numbers outward (away from center), negative pulls them inward -- so they don\'t overlap the dot/line/square index.</div>' +
+'      <div class="help">Moves the numbers outward or inward relative to the marker ring.</div>' +
 
 '      <div id="markerTextHourGrid" style="' + (current.markerTextTarget === '1' ? '' : 'display:none;') + '">' +
 '        <label style="margin-top:10px;">Which hours get a number</label>' +

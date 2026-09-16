@@ -99,7 +99,7 @@ function handEditorModalHtml(kind, title) {
 '      <button type="button" class="slider-step-btn" onclick="stepSlider(\'' + p + 'BackOffset\', 1)">+</button>' +
 '      </div>' +
 '    </div>' +
-'    <div class="help">Positive extends a tail behind the pivot; negative starts the hand short of center (a detached gap).</div>' +
+'    <div class="help">Moves the end of the hand behind the center. Positive values extend the tail; negative values leave a gap.</div>' +
 
 '    <div class="slider-row" id="' + p + 'MiddleOffsetRow">' +
 '      <label for="' + p + 'MiddleOffset">D. Middle offset <span class="val" id="' + p + 'MiddleOffsetVal"></span></label>' +
@@ -117,23 +117,23 @@ function handEditorModalHtml(kind, title) {
 '      <button type="button" class="slider-step-btn" onclick="stepSlider(\'' + p + 'SecondaryWidth\', 1)">+</button>' +
 '      </div>' +
 '    </div>' +
-'    <div class="help" id="' + p + 'MiddleSecondaryHelp">Middle offset: Dauphine\'s side points, Sword\'s mid-bulge position, Pomme\'s thick/thin joint, Spade\'s droplet point height, Arrow\'s tip-triangle height, Leaf\'s peak position, Syringe\'s needle corner position, Serpentine\'s curve diameter/direction. Secondary width (all except Leaf): Sword\'s mid-bulge width, Pomme\'s tail width, Spade\'s droplet diameter, Arrow\'s tip-triangle width, Syringe\'s needle-tip width, Serpentine\'s squiggle envelope.</div>' +
+'    <div class="help" id="' + p + 'MiddleSecondaryHelp">Middle offset and secondary width change the hand\'s middle/secondary section; the effect depends on the selected hand shape.</div>' +
 
 '    <label for="' + p + 'Color">Color</label>' +
 '    <select id="' + p + 'Color" onchange="onHandSliderInput(\'' + kind + '\')">' + schemeColorOptionsHtml('0') + '<option value="3">None (don\'t fill)</option></select>' +
-'    <div class="help">"None" skips the fill entirely -- combine with Outline below for a hollow look.</div>' +
+'    <div class="help">Removes the fill. Combine with Outline to create a hollow hand.</div>' +
 
 '    <div class="checkbox-row" style="margin-top:12px;">' +
 '      <input type="checkbox" id="' + p + 'Translucent" onchange="onHandSliderInput(\'' + kind + '\')">' +
 '      <label for="' + p + 'Translucent" style="margin:0;">Semi-transparent</label>' +
 '    </div>' +
-'    <div class="help">Dithers the fill (and outline, if enabled) to ~50% so the sky shows through.</div>' +
+'    <div class="help">Uses dithering to make the hand appear about 50% transparent.</div>' +
 
 '    <div class="checkbox-row" style="margin-top:12px;">' +
 '      <input type="checkbox" id="' + p + 'Hollow" onchange="onHandHollowChange(\'' + kind + '\')">' +
 '      <label for="' + p + 'Hollow" style="margin:0;">Hollow</label>' +
 '    </div>' +
-'    <div class="help">Draws a thick inline stroke of the shape\'s own outline instead of a solid fill -- within the shape\'s bounds, unlike Outline below which marks it from the outside.</div>' +
+'    <div class="help">Draws the outline inside the hand shape instead of outside it.</div>' +
 '    <div class="slider-row" id="' + p + 'HollowThicknessRow">' +
 '      <label for="' + p + 'HollowThickness">F. Hollow thickness <span class="val" id="' + p + 'HollowThicknessVal"></span></label>' +
 '      <div class="slider-with-buttons">' +
@@ -154,7 +154,7 @@ function handEditorModalHtml(kind, title) {
 '      <input type="checkbox" id="' + p + 'ShadowEnabled" onchange="onHandSliderInput(\'' + kind + '\')">' +
 '      <label for="' + p + 'ShadowEnabled" style="margin:0;">Shadow</label>' +
 '    </div>' +
-'    <div class="help">A drop shadow of the hand\'s own shape, offset a fixed distance in a fixed direction (not rotated with the hand). Solid or translucent is set once for every hand in the Style section.</div>' +
+'    <div class="help">Adds a fixed-offset shadow behind the hand.</div>' +
 '    <div class="slider-row">' +
 '      <label for="' + p + 'ShadowDistance">G. Shadow distance <span class="val" id="' + p + 'ShadowDistanceVal"></span></label>' +
 '      <div class="slider-with-buttons">' +
