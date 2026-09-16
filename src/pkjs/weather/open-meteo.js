@@ -81,15 +81,16 @@ function getDailyCloudGrid(lat, lon, times, nowDate, cb) {
             '?latitude=' + encodeURIComponent(lat) +
             '&longitude=' + encodeURIComponent(lon) +
             '&hourly=cloudcover,weathercode,cloudcover_low,cloudcover_mid,cloudcover_high,relativehumidity_2m,dewpoint_2m,surface_pressure,temperature_2m,uv_index' +
-            '&daily=sunrise,sunset,temperature_2m_max,temperature_2m_min,uv_index_max,precipitation_probability_max' +
+            '&daily=sunrise,sunset,temperature_2m_max,temperature_2m_min,uv_index_max,precipitation_probability_max,weathercode' +
             '&current_weather=true' +
             '&timezone=auto' +
-            '&forecast_days=2';
+            '&forecast_days=4';
   var emptyExtras = {
     sunrise: null, sunset: null, condition: 0, tempC: null, tempHighC: null, tempLowC: null,
     cloudAltitudePct: 50, uvIndexMax: null, uvIndexCurrent: null, rainChancePct: null, humidityPct: null, windSpeedKmh: null,
     currentCloudPct: null, windDirDeg: null, dewPointC: null, pressureHpa: null, pressureTrend: 0,
-    forecastTempC: [null, null, null, null, null, null], forecastCondition: [0, 0, 0, 0, 0, 0]
+    forecastTempC: [null, null, null, null, null, null], forecastCondition: [0, 0, 0, 0, 0, 0],
+    dailyForecastTempC: [null, null, null], dailyForecastCondition: [0, 0, 0]
   };
   xhrGetJSON(url, 8000, function (err, json) {
     if (err) return cb(err, null, emptyExtras);
@@ -175,10 +176,10 @@ function getDailyCloudGrid(lat, lon, times, nowDate, cb) {
       }
 
       // "Weather in 1-6 hours" content (features_layer.c ids 87-92) --
-      // temperature_2m/weathercode at nowIdx+1..nowIdx+6. forecast_days=2
-      // gives 48 hourly points starting at hour 0 of today, so nowIdx+6
-      // only runs off the end of the array in the last few hours of day
-      // 2 -- guarded per-index below rather than assumed safe.
+      // temperature_2m/weathercode at nowIdx+1..nowIdx+6. forecast_days=4
+      // gives 96 hourly points starting at hour 0 of today, comfortably
+      // covering nowIdx+6 even late in the day -- guarded per-index below
+      // anyway rather than assumed safe.
       var forecastTempC = [null, null, null, null, null, null];
       var forecastCondition = [0, 0, 0, 0, 0, 0];
       var hourlyTemps = json.hourly.temperature_2m;
@@ -210,6 +211,23 @@ function getDailyCloudGrid(lat, lon, times, nowDate, cb) {
         }
       }
 
+      // "Weather in 1-3 days" content (features_layer.c ids 93-95) -- daily
+      // max temp/weathercode at daily index 1..3 (index 0 is today, already
+      // used above for tempHighC/tempLowC).
+      var dailyForecastTempC = [null, null, null];
+      var dailyForecastCondition = [0, 0, 0];
+      if (json.daily) {
+        for (var fd = 0; fd < 3; fd++) {
+          var dIdx = fd + 1;
+          if (json.daily.temperature_2m_max && typeof json.daily.temperature_2m_max[dIdx] === 'number') {
+            dailyForecastTempC[fd] = Math.round(json.daily.temperature_2m_max[dIdx]);
+          }
+          if (json.daily.weathercode && typeof json.daily.weathercode[dIdx] === 'number') {
+            dailyForecastCondition[fd] = conditionFromWmoCode(json.daily.weathercode[dIdx]);
+          }
+        }
+      }
+
       cb(null, result, {
         sunrise: sunrise, sunset: sunset, condition: condition,
         tempC: tempC, tempHighC: tempHighC, tempLowC: tempLowC,
@@ -217,7 +235,8 @@ function getDailyCloudGrid(lat, lon, times, nowDate, cb) {
         rainChancePct: rainChancePct, humidityPct: humidityPct, windSpeedKmh: windSpeedKmh,
         currentCloudPct: currentCloudPct, windDirDeg: windDirDeg, dewPointC: dewPointC,
         pressureHpa: pressureHpa, pressureTrend: pressureTrend,
-        forecastTempC: forecastTempC, forecastCondition: forecastCondition
+        forecastTempC: forecastTempC, forecastCondition: forecastCondition,
+        dailyForecastTempC: dailyForecastTempC, dailyForecastCondition: dailyForecastCondition
       });
     } catch (e) {
       cb(e, null, emptyExtras);

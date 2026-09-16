@@ -82,21 +82,21 @@ void __attribute__((noinline)) feature_value_date_compute(FeatureSlot *slot, uin
     case 71: snprintf(buf, sizeof(buf), "%d", t->tm_sec / 10); dyn = feature_colors_linear_white_black(t->tm_sec / 10, 0, 5); break;
     case 72: snprintf(buf, sizeof(buf), "%d", t->tm_sec % 10); dyn = feature_colors_linear_white_black(t->tm_sec % 10, 0, 9); break;
     case 86: snprintf(buf, sizeof(buf), "%s", t->tm_hour < 12 ? "AM" : "PM"); dyn = (t->tm_hour < 12) ? GColorBlack : GColorWhite; break;
-    case 95: { // weekday + day/month (multi-value), e.g. "MON 24/9"
+    case 98: { // weekday + day/month (multi-value), e.g. "MON 24/9"
       char day_buf[4];
       strftime(day_buf, sizeof(day_buf), "%a", t); feature_rules_to_upper_str(day_buf);
       snprintf(buf, sizeof(buf), "%s %d/%d", day_buf, t->tm_mday, t->tm_mon + 1);
       dyn = feature_colors_date_year_progress_gradient(t);
       break;
     }
-    case 96: { // weekday + month/day (multi-value), e.g. "MON 9/24"
+    case 99: { // weekday + month/day (multi-value), e.g. "MON 9/24"
       char day_buf[4];
       strftime(day_buf, sizeof(day_buf), "%a", t); feature_rules_to_upper_str(day_buf);
       snprintf(buf, sizeof(buf), "%s %d/%d", day_buf, t->tm_mon + 1, t->tm_mday);
       dyn = feature_colors_date_year_progress_gradient(t);
       break;
     }
-    case 103: { // "long date" + week number (multi-value), e.g. "Mon 23 Sep WK34"
+    case 106: { // "long date" + week number (multi-value), e.g. "Mon 23 Sep WK34"
       char day_buf[4], mon_buf[4], wk_buf[4];
       strftime(day_buf, sizeof(day_buf), "%a", t);
       strftime(mon_buf, sizeof(mon_buf), "%b", t);
@@ -304,4 +304,4 @@ void __attribute__((noinline)) feature_value_sky_compute(FeatureSlot *slot, uint
   }
 }
 
-// combo cluster: multi-icon/multi-value content (97-102, 109-115)
+// combo cluster: multi-icon/multi-value content (100-105, 112-118)

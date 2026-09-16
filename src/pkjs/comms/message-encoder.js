@@ -624,6 +624,19 @@ function extraWeatherFieldsDict(extra) {
       return (typeof c === 'number') ? c : 0;
     });
   }
+  // "Weather in N days" (features_layer.c ids 93-95) -- same shape and
+  // same +50/255 offset convention as FORECAST_TEMP_C above, just 3
+  // entries (1-3 days ahead) instead of 6.
+  if (extra.dailyForecastTempC) {
+    dict['FORECAST_DAILY_TEMP_C'] = extra.dailyForecastTempC.map(function (c) {
+      return (typeof c === 'number') ? Math.max(0, Math.min(255, Math.round(c) + 50)) : 255;
+    });
+  }
+  if (extra.dailyForecastCondition) {
+    dict['FORECAST_DAILY_CONDITION'] = extra.dailyForecastCondition.map(function (c) {
+      return (typeof c === 'number') ? c : 0;
+    });
+  }
   return dict;
 }
 

@@ -212,6 +212,7 @@ static const BlobFieldMapping BLOB_FIELD_MAP_VALID[] = {
   { MK_SEP_SAMPLES, 2, offsetof(EclipseData, sep_samples_centideg), MAX_SEP_SAMPLES * 2 },
   { MK_MAG_SAMPLES, 1, offsetof(EclipseData, mag_pct_samples), MAX_SEP_SAMPLES },
   { MK_FORECAST_CONDITION, 1, offsetof(EclipseData, forecast_condition), 6 },
+  { MK_FORECAST_DAILY_CONDITION, 1, offsetof(EclipseData, forecast_daily_condition), 3 },
   { MK_SUN_ALT_SAMPLES, 2, offsetof(EclipseData, sun_alt_decideg), MAX_SKY_SAMPLES * 2 },
   { MK_SUN_AZ_SAMPLES, 2, offsetof(EclipseData, sun_az_decideg), MAX_SKY_SAMPLES * 2 },
   { MK_CLOUD_SAMPLES, 1, offsetof(EclipseData, cloud_pct_samples), MAX_SKY_SAMPLES },
@@ -363,6 +364,15 @@ CommsChangeFlags comms_decoder_apply(DictionaryIterator *iter, EclipseData *data
     if (n > 6) n = 6;
     for (int i = 0; i < n; i++) {
       d->forecast_temp_c[i] = (raw[i] == 255) ? -128 : ((int16_t)raw[i] - 50);
+    }
+  }
+  // Same +50/255 offset convention as FORECAST_TEMP_C above, 3 entries.
+  if ((t = dict_find(iter, base + MK_FORECAST_DAILY_TEMP_C))) {
+    uint8_t *raw = t->value->data;
+    int n = t->length;
+    if (n > 3) n = 3;
+    for (int i = 0; i < n; i++) {
+      d->forecast_daily_temp_c[i] = (raw[i] == 255) ? -128 : ((int16_t)raw[i] - 50);
     }
   }
 

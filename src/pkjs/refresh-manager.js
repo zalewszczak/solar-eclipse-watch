@@ -489,7 +489,8 @@ function refreshAndSend(force, resendOnSkip) {
                   auroraKpX10: (typeof aurora.kp === 'number') ? Math.round(aurora.kp * 10) : null,
                   auroraVisibilityPct: (typeof aurora.visibilityPct === 'number') ? aurora.visibilityPct : null,
                   auroraErrorCode: auroraErrorCode,
-                  forecastTempC: extras.forecastTempC, forecastCondition: extras.forecastCondition
+                  forecastTempC: extras.forecastTempC, forecastCondition: extras.forecastCondition,
+                  dailyForecastTempC: extras.dailyForecastTempC, dailyForecastCondition: extras.dailyForecastCondition
                 };
                 if (result.hasEclipse) {
                   sendEclipseData(result, sky, cloudGrid, headlineCloud, headlineSources, locationName, moonPhase, riseSet, extras.condition, extras.tempC, meteorShower, extras.cloudAltitudePct, extras.tempHighC, extras.tempLowC, issPos, extras.uvIndexMax, extras.uvIndexCurrent, extras.rainChancePct, extras.humidityPct, extras.windSpeedKmh, extras.currentCloudPct, sunRiseTomorrow, extraWeather, stars, !gridErr, weatherCls.code, issErrorCode);

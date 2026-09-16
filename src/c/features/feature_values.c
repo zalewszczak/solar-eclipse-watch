@@ -21,8 +21,8 @@ void feature_values_compute_slot(FeatureSlot *slot, const EclipseData *data,
 
   uint8_t content = slot->content, color_mode = slot->color_mode;
   switch (content) {
-    case 97: case 98: case 99: case 100: case 101: case 102:
-    case 109: case 110: case 115:
+    case 100: case 101: case 102: case 103: case 104: case 105:
+    case 112: case 113: case 118:
       feature_value_composite_compute(slot, content, data, color_mode, main_color, now);
       break;
     case 44: case 45: case 46: case 47: case 48: case 49: case 50: case 51: case 52: case 53:
@@ -30,7 +30,7 @@ void feature_values_compute_slot(FeatureSlot *slot, const EclipseData *data,
       feature_value_timezone_compute(slot, content, color_mode, main_color, accent_color, now);
       break;
     case 1: case 2: case 3: case 10: case 17: case 20: case 39: case 40: case 41: case 42: case 43: case 78:
-    case 105: case 106:
+    case 108: case 109:
       feature_value_health_compute(slot, content, data, color_mode, main_color, accent_color);
       break;
     case 11: case 13: case 16: case 79: case 80: case 81: case 82: case 83: case 84: case 85:
@@ -38,7 +38,7 @@ void feature_values_compute_slot(FeatureSlot *slot, const EclipseData *data,
       break;
     case 4: case 5: case 6: case 7: case 8: case 9: case 14: case 15: case 31: case 32: case 34:
     case 35: case 36: case 37: case 38: case 73: case 74: case 75: case 76: case 77: case 87: case 88:
-    case 89: case 90: case 91: case 92: case 93: case 94: case 104:
+    case 89: case 90: case 91: case 92: case 93: case 94: case 95: case 96: case 97: case 107:
       feature_value_weather_compute(slot, content, data, color_mode, main_color, accent_color, bg_color);
       break;
     default:

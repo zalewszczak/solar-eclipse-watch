@@ -94,7 +94,7 @@ void __attribute__((noinline)) feature_value_health_compute(FeatureSlot *slot, u
       feature_value_set_icon_segment(slot, 0, 13, c);
       return;
     }
-    case 105: { // Quiet Time status, icon only -- plain speaker (off) / crossed-out speaker (active)
+    case 108: { // Quiet Time status, icon only -- plain speaker (off) / crossed-out speaker (active)
       bool active = quiet_time_is_active();
       GColor dyn = active ? GColorRed : GColorWhite;
       GColor c = feature_value_resolve_flat_color(color_mode, dyn, main_color, accent_color);
@@ -103,7 +103,7 @@ void __attribute__((noinline)) feature_value_health_compute(FeatureSlot *slot, u
       slot->segments[0].icon_flag = active; // true = crossed-out
       return;
     }
-    case 106: { // Quiet Time status, icon (always plain speaker) + "ON"/"OFF" text
+    case 109: { // Quiet Time status, icon (always plain speaker) + "ON"/"OFF" text
       bool active = quiet_time_is_active();
       GColor dyn = active ? GColorRed : GColorWhite;
       GColor c = feature_value_resolve_flat_color(color_mode, dyn, main_color, accent_color);

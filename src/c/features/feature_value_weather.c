@@ -54,14 +54,14 @@ void __attribute__((noinline)) feature_value_weather_compute(FeatureSlot *slot, 
       feature_value_set_text_segment(slot, 0, buf, feature_value_resolve_flat_color(color_mode, cond_color, main_color, accent_color));
       return;
     }
-    case 6: { // UV index (today's daily max -- see 104 for the current-hour value)
+    case 6: { // UV index (today's daily max -- see 107 for the current-hour value)
       uint8_t uv = data->uv_index_x10 / 10;
       snprintf(buf, sizeof(buf), "UV%d", uv);
       slot->segment_count = 1;
       feature_value_set_text_segment(slot, 0, buf, feature_value_resolve_flat_color(color_mode, feature_colors_seven_stop_gradient(uv, 1, 13), main_color, accent_color));
       return;
     }
-    case 104: { // current UV index (this hour, as opposed to 6's daily max)
+    case 107: { // current UV index (this hour, as opposed to 6's daily max)
       uint8_t uv = data->uv_index_current_x10 / 10;
       snprintf(buf, sizeof(buf), "UV%d", uv);
       slot->segment_count = 1;
@@ -200,46 +200,75 @@ void __attribute__((noinline)) feature_value_weather_compute(FeatureSlot *slot, 
       feature_value_set_text_segment(slot, 1, buf, c);
       return;
     }
-    case 87: case 88: case 89: case 90: case 91: case 92: { // weather in 1-6 hours, e.g. "+3h <icon> 28C"
+    case 87: case 88: case 89: case 90: case 91: case 92: { // weather in 1-6 hours: half-icon "+Xh" + weather icon + temp
       int hrs_ahead = content - 86; // 1-6
       int idx = hrs_ahead - 1;
       GColor c;
       if (data->forecast_temp_c[idx] <= -128) {
-        snprintf(buf, sizeof(buf), "+%dh N/A", hrs_ahead);
         c = GColorLightGray;
-        slot->segment_count = 1;
-        feature_value_set_text_segment(slot, 0, buf, c);
+        slot->segment_count = 2;
+        feature_value_set_icon_segment(slot, 0, 30, c);
+        slot->segments[0].icon_extra = hrs_ahead;
+        feature_value_set_text_segment(slot, 1, "N/A", c);
         return;
       }
       int16_t shown = feature_rules_convert_temp(data->forecast_temp_c[idx], data->temp_unit);
-      snprintf(buf, sizeof(buf), "+%dh %d", hrs_ahead, shown);
+      snprintf(buf, sizeof(buf), "%d", shown);
       // Same shape as "temp + weather icon" (32): plain 7-stop gradient,
       c = feature_value_resolve_flat_color(color_mode, feature_colors_seven_stop_gradient(data->forecast_temp_c[idx], -10, 40), main_color, accent_color);
-      slot->segment_count = 2;
-      feature_value_set_icon_segment(slot, 0, 14, c);
-      slot->segments[0].icon_extra = feature_icons_weather_category(data->forecast_condition[idx], 50); // no forecast cloud% sent separately -- 50 is a neutral middle guess, only affects which of a few near-identical i...
+      slot->segment_count = 3;
+      feature_value_set_icon_segment(slot, 0, 30, c); // "+Xh" half-icon
+      slot->segments[0].icon_extra = hrs_ahead;
+      feature_value_set_icon_segment(slot, 1, 14, c);
+      slot->segments[1].icon_extra = feature_icons_weather_category(data->forecast_condition[idx], 50); // no forecast cloud% sent separately -- 50 is a neutral middle guess, only affects which of a few near-identical i...
       // Day/night art for the forecast hour itself (not "now") -- sky_layer_is_bright()
       // takes any time_t and interpolates against the same sun-altitude samples used
       // for the live sky, so this is the actual predicted day/night state then.
-      slot->segments[0].icon_flag = !sky_layer_is_bright(data, time(NULL) + (time_t)hrs_ahead * 3600);
-      feature_value_set_text_segment(slot, 1, buf, c);
+      slot->segments[1].icon_flag = !sky_layer_is_bright(data, time(NULL) + (time_t)hrs_ahead * 3600);
+      feature_value_set_text_segment(slot, 2, buf, c);
       return;
     }
-    case 93: case 94: { // last weather update time, long (93, "Last updated 12:34") / short (94, "12:34")
+    case 93: case 94: case 95: { // weather in 1-3 days: half-icon "+X day" + weather icon + temp
+      int days_ahead = content - 92; // 1-3
+      int idx = days_ahead - 1;
+      GColor c;
+      if (data->forecast_daily_temp_c[idx] <= -128) {
+        c = GColorLightGray;
+        slot->segment_count = 2;
+        feature_value_set_icon_segment(slot, 0, 30, c);
+        slot->segments[0].icon_extra = content - 86; // 7-9, same index space as the hour icons above
+        feature_value_set_text_segment(slot, 1, "N/A", c);
+        return;
+      }
+      int16_t shown = feature_rules_convert_temp(data->forecast_daily_temp_c[idx], data->temp_unit);
+      snprintf(buf, sizeof(buf), "%d", shown);
+      c = feature_value_resolve_flat_color(color_mode, feature_colors_seven_stop_gradient(data->forecast_daily_temp_c[idx], -10, 40), main_color, accent_color);
+      slot->segment_count = 3;
+      feature_value_set_icon_segment(slot, 0, 30, c); // "+X day" half-icon
+      slot->segments[0].icon_extra = content - 86; // 7-9
+      feature_value_set_icon_segment(slot, 1, 14, c);
+      slot->segments[1].icon_extra = feature_icons_weather_category(data->forecast_daily_condition[idx], 50);
+      // A day's forecast has no single "then" moment to test day/night
+      // against, unlike the hourly case above -- always drawn with daytime art.
+      slot->segments[1].icon_flag = false;
+      feature_value_set_text_segment(slot, 2, buf, c);
+      return;
+    }
+    case 96: case 97: { // last weather update time, long (96, "Last updated 12:34") / short (97, "12:34")
       GColor dyn;
       time_t now = time(NULL);
       if (data->weather_last_update > 0) {
         struct tm *ut = localtime(&data->weather_last_update);
         char time_buf[8];
         strftime(time_buf, sizeof(time_buf), clock_is_24h_style() ? "%H:%M" : "%I:%M", ut);
-        if (content == 93) snprintf(buf, sizeof(buf), "Last updated %s", time_buf);
+        if (content == 96) snprintf(buf, sizeof(buf), "Last updated %s", time_buf);
         else snprintf(buf, sizeof(buf), "%s", time_buf);
       } else {
         snprintf(buf, sizeof(buf), "N/A");
       }
       dyn = feature_colors_weather_staleness_gradient(now, data->weather_last_update);
       GColor c = feature_value_resolve_flat_color(color_mode, dyn, main_color, accent_color);
-      if (content == 94) {
+      if (content == 97) {
         // Short version only -- the long version's own "Last updated"
         slot->segment_count = 2;
         feature_value_set_icon_segment(slot, 0, 28, c);

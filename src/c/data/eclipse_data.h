@@ -207,6 +207,9 @@ typedef struct {
   // Forecast for the next 1-6 hours.
   int16_t forecast_temp_c[6];
   uint8_t forecast_condition[6];
+  // Forecast for the next 1-3 days.
+  int16_t forecast_daily_temp_c[3];
+  uint8_t forecast_daily_condition[3];
   char location_name[32];  // reverse-geocoded place name.
 
   uint8_t timezone_id;     // index into the timezone table.

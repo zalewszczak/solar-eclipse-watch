@@ -52,7 +52,7 @@ void __attribute__((noinline)) feature_value_composite_compute(FeatureSlot *slot
   char buf1[16], buf2[16];
 
   switch (content) {
-    case 97: { // heart rate + steps
+    case 100: { // heart rate + steps
       int bpm = feature_health_peek_current_bpm();
       GColor hr_c = dynamic ? (bpm > 0 ? feature_colors_heart_rate_gradient(bpm) : GColorLightGray) : flat;
       snprintf(buf1, sizeof(buf1), bpm > 0 ? "%d" : "N/A", bpm);
@@ -71,7 +71,7 @@ void __attribute__((noinline)) feature_value_composite_compute(FeatureSlot *slot
       feature_value_set_text_segment(slot, 3, buf2, step_c);
       return;
     }
-    case 98: { // bed time + wake time, day/night graded independently
+    case 101: { // bed time + wake time, day/night graded independently
       FeatureSleepSpan span = feature_health_get_sleep_span();
       GColor bed_c = flat, wake_c = flat;
       if (span.found) {
@@ -96,7 +96,7 @@ void __attribute__((noinline)) feature_value_composite_compute(FeatureSlot *slot
       feature_value_set_text_segment(slot, 2, buf2, wake_c);
       return;
     }
-    case 99: case 100: { // battery + BT (icons only, 99), battery % + BT (100)
+    case 102: case 103: { // battery + BT (icons only, 102), battery % + BT (103)
       CompositeBatteryStatus status;
       composite_battery_status_get(&status, dynamic, flat);
       BatteryChargeState bs = status.battery;
@@ -107,7 +107,7 @@ void __attribute__((noinline)) feature_value_composite_compute(FeatureSlot *slot
       slot->segments[0].icon_extra = bs.charge_percent;
       slot->segments[0].icon_flag = bs.is_charging;
 
-      if (content == 99) {
+      if (content == 102) {
         slot->segment_count = 2;
         feature_value_set_icon_segment(slot, 1, 13, bt_c);
       } else {
@@ -118,7 +118,7 @@ void __attribute__((noinline)) feature_value_composite_compute(FeatureSlot *slot
       }
       return;
     }
-    case 109: { // battery + BT + Quiet Time, icons only
+    case 112: { // battery + BT + Quiet Time, icons only
       CompositeBatteryStatus status;
       composite_battery_status_get(&status, dynamic, flat);
       BatteryChargeState bs = status.battery;
@@ -137,7 +137,7 @@ void __attribute__((noinline)) feature_value_composite_compute(FeatureSlot *slot
       slot->segments[2].icon_flag = quiet_active;
       return;
     }
-    case 110: { // battery % + Quiet Time ON/OFF + BT ON/OFF
+    case 113: { // battery % + Quiet Time ON/OFF + BT ON/OFF
       CompositeBatteryStatus status;
       composite_battery_status_get(&status, dynamic, flat);
       BatteryChargeState bs = status.battery;
@@ -161,7 +161,7 @@ void __attribute__((noinline)) feature_value_composite_compute(FeatureSlot *slot
       feature_value_set_text_segment(slot, 5, connected ? "ON" : "OFF", bt_c);
       return;
     }
-    case 115: { // battery (icon + %) + BT + Quiet Time, icons only for BT/Quiet --
+    case 118: { // battery (icon + %) + BT + Quiet Time, icons only for BT/Quiet --
                // battery is the one icon that also shows its own text (percentage)
       CompositeBatteryStatus status;
       composite_battery_status_get(&status, dynamic, flat);
@@ -183,7 +183,7 @@ void __attribute__((noinline)) feature_value_composite_compute(FeatureSlot *slot
       slot->segments[3].icon_flag = quiet_active;
       return;
     }
-    case 101: { // sleep times: sleep icon, total duration, (restful duration), quality%
+    case 104: { // sleep times: sleep icon, total duration, (restful duration), quality%
       if (feature_health_metric_available(HealthMetricSleepSeconds)) {
         HealthValue total = feature_health_sum_today(HealthMetricSleepSeconds);
         HealthValue restful = feature_health_sum_today(HealthMetricSleepRestfulSeconds);
@@ -212,7 +212,7 @@ void __attribute__((noinline)) feature_value_composite_compute(FeatureSlot *slot
       }
       return;
     }
-    case 102: { // "long date" + sunset/sunrise, e.g. "Mon 23 Sep <icon> 19:45"
+    case 105: { // "long date" + sunset/sunrise, e.g. "Mon 23 Sep <icon> 19:45"
       struct tm *t = localtime(&now);
       char day_buf[4], mon_buf[4];
       strftime(day_buf, sizeof(day_buf), "%a", t);

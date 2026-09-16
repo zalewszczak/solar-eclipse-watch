@@ -339,32 +339,32 @@ var CORNER_CATEGORIES = [
         "preview": "NNW"
       },
       {
-        "id": 99,
+        "id": 102,
         "label": "Battery + Bluetooth (icons only)",
         "preview": "(batt)(bt)"
       },
       {
-        "id": 100,
+        "id": 103,
         "label": "Battery % + Bluetooth",
         "preview": "68% (bt)"
       },
       {
-        "id": 105,
+        "id": 108,
         "label": "Quiet Time (icon only)",
         "preview": "(quiet)"
       },
       {
-        "id": 106,
+        "id": 109,
         "label": "Quiet Time (icon + ON/OFF)",
         "preview": "(spkr) OFF"
       },
       {
-        "id": 109,
+        "id": 112,
         "label": "Battery + Bluetooth + Quiet Time (icons only)",
         "preview": "(batt)(bt)(quiet)"
       },
       {
-        "id": 110,
+        "id": 113,
         "label": "Battery % + Quiet Time + Bluetooth (icon + ON/OFF each)",
         "preview": "82% (spkr)OFF (bt)ON"
       }
@@ -483,12 +483,12 @@ var CORNER_CATEGORIES = [
         "preview": "9/24/26"
       },
       {
-        "id": 95,
+        "id": 98,
         "label": "Weekday + Day/Month (MON 24/9)",
         "preview": "MON 24/9"
       },
       {
-        "id": 96,
+        "id": 99,
         "label": "Weekday + Month/Day (MON 9/24)",
         "preview": "MON 9/24"
       }
@@ -684,7 +684,7 @@ var CORNER_CATEGORIES = [
         "preview": "UV5"
       },
       {
-        "id": 104,
+        "id": 107,
         "label": "Current UV index",
         "preview": "UV5"
       },
@@ -771,32 +771,47 @@ var CORNER_CATEGORIES = [
       {
         "id": 87,
         "label": "Weather in 1 hour",
-        "preview": "+1h 24C"
+        "preview": "(1h) 24C"
       },
       {
         "id": 88,
         "label": "Weather in 2 hours",
-        "preview": "+2h 23C"
+        "preview": "(2h) 23C"
       },
       {
         "id": 89,
         "label": "Weather in 3 hours",
-        "preview": "+3h 22C"
+        "preview": "(3h) 22C"
       },
       {
         "id": 90,
         "label": "Weather in 4 hours",
-        "preview": "+4h 21C"
+        "preview": "(4h) 21C"
       },
       {
         "id": 91,
         "label": "Weather in 5 hours",
-        "preview": "+5h 20C"
+        "preview": "(5h) 20C"
       },
       {
         "id": 92,
         "label": "Weather in 6 hours",
-        "preview": "+6h 19C"
+        "preview": "(6h) 19C"
+      },
+      {
+        "id": 93,
+        "label": "Weather in 1 days",
+        "preview": "(1d) 24C"
+      },
+      {
+        "id": 94,
+        "label": "Weather in 2 days",
+        "preview": "(2d) 22C"
+      },
+      {
+        "id": 95,
+        "label": "Weather in 3 days",
+        "preview": "(3d) 20C"
       }
     ]
   },
@@ -853,42 +868,42 @@ var CORNER_CATEGORIES = [
     "icon": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><line x1=\"3\" y1=\"12\" x2=\"21\" y2=\"12\"/><polyline points=\"8,7 3,12 8,17\"/><polyline points=\"16,7 21,12 16,17\"/></svg>",
     "items": [
       {
-        "id": 97,
+        "id": 100,
         "label": "Heart rate + steps",
         "preview": "72 5234"
       },
       {
-        "id": 98,
+        "id": 101,
         "label": "Bed time + wake time",
         "preview": "23:45 /07:20"
       },
       {
-        "id": 101,
+        "id": 104,
         "label": "Sleep times",
         "preview": "7h32m (2h15m) 42%"
       },
       {
-        "id": 102,
+        "id": 105,
         "label": "Long date + sunrise/sunset",
         "preview": "Mon 23 Sep 19:42"
       },
       {
-        "id": 103,
+        "id": 106,
         "label": "Long date + week number",
         "preview": "Mon 23 Sep WK34"
       },
       {
-        "id": 93,
+        "id": 96,
         "label": "Last weather update, long",
         "preview": "Last updated 12:34"
       },
       {
-        "id": 94,
+        "id": 97,
         "label": "Last weather update, short",
         "preview": "12:34"
       },
       {
-        "id": 115,
+        "id": 118,
         "label": "Battery + Bluetooth + Quiet Time (% for battery only)",
         "preview": "82% (bt)(spkr)"
       }

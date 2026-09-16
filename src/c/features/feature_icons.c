@@ -1,6 +1,7 @@
 #include "./feature_icons.h"
 #include "./feature_icon_assets.h"
 #include "./feature_weather_icons.h"
+#include "./feature_forecast_offset_icons.h"
 #include "./feature_vector_icons.h"
 #include "./feature_render.h"
 #include "../data/eclipse_ui.h"
@@ -232,6 +233,18 @@ void feature_icons_draw_render_icon(GContext *ctx, uint8_t icon_kind, int16_t ic
                                                    outline_style, outline_color, color, ICON_DRAW_W, ICON_DRAW_H);
       return;
     }
+    case 30: { // "+Xh"/"+X day" forecast-offset half-icon (see
+               // feature_forecast_offset_icons.c) -- icon_extra carries the
+               // 1-9 offset index (content-86, computed by
+               // feature_value_weather.c), drawn just like any other
+               // fixed-shape icon; feature_icons_plus_gap_width()'s own
+               // table is what makes this one only take up half the width.
+      GPoint pos = GPoint(icon_x, box_y + (row_height - ICON_ROWS) / 2 - 2);
+      draw_debug_marker_point(ctx, draw_debug, pos, GColorMagenta);
+      feature_forecast_offset_icons_draw_with_outline(ctx, pos, (uint8_t)icon_extra, icon_style,
+                                                       outline_style, outline_color, color);
+      return;
+    }
     default:
       return;
   }
@@ -255,15 +268,21 @@ uint8_t feature_icons_weather_category(uint8_t weather_condition, uint8_t cloud_
 
 
 // Widths include the fixed 5px gap after the icon. Keeping this as a compact
-static const uint8_t s_icon_plus_gap_width[30] = {
+static const uint8_t s_icon_plus_gap_width[31] = {
   [1] = 15, [2] = 15, [3] = 13, [4] = 21,
   [5] = 15, [6] = 15, [7] = 15, [8] = 15, [9] = 15, [10] = 15,
   [11] = 22, [13] = 15, [14] = 20, [15] = 12, [16] = 14, [17] = 20,
   [18] = 15, [19] = 15, [20] = 15, [21] = 15, [22] = 15, [23] = 15,
   [24] = 15, [25] = 15, [26] = 15, [27] = 21, [28] = 15, [29] = 20,
+  // Half-icon (see case 30 above): only its left 8px has content, so it
+  // gets roughly half of kind 14's (the weather icon it always precedes)
+  // own 20 here, not a full icon's worth -- that's the actual point of
+  // drawing it "oversized" at 16x16: the layout only pays for the half
+  // that's populated.
+  [30] = 10,
 };
 
 int16_t feature_icons_plus_gap_width(int icon_kind) {
-  if ((unsigned)icon_kind >= 30u) return 0;
+  if ((unsigned)icon_kind >= 31u) return 0;
   return s_icon_plus_gap_width[icon_kind];
 }

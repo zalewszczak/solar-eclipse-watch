@@ -35,10 +35,11 @@ void feature_rules_to_upper_str(char *s) {
 
 bool feature_rules_content_is_weather_derived(uint8_t content) {
   switch (content) {
-    case 4: case 5: case 6: case 104: case 7: case 8: case 9:
+    case 4: case 5: case 6: case 107: case 7: case 8: case 9:
     case 14: case 15: case 31: case 32: case 34: case 35: case 37:
     case 73: case 76: case 77:
     case 87: case 88: case 89: case 90: case 91: case 92:
+    case 93: case 94: case 95:
       return true;
     default:
       return false;

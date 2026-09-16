@@ -398,7 +398,7 @@ function upperMiddleLine2ColorModeCode() {
   return id;
 }
 // Bottom-middle line 1 (the upper of its own pair) defaults to "Long
-// date + sunrise/sunset" (content 102) -- the digital clock's own
+// date + sunrise/sunset" (content 105) -- the digital clock's own
 // always-on bottom-bar feature (see the digitalBottom SLOT_DEFS entry
 // in config-page.js) reuses this same field, and that's the one this
 // default is actually tuned for; analog mode's own "Bottom-middle,
@@ -406,7 +406,7 @@ function upperMiddleLine2ColorModeCode() {
 // own gate is always true here (no side to turn it off) -- see
 // dualContextVisible()'s own comment.
 function bottomMiddleLine1ContentCode() {
-  var id = parseInt(dualContextSetting('CONFIG_BOTTOM_MIDDLE_LINE1_CONTENT', '102'), 10);
+  var id = parseInt(dualContextSetting('CONFIG_BOTTOM_MIDDLE_LINE1_CONTENT', '105'), 10);
   if (isNaN(id) || id < 0 || id > MAX_FEATURES) id = 0;
   if (!dualContextVisible('bottom', true)) return 0;
   return id;
