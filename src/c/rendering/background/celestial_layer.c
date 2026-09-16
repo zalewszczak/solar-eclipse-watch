@@ -58,6 +58,10 @@ static bool body_screen_y(int16_t alt_based_y, time_t rise, time_t set, time_t n
 }
 
 
+// Pushes `b` directly away from `a` until their centers are `min_dist`
+// apart, leaving `a` fixed. Used to keep the sun and moon circles from
+// visually overlapping (see CELESTIAL_MIN_BODY_GAP_PX) -- callers pass a
+// min_dist that already accounts for both radii, not just a raw pixel count.
 static GPoint enforce_min_separation(GPoint a, GPoint b, int32_t min_dist) {
   int32_t dx = b.x - a.x, dy = b.y - a.y;
   int32_t dist = (int32_t)render_math_isqrt32(dx * dx + dy * dy);
@@ -193,7 +197,17 @@ void celestial_layer_update(CelestialLayerState *state, GContext *ctx, GRect bou
     if (moon_up) {
       uint16_t moon_az = celestial_interp_moon_az_decideg(d, sky_now);
       moon_center = GPoint(celestial_az_decideg_to_x(moon_az, bounds.size.w), moon_y);
-      if (sun_up) moon_center = enforce_min_separation(sun_center, moon_center, (sun_r * 3) / 2);
+      // Independently adjustable sun/moon size plus azimuth-to-x squashing
+      // (celestial_az_decideg_to_x, a linear 360deg-to-canvas_w mapping) can
+      // put two bodies with quite different real positions close together
+      // on screen. The old (sun_r*3)/2 threshold didn't account for
+      // moon_r at all, so it could still let the circles touch or overlap
+      // -- looking like an eclipse on a day none is scheduled. Require the
+      // full sum of both radii plus a fixed pixel gap instead.
+      if (sun_up) {
+        int32_t min_center_dist = (int32_t)sun_r + moon_r + CELESTIAL_MIN_BODY_GAP_PX;
+        moon_center = enforce_min_separation(sun_center, moon_center, min_center_dist);
+      }
       moon_visible = true;
       if (!skip_body_paint) celestial_draw_moon_phase(ctx, bounds, moon_center, moon_r, d->moon_phase_pct, d->moon_waxing, GColorWhite);
     }

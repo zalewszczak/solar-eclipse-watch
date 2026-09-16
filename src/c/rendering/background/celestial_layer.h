@@ -10,6 +10,11 @@
 #define CELESTIAL_ISS_R 3
 #define CELESTIAL_GROUND_H 18
 #define CELESTIAL_SKY_TOP_MARGIN 20
+// Minimum on-screen gap kept between the sun's and moon's circles when no
+// eclipse is active/scheduled -- enforced regardless of adjustable
+// sun/moon size or azimuth-to-x squashing, so a normal day never LOOKS
+// like an eclipse is underway.
+#define CELESTIAL_MIN_BODY_GAP_PX 4
 
 typedef struct {
   GPoint sun_center;
