@@ -6,10 +6,23 @@
 #include "../data/eclipse_ui.h"
 #include "../rendering/background/celestial_layer.h"
 
+// Anchor/centering math below is intentionally left at the OLD icon size
+// (16x12, and 20x10 for the sunrise/sunset glyph) even though every icon now
+// actually draws taller (and, for sunrise/sunset, at its real width -- see
+// SUN_TIME_ICON_DRAW_W below) -- the icons got taller without moving the
+// top-left point they're drawn from, per how this was asked for.
 #define ICON_WIDTH 16
 #define ICON_ROWS 12
-#define SUN_TIME_ICON_WIDTH 20
 #define SUN_TIME_ICON_ROWS 10
+
+// Actual size every styled icon resource is now drawn at: a uniform 16x16
+// for everything except sunrise/sunset, whose source art is naturally wider
+// (20px) -- rather than squish it down to 16 and distort it, its own
+// resource stays 20 wide and only grew to 16 tall, like every other icon.
+#define ICON_DRAW_W 16
+#define ICON_DRAW_H 16
+#define SUN_TIME_ICON_DRAW_W 20
+#define SUN_TIME_ICON_DRAW_H 16
 
 // Optional debug crosshair for icon anchor points and geometry.
 static void draw_debug_marker_point(GContext *ctx, bool draw_debug, GPoint pos, GColor color) {
@@ -26,26 +39,44 @@ static const uint8_t PEBBLE_ICON[62]     = { 0x00, 0x02, 0x04, 0x08, 0x00, 0x00,
   0xFB, 0xF7, 0xED, 0xF8, 0x80, 0x00, 0x00, 0x00, 0x00, 0x80, 0x00, 0x00,
   0x00, 0x00}; 
 
-static const struct { uint8_t kind; uint32_t resource_id; int16_t x_nudge; } SIMPLE_ICONS[] = {
-  { 1,  RESOURCE_ID_ICON_HEART,           12 },
-  { 2,  RESOURCE_ID_ICON_FOOT,             6 },
-  { 5,  RESOURCE_ID_ICON_UMBRELLA,        10 },
-  { 6,  RESOURCE_ID_ICON_DROPLET,         10 },
-  { 7,  RESOURCE_ID_ICON_WIND,            10 },
-  { 8,  RESOURCE_ID_ICON_GPS_PIN,          6 },
-  { 9,  RESOURCE_ID_ICON_EYE,              6 },
-  { 10, RESOURCE_ID_ICON_CLOUD,            6 },
-  { 18, RESOURCE_ID_ICON_BED_ARROW_IN,     6 },
-  { 19, RESOURCE_ID_ICON_BED_ARROW_OUT,    6 },
-  { 20, RESOURCE_ID_ICON_BED_CHECK,        6 },
-  { 21, RESOURCE_ID_ICON_BED_CLOCK,        6 },
-  { 22, RESOURCE_ID_ICON_BED_CHECK_CLOCK,  6 },
-  { 23, RESOURCE_ID_ICON_PLANETS,          6 },
-  { 24, RESOURCE_ID_ICON_SATURN_RING,      6 },
-  { 25, RESOURCE_ID_ICON_ISS,              6 },
-  { 26, RESOURCE_ID_ICON_AURORA,           6 },
-  { 28, RESOURCE_ID_ICON_REFRESH,          6 },
+// Every fixed-shape, right-anchored feature icon: kind, its 3-style resource
+// set, and its x_nudge (how far its right edge sits from icon_x -- unrelated
+// to icon style/size, purely per-glyph visual balance, unchanged from before).
+// This table plus feature_icon_assets_draw_styled_with_outline() is the
+// entire "generic icon loading" this style overhaul was about: adding an
+// icon or a style is a data row, never new drawing code.
+#define ICON_SET(NAME) { RESOURCE_ID_ICON_SIMPLE_##NAME, RESOURCE_ID_ICON_HOLLOW_##NAME, RESOURCE_ID_ICON_FULLCOLOR_##NAME }
+static const struct { uint8_t kind; IconResourceSet set; int16_t x_nudge; } STYLED_ICONS[] = {
+  { 1,  ICON_SET(HEART),           12 },
+  { 2,  ICON_SET(FOOT),             6 },
+  { 5,  ICON_SET(UMBRELLA),        10 },
+  { 6,  ICON_SET(DROPLET),         10 },
+  { 7,  ICON_SET(WIND),            10 },
+  { 8,  ICON_SET(GPS_PIN),          6 },
+  { 9,  ICON_SET(EYE),              6 },
+  { 10, ICON_SET(CLOUD),            6 },
+  { 18, ICON_SET(BED_ARROW_IN),     6 },
+  { 19, ICON_SET(BED_ARROW_OUT),    6 },
+  { 20, ICON_SET(BED_CHECK),        6 },
+  { 21, ICON_SET(BED_CLOCK),        6 },
+  { 22, ICON_SET(BED_CHECK_CLOCK),  6 },
+  { 23, ICON_SET(PLANETS),          6 },
+  { 24, ICON_SET(SATURN_RING),      6 },
+  { 25, ICON_SET(ISS),              6 },
+  { 26, ICON_SET(AURORA),           6 },
+  { 28, ICON_SET(REFRESH),          6 },
 };
+
+// Left-anchored (not right-anchored like STYLED_ICONS above) single-state
+// styled icons.
+static const IconResourceSet BLUETOOTH_ICON_SET = ICON_SET(BLUETOOTH);
+
+// 2-state styled icons -- [0] is the "off"/inactive look, [1] the
+// "on"/active one; icon_flag picks which.
+static const IconResourceSet QUIET_TIME_ICON_SET[2] = { ICON_SET(QUIET_TIME), ICON_SET(QUIET_TIME_MUTED) };
+static const IconResourceSet HOURLY_VIBE_ICON_SET[2] = { ICON_SET(HOURLY_VIBE), ICON_SET(HOURLY_VIBE_OFF) };
+static const IconResourceSet SUN_TIME_ICON_SET[2] = { ICON_SET(SUN_TIME_SET), ICON_SET(SUN_TIME_RISE) };
+#undef ICON_SET
 
 
 
@@ -54,17 +85,18 @@ static const struct { uint8_t kind; uint32_t resource_id; int16_t x_nudge; } SIM
 void feature_icons_draw_render_icon(GContext *ctx, uint8_t icon_kind, int16_t icon_extra,
                                     bool icon_flag, GColor color, GColor color2,
                                     int16_t icon_x, int16_t box_y, int16_t row_height,
-                                    uint8_t outline_style, uint8_t weather_icon_style, bool draw_debug) {
+                                    uint8_t outline_style, uint8_t icon_style, bool draw_debug) {
   GColor outline_color = feature_render_contrasting_outline_color(color);
   bool do_outline = outline_style != 0;
   const GPoint *offs = NULL; int offs_n = 0;
   if (do_outline) feature_icon_assets_get_outline_offsets(outline_style, &offs, &offs_n);
   draw_debug_marker_point(ctx, draw_debug, GPoint(icon_x, box_y), GColorRed);
-  for (size_t i = 0; i < sizeof(SIMPLE_ICONS) / sizeof(SIMPLE_ICONS[0]); i++) {
-    if (SIMPLE_ICONS[i].kind != icon_kind) continue;
-    GPoint pos = GPoint(icon_x - ICON_WIDTH + SIMPLE_ICONS[i].x_nudge, box_y + (row_height - ICON_ROWS) / 2);
+  for (size_t i = 0; i < sizeof(STYLED_ICONS) / sizeof(STYLED_ICONS[0]); i++) {
+    if (STYLED_ICONS[i].kind != icon_kind) continue;
+    GPoint pos = GPoint(icon_x - ICON_WIDTH + STYLED_ICONS[i].x_nudge, box_y + (row_height - ICON_ROWS) / 2);
     draw_debug_marker_point(ctx, draw_debug, pos, GColorMagenta);
-    feature_icon_assets_draw_resource_with_outline(ctx, pos, SIMPLE_ICONS[i].resource_id, outline_style, outline_color, color);
+    feature_icon_assets_draw_styled_with_outline(ctx, pos, &STYLED_ICONS[i].set, icon_style,
+                                                 outline_style, outline_color, color, ICON_DRAW_W, ICON_DRAW_H);
     return;
   }
 
@@ -96,13 +128,13 @@ void feature_icons_draw_render_icon(GContext *ctx, uint8_t icon_kind, int16_t ic
       celestial_draw_moon_phase(ctx, clip, center, moon_r, (uint8_t)icon_extra, icon_flag, color);
       return;
     }
-    case 11: { // sunrise/sunset glyph -- now a plain image (see resources/images/
-               // icon_sun_time_rise.png / icon_sun_time_set.png), drawn the exact
+    case 11: { // sunrise/sunset glyph -- a plain styled image (see resources/images/<style>/
+               // sun_time_rise.png / sun_time_set.png), drawn the exact
       GPoint pos = GPoint(icon_x, box_y + (row_height - SUN_TIME_ICON_ROWS) / 2);
-      uint32_t sun_time_resource = icon_flag ? RESOURCE_ID_ICON_SUN_TIME_RISE : RESOURCE_ID_ICON_SUN_TIME_SET;
+      const IconResourceSet *set = &SUN_TIME_ICON_SET[icon_flag ? 1 : 0];
       draw_debug_marker_point(ctx, draw_debug, pos, GColorMagenta);
-      feature_icon_assets_draw_resource_with_outline_sized(ctx, pos, sun_time_resource, outline_style, outline_color, color,
-                                             SUN_TIME_ICON_WIDTH, SUN_TIME_ICON_ROWS);
+      feature_icon_assets_draw_styled_with_outline(ctx, pos, set, icon_style,
+                                                   outline_style, outline_color, color, SUN_TIME_ICON_DRAW_W, SUN_TIME_ICON_DRAW_H);
       return;
     }
     case 12: { // Pebble battery logo
@@ -126,18 +158,15 @@ void feature_icons_draw_render_icon(GContext *ctx, uint8_t icon_kind, int16_t ic
       graphics_draw_line(ctx, p1, p2);
       return;
     }
-    case 14: { // weather condition icon -- style picked in settings (simple/hollow/full color)
+    case 14: { // weather condition icon -- style picked in settings (simple/hollow/full color),
+               // plus day/night art for the 2 categories that have both
+               // (icon_flag carries "is it night right now", set by
+               // feature_value_weather.c when it resolves the category).
       GPoint pos = GPoint(icon_x, box_y + (row_height - ICON_ROWS) / 2 - 2);
       uint8_t category = (uint8_t)icon_extra;
-      // Full color (style 2) draws its outline pass using style 1
-      if (do_outline) {
-        uint8_t outline_icon_style = (weather_icon_style == 2) ? 1 : weather_icon_style;
-        for (int i = 0; i < offs_n; i++) {
-          feature_weather_icons_draw(ctx, GPoint(pos.x + offs[i].x, pos.y + offs[i].y), category, outline_icon_style, outline_color);
-        }
-      }
       draw_debug_marker_point(ctx, draw_debug, pos, GColorMagenta);
-      feature_weather_icons_draw(ctx, pos, category, weather_icon_style, color);
+      feature_weather_icons_draw_with_outline(ctx, pos, category, icon_flag, icon_style,
+                                              outline_style, outline_color, color);
       return;
     }
     case 15: { // pressure trend chevron
@@ -173,10 +202,11 @@ void feature_icons_draw_render_icon(GContext *ctx, uint8_t icon_kind, int16_t ic
       feature_vector_icons_mountain(ctx, pos, color);
       return;
     }
-    case 13: { // bluetooth -- own case rather than the generic SIMPLE_ICONS
+    case 13: { // bluetooth -- own case rather than the generic STYLED_ICONS
                // bucket above: that bucket draws each bitmap right-anchored
       GPoint pos = GPoint(icon_x, box_y + (row_height - ICON_ROWS) / 2);
-      feature_icon_assets_draw_resource_with_outline(ctx, pos, RESOURCE_ID_ICON_BLUETOOTH, outline_style, outline_color, color);
+      feature_icon_assets_draw_styled_with_outline(ctx, pos, &BLUETOOTH_ICON_SET, icon_style,
+                                                   outline_style, outline_color, color, ICON_DRAW_W, ICON_DRAW_H);
       return;
     }
     case 27: { // compass -- asleep (Zz glyph) or a live heading rose with a distinct north arrow
@@ -194,19 +224,22 @@ void feature_icons_draw_render_icon(GContext *ctx, uint8_t icon_kind, int16_t ic
       return;
     }
     case 29: { // Quiet Time -- speaker / crossed-out speaker (icon_flag: true = active/muted).
-               // Exported to a real image (see resources/images/icon_quiet_time.png /
+               // Styled image (see resources/images/<style>/quiet_time.png /
+               // quiet_time_muted.png).
       GPoint pos = GPoint(icon_x, box_y + (row_height - ICON_ROWS) / 2);
-      uint32_t quiet_time_resource = icon_flag ? RESOURCE_ID_ICON_QUIET_TIME_MUTED : RESOURCE_ID_ICON_QUIET_TIME;
+      const IconResourceSet *set = &QUIET_TIME_ICON_SET[icon_flag ? 1 : 0];
       draw_debug_marker_point(ctx, draw_debug, pos, GColorMagenta);
-      feature_icon_assets_draw_resource_with_outline(ctx, pos, quiet_time_resource, outline_style, outline_color, color);
+      feature_icon_assets_draw_styled_with_outline(ctx, pos, set, icon_style,
+                                                   outline_style, outline_color, color, ICON_DRAW_W, ICON_DRAW_H);
       return;
     }
     case 30: { // Hourly Vibrations -- watch+buzz / crossed-out (icon_flag: true = off/crossed).
-               // Same "exported to a real image" treatment as Quiet Time above (see
+               // Same styled-image treatment as Quiet Time above.
       GPoint pos = GPoint(icon_x, box_y + (row_height - ICON_ROWS) / 2);
-      uint32_t hourly_vibe_resource = icon_flag ? RESOURCE_ID_ICON_HOURLY_VIBE_OFF : RESOURCE_ID_ICON_HOURLY_VIBE;
+      const IconResourceSet *set = &HOURLY_VIBE_ICON_SET[icon_flag ? 1 : 0];
       draw_debug_marker_point(ctx, draw_debug, pos, GColorMagenta);
-      feature_icon_assets_draw_resource_with_outline(ctx, pos, hourly_vibe_resource, outline_style, outline_color, color);
+      feature_icon_assets_draw_styled_with_outline(ctx, pos, set, icon_style,
+                                                   outline_style, outline_color, color, ICON_DRAW_W, ICON_DRAW_H);
       return;
     }
     default:

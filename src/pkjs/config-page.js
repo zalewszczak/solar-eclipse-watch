@@ -1054,7 +1054,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 
 '<div class="modal-overlay" id="weatherIconStylePickerModal" onclick="if (event.target === this) closeWeatherIconStylePicker();">' +
 '  <div class="modal-box">' +
-'    <div class="modal-title">Weather icon style</div>' +
+'    <div class="modal-title">Icons style</div>' +
 '    <div class="modal-scroll-body" id="weatherIconStylePickerGrid"></div>' +
 '  </div>' +
 '</div>' +
@@ -1293,7 +1293,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    <div class="help" id="help-cornerFont" style="display:none;">Sets the font used for feature text and the analog date.</div>' +
 
 '    <div id="weatherIconStyleRow">' +
-'      <div class="field-label-row"><label>Weather icon style</label><button type="button" class="help-btn" onclick="toggleHelp(\'help-weatherIconStyle\')">?</button></div>' +
+'      <div class="field-label-row"><label>Icons style</label><button type="button" class="help-btn" onclick="toggleHelp(\'help-weatherIconStyle\')">?</button></div>' +
 '      <select id="weatherIconStyle" style="display:none;">' +
 '        <option value="0"' + (current.weatherIconStyle === '0' ? ' selected' : '') + '>Simple</option>' +
 '        <option value="1"' + (current.weatherIconStyle === '1' || !current.weatherIconStyle ? ' selected' : '') + '>Hollow</option>' +
@@ -1303,7 +1303,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '        <span class="font-picker-preview weather-icon-style-preview"></span>' +
 '        <span class="font-picker-name"></span>' +
 '      </button>' +
-'      <div class="help" id="help-weatherIconStyle" style="display:none;">Choose how weather icons are drawn in feature slots.</div>' +
+'      <div class="help" id="help-weatherIconStyle" style="display:none;">Choose how weather and feature icons are drawn in feature slots.</div>' +
 '    </div>' +
 
 '    <div style="display:none;" id="slotDataStore">' +

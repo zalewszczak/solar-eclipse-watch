@@ -106,6 +106,7 @@ void __attribute__((noinline)) feature_value_weather_compute(FeatureSlot *slot, 
       slot->segment_count = 1;
       feature_value_set_icon_segment(slot, 0, 14, c);
       slot->segments[0].icon_extra = feature_icons_weather_category(data->weather_condition, data->cloud_cover_pct);
+      slot->segments[0].icon_flag = !sky_layer_is_bright(data, time(NULL)); // day/night art for sun/partly-cloudy
       return;
     }
     case 32: { // temp + weather icon -- condition-based color, same as 5/31
@@ -115,6 +116,7 @@ void __attribute__((noinline)) feature_value_weather_compute(FeatureSlot *slot, 
       slot->segment_count = 2;
       feature_value_set_icon_segment(slot, 0, 14, c);
       slot->segments[0].icon_extra = feature_icons_weather_category(data->weather_condition, data->cloud_cover_pct);
+      slot->segments[0].icon_flag = !sky_layer_is_bright(data, time(NULL)); // day/night art for sun/partly-cloudy
       feature_value_set_text_segment(slot, 1, buf, c);
       return;
     }
@@ -194,6 +196,7 @@ void __attribute__((noinline)) feature_value_weather_compute(FeatureSlot *slot, 
       slot->segment_count = 2;
       feature_value_set_icon_segment(slot, 0, 14, c);
       slot->segments[0].icon_extra = feature_icons_weather_category(data->weather_condition, data->cloud_cover_pct);
+      slot->segments[0].icon_flag = !sky_layer_is_bright(data, time(NULL)); // day/night art for sun/partly-cloudy
       feature_value_set_text_segment(slot, 1, buf, c);
       return;
     }
@@ -215,6 +218,10 @@ void __attribute__((noinline)) feature_value_weather_compute(FeatureSlot *slot, 
       slot->segment_count = 2;
       feature_value_set_icon_segment(slot, 0, 14, c);
       slot->segments[0].icon_extra = feature_icons_weather_category(data->forecast_condition[idx], 50); // no forecast cloud% sent separately -- 50 is a neutral middle guess, only affects which of a few near-identical i...
+      // Day/night art for the forecast hour itself (not "now") -- sky_layer_is_bright()
+      // takes any time_t and interpolates against the same sun-altitude samples used
+      // for the live sky, so this is the actual predicted day/night state then.
+      slot->segments[0].icon_flag = !sky_layer_is_bright(data, time(NULL) + (time_t)hrs_ahead * 3600);
       feature_value_set_text_segment(slot, 1, buf, c);
       return;
     }

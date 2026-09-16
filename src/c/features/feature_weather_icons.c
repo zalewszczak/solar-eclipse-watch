@@ -1,102 +1,35 @@
 #include "./feature_weather_icons.h"
 #include "./feature_icon_assets.h"
 
-static void feature_weather_icons_draw_hollow(GContext *ctx, GPoint top_left, uint8_t category, GColor color) {
-  switch (category) {
-    case 0: // sunny
-      feature_icon_assets_draw_resource(ctx, top_left, RESOURCE_ID_ICON_WEATHER_HOLLOW_SUN, color);
-      return;
-    case 1: // partly cloudy
-      feature_icon_assets_draw_resource(ctx, top_left, RESOURCE_ID_ICON_WEATHER_HOLLOW_PARTLY_CLOUDY, color);
-      return;
-    case 2: // cloudy / overcast
-      feature_icon_assets_draw_resource(ctx, top_left, RESOURCE_ID_ICON_WEATHER_HOLLOW_CLOUDY_OVERCAST, color);
-      return;
-    case 3: // fog
-      feature_icon_assets_draw_resource(ctx, top_left, RESOURCE_ID_ICON_WEATHER_HOLLOW_FOG, color);
-      return;
-    case 4: // rain
-      feature_icon_assets_draw_resource(ctx, top_left, RESOURCE_ID_ICON_WEATHER_HOLLOW_RAIN, color);
-      return;
-    case 5: // snow
-      feature_icon_assets_draw_resource(ctx, top_left, RESOURCE_ID_ICON_WEATHER_HOLLOW_SNOW, color);
-      return;
-    case 6: { // storm
-      feature_icon_assets_draw_resource(ctx, top_left, RESOURCE_ID_ICON_WEATHER_HOLLOW_STORM, color);
-      return;
-    }
-  }
+// One row per weather category (see feature_icons_weather_category()).
+// This table -- not a switch/case per style -- is what
+// feature_weather_icons_draw_with_outline() below loads from, so adding a
+// category or a style never grows the code, only the data.
+static const IconResourceSet WEATHER_ICON_SETS_DAY[7] = {
+  [0] = { RESOURCE_ID_ICON_WEATHER_SIMPLE_SUN, RESOURCE_ID_ICON_WEATHER_HOLLOW_SUN, RESOURCE_ID_ICON_WEATHER_FULLCOLOR_SUN },
+  [1] = { RESOURCE_ID_ICON_WEATHER_SIMPLE_PARTLY_CLOUDY, RESOURCE_ID_ICON_WEATHER_HOLLOW_PARTLY_CLOUDY, RESOURCE_ID_ICON_WEATHER_FULLCOLOR_PARTLY_CLOUDY },
+  [2] = { RESOURCE_ID_ICON_WEATHER_SIMPLE_CLOUDY_OVERCAST, RESOURCE_ID_ICON_WEATHER_HOLLOW_CLOUDY_OVERCAST, RESOURCE_ID_ICON_WEATHER_FULLCOLOR_CLOUDY_OVERCAST },
+  [3] = { RESOURCE_ID_ICON_WEATHER_SIMPLE_FOG, RESOURCE_ID_ICON_WEATHER_HOLLOW_FOG, RESOURCE_ID_ICON_WEATHER_FULLCOLOR_FOG },
+  [4] = { RESOURCE_ID_ICON_WEATHER_SIMPLE_RAIN, RESOURCE_ID_ICON_WEATHER_HOLLOW_RAIN, RESOURCE_ID_ICON_WEATHER_FULLCOLOR_RAIN },
+  [5] = { RESOURCE_ID_ICON_WEATHER_SIMPLE_SNOW, RESOURCE_ID_ICON_WEATHER_HOLLOW_SNOW, RESOURCE_ID_ICON_WEATHER_FULLCOLOR_SNOW },
+  [6] = { RESOURCE_ID_ICON_WEATHER_SIMPLE_STORM, RESOURCE_ID_ICON_WEATHER_HOLLOW_STORM, RESOURCE_ID_ICON_WEATHER_FULLCOLOR_STORM },
+};
+
+// Night variants for the 2 categories that actually look different in the
+// dark (clear sky -> moon, partly cloudy -> cloud + moon). Every other
+// category reuses its own day set at night too (see the `category <= 1`
+// check below) rather than duplicating rows here.
+static const IconResourceSet WEATHER_ICON_SETS_NIGHT[2] = {
+  [0] = { RESOURCE_ID_ICON_WEATHER_SIMPLE_MOON, RESOURCE_ID_ICON_WEATHER_HOLLOW_MOON, RESOURCE_ID_ICON_WEATHER_FULLCOLOR_MOON },
+  [1] = { RESOURCE_ID_ICON_WEATHER_SIMPLE_PARTLY_CLOUDY_NIGHT, RESOURCE_ID_ICON_WEATHER_HOLLOW_PARTLY_CLOUDY_NIGHT, RESOURCE_ID_ICON_WEATHER_FULLCOLOR_PARTLY_CLOUDY_NIGHT },
+};
+
+#define ICON_W 16
+#define ICON_H 16
+
+void feature_weather_icons_draw_with_outline(GContext *ctx, GPoint top_left, uint8_t category, bool is_night,
+                                             uint8_t style, uint8_t outline_style, GColor outline_color, GColor color) {
+  if (category >= 7) return;
+  const IconResourceSet *set = (is_night && category <= 1) ? &WEATHER_ICON_SETS_NIGHT[category] : &WEATHER_ICON_SETS_DAY[category];
+  feature_icon_assets_draw_styled_with_outline(ctx, top_left, set, style, outline_style, outline_color, color, ICON_W, ICON_H);
 }
-
-
-
-static void feature_weather_icons_draw_simple(GContext *ctx, GPoint top_left, uint8_t category, GColor color) {
-  switch (category) {
-    case 0: // sunny
-      feature_icon_assets_draw_resource(ctx, top_left, RESOURCE_ID_ICON_WEATHER_SIMPLE_SUN, color);
-      return;
-    case 1: // partly cloudy
-      feature_icon_assets_draw_resource(ctx, top_left, RESOURCE_ID_ICON_WEATHER_SIMPLE_PARTLY_CLOUDY, color);
-      return;
-    case 2: // cloudy / overcast
-      feature_icon_assets_draw_resource(ctx, top_left, RESOURCE_ID_ICON_WEATHER_SIMPLE_CLOUDY_OVERCAST, color);
-      return;
-    case 3: // fog
-      feature_icon_assets_draw_resource(ctx, top_left, RESOURCE_ID_ICON_WEATHER_SIMPLE_FOG, color);
-      return;
-    case 4: // rain
-      feature_icon_assets_draw_resource(ctx, top_left, RESOURCE_ID_ICON_WEATHER_SIMPLE_RAIN, color);
-      return;
-    case 5: // snow
-      feature_icon_assets_draw_resource(ctx, top_left, RESOURCE_ID_ICON_WEATHER_SIMPLE_SNOW, color);
-      return;
-    case 6: { // storm
-      feature_icon_assets_draw_resource(ctx, top_left, RESOURCE_ID_ICON_WEATHER_SIMPLE_STORM, color);
-      return;
-    }
-  }
-}
-
-
-
-static void feature_weather_icons_draw_filled(GContext *ctx, GPoint top_left, uint8_t category, GColor color) {
-  (void)color;
-  switch (category) {
-    case 0: // sunny
-      feature_icon_assets_draw_resource_native(ctx, top_left, RESOURCE_ID_ICON_WEATHER_FULLCOLOR_SUN);
-      return;
-    case 1: // partly cloudy
-      feature_icon_assets_draw_resource_native(ctx, top_left, RESOURCE_ID_ICON_WEATHER_FULLCOLOR_PARTLY_CLOUDY);
-      return;
-    case 2: // cloudy / overcast
-      feature_icon_assets_draw_resource_native(ctx, top_left, RESOURCE_ID_ICON_WEATHER_FULLCOLOR_CLOUDY_OVERCAST);
-      return;
-    case 3: // fog
-      feature_icon_assets_draw_resource_native(ctx, top_left, RESOURCE_ID_ICON_WEATHER_FULLCOLOR_FOG);
-      return;
-    case 4: // rain
-      feature_icon_assets_draw_resource_native(ctx, top_left, RESOURCE_ID_ICON_WEATHER_FULLCOLOR_RAIN);
-      return;
-    case 5: // snow
-      feature_icon_assets_draw_resource_native(ctx, top_left, RESOURCE_ID_ICON_WEATHER_FULLCOLOR_SNOW);
-      return;
-    case 6: { // storm
-      feature_icon_assets_draw_resource_native(ctx, top_left, RESOURCE_ID_ICON_WEATHER_FULLCOLOR_STORM);
-      return;
-    }
-  }
-}
-
-
-
-void feature_weather_icons_draw(GContext *ctx, GPoint top_left, uint8_t category, uint8_t style, GColor color) {
-  switch (style) {
-    case 0: feature_weather_icons_draw_simple(ctx, top_left, category, color); return;
-    case 2: feature_weather_icons_draw_filled(ctx, top_left, category, color); return;
-    case 1:
-    default: feature_weather_icons_draw_hollow(ctx, top_left, category, color); return;
-  }
-}
-
-
-

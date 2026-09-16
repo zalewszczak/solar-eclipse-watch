@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 // Reads one representative icon (the "partly cloudy" one, per this
 // button's own request) from each of the 3 weather icon resource sets
-// -- resources/images/icon_simple_partly_cloudy.png,
-// icon_hollow_partly_cloudy.png, icon_fullcolor_partly_cloudy.png (see
-// package.json's own media list and draw_weather_icon_simple()/
-// _hollow()/_filled() in features_layer.c) -- scales each one up with
+// -- resources/images/simple/weather_partly_cloudy.png,
+// hollow/weather_partly_cloudy.png, fullcolor/weather_partly_cloudy.png
+// (see package.json's own media list and the WEATHER_ICON_SETS_DAY table
+// in feature_weather_icons.c) -- scales each one up with
 // nearest-neighbor sampling (never smooth/bilinear interpolation,
 // which would blur these into a soft smudge instead of preserving
 // their actual on-watch blocky/pixel-art look), and generates
@@ -62,18 +62,19 @@ var OUTPUT_FILE = path.join(__dirname, '..', 'src', 'pkjs', 'data', 'generated',
 // The actual scale factor used is whatever integer this rounds to for
 // each source image's own height, so a source that's already close to
 // this size barely scales at all, while a genuinely tiny source (the
-// on-watch icons are drawn at 16x12px, see ICON_ROWS in
-// features_layer.c) scales up several times. Always an INTEGER factor
+// on-watch icons are now drawn at 16x16px, see ICON_DRAW_W/H in
+// feature_icons.c) scales up several times. Always an INTEGER factor
 // -- a fractional one would need to resample between source pixels,
 // which is exactly the blur this script exists to avoid.
 var TARGET_HEIGHT = 44;
 
-// Matches weather_icon_style (see eclipse_data.h) and the Weather icon
-// style picker's own <option value>.
+// Matches icon_style (see eclipse_data.h) and the Icons style picker's
+// own <option value>. Each style now lives in its own resources/images/
+// subfolder (see package.json's media list).
 var STYLES = [
-  { id: '0', file: 'icon_simple_partly_cloudy.png' },
-  { id: '1', file: 'icon_hollow_partly_cloudy.png' },
-  { id: '2', file: 'icon_fullcolor_partly_cloudy.png' }
+  { id: '0', file: 'simple/weather_partly_cloudy.png' },
+  { id: '1', file: 'hollow/weather_partly_cloudy.png' },
+  { id: '2', file: 'fullcolor/weather_partly_cloudy.png' }
 ];
 
 function nearestNeighborScale(src, factor) {
@@ -116,7 +117,7 @@ var missing = STYLES.filter(function (s) { return !entries[s.id]; }).map(functio
 var lines = [];
 lines.push('// GENERATED FILE -- do not edit by hand.');
 lines.push('// Produced by scripts/generate-weather-icon-previews.js from');
-lines.push('// resources/images/icon_<style>_partly_cloudy.png. Re-run that script after');
+lines.push('// resources/images/<style>/weather_partly_cloudy.png. Re-run that script after');
 lines.push('// changing any of those 3 source icons, before `pebble build`.');
 lines.push('module.exports = ' + JSON.stringify(entries, null, 2) + ';');
 lines.push('');

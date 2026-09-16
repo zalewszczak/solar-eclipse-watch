@@ -18,5 +18,5 @@ void feature_icons_draw_render_icon(GContext *ctx,
                                     int16_t box_y,
                                     int16_t row_height,
                                     uint8_t outline_style,
-                                    uint8_t weather_icon_style,
+                                    uint8_t icon_style,
                                     bool draw_debug);

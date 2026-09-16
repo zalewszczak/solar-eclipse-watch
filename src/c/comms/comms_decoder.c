@@ -148,7 +148,7 @@ static const SimpleFieldMapping SIMPLE_FIELD_MAP[] = {
 
 // Additional fields applied only to valid payloads.
 static const SimpleFieldMapping SIMPLE_FIELD_MAP_VALID[] = {
-  { MK_WEATHER_ICON_STYLE, F_U8, offsetof(EclipseData, weather_icon_style) },
+  { MK_WEATHER_ICON_STYLE, F_U8, offsetof(EclipseData, icon_style) },
   { MK_AQI_UNIT, F_U8, offsetof(EclipseData, aqi_unit) },
   { MK_AURORA_VISIBILITY_PCT, F_U8 | FL_CANVAS, offsetof(EclipseData, aurora_visibility_pct) },
   { MK_ALTITUDE_UNIT, F_U8, offsetof(EclipseData, altitude_unit) },

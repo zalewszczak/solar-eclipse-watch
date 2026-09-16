@@ -16,7 +16,7 @@ static void features_layer_update_proc(Layer *layer, GContext *ctx) {
   int16_t font_offset = font_lookup_y_offset(state->data->corner_font);
   for (int i = 0; i < FEATURES_MAX_SLOTS; i++) {
     feature_render_draw_slot(ctx, bounds, &state->slots[i], font, font_h, font_offset,
-                             state->data->outline_style, state->data->weather_icon_style,
+                             state->data->outline_style, state->data->icon_style,
                              state->data->draw_debug);
   }
 }

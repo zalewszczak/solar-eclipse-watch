@@ -72,7 +72,7 @@ void feature_render_resolve_segment_offsets(FeatureSlot *slot, GFont font, int16
 
 void feature_render_draw_slot(GContext *ctx, GRect bounds, const FeatureSlot *slot,
                               GFont font, int16_t font_h, int16_t font_offset,
-                              uint8_t outline_style, uint8_t weather_icon_style,
+                              uint8_t outline_style, uint8_t icon_style,
                               bool draw_debug) {
   if (!slot->active || slot->segment_count == 0) return;
 
@@ -106,7 +106,7 @@ void feature_render_draw_slot(GContext *ctx, GRect bounds, const FeatureSlot *sl
     if (seg->is_icon) {
       feature_icons_draw_render_icon(ctx, seg->icon_kind, seg->icon_extra, seg->icon_flag,
                                      seg->color, seg->color2, seg_x, box_y, CORNER_ROW_H,
-                                     effective_outline_style, weather_icon_style, draw_debug);
+                                     effective_outline_style, icon_style, draw_debug);
     } else {
       int16_t box_h = font_h + font_offset + 2;
       GRect bounding_box = GRect(seg_x, box_y + (CORNER_ROW_H - box_h) / 2 - 1,

@@ -139,83 +139,109 @@ PNG and preset entry, and nothing else needs to change.
 
 ## Feature icons
 
-Every small icon the corner/edge content slots can show (weather
-condition, heart rate, steps, umbrella/rain chance, wind, GPS/manual
-location, visibility, cloud cover, Bluetooth, ISS pass, Saturn ring
-angle, planets-up count, aurora, the 5 sleep icons, ...) is a PNG
-image resource under `resources/images/icon_*.png`, declared in
-`package.json`'s `resources.media` list as `ICON_<NAME>` (so
-`RESOURCE_ID_ICON_<NAME>` in C). The one exception is the small Pebble
-logo used by one of the corner content options -- that one stays a
-plain static byte array (`PEBBLE_ICON` in `features_layer.c`), same as
-before.
+Every small, fixed-shape icon the corner/edge content slots can show
+(weather condition, heart rate, steps, umbrella/rain chance, wind,
+GPS/manual location, visibility, cloud cover, Bluetooth, ISS pass,
+Saturn ring angle, planets-up count, aurora, the 5 sleep icons, Quiet
+Time, Hourly Vibrations, sunrise/sunset, ...) is a PNG image resource,
+in **3 style variants** -- Simple, Hollow, Full color -- picked by the
+single "Icons style" setting in settings (`icon_style` in
+`eclipse_data.h`; still travels over the wire as `WEATHER_ICON_STYLE`
+for backwards compatibility, even though it now covers every icon, not
+just weather). Icons that draw a genuinely dynamic/continuous shape
+instead -- the battery bar, the compass rose, the wind direction arrow,
+moon phase, pressure trend chevron, the altitude mountain glyph, and
+the small Pebble logo used by one corner content option -- are NOT
+part of this system and stay hand-drawn vector/bitmap-array code, same
+as before.
 
-Two small helpers in `features_layer.c` load, draw, and immediately
-free one of these bitmaps:
+Each style lives in its own resources subfolder:
 
-- `draw_icon_resource(ctx, top_left, resource_id, color)` -- for every
-  monochrome-silhouette icon (heart, foot, umbrella, droplet, wind,
-  GPS pin, eye, cloud, Bluetooth, ISS, Saturn ring, planets, aurora,
-  the 5 bed icons, and the Simple/Hollow weather icon sets). These are
-  authored as a 2-color PNG (fully transparent + one opaque color) and
-  declared with `"memoryFormat": "1BitPalette"`, which lets
-  `gbitmap_set_palette()` remap that one opaque color to *any* `GColor`
-  at draw time -- so a single PNG per icon supports every color mode
-  (Mono/Accent/Semi/Color) and both light/dark/custom color schemes,
-  not just one baked-in color. Outline support (`outline_enabled`)
-  isn't part of this helper at all -- call sites just call it 4 extra
-  times at a 1px offset in a contrasting color first, then once more
-  normally on top, exactly the same `OUTLINE_OFFSETS` technique
-  `draw_text_outlined()` already uses elsewhere in this file.
+```
+resources/images/simple/<name>.png
+resources/images/hollow/<name>.png
+resources/images/fullcolor/<name>.png
+```
 
-- `draw_icon_resource_native(ctx, top_left, resource_id)` -- for the
-  Full color weather icon set only. These are genuinely multi-color
-  images (e.g. the storm icon is a gray cloud with a yellow bolt and
-  blue rain, all baked into the same icon), authored as a normal
-  true-color+alpha PNG with no palette to remap, so there's no `color`
-  parameter and (as before) no outline pass -- see the comment on the
-  `case 14` block in `corners_layer_update_proc`'s content switch in
-  `pebble-eclipse-watch.c` for why full color icons skip outlining.
+declared in `package.json`'s `resources.media` list as
+`ICON_SIMPLE_<NAME>` / `ICON_HOLLOW_<NAME>` / `ICON_FULLCOLOR_<NAME>`
+for plain feature icons, and `ICON_WEATHER_SIMPLE_<NAME>` /
+`ICON_WEATHER_HOLLOW_<NAME>` / `ICON_WEATHER_FULLCOLOR_<NAME>` for
+weather condition icons (so `RESOURCE_ID_ICON_..._<NAME>` in C). The 2
+weather conditions that actually look different after dark -- clear
+sky and partly cloudy -- also have a `_NIGHT`/`MOON` variant of each
+style (`weather_moon.png`, `weather_partly_cloudy_night.png`); every
+other icon is used as-is at night too.
 
-Every icon is standardized to 16x12px (`ICON_WIDTH` x `ICON_ROWS` in
-`features_layer.c`) so both helpers can draw at a fixed size without
-needing to ask the bitmap its own dimensions.
+All the drawing logic lives behind one small generic API in
+`feature_icon_assets.c`, built around an `IconResourceSet { simple,
+hollow, fullcolor }` struct:
 
-Both helpers call `gbitmap_create_with_resource()` right before
-drawing and `gbitmap_destroy()` right after -- nothing is cached or
-preloaded, so at any redraw only the icon(s) belonging to feature
-slots actually visible on screen that redraw are ever decoded into
-memory (e.g. one weather icon if a weather slot is showing, the heart
-icon only while a heart-rate slot is showing, and so on), rather than
-holding the whole icon set in memory for the life of the app the way
-the old static arrays did.
+- `feature_icon_assets_draw_styled(ctx, top_left, set, style, color, w,
+  h)` -- resolves `set` against `style`, tints for Simple/Hollow (these
+  are authored as 2-color, fully-transparent-plus-one-opaque-color
+  PNGs with `"memoryFormat": "1BitPalette"`, remapped to any `GColor`
+  at draw time via `gbitmap_set_palette()`, exactly the same trick as
+  before), and draws Full color art natively with no tint (it's a
+  genuinely multi-color image, e.g. the storm icon bakes in a gray
+  cloud, yellow bolt, and blue rain).
+
+- `feature_icon_assets_draw_styled_with_outline(...)` -- same, plus (if
+  `outline_style != 0`) an outline pass first, 4 or 12 extra draws at a
+  1px offset in a contrasting color, same `OUTLINE_OFFSETS` technique
+  `feature_render_draw_text_outlined()` uses for text. Full color's
+  outline pass borrows the Hollow set's silhouette (full color art has
+  no alpha channel to tint).
+
+Every call site -- the weather condition table in
+`feature_weather_icons.c` and the `STYLED_ICONS` table plus the
+Bluetooth/Quiet Time/Hourly Vibrations/sunrise-sunset cases in
+`feature_icons.c` -- is just a small `IconResourceSet` table (or a
+literal one for a single icon) plus one call into the API above. This
+is deliberate: adding an icon or a style is a data row, not new drawing
+code, which is what keeps the compiled binary small as the icon set
+grows, instead of a duplicated switch/case per style per icon.
+
+Every icon resource is now drawn at a uniform **16x16px**
+(`ICON_DRAW_W`/`ICON_DRAW_H` in `feature_icons.c`, `ICON_W`/`ICON_H` in
+`feature_weather_icons.c`) -- up from the old 16x12 (and 20x10 for the
+sunrise/sunset glyph). The top-left point each icon is drawn from was
+deliberately left unchanged (the position/centering math still uses the
+old row-height constants), so icons simply draw taller/wider from where
+they always started rather than re-centering.
+
+Nothing is cached or preloaded -- `feature_icon_assets_draw_styled[_with_outline]`
+calls `gbitmap_create_with_resource()` right before drawing and
+`gbitmap_destroy()` right after, so at any redraw only the icon(s)
+belonging to feature slots actually visible on screen are ever decoded
+into memory.
 
 ### Editing or adding an icon
 
-1BitPalette icons (everything except the Full color weather set and
-the Pebble logo) need to stay a **2-color** PNG -- fully transparent
+Simple/Hollow icons need to stay a **2-color** PNG -- fully transparent
 plus exactly one opaque color (any color works; only the alpha pattern
-matters, since the opaque color gets replaced at draw time anyway).
-Full color weather icons can use any colors/alpha you want, same as a
-normal image. Keep every icon at 16x12px. A minimal Python/Pillow
-snippet for either case:
+matters, since the opaque color gets replaced at draw time). Full color
+icons can use any colors/alpha you want, same as a normal image. Keep
+every icon at 16x16px. A minimal Python/Pillow snippet for either case:
 
 ```python
 from PIL import Image
 
 # 1-bit silhouette icon (any single opaque color; it's re-tinted at
 # runtime, so plain black is the simplest choice to author against)
-img = Image.new("RGBA", (16, 12), (0, 0, 0, 0))
+img = Image.new("RGBA", (16, 16), (0, 0, 0, 0))
 img.putpixel((7, 5), (0, 0, 0, 255))  # opaque = part of the icon
 # ... draw the rest of the silhouette ...
-img.save("resources/images/icon_myicon.png")
+img.save("resources/images/simple/myicon.png")
 ```
 
-Then add a matching entry to `package.json`'s `resources.media` list
-(`"type": "bitmap"`, `"memoryFormat": "1BitPalette"` for silhouette
-icons, omitted for Full color ones) and reference
-`RESOURCE_ID_ICON_<NAME>` from a `draw_icon_resource()` /
-`draw_icon_resource_native()` call site in `features_layer.c`.
+Then add a matching `ICON_SIMPLE_MYICON` / `ICON_HOLLOW_MYICON` /
+`ICON_FULLCOLOR_MYICON` trio to `package.json`'s `resources.media`
+list (`"type": "bitmap"`), and reference the new `IconResourceSet` from
+a `feature_icon_assets_draw_styled_with_outline()` call site --
+usually just a new row in `STYLED_ICONS` in `feature_icons.c`, or the
+weather tables in `feature_weather_icons.c` for a new weather
+condition.
 
 
 The big-analog watchface mode has several "bitmap" marker styles

@@ -184,7 +184,7 @@ typedef struct {
   uint8_t weather_sources; // number of weather sources used.
   uint8_t weather_condition; // 0=clear/cloudy, 1=fog, 2=rain, 3=snow, 4=storm.
 
-  uint8_t weather_icon_style; // 0=simple, 1=hollow, 2=full color.
+  uint8_t icon_style; // 0=simple, 1=hollow, 2=full color. Applies to weather AND plain feature icons alike (was weather-only; wire key is still MK_WEATHER_ICON_STYLE, see comms_decoder.c).
 
   int16_t weather_temp_c;  // current temperature in Celsius.
 

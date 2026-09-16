@@ -1,8 +1,5 @@
 #include "./feature_icon_assets.h"
 
-#define ICON_WIDTH 16
-#define ICON_ROWS 12
-
 const GPoint FEATURE_ICON_OUTLINE_OFFSETS_THIN[4] = { {-1, 0}, {1, 0}, {0, -1}, {0, 1} };
 const GPoint FEATURE_ICON_OUTLINE_OFFSETS_THICK[12] = {
   {-1, 0}, {1, 0}, {0, -1}, {0, 1},
@@ -55,54 +52,67 @@ static void feature_icon_assets_draw_bitmap_tinted_sized(GContext *ctx, GBitmap 
 
 
 
-static void feature_icon_assets_draw_bitmap_tinted(GContext *ctx, GBitmap *bmp, GPoint top_left, GColor color) {
-  feature_icon_assets_draw_bitmap_tinted_sized(ctx, bmp, top_left, color, ICON_WIDTH, ICON_ROWS);
-}
-
-
-
-void feature_icon_assets_draw_resource(GContext *ctx, GPoint top_left, uint32_t resource_id, GColor color) {
-  GBitmap *bmp = gbitmap_create_with_resource(resource_id);
-  if (!bmp) return;
-  feature_icon_assets_draw_bitmap_tinted(ctx, bmp, top_left, color);
-  gbitmap_destroy(bmp);
-}
-
-
-
-void feature_icon_assets_draw_resource_with_outline_sized(GContext *ctx, GPoint pos, uint32_t resource_id,
-                                                   uint8_t outline_style, GColor outline_color, GColor color,
-                                                   int16_t w, int16_t h) {
-  GBitmap *bmp = gbitmap_create_with_resource(resource_id);
-  if (!bmp) return;
-  if (outline_style != 0) {
-    const GPoint *offs; int offs_n;
-    feature_icon_assets_get_outline_offsets(outline_style, &offs, &offs_n);
-    for (int i = 0; i < offs_n; i++) {
-      GPoint shifted = GPoint(pos.x + offs[i].x, pos.y + offs[i].y);
-      feature_icon_assets_draw_bitmap_tinted_sized(ctx, bmp, shifted, outline_color, w, h);
-    }
-  }
-  feature_icon_assets_draw_bitmap_tinted_sized(ctx, bmp, pos, color, w, h);
-  gbitmap_destroy(bmp);
-}
-
-
-
-void feature_icon_assets_draw_resource_with_outline(GContext *ctx, GPoint pos, uint32_t resource_id,
-                                             uint8_t outline_style, GColor outline_color, GColor color) {
-  feature_icon_assets_draw_resource_with_outline_sized(ctx, pos, resource_id, outline_style, outline_color, color,
-                                         ICON_WIDTH, ICON_ROWS);
-}
-
-
-
-void feature_icon_assets_draw_resource_native(GContext *ctx, GPoint top_left, uint32_t resource_id) {
+static void feature_icon_assets_draw_resource_native_sized(GContext *ctx, GPoint top_left, uint32_t resource_id,
+                                                     int16_t w, int16_t h) {
   GBitmap *bmp = gbitmap_create_with_resource(resource_id);
   if (!bmp) return;
   graphics_context_set_compositing_mode(ctx, GCompOpSet);
-  graphics_draw_bitmap_in_rect(ctx, bmp, GRect(top_left.x, top_left.y, ICON_WIDTH, ICON_ROWS));
+  graphics_draw_bitmap_in_rect(ctx, bmp, GRect(top_left.x, top_left.y, w, h));
   gbitmap_destroy(bmp);
+}
+
+
+
+uint32_t feature_icon_assets_resolve_styled(const IconResourceSet *set, uint8_t style) {
+  switch (style) {
+    case 0: return set->simple;
+    case 2: return set->fullcolor;
+    case 1:
+    default: return set->hollow;
+  }
+}
+
+
+
+void feature_icon_assets_draw_styled(GContext *ctx, GPoint top_left, const IconResourceSet *set, uint8_t style,
+                                     GColor color, int16_t w, int16_t h) {
+  uint32_t resource_id = feature_icon_assets_resolve_styled(set, style);
+  if (!resource_id) return;
+  if (style == 2) {
+    feature_icon_assets_draw_resource_native_sized(ctx, top_left, resource_id, w, h);
+  } else {
+    GBitmap *bmp = gbitmap_create_with_resource(resource_id);
+    if (!bmp) return;
+    feature_icon_assets_draw_bitmap_tinted_sized(ctx, bmp, top_left, color, w, h);
+    gbitmap_destroy(bmp);
+  }
+}
+
+
+
+void feature_icon_assets_draw_styled_with_outline(GContext *ctx, GPoint pos, const IconResourceSet *set, uint8_t style,
+                                                   uint8_t outline_style, GColor outline_color, GColor color,
+                                                   int16_t w, int16_t h) {
+  if (outline_style != 0) {
+    // Full color art has no transparent-ink channel to tint, so its outline
+    // pass borrows the hollow set's silhouette instead (same trick the old
+    // per-style weather switch used).
+    uint8_t outline_pick_style = (style == 2) ? 1 : style;
+    uint32_t outline_resource = feature_icon_assets_resolve_styled(set, outline_pick_style);
+    if (outline_resource) {
+      GBitmap *bmp = gbitmap_create_with_resource(outline_resource);
+      if (bmp) {
+        const GPoint *offs; int offs_n;
+        feature_icon_assets_get_outline_offsets(outline_style, &offs, &offs_n);
+        for (int i = 0; i < offs_n; i++) {
+          GPoint shifted = GPoint(pos.x + offs[i].x, pos.y + offs[i].y);
+          feature_icon_assets_draw_bitmap_tinted_sized(ctx, bmp, shifted, outline_color, w, h);
+        }
+        gbitmap_destroy(bmp);
+      }
+    }
+  }
+  feature_icon_assets_draw_styled(ctx, pos, set, style, color, w, h);
 }
 
 
