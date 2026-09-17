@@ -157,9 +157,15 @@ function digitalSidesHelpText(sidesAllowedVal, secondsTier) {
 // Renders <option>s for one of the four font pickers. `onlyMainClock`
 // restricts to the Clock font picker's own subset (see FONT_LOOKUP's
 // own comment above); the other three pickers (clock's small
-// companion, marker text, corner/edge content) get every font.
-function fontOptionsHtml(selectedId, onlyMainClock) {
+// companion, marker text, corner/edge content) get every font. Big
+// Digital styles (FONT_LOOKUP's own bigDigital:true entries) are never
+// mixed into any of that -- they're a different kind of "font" (bitmap
+// digit sets, not text) that only makes sense for the Clock picker
+// while Big Digital is the active layout, so `includeBigDigital` (only
+// ever passed for that one call site) is the sole way they appear.
+function fontOptionsHtml(selectedId, onlyMainClock, includeBigDigital) {
   return FONT_LOOKUP.filter(function (f) {
+    if (fontFlag(f.bigDigital)) return !!includeBigDigital;
     return !onlyMainClock || fontFlag(f.mainClock);
   }).map(function (f) {
     // parseInt, not a strict typeof check -- see secondsAvailableForDigital()'s

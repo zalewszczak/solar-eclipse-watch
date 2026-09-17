@@ -10,7 +10,7 @@ uint8_t feature_layout_digital_side_mode(uint8_t bottom_style) {
   return feature_layout_is_digital_top_layout(bottom_style) ? bottom_style - 5 : bottom_style;
 }
 bool feature_layout_is_digital_top_layout(uint8_t bottom_style) {
-  return bottom_style >= 5;
+  return bottom_style >= 5 && bottom_style != BOTTOM_STYLE_BIG_DIGITAL;
 }
 
 void feature_layout_digital_clock_area(uint8_t bottom_style, int16_t screen_w, int16_t *out_x, int16_t *out_w) {
@@ -34,6 +34,7 @@ void feature_layout_recompute(FeaturesState *state) {
   if (!d) return;
 
   bool is_analog = d->bottom_style == 1;
+  bool is_big_digital = d->bottom_style == BOTTOM_STYLE_BIG_DIGITAL;
   bool is_digital_top = feature_layout_is_digital_top_layout(d->bottom_style);
   uint8_t marker_style = d->big_analog_marker_style;
   bool is_bitmap_style = is_analog && marker_style >= 3 && marker_style != 8 && marker_style != 9;
@@ -190,8 +191,30 @@ void feature_layout_recompute(FeaturesState *state) {
     }
   }
 
+  // Big Digital: corners (set unconditionally below) plus exactly one
+  // top-center and one bottom-center feature -- no sides, no seconds.
+  // Reuses upper_middle_line1/bottom_middle_line1 exactly like analog and
+  // digital top/bar already do for their own single-line features, just
+  // centered above/below the big digits instead of stacked in a column.
+  if (is_big_digital) {
+    state->slots[SLOT_UPPER_L1] = (FeatureSlot){
+      .active = true, .content = d->upper_middle_line1_content, .color_mode = d->upper_middle_line1_color_mode,
+      .is_top = true, .is_left = true, .is_middle = false, .is_edge = false,
+      .top_offset = FEATURE_LAYOUT_CORNER_INSET_PX, .bottom_shift = 0, .middle_inset = 0,
+      .center_horizontal = true, .center_vertical = false, .allow_outline = true,
+      .needs_second_refresh = feature_rules_content_needs_second_refresh(d->upper_middle_line1_content),
+    };
+    state->slots[SLOT_BOTTOM_L1] = (FeatureSlot){
+      .active = true, .content = d->bottom_middle_line1_content, .color_mode = d->bottom_middle_line1_color_mode,
+      .is_top = false, .is_left = true, .is_middle = false, .is_edge = false,
+      .top_offset = 0, .bottom_shift = FEATURE_LAYOUT_CORNER_INSET_PX, .middle_inset = 0,
+      .center_horizontal = true, .center_vertical = false, .allow_outline = true,
+      .needs_second_refresh = feature_rules_content_needs_second_refresh(d->bottom_middle_line1_content),
+    };
+  }
+
   // Digital-mode-only equivalent of the 4 blocks above -- the 8 edge
-  if (!is_analog) {
+  if (!is_analog && !is_big_digital) {
     int16_t clock_x, clock_w;
     feature_layout_digital_clock_area(d->bottom_style, 200, &clock_x, &clock_w);
 
@@ -269,7 +292,7 @@ void feature_layout_recompute(FeaturesState *state) {
     .needs_second_refresh = feature_rules_content_needs_second_refresh(d->corner_content[1]),
   };
   // Bottom corners (BL/BR): stay anchored to the SKY's own bottom
-  int16_t bottom_corner_shift = (is_analog || is_digital_top) ? 0 : DIGITAL_PANEL_H;
+  int16_t bottom_corner_shift = (is_analog || is_digital_top || is_big_digital) ? 0 : DIGITAL_PANEL_H;
   state->slots[SLOT_CORNER_BL] = (FeatureSlot){
     .active = true, .content = d->corner_content[2], .color_mode = d->corner_color_mode[2],
     .is_top = false, .is_left = true, .is_middle = false, .is_edge = true,

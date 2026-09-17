@@ -7,6 +7,13 @@
 // Settings-driven feature layout. This module decides which cached slots
 void feature_layout_recompute(FeaturesState *state);
 
+// bottom_style value for the "Big Digital" layout -- 4 tall digit bitmaps
+// + a procedural colon (see big_digital_display.h), corner features plus
+// one top-center and one bottom-center feature only (no sides, no seconds).
+// A plain new value for the existing field rather than a new one, same as
+// every other bottom_style meaning already living alongside it.
+#define BOTTOM_STYLE_BIG_DIGITAL 10
+
 // Shared digital clock/feature geometry. Both the clock renderer and the
 void feature_layout_digital_clock_area(uint8_t bottom_style, int16_t screen_w,
                                        int16_t *out_x, int16_t *out_w);

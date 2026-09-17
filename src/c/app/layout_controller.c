@@ -5,6 +5,7 @@
 #include "../features/features_layer.h"
 #include "../features/feature_layout.h"
 #include "../rendering/clock/clock_display.h"
+#include "../rendering/clock/big_digital_display.h"
 #include "../hands/hands_controller.h"
 
 static EclipseData *s_data;
@@ -34,6 +35,7 @@ void layout_controller_unload(void) {
     s_canvas_layer = NULL;
   }
   clock_display_destroy_panel();
+  big_digital_display_destroy_panel();
   if (s_top_gradient_layer) {
     sky_layer_top_gradient_destroy(s_top_gradient_layer);
     s_top_gradient_layer = NULL;
@@ -89,9 +91,11 @@ void layout_controller_handle_unobstructed(AnimationProgress progress) {
     }
   }
 
-  // Analog and Digital-top shrink the sky canvas from the bottom.
+  // Analog, Digital-top, and Big Digital (full-screen sky, same as
+  // Analog) shrink the sky canvas from the bottom.
   bool canvas_tracks_unobstructed_bottom =
       s_data->bottom_style == 1 ||
+      s_data->bottom_style == BOTTOM_STYLE_BIG_DIGITAL ||
       feature_layout_is_digital_top_layout(s_data->bottom_style);
   if (canvas_tracks_unobstructed_bottom && s_canvas_layer) {
     int16_t canvas_top = feature_layout_is_digital_top_layout(s_data->bottom_style)
@@ -152,6 +156,15 @@ void layout_controller_apply(void) {
 
     clock_display_create_panel(root, GRect(0, 0, bounds.size.w, DIGITAL_PANEL_H));
     clock_display_apply_font();
+  } else if (style == BOTTOM_STYLE_BIG_DIGITAL) {
+    // Full-screen sky, same as Analog -- big_digital_display's own panel
+    // sits on top of it and no longer fills its own background (see
+    // that file's own comment on why), just the digits/colon and
+    // corners/center features drawn over the sky like Analog's hands.
+    s_canvas_layer = background_layer_create(GRect(0, 0, bounds.size.w, bounds.size.h));
+    layer_add_child(root, s_canvas_layer);
+
+    big_digital_display_create_panel(root, GRect(0, 0, bounds.size.w, bounds.size.h));
   } else {
     s_canvas_layer = background_layer_create(GRect(0, 0, bounds.size.w, 152));
     layer_add_child(root, s_canvas_layer);

@@ -102,6 +102,23 @@ var MODE_BTN_ICONS = {
     '<circle cx="60" cy="60" r="4" fill="currentColor" stroke="none"/>' +
     '<circle cx="150" cy="170" r="4" fill="currentColor" stroke="none"/>' +
     '</svg>',
+  // 4 tall solid bars standing in for "12:34" (a colon's 2 dots between
+  // the middle pair) over the same sky-dot background ANALOG's icon
+  // uses -- Big Digital has a full-screen sky behind its digits too.
+  bigDigital:
+    '<svg viewBox="0 0 200 228" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">' +
+    '<rect x="4" y="4" width="192" height="220" rx="20"/>' +
+    '<circle cx="34" cy="34" r="4" fill="currentColor" stroke="none"/>' +
+    '<circle cx="166" cy="30" r="5" fill="currentColor" stroke="none"/>' +
+    '<circle cx="166" cy="198" r="4" fill="currentColor" stroke="none"/>' +
+    '<circle cx="34" cy="194" r="5" fill="currentColor" stroke="none"/>' +
+    '<rect x="38" y="44" width="22" height="140" rx="8" fill="currentColor" stroke="none"/>' +
+    '<rect x="68" y="44" width="22" height="140" rx="8" fill="currentColor" stroke="none"/>' +
+    '<circle cx="100" cy="91" r="7" fill="currentColor" stroke="none"/>' +
+    '<circle cx="100" cy="137" r="7" fill="currentColor" stroke="none"/>' +
+    '<rect x="110" y="44" width="22" height="140" rx="8" fill="currentColor" stroke="none"/>' +
+    '<rect x="140" y="44" width="22" height="140" rx="8" fill="currentColor" stroke="none"/>' +
+    '</svg>',
 
   // Sun (top) + a solid cloud silhouette (3 overlapping circles over a
   // rounded base -- the standard "puffy cloud" icon shape) + 3 rain

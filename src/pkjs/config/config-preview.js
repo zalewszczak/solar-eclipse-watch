@@ -1176,6 +1176,25 @@ module.exports =
 '    var clockAreaTop = digitalClockArea(digitalSidesValTop, w);' +
 '    drawDigitalSideFeatures(ctx, w, h, colors, clockAreaTop, true);' +
 '    drawDigitalPreview(ctx, colors, now, showSeconds, w, 0, panelH, clockAreaTop, true);' +
+'  } else if (styleVal === "bigDigital") {' +
+// Full-screen sky, same as Analog -- no separate flat background fill;
+// the 4 corners, the 2 reused center features (drawn directly here via
+// drawCornerSlot rather than through drawDigitalSideFeatures, which also
+// handles the row-1/2 side columns and row-3 left/right pair that don't
+// apply to this layout), and the digits themselves all draw on top of it.
+'    drawSkyLayer(ctx, 0, 0, w, h, skyMode, phase);' +
+'    drawCelestialPreview(ctx, 0, 0, w, h, skyMode, phase, colors, now);' +
+'    drawCornersAndEdges(ctx, w, h, colors, h);' +
+'    var cornerFontSel = document.getElementById("cornerFont");' +
+'    var cornerOpt = cornerFontSel.options[cornerFontSel.selectedIndex];' +
+'    var cornerEntry = fontLookupEntry(cornerFontSel.value);' +
+'    var cornerScale = w / 200;' +
+'    var cornerPx = Math.max(7, Math.min(22, Math.round(cornerEntry.height * cornerScale)));' +
+'    var cornerFontCss = canvasFontFor(cornerOpt.getAttribute("data-preview") || "", cornerPx);' +
+'    var bigDigitalInset = 18 * (w / 200);' +
+'    drawCornerSlot(ctx, "upperMiddleLine1Content", "upperMiddleLine1Color", w / 2, bigDigitalInset, "center", colors, cornerFontCss);' +
+'    drawCornerSlot(ctx, "bottomMiddleLine1Content", "bottomMiddleLine1Color", w / 2, h - bigDigitalInset, "center", colors, cornerFontCss);' +
+'    drawDigitalPreview(ctx, colors, now, false, w, 0, h, null, false);' +
 '  } else {' +
 '    var skyH = Math.round(h * 152 / 228);' +
 '    drawSkyLayer(ctx, 0, 0, w, skyH, skyMode, phase);' +

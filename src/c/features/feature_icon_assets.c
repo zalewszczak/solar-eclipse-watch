@@ -29,7 +29,13 @@ void feature_icon_assets_draw_tiny(GContext *ctx, GPoint top_left, const uint8_t
 
 
 
-static void feature_icon_assets_draw_bitmap_tinted_sized(GContext *ctx, GBitmap *bmp, GPoint top_left, GColor color,
+// Palette-tints a already-loaded 2-color bitmap to `color` (the lighter of
+// its two palette entries becomes transparent, the other becomes `color`)
+// and draws it at the given size -- the actual recoloring step behind
+// feature_icon_assets_draw_styled()'s simple/hollow tinting, exposed here
+// so any other single-resource, single-color bitmap (e.g. Big Digital's
+// digit art) can reuse it without a second tinting implementation.
+void feature_icon_assets_draw_bitmap_tinted_sized(GContext *ctx, GBitmap *bmp, GPoint top_left, GColor color,
                                            int16_t w, int16_t h) {
   GColor *palette = gbitmap_get_palette(bmp);
   if (palette) {

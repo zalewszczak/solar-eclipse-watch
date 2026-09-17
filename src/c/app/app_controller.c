@@ -12,6 +12,7 @@
 #include "../features/feature_controller.h"
 #include "../features/features_layer.h"
 #include "../rendering/clock/clock_display.h"
+#include "../rendering/clock/big_digital_display.h"
 #include "../hands/hands_controller.h"
 #include "../data/eclipse_ui.h"
 #include "../timing/hourly_vibration.h"
@@ -95,7 +96,10 @@ static void window_unload(Window *window) {
 static void comms_data_applied(CommsChangeFlags changes, void *context) {
   (void)context;
 
-  if (changes & COMMS_CHANGE_CLOCK_FONT) clock_display_apply_font();
+  if (changes & COMMS_CHANGE_CLOCK_FONT) {
+    clock_display_apply_font();
+    big_digital_display_mark_panel_dirty(); // no font to load here, just redraw with the new style
+  }
   if (changes & COMMS_CHANGE_LAYOUT) layout_controller_apply();
   if (layout_controller_hands_layer() && (changes & COMMS_CHANGE_HANDS)) layer_mark_dirty(layout_controller_hands_layer());
   if (clock_display_panel_layer() && (changes & COMMS_CHANGE_PANEL)) layer_mark_dirty(clock_display_panel_layer());
@@ -133,6 +137,7 @@ void app_controller_init(void) {
   time_service_init(&s_data, time_service_tick_handler, NULL);
   hands_controller_init(&s_data, hands_controller_invalidate, NULL);
   clock_display_init(&s_data);
+  big_digital_display_init(&s_data);
   hourly_vibration_init(&s_data, hands_controller_invalidate, NULL);
 
   s_window = window_create();
@@ -165,6 +170,7 @@ void app_controller_deinit(void) {
   hands_controller_deinit();
   hourly_vibration_deinit();
   clock_display_deinit();
+  big_digital_display_deinit();
   layout_controller_deinit();
   window_destroy(s_window);
 }

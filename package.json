@@ -175,6 +175,281 @@
       "media": [
       {
         "type": "bitmap",
+        "name": "IMAGE_TALLDIGITS_0_0",
+        "file": "images/talldigits/0/0.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "IMAGE_TALLDIGITS_0_1",
+        "file": "images/talldigits/0/1.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "IMAGE_TALLDIGITS_0_2",
+        "file": "images/talldigits/0/2.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "IMAGE_TALLDIGITS_0_3",
+        "file": "images/talldigits/0/3.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "IMAGE_TALLDIGITS_0_4",
+        "file": "images/talldigits/0/4.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "IMAGE_TALLDIGITS_0_5",
+        "file": "images/talldigits/0/5.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "IMAGE_TALLDIGITS_0_6",
+        "file": "images/talldigits/0/6.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "IMAGE_TALLDIGITS_0_7",
+        "file": "images/talldigits/0/7.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "IMAGE_TALLDIGITS_0_8",
+        "file": "images/talldigits/0/8.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "IMAGE_TALLDIGITS_0_9",
+        "file": "images/talldigits/0/9.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "IMAGE_TALLDIGITS_0_10",
+        "file": "images/talldigits/0/10.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "IMAGE_TALLDIGITS_1_0",
+        "file": "images/talldigits/1/0.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "IMAGE_TALLDIGITS_1_1",
+        "file": "images/talldigits/1/1.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "IMAGE_TALLDIGITS_1_2",
+        "file": "images/talldigits/1/2.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "IMAGE_TALLDIGITS_1_3",
+        "file": "images/talldigits/1/3.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "IMAGE_TALLDIGITS_1_4",
+        "file": "images/talldigits/1/4.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "IMAGE_TALLDIGITS_1_5",
+        "file": "images/talldigits/1/5.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "IMAGE_TALLDIGITS_1_6",
+        "file": "images/talldigits/1/6.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "IMAGE_TALLDIGITS_1_7",
+        "file": "images/talldigits/1/7.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "IMAGE_TALLDIGITS_1_8",
+        "file": "images/talldigits/1/8.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "IMAGE_TALLDIGITS_1_9",
+        "file": "images/talldigits/1/9.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "IMAGE_TALLDIGITS_1_10",
+        "file": "images/talldigits/1/10.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "IMAGE_TALLDIGITS_2_0",
+        "file": "images/talldigits/2/0.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "IMAGE_TALLDIGITS_2_1",
+        "file": "images/talldigits/2/1.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "IMAGE_TALLDIGITS_2_2",
+        "file": "images/talldigits/2/2.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "IMAGE_TALLDIGITS_2_3",
+        "file": "images/talldigits/2/3.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "IMAGE_TALLDIGITS_2_4",
+        "file": "images/talldigits/2/4.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "IMAGE_TALLDIGITS_2_5",
+        "file": "images/talldigits/2/5.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "IMAGE_TALLDIGITS_2_6",
+        "file": "images/talldigits/2/6.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "IMAGE_TALLDIGITS_2_7",
+        "file": "images/talldigits/2/7.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "IMAGE_TALLDIGITS_2_8",
+        "file": "images/talldigits/2/8.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "IMAGE_TALLDIGITS_2_9",
+        "file": "images/talldigits/2/9.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "IMAGE_TALLDIGITS_2_10",
+        "file": "images/talldigits/2/10.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "IMAGE_TALLDIGITS_3_0",
+        "file": "images/talldigits/3/0.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "IMAGE_TALLDIGITS_3_1",
+        "file": "images/talldigits/3/1.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "IMAGE_TALLDIGITS_3_2",
+        "file": "images/talldigits/3/2.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "IMAGE_TALLDIGITS_3_3",
+        "file": "images/talldigits/3/3.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "IMAGE_TALLDIGITS_3_4",
+        "file": "images/talldigits/3/4.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "IMAGE_TALLDIGITS_3_5",
+        "file": "images/talldigits/3/5.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "IMAGE_TALLDIGITS_3_6",
+        "file": "images/talldigits/3/6.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "IMAGE_TALLDIGITS_3_7",
+        "file": "images/talldigits/3/7.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "IMAGE_TALLDIGITS_3_8",
+        "file": "images/talldigits/3/8.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "IMAGE_TALLDIGITS_3_9",
+        "file": "images/talldigits/3/9.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "IMAGE_TALLDIGITS_3_10",
+        "file": "images/talldigits/3/10.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "IMAGE_TALLDIGITS_4_0",
+        "file": "images/talldigits/4/0.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "IMAGE_TALLDIGITS_4_1",
+        "file": "images/talldigits/4/1.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "IMAGE_TALLDIGITS_4_2",
+        "file": "images/talldigits/4/2.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "IMAGE_TALLDIGITS_4_3",
+        "file": "images/talldigits/4/3.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "IMAGE_TALLDIGITS_4_4",
+        "file": "images/talldigits/4/4.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "IMAGE_TALLDIGITS_4_5",
+        "file": "images/talldigits/4/5.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "IMAGE_TALLDIGITS_4_6",
+        "file": "images/talldigits/4/6.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "IMAGE_TALLDIGITS_4_7",
+        "file": "images/talldigits/4/7.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "IMAGE_TALLDIGITS_4_8",
+        "file": "images/talldigits/4/8.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "IMAGE_TALLDIGITS_4_9",
+        "file": "images/talldigits/4/9.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "IMAGE_TALLDIGITS_4_10",
+        "file": "images/talldigits/4/10.png"
+      },
+      {
+        "type": "bitmap",
         "name": "ICON_FORECAST_0",
         "file": "images/forecast_0.png"
       },

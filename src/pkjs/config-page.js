@@ -280,6 +280,7 @@ function buildConfigHtml(current) {
   var isDigitalBar = configState.isDigitalBar;
   var isDigitalTop = configState.isDigitalTop;
   var isDigital = configState.isDigital;
+  var isBigDigital = configState.isBigDigital;
   var clockFontId = configState.clockFontId;
   var clockSidesAllowed = configState.clockSidesAllowed;
   var clockFontIsWide = configState.clockFontIsWide;
@@ -1129,11 +1130,12 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      <button type="button" class="mode-btn' + (bottomStyleVal === 'digital' ? ' active' : '') + '" onclick="selectBottomStyle(\'digital\')">' + MODE_BTN_ICONS.digital + '<span>DIGITAL BAR</span></button>' +
 '      <button type="button" class="mode-btn' + (bottomStyleVal === 'digitalTop' ? ' active' : '') + '" onclick="selectBottomStyle(\'digitalTop\')">' + MODE_BTN_ICONS.digitalTop + '<span>DIGITAL TOP</span></button>' +
 '      <button type="button" class="mode-btn' + (isAnalog ? ' active' : '') + '" onclick="selectBottomStyle(\'analog\')">' + MODE_BTN_ICONS.analog + '<span>ANALOG</span></button>' +
+'      <button type="button" class="mode-btn' + (isBigDigital ? ' active' : '') + '" onclick="selectBottomStyle(\'bigDigital\')">' + MODE_BTN_ICONS.bigDigital + '<span>BIG DIGITAL</span></button>' +
 '    </div>' +
 '    <input type="hidden" id="bottomStyleValue" value="' + esc(bottomStyleVal) + '">' +
-'    <div class="help" id="help-bottomStyle" style="display:none;">Choose the clock layout: DIGITAL BAR, DIGITAL TOP, or full-screen ANALOG.</div>' +
+'    <div class="help" id="help-bottomStyle" style="display:none;">Choose the clock layout: DIGITAL BAR, DIGITAL TOP, full-screen ANALOG, or BIG DIGITAL (four large digits, corner features only).</div>' +
 
-'    <div id="digitalOnlySettings" class="subsection" style="' + (isDigitalBar || isDigitalTop ? '' : 'display:none;') + '">' +
+'    <div id="digitalOnlySettings" class="subsection" style="' + (isDigitalBar || isDigitalTop || isBigDigital ? '' : 'display:none;') + '">' +
 '      <label for="clockFont">Clock font</label>' +
 '      <select id="clockFont" onchange="onFontChange()" style="display:none;">' + fontOptions + '</select>' +
 '      <button type="button" class="font-picker-btn font-picker-trigger" id="clockFontTrigger" onclick="openFontPicker(\'clock\')">' +
@@ -1142,6 +1144,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      </button>' +
 '    </div>' +
 
+'    <div id="showSecondsRow" style="' + (isBigDigital ? 'display:none;' : '') + '">' +
 '    <div class="checkbox-row subsection">' +
 '      <input type="checkbox" id="showSeconds" ' + secondsChecked + ' ' + secondsDisabled + ' onchange="onShowSecondsChange()">' +
 '      <label for="showSeconds" style="margin:0;">Show seconds</label>' +
@@ -1149,6 +1152,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    </div>' +
 '    <div class="help" id="secondsHelp" style="' + (secondsUnsupported ? '' : 'display:none;') + '">' + esc(secondsHelpText) + '</div>' +
 '    <div class="help" id="help-showSeconds" style="display:none;">Shows seconds on the digital clock or adds a second hand in Analog mode.</div>' +
+'    </div>' +
 
 '    <div id="bigAnalogSettings" class="subsection" style="' + (isAnalog ? '' : 'display:none;') + '">' +
 
@@ -2270,13 +2274,22 @@ handEditorModalHtml('sec', 'Edit second hand') +
 'function openFontPicker(role) {' +
 '  currentFontPickerRole = role;' +
 '  var cfg = FONT_PICKER_ROLES[role];' +
-'  document.getElementById("fontPickerTitle").textContent = cfg.title;' +
+'  var isBigDigitalNow = role === "clock" && document.getElementById("bottomStyleValue").value === "bigDigital";' +
+'  document.getElementById("fontPickerTitle").textContent = isBigDigitalNow ? "Big Digital style" : cfg.title;' +
 '  var incompatibleRow = document.getElementById("fontPickerIncompatibleRow");' +
-'  incompatibleRow.style.display = cfg.showIncompatibleToggle ? "" : "none";' +
-'  if (cfg.showIncompatibleToggle) {' +
+'  incompatibleRow.style.display = (cfg.showIncompatibleToggle && !isBigDigitalNow) ? "" : "none";' +
+'  if (cfg.showIncompatibleToggle && !isBigDigitalNow) {' +
 '    var currentId = document.getElementById(cfg.selectId).value;' +
 '    document.getElementById("fontPickerShowIncompatible").checked = !fontFlag(fontLookupEntry(currentId).small);' +
 '  }' +
+// Big Digital styles only carry the "bigDigital" category tag, which
+// none of the normal category-filter buttons (modern/bold/etc, shared
+// globally across all 3 roles) match -- a stale non-"all" filter left
+// over from browsing another picker would otherwise show an empty
+// grid here for no reason a user opening THIS picker could see.
+'  var categoryRow = document.getElementById("fontPickerCategoryRow");' +
+'  if (categoryRow) categoryRow.style.display = isBigDigitalNow ? "none" : "";' +
+'  if (isBigDigitalNow) { fontPickerActiveCategories = ["all"]; fontPickerPreAllCategories = []; }' +
 '  renderFontCategoryRow();' +
 '  renderFontPickerGrid();' +
 '  document.getElementById("fontPickerModal").className = "modal-overlay open";' +
@@ -2293,7 +2306,8 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  if (!cfg) return;' +
 '  var sel = document.getElementById(cfg.selectId);' +
 '  var currentId = parseInt(sel.value, 10);' +
-'  var showIncompatible = cfg.showIncompatibleToggle ? document.getElementById("fontPickerShowIncompatible").checked : true;' +
+'  var isBigDigitalNow = currentFontPickerRole === "clock" && document.getElementById("bottomStyleValue").value === "bigDigital";' +
+'  var showIncompatible = (cfg.showIncompatibleToggle && !isBigDigitalNow) ? document.getElementById("fontPickerShowIncompatible").checked : true;' +
 '  var previewText = cfg.previewText();' +
 '  var html = "";' +
 // Category filters are just another AND-ed condition alongside the
@@ -2302,7 +2316,12 @@ handEditorModalHtml('sec', 'Edit second hand') +
 // "All"), exactly per the request: unchecking it hides small:false
 // fonts no matter what categories are active.
 '  FONT_LOOKUP.forEach(function (f) {' +
-'    if (cfg.onlyMainClock && !fontFlag(f.mainClock)) return;' +
+'    if (isBigDigitalNow) {' +
+'      if (!fontFlag(f.bigDigital)) return;' + // this one picker mode: only Big Digital's own styles
+'    } else {' +
+'      if (fontFlag(f.bigDigital)) return;' + // every other picker/mode: never offer a Big Digital style
+'      if (cfg.onlyMainClock && !fontFlag(f.mainClock)) return;' +
+'    }' +
 '    if (!showIncompatible && !fontFlag(f.small) && f.id !== currentId) return;' +
 '    if (!fontMatchesCategoryFilters(f)) return;' +
 '    var previewStyle = f.preview + " font-size:" + fontPickerPreviewPx(f.sizePx) + "px;";' +
@@ -2345,8 +2364,18 @@ require('./config/config-preview') +
 'function onBottomStyleChange() {' +
 '  var styleVal = document.getElementById("bottomStyleValue").value;' +
 '  var isAnalog = styleVal === "analog";' +
+'  var isBigDigital = styleVal === "bigDigital";' +
 '  document.getElementById("digitalOnlySettings").style.display = !isAnalog ? "block" : "none";' +
 '  document.getElementById("bigAnalogSettings").style.display = isAnalog ? "block" : "none";' +
+// clockFont's value has to actually belong to the right font family for
+// the layout that's now active, or the trigger button's own preview
+// renders nonsense (a text font's CSS applied to a bitmap-digit style
+// id, or vice versa) even though the watch itself falls back gracefully.
+'  var clockFontSel = document.getElementById("clockFont");' +
+'  var currentFontIsBigDigital = fontFlag(fontLookupEntry(clockFontSel.value).bigDigital);' +
+'  if (isBigDigital && !currentFontIsBigDigital) clockFontSel.value = "100";' +
+'  else if (!isBigDigital && currentFontIsBigDigital) clockFontSel.value = "8";' +
+'  refreshAllFontTriggerLabels();' +
 '  updateDigitalSidesVisibility();' +
 '  updateSecondsAvailability();' +
 '  renderSlotPicker();' +
@@ -2364,17 +2393,20 @@ require('./config/config-preview') +
 // secondsUnavailableReason() -- specific to WHY it's unavailable
 // right now, not one static line for every possible reason.
 'function updateSecondsAvailability() {' +
-'  var isAnalog = document.getElementById("bottomStyleValue").value === "analog";' +
+'  var styleVal = document.getElementById("bottomStyleValue").value;' +
+'  var isAnalog = styleVal === "analog";' +
+'  var isBigDigital = styleVal === "bigDigital";' +
+'  document.getElementById("showSecondsRow").style.display = isBigDigital ? "none" : "";' +
 '  var secondsBox = document.getElementById("showSeconds");' +
 '  var fontSel = document.getElementById("clockFont");' +
 '  var digitalSidesVal = document.getElementById("digitalSides").value;' +
 '  var fontId = parseInt(fontSel.value, 10);' +
-'  var secondsUnavailable = !isAnalog && !secondsAvailableForDigital(fontId, digitalSidesVal);' +
+'  var secondsUnavailable = isBigDigital || (!isAnalog && !secondsAvailableForDigital(fontId, digitalSidesVal));' +
 '  secondsBox.disabled = secondsUnavailable;' +
 '  if (secondsUnavailable) secondsBox.checked = false;' +
 '  var secondsHelp = document.getElementById("secondsHelp");' +
-'  if (secondsUnavailable) secondsHelp.textContent = secondsUnavailableReason(fontId);' +
-'  secondsHelp.style.display = secondsUnavailable ? "block" : "none";' +
+'  if (secondsUnavailable && !isBigDigital) secondsHelp.textContent = secondsUnavailableReason(fontId);' +
+'  secondsHelp.style.display = (secondsUnavailable && !isBigDigital) ? "block" : "none";' +
 '}' +
 // A font switch can turn side features on/off (the "too wide" check
 // depends on the clock font, not just digital-vs-analog), so both this
@@ -2580,12 +2612,13 @@ require('./config/config-preview') +
 'function computeSlotAvailability() {' +
 '  var styleVal = document.getElementById("bottomStyleValue").value;' +
 '  var isAnalog = styleVal === "analog";' +
+'  var isBigDigital = styleVal === "bigDigital";' +
 '  var markerStyle = parseInt(document.getElementById("bigAnalogMarkerStyle").value, 10);' +
 '  var override = document.getElementById("bitmapCornerOverride").checked;' +
 '  var digitalSidesVal = document.getElementById("digitalSides").value;' +
 '  var avail = { upper: false, bottom: false, left: false, right: false, cornersGrayed: false,' +
-'    digitalLeft: !isAnalog && (digitalSidesVal === "left" || digitalSidesVal === "both"),' +
-'    digitalRight: !isAnalog && (digitalSidesVal === "right" || digitalSidesVal === "both"),' +
+'    digitalLeft: !isAnalog && !isBigDigital && (digitalSidesVal === "left" || digitalSidesVal === "both"),' +
+'    digitalRight: !isAnalog && !isBigDigital && (digitalSidesVal === "right" || digitalSidesVal === "both"),' +
 // Row 3 (digitalLeft3/digitalRight3 -- upperMiddleLine1/2Content) sits
 // in the SAME row as the always-on "digital bottom" feature
 // (digitalBottom, bottomMiddleLine1Content -- see that SLOT_DEFS
@@ -2596,8 +2629,11 @@ require('./config/config-preview') +
 // NOT read anywhere near the seconds-availability logic (that only
 // ever looks at digitalSidesVal, which this never touches or is
 // touched by), so turning one of these two on/off can\'t affect
-// whether seconds are offered.' +
-'    digitalBottomRow: !isAnalog };' +
+// whether seconds are offered. Big Digital reuses upperMiddleLine1
+// too, but as a single centered top feature (see bigDigitalTop just
+// below), not this row-3-left/right pair, so it's excluded here.
+'    digitalBottomRow: !isAnalog && !isBigDigital,' +
+'    bigDigitalTop: isBigDigital };' +
 '  if (isAnalog) {' +
 '    if (markerStyle < 3 || markerStyle === 8 || markerStyle === 9) {' +
 '      avail.upper = avail.bottom = avail.left = avail.right = true;' +
@@ -4017,7 +4053,7 @@ require('./config/config-preview') +
 '  swapDualContextFields(previousVal, val);' +
 '  document.getElementById("bottomStyleValue").value = val;' +
 '  var buttons = document.getElementById("bottomStyleGroup").getElementsByClassName("mode-btn");' +
-'  var order = ["digital", "digitalTop", "analog"];' +
+'  var order = ["digital", "digitalTop", "analog", "bigDigital"];' +
 '  for (var i = 0; i < buttons.length; i++) {' +
 '    buttons[i].className = "mode-btn" + (order[i] === val ? " active" : "");' +
 '  }' +

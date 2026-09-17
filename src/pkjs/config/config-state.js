@@ -40,7 +40,8 @@ function deriveConfigState(current) {
     ? current.debugOverrideData
     : (mostRecentRawChunk ? JSON.stringify(mostRecentRawChunk, null, 2) : '');
   var bottomStyleVal = (current.bottomStyle === 'analog' || current.bottomStyle === 'biganalog') ? 'analog'
-    : (current.bottomStyle === 'digitalTop' ? 'digitalTop' : 'digital');
+    : (current.bottomStyle === 'digitalTop' ? 'digitalTop'
+    : (current.bottomStyle === 'bigDigital' ? 'bigDigital' : 'digital'));
   var isAnalog = bottomStyleVal === 'analog';
   // isDigitalBar/isDigitalTop split what used to be a single "not
   // analog" case into the two digital layouts (opaque panel at the
@@ -54,6 +55,11 @@ function deriveConfigState(current) {
   var isDigitalBar = bottomStyleVal === 'digital';
   var isDigitalTop = bottomStyleVal === 'digitalTop';
   var isDigital = isDigitalBar || isDigitalTop;
+  // Big Digital is neither the old analog nor digital case -- it has its
+  // own restricted font list (FONT_LOOKUP entries flagged bigDigital),
+  // no side columns, and no seconds -- see secondsUnsupported below and
+  // the Layout section's own bigDigital-only font picker.
+  var isBigDigital = bottomStyleVal === 'bigDigital';
   var clockFontId = parseInt(current.clockFont || '8', 10);
   // sidesAllowed only ever appears on mainClock fonts (see FONT_LOOKUP's
   // own comment) -- default to 2 (unrestricted) for the rare case a
@@ -94,7 +100,7 @@ function deriveConfigState(current) {
   // sides can knock it out even for a font that was fine a moment ago
   // (tier 1 fonts get one more step of headroom before that happens
   // than tier 0 ones do).
-  var secondsUnsupported = isDigital && !secondsAvailableForDigital(fontLookupEntry(clockFontId), digitalSidesVal);
+  var secondsUnsupported = isBigDigital || (isDigital && !secondsAvailableForDigital(fontLookupEntry(clockFontId), digitalSidesVal));
   var secondsChecked = (current.showSeconds && !secondsUnsupported) ? 'checked' : '';
   var secondsDisabled = secondsUnsupported ? 'disabled' : '';
   var cornerFontId = parseInt(current.cornerFont || '1', 10);
@@ -156,7 +162,7 @@ function deriveConfigState(current) {
       edgeAvail = { upper: true, bottom: bitmapCornerOverride, left: bitmapCornerOverride, right: bitmapCornerOverride, cornersGrayed: !bitmapCornerOverride };
     }
   }
-  var fontOptions = fontOptionsHtml(clockFontId, true);
+  var fontOptions = fontOptionsHtml(clockFontId, true, true);
 
   function hexFromPackedByte(byte) {
     var b = parseInt(byte, 10);
@@ -196,6 +202,7 @@ function deriveConfigState(current) {
     isDigitalBar: isDigitalBar,
     isDigitalTop: isDigitalTop,
     isDigital: isDigital,
+    isBigDigital: isBigDigital,
     clockFontId: clockFontId,
     clockSidesAllowed: clockSidesAllowed,
     clockFontIsWide: clockFontIsWide,

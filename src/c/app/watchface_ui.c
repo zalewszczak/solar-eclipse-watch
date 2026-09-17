@@ -4,6 +4,7 @@
 #include "../rendering/background/sky_layer.h"
 #include "../rendering/background/background_layer.h"
 #include "../rendering/clock/clock_display.h"
+#include "../rendering/clock/big_digital_display.h"
 #include "./layout_controller.h"
 #include "../features/features_layer.h"
 #include "../input/input.h"
@@ -45,6 +46,7 @@ void watchface_ui_refresh_status(bool force_canvas) {
 
   clock_display_set_countdown(text, text_color, hide_label);
   clock_display_mark_panel_dirty();
+  big_digital_display_mark_panel_dirty();
   if (layout_controller_hands_layer()) layer_mark_dirty(layout_controller_hands_layer());
 
   if (force_canvas) {
