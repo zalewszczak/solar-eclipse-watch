@@ -70,6 +70,26 @@ function cdnFontLinks() {
   return links.join('');
 }
 
+// Same idea as cdnFontLinks() above, for a font that isn't hosted
+// anywhere with a ready-made CSS endpoint (no Google Fonts entry, no
+// cdnfonts.com page) but IS directly downloadable as a webfont file
+// from its own source site -- LCD Solid's `webfontUrl` (wfonts.com,
+// https://www.wfonts.com/font/lcd-solid) is the first of these.
+// Builds one @font-face rule per distinct `webfontFamily` directly,
+// since there's no external stylesheet to <link> to for these; the
+// matching `preview` font-family in FONT_LOOKUP just needs to name
+// the same family this declares.
+function directWebfontStyle() {
+  var seen = {};
+  var rules = [];
+  FONT_LOOKUP.forEach(function (f) {
+    if (!f.webfontUrl || !f.webfontFamily || seen[f.webfontFamily]) return;
+    seen[f.webfontFamily] = true;
+    rules.push("@font-face{font-family:'" + f.webfontFamily + "';src:url('" + f.webfontUrl + "') format('" + (f.webfontFormat || 'woff') + "');font-display:swap;}");
+  });
+  return rules.length ? ('<style>' + rules.join('') + '</style>') : '';
+}
+
 // Fastest way to go from an id to its entry -- every font picker
 // needs this (rendering the current selection, gating Show Seconds,
 // auto-pairing the small companion, etc.).
@@ -190,6 +210,7 @@ module.exports = {
   fontFlag: fontFlag,
   googleFontsHref: googleFontsHref,
   cdnFontLinks: cdnFontLinks,
+  directWebfontStyle: directWebfontStyle,
   fontLookupEntry: fontLookupEntry,
   sidesWithSecondsTier: sidesWithSecondsTier,
   secondsAvailableForDigital: secondsAvailableForDigital,

@@ -163,6 +163,7 @@ var FONT_PREVIEW_IMAGES = require('./data/generated/font-preview-images');
 var configFonts = require('./config/config-fonts');
 var googleFontsHref = configFonts.googleFontsHref;
 var cdnFontLinks = configFonts.cdnFontLinks;
+var directWebfontStyle = configFonts.directWebfontStyle;
 var fontLookupEntry = configFonts.fontLookupEntry;
 var sidesWithSecondsTier = configFonts.sidesWithSecondsTier;
 var secondsAvailableForDigital = configFonts.secondsAvailableForDigital;
@@ -321,6 +322,7 @@ function buildConfigHtml(current) {
 '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>' +
 '<link rel="stylesheet" href="' + googleFontsHref() + '">' +
 cdnFontLinks() +
+directWebfontStyle() +
 '<style id="mainStyle">' +
 '  :root { --page-bg: #f4f4f4; --card-bg: #fff; --text: #222; --text-strong: #333; --text-muted: #666; --text-faint: #888; --text-faint2: #555; --text-disabled: #999; --border: #ccc; --border-light: #eee; --border-lighter: #ddd; --btn-bg: #fafafa; }' +
 '  @media (prefers-color-scheme: dark) {' +
