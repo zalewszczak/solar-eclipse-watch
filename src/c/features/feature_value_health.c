@@ -81,36 +81,11 @@ void __attribute__((noinline)) feature_value_health_compute(FeatureSlot *slot, u
       slot->segments[0].icon_flag = bs.is_charging;
       return;
     }
-    case 20: { // Bluetooth connection status -- always its own dynamic color, ignores color_mode
-      bool connected = connection_service_peek_pebble_app_connection();
-      GColor c = connected ? GColorFromRGB(64, 224, 208) : GColorFromRGB(255, 0, 0);
-      feature_value_slot_set(slot, 13, connected ? "Connected" : "No phone", c);
-      return;
-    }
-    case 78: { // Bluetooth, icon only -- same always-dynamic color as 20
+    case 78: { // Bluetooth, icon only -- always its own dynamic color, ignores color_mode
       bool connected = connection_service_peek_pebble_app_connection();
       GColor c = connected ? GColorFromRGB(64, 224, 208) : GColorFromRGB(255, 0, 0);
       slot->segment_count = 1;
       feature_value_set_icon_segment(slot, 0, 13, c);
-      return;
-    }
-    case 108: { // Quiet Time status, icon only -- plain speaker (off) / crossed-out speaker (active)
-      bool active = quiet_time_is_active();
-      GColor dyn = active ? GColorRed : GColorWhite;
-      GColor c = feature_value_resolve_flat_color(color_mode, dyn, main_color, accent_color);
-      slot->segment_count = 1;
-      feature_value_set_icon_segment(slot, 0, 29, c);
-      slot->segments[0].icon_flag = active; // true = crossed-out
-      return;
-    }
-    case 109: { // Quiet Time status, icon (always plain speaker) + "ON"/"OFF" text
-      bool active = quiet_time_is_active();
-      GColor dyn = active ? GColorRed : GColorWhite;
-      GColor c = feature_value_resolve_flat_color(color_mode, dyn, main_color, accent_color);
-      slot->segment_count = 2;
-      feature_value_set_icon_segment(slot, 0, 29, c);
-      slot->segments[0].icon_flag = false; // never crossed out here -- the text carries the state instead
-      feature_value_set_text_segment(slot, 1, active ? "ON" : "OFF", c);
       return;
     }
     case 39: case 40: { // sleep duration (total, 39) / restful (deep) sleep duration (40)

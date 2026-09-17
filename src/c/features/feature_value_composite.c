@@ -96,7 +96,7 @@ void __attribute__((noinline)) feature_value_composite_compute(FeatureSlot *slot
       feature_value_set_text_segment(slot, 2, buf2, wake_c);
       return;
     }
-    case 102: case 103: { // battery + BT (icons only, 102), battery % + BT (103)
+    case 103: { // battery % + Bluetooth
       CompositeBatteryStatus status;
       composite_battery_status_get(&status, dynamic, flat);
       BatteryChargeState bs = status.battery;
@@ -107,15 +107,10 @@ void __attribute__((noinline)) feature_value_composite_compute(FeatureSlot *slot
       slot->segments[0].icon_extra = bs.charge_percent;
       slot->segments[0].icon_flag = bs.is_charging;
 
-      if (content == 102) {
-        slot->segment_count = 2;
-        feature_value_set_icon_segment(slot, 1, 13, bt_c);
-      } else {
-        snprintf(buf1, sizeof(buf1), "%d%%", bs.charge_percent);
-        slot->segment_count = 3;
-        feature_value_set_text_segment(slot, 1, buf1, batt_c);
-        feature_value_set_icon_segment(slot, 2, 13, bt_c);
-      }
+      snprintf(buf1, sizeof(buf1), "%d%%", bs.charge_percent);
+      slot->segment_count = 3;
+      feature_value_set_text_segment(slot, 1, buf1, batt_c);
+      feature_value_set_icon_segment(slot, 2, 13, bt_c);
       return;
     }
     case 112: { // battery + BT + Quiet Time, icons only
