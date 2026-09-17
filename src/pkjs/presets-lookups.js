@@ -334,6 +334,11 @@ var CORNER_CATEGORIES = [
         "preview": "LOGO"
       },
       {
+        "id": 20,
+        "label": "Bluetooth connection",
+        "preview": "Connected"
+      },
+      {
         "id": 78,
         "label": "Bluetooth status (icon only)",
         "preview": "(bt)"
@@ -349,9 +354,24 @@ var CORNER_CATEGORIES = [
         "preview": "NNW"
       },
       {
+        "id": 102,
+        "label": "Battery + Bluetooth (icons only)",
+        "preview": "(batt)(bt)"
+      },
+      {
         "id": 103,
         "label": "Battery % + Bluetooth",
         "preview": "68% (bt)"
+      },
+      {
+        "id": 108,
+        "label": "Quiet Time (icon only)",
+        "preview": "(quiet)"
+      },
+      {
+        "id": 109,
+        "label": "Quiet Time (icon + ON/OFF)",
+        "preview": "(spkr) OFF"
       },
       {
         "id": 112,

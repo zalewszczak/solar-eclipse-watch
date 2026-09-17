@@ -21,7 +21,7 @@ void feature_values_compute_slot(FeatureSlot *slot, const EclipseData *data,
 
   uint8_t content = slot->content, color_mode = slot->color_mode;
   switch (content) {
-    case 100: case 101: case 103: case 104: case 105:
+    case 100: case 101: case 102: case 103: case 104: case 105:
     case 112: case 113: case 118:
       feature_value_composite_compute(slot, content, data, color_mode, main_color, now);
       break;
@@ -29,7 +29,8 @@ void feature_values_compute_slot(FeatureSlot *slot, const EclipseData *data,
     case 54: case 55: case 56: case 57: case 58: case 59: case 60: case 61: case 62:
       feature_value_timezone_compute(slot, content, color_mode, main_color, accent_color, now);
       break;
-    case 1: case 2: case 3: case 10: case 17: case 39: case 40: case 41: case 42: case 43: case 78:
+    case 1: case 2: case 3: case 10: case 17: case 20: case 39: case 40: case 41: case 42: case 43: case 78:
+    case 108: case 109:
       feature_value_health_compute(slot, content, data, color_mode, main_color, accent_color);
       break;
     case 11: case 13: case 16: case 79: case 80: case 81: case 82: case 83: case 84: case 85:
