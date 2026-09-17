@@ -12,29 +12,33 @@
 // a full icon -- the whole point of drawing it "oversized" like this
 // rather than adding new fixed-width-icon drawing code.
 //
-// Index 0 is unused; 1-6 = "+1h" through "+6h" (features_layer.c content
-// ids 87-92), 7-9 = "+1 day" through "+3 days" (content ids 93-95) -- both
-// computed as content-86 by feature_value_weather.c, so one table and one
-// draw function covers both.
-static const IconResourceSet FORECAST_OFFSET_ICON_SETS[10] = {
-  [1] = { RESOURCE_ID_ICON_SIMPLE_FORECAST_HOUR_1, RESOURCE_ID_ICON_HOLLOW_FORECAST_HOUR_1, RESOURCE_ID_ICON_FULLCOLOR_FORECAST_HOUR_1 },
-  [2] = { RESOURCE_ID_ICON_SIMPLE_FORECAST_HOUR_2, RESOURCE_ID_ICON_HOLLOW_FORECAST_HOUR_2, RESOURCE_ID_ICON_FULLCOLOR_FORECAST_HOUR_2 },
-  [3] = { RESOURCE_ID_ICON_SIMPLE_FORECAST_HOUR_3, RESOURCE_ID_ICON_HOLLOW_FORECAST_HOUR_3, RESOURCE_ID_ICON_FULLCOLOR_FORECAST_HOUR_3 },
-  [4] = { RESOURCE_ID_ICON_SIMPLE_FORECAST_HOUR_4, RESOURCE_ID_ICON_HOLLOW_FORECAST_HOUR_4, RESOURCE_ID_ICON_FULLCOLOR_FORECAST_HOUR_4 },
-  [5] = { RESOURCE_ID_ICON_SIMPLE_FORECAST_HOUR_5, RESOURCE_ID_ICON_HOLLOW_FORECAST_HOUR_5, RESOURCE_ID_ICON_FULLCOLOR_FORECAST_HOUR_5 },
-  [6] = { RESOURCE_ID_ICON_SIMPLE_FORECAST_HOUR_6, RESOURCE_ID_ICON_HOLLOW_FORECAST_HOUR_6, RESOURCE_ID_ICON_FULLCOLOR_FORECAST_HOUR_6 },
-  [7] = { RESOURCE_ID_ICON_SIMPLE_FORECAST_DAY_1, RESOURCE_ID_ICON_HOLLOW_FORECAST_DAY_1, RESOURCE_ID_ICON_FULLCOLOR_FORECAST_DAY_1 },
-  [8] = { RESOURCE_ID_ICON_SIMPLE_FORECAST_DAY_2, RESOURCE_ID_ICON_HOLLOW_FORECAST_DAY_2, RESOURCE_ID_ICON_FULLCOLOR_FORECAST_DAY_2 },
-  [9] = { RESOURCE_ID_ICON_SIMPLE_FORECAST_DAY_3, RESOURCE_ID_ICON_HOLLOW_FORECAST_DAY_3, RESOURCE_ID_ICON_FULLCOLOR_FORECAST_DAY_3 },
+// Unlike every other icon table in this app, there's only ONE piece of art
+// per index here, not a simple/hollow/fullcolor triple -- these are plain
+// digit glyphs with nothing for "hollow" or "full color" to add, so the
+// same resource is reused for all three IconResourceSet fields rather than
+// tripling the number of image files for no visual benefit. The outline
+// pass and simple/hollow tinting in feature_icon_assets_draw_styled_with_outline()
+// still apply on top of that one piece of art, same as any other icon.
+//
+// Index 0-5 = "+1h" through "+6h" (features_layer.c content ids 87-92),
+// 6-8 = "+1 day" through "+3 days" (content ids 93-95) -- both computed as
+// content-87 by feature_value_weather.c, the same index forecast_temp_c/
+// forecast_condition in eclipse_data.h already use for this same data.
+#define FORECAST_ICON(n) { RESOURCE_ID_ICON_FORECAST_##n, RESOURCE_ID_ICON_FORECAST_##n, RESOURCE_ID_ICON_FORECAST_##n }
+static const IconResourceSet FORECAST_OFFSET_ICON_SETS[9] = {
+  FORECAST_ICON(0), FORECAST_ICON(1), FORECAST_ICON(2),
+  FORECAST_ICON(3), FORECAST_ICON(4), FORECAST_ICON(5),
+  FORECAST_ICON(6), FORECAST_ICON(7), FORECAST_ICON(8),
 };
+#undef FORECAST_ICON
 
 #define ICON_W 16
 #define ICON_H 16
 
-void feature_forecast_offset_icons_draw_with_outline(GContext *ctx, GPoint top_left, uint8_t offset,
+void feature_forecast_offset_icons_draw_with_outline(GContext *ctx, GPoint top_left, uint8_t idx,
                                                       uint8_t style, uint8_t outline_style,
                                                       GColor outline_color, GColor color) {
-  if (offset < 1 || offset > 9) return;
-  feature_icon_assets_draw_styled_with_outline(ctx, top_left, &FORECAST_OFFSET_ICON_SETS[offset], style,
+  if (idx > 8) return;
+  feature_icon_assets_draw_styled_with_outline(ctx, top_left, &FORECAST_OFFSET_ICON_SETS[idx], style,
                                                outline_style, outline_color, color, ICON_W, ICON_H);
 }

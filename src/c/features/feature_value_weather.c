@@ -200,15 +200,16 @@ void __attribute__((noinline)) feature_value_weather_compute(FeatureSlot *slot, 
       feature_value_set_text_segment(slot, 1, buf, c);
       return;
     }
-    case 87: case 88: case 89: case 90: case 91: case 92: { // weather in 1-6 hours: half-icon "+Xh" + weather icon + temp
-      int hrs_ahead = content - 86; // 1-6
-      int idx = hrs_ahead - 1;
+    case 87: case 88: case 89: case 90: case 91: case 92:
+    case 93: case 94: case 95: { // weather in 1-6 hours (87-92) or 1-3 days (93-95): half-icon "+N" + weather icon + temp
+      int idx = content - 87; // 0-8 -- forecast_temp_c/forecast_condition[6..8] hold the 3 day-ahead values
+      bool is_hour = content <= 92;
       GColor c;
       if (data->forecast_temp_c[idx] <= -128) {
         c = GColorLightGray;
         slot->segment_count = 2;
         feature_value_set_icon_segment(slot, 0, 30, c);
-        slot->segments[0].icon_extra = hrs_ahead;
+        slot->segments[0].icon_extra = idx;
         feature_value_set_text_segment(slot, 1, "N/A", c);
         return;
       }
@@ -217,40 +218,16 @@ void __attribute__((noinline)) feature_value_weather_compute(FeatureSlot *slot, 
       // Same shape as "temp + weather icon" (32): plain 7-stop gradient,
       c = feature_value_resolve_flat_color(color_mode, feature_colors_seven_stop_gradient(data->forecast_temp_c[idx], -10, 40), main_color, accent_color);
       slot->segment_count = 3;
-      feature_value_set_icon_segment(slot, 0, 30, c); // "+Xh" half-icon
-      slot->segments[0].icon_extra = hrs_ahead;
+      feature_value_set_icon_segment(slot, 0, 30, c); // "+Xh"/"+X day" half-icon
+      slot->segments[0].icon_extra = idx;
       feature_value_set_icon_segment(slot, 1, 14, c);
       slot->segments[1].icon_extra = feature_icons_weather_category(data->forecast_condition[idx], 50); // no forecast cloud% sent separately -- 50 is a neutral middle guess, only affects which of a few near-identical i...
       // Day/night art for the forecast hour itself (not "now") -- sky_layer_is_bright()
       // takes any time_t and interpolates against the same sun-altitude samples used
-      // for the live sky, so this is the actual predicted day/night state then.
-      slot->segments[1].icon_flag = !sky_layer_is_bright(data, time(NULL) + (time_t)hrs_ahead * 3600);
-      feature_value_set_text_segment(slot, 2, buf, c);
-      return;
-    }
-    case 93: case 94: case 95: { // weather in 1-3 days: half-icon "+X day" + weather icon + temp
-      int days_ahead = content - 92; // 1-3
-      int idx = days_ahead - 1;
-      GColor c;
-      if (data->forecast_daily_temp_c[idx] <= -128) {
-        c = GColorLightGray;
-        slot->segment_count = 2;
-        feature_value_set_icon_segment(slot, 0, 30, c);
-        slot->segments[0].icon_extra = content - 86; // 7-9, same index space as the hour icons above
-        feature_value_set_text_segment(slot, 1, "N/A", c);
-        return;
-      }
-      int16_t shown = feature_rules_convert_temp(data->forecast_daily_temp_c[idx], data->temp_unit);
-      snprintf(buf, sizeof(buf), "%d", shown);
-      c = feature_value_resolve_flat_color(color_mode, feature_colors_seven_stop_gradient(data->forecast_daily_temp_c[idx], -10, 40), main_color, accent_color);
-      slot->segment_count = 3;
-      feature_value_set_icon_segment(slot, 0, 30, c); // "+X day" half-icon
-      slot->segments[0].icon_extra = content - 86; // 7-9
-      feature_value_set_icon_segment(slot, 1, 14, c);
-      slot->segments[1].icon_extra = feature_icons_weather_category(data->forecast_daily_condition[idx], 50);
-      // A day's forecast has no single "then" moment to test day/night
-      // against, unlike the hourly case above -- always drawn with daytime art.
-      slot->segments[1].icon_flag = false;
+      // for the live sky, so this is the actual predicted day/night state then. A
+      // day-ahead forecast has no single "then" moment to test that against, so it
+      // always draws with daytime art instead.
+      slot->segments[1].icon_flag = is_hour ? !sky_layer_is_bright(data, time(NULL) + (time_t)(idx + 1) * 3600) : false;
       feature_value_set_text_segment(slot, 2, buf, c);
       return;
     }

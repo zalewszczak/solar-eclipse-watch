@@ -204,12 +204,12 @@ typedef struct {
   bool weather_ever_valid;
   time_t weather_last_update;
 
-  // Forecast for the next 1-6 hours.
-  int16_t forecast_temp_c[6];
-  uint8_t forecast_condition[6];
-  // Forecast for the next 1-3 days.
-  int16_t forecast_daily_temp_c[3];
-  uint8_t forecast_daily_condition[3];
+  // Forecast for the next 1-6 hours (index 0-5) and next 1-3 days (index
+  // 6-8) -- one shared pair of arrays for both (content id - 87 indexes
+  // straight into them), rather than a second wire format for what's
+  // structurally the same data.
+  int16_t forecast_temp_c[9];
+  uint8_t forecast_condition[9];
   char location_name[32];  // reverse-geocoded place name.
 
   uint8_t timezone_id;     // index into the timezone table.

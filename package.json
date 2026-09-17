@@ -169,12 +169,55 @@
       "REQUEST_FLIGHTS",
       "OVERHEAD_OBJECTS",
       "OVERHEAD_OBJECT_COUNT",
-      "OVERHEAD_OBJECTS_COMPUTED_AT",
-      "FORECAST_DAILY_TEMP_C",
-      "FORECAST_DAILY_CONDITION"
+      "OVERHEAD_OBJECTS_COMPUTED_AT"
     ],
     "resources": {
       "media": [
+      {
+        "type": "bitmap",
+        "name": "ICON_FORECAST_0",
+        "file": "images/forecast_0.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "ICON_FORECAST_1",
+        "file": "images/forecast_1.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "ICON_FORECAST_2",
+        "file": "images/forecast_2.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "ICON_FORECAST_3",
+        "file": "images/forecast_3.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "ICON_FORECAST_4",
+        "file": "images/forecast_4.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "ICON_FORECAST_5",
+        "file": "images/forecast_5.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "ICON_FORECAST_6",
+        "file": "images/forecast_6.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "ICON_FORECAST_7",
+        "file": "images/forecast_7.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "ICON_FORECAST_8",
+        "file": "images/forecast_8.png"
+      },
         {
           "type": "font",
           "name": "DIGITALDREAM_FONT_12",
@@ -552,51 +595,6 @@
         },
         {
           "type": "bitmap",
-          "name": "ICON_SIMPLE_FORECAST_HOUR_1",
-          "file": "images/simple/forecast_hour_1.png"
-        },
-        {
-          "type": "bitmap",
-          "name": "ICON_SIMPLE_FORECAST_HOUR_2",
-          "file": "images/simple/forecast_hour_2.png"
-        },
-        {
-          "type": "bitmap",
-          "name": "ICON_SIMPLE_FORECAST_HOUR_3",
-          "file": "images/simple/forecast_hour_3.png"
-        },
-        {
-          "type": "bitmap",
-          "name": "ICON_SIMPLE_FORECAST_HOUR_4",
-          "file": "images/simple/forecast_hour_4.png"
-        },
-        {
-          "type": "bitmap",
-          "name": "ICON_SIMPLE_FORECAST_HOUR_5",
-          "file": "images/simple/forecast_hour_5.png"
-        },
-        {
-          "type": "bitmap",
-          "name": "ICON_SIMPLE_FORECAST_HOUR_6",
-          "file": "images/simple/forecast_hour_6.png"
-        },
-        {
-          "type": "bitmap",
-          "name": "ICON_SIMPLE_FORECAST_DAY_1",
-          "file": "images/simple/forecast_day_1.png"
-        },
-        {
-          "type": "bitmap",
-          "name": "ICON_SIMPLE_FORECAST_DAY_2",
-          "file": "images/simple/forecast_day_2.png"
-        },
-        {
-          "type": "bitmap",
-          "name": "ICON_SIMPLE_FORECAST_DAY_3",
-          "file": "images/simple/forecast_day_3.png"
-        },
-        {
-          "type": "bitmap",
           "name": "ICON_WEATHER_SIMPLE_SUN",
           "file": "images/simple/weather_sun.png"
         },
@@ -757,51 +755,6 @@
         },
         {
           "type": "bitmap",
-          "name": "ICON_HOLLOW_FORECAST_HOUR_1",
-          "file": "images/hollow/forecast_hour_1.png"
-        },
-        {
-          "type": "bitmap",
-          "name": "ICON_HOLLOW_FORECAST_HOUR_2",
-          "file": "images/hollow/forecast_hour_2.png"
-        },
-        {
-          "type": "bitmap",
-          "name": "ICON_HOLLOW_FORECAST_HOUR_3",
-          "file": "images/hollow/forecast_hour_3.png"
-        },
-        {
-          "type": "bitmap",
-          "name": "ICON_HOLLOW_FORECAST_HOUR_4",
-          "file": "images/hollow/forecast_hour_4.png"
-        },
-        {
-          "type": "bitmap",
-          "name": "ICON_HOLLOW_FORECAST_HOUR_5",
-          "file": "images/hollow/forecast_hour_5.png"
-        },
-        {
-          "type": "bitmap",
-          "name": "ICON_HOLLOW_FORECAST_HOUR_6",
-          "file": "images/hollow/forecast_hour_6.png"
-        },
-        {
-          "type": "bitmap",
-          "name": "ICON_HOLLOW_FORECAST_DAY_1",
-          "file": "images/hollow/forecast_day_1.png"
-        },
-        {
-          "type": "bitmap",
-          "name": "ICON_HOLLOW_FORECAST_DAY_2",
-          "file": "images/hollow/forecast_day_2.png"
-        },
-        {
-          "type": "bitmap",
-          "name": "ICON_HOLLOW_FORECAST_DAY_3",
-          "file": "images/hollow/forecast_day_3.png"
-        },
-        {
-          "type": "bitmap",
           "name": "ICON_WEATHER_HOLLOW_SUN",
           "file": "images/hollow/weather_sun.png"
         },
@@ -959,51 +912,6 @@
           "type": "bitmap",
           "name": "ICON_FULLCOLOR_SUN_TIME_SET",
           "file": "images/fullcolor/sun_time_set.png"
-        },
-        {
-          "type": "bitmap",
-          "name": "ICON_FULLCOLOR_FORECAST_HOUR_1",
-          "file": "images/fullcolor/forecast_hour_1.png"
-        },
-        {
-          "type": "bitmap",
-          "name": "ICON_FULLCOLOR_FORECAST_HOUR_2",
-          "file": "images/fullcolor/forecast_hour_2.png"
-        },
-        {
-          "type": "bitmap",
-          "name": "ICON_FULLCOLOR_FORECAST_HOUR_3",
-          "file": "images/fullcolor/forecast_hour_3.png"
-        },
-        {
-          "type": "bitmap",
-          "name": "ICON_FULLCOLOR_FORECAST_HOUR_4",
-          "file": "images/fullcolor/forecast_hour_4.png"
-        },
-        {
-          "type": "bitmap",
-          "name": "ICON_FULLCOLOR_FORECAST_HOUR_5",
-          "file": "images/fullcolor/forecast_hour_5.png"
-        },
-        {
-          "type": "bitmap",
-          "name": "ICON_FULLCOLOR_FORECAST_HOUR_6",
-          "file": "images/fullcolor/forecast_hour_6.png"
-        },
-        {
-          "type": "bitmap",
-          "name": "ICON_FULLCOLOR_FORECAST_DAY_1",
-          "file": "images/fullcolor/forecast_day_1.png"
-        },
-        {
-          "type": "bitmap",
-          "name": "ICON_FULLCOLOR_FORECAST_DAY_2",
-          "file": "images/fullcolor/forecast_day_2.png"
-        },
-        {
-          "type": "bitmap",
-          "name": "ICON_FULLCOLOR_FORECAST_DAY_3",
-          "file": "images/fullcolor/forecast_day_3.png"
         },
         {
           "type": "bitmap",

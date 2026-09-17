@@ -235,7 +235,7 @@ void feature_icons_draw_render_icon(GContext *ctx, uint8_t icon_kind, int16_t ic
     }
     case 30: { // "+Xh"/"+X day" forecast-offset half-icon (see
                // feature_forecast_offset_icons.c) -- icon_extra carries the
-               // 1-9 offset index (content-86, computed by
+               // 0-8 offset index (content-87, computed by
                // feature_value_weather.c), drawn just like any other
                // fixed-shape icon; feature_icons_plus_gap_width()'s own
                // table is what makes this one only take up half the width.

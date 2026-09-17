@@ -604,15 +604,18 @@ function extraWeatherFieldsDict(extra) {
   if (typeof extra.auroraVisibilityPct === 'number') dict['AURORA_VISIBILITY_PCT'] = extra.auroraVisibilityPct;
   // Always sent, same reasoning as ISS_ERROR_CODE above.
   dict['AURORA_ERROR_CODE'] = extra.auroraErrorCode || 0;
-  // "Weather in N hours" (features_layer.c ids 87-92) -- sent as byte
-  // arrays, one entry per forecast hour (1h through 6h ahead). Only
-  // sent when the daily-forecast fetch that produced them actually
-  // succeeded, same reasoning as every other field here -- a transient
-  // failure shouldn't wipe out the watch's last known-good forecast.
+  // "Weather in N hours"/"Weather in N days" (features_layer.c ids
+  // 87-95) -- sent as byte arrays, one entry per forecast slot: 1h
+  // through 6h ahead, then 1 through 3 days ahead (indices 0-5, 6-8;
+  // content id - 87 either way, same index eclipse_data.h's own
+  // forecast_temp_c/forecast_condition use). Only sent when the
+  // daily-forecast fetch that produced them actually succeeded, same
+  // reasoning as every other field here -- a transient failure
+  // shouldn't wipe out the watch's last known-good forecast.
   // forecast_temp_c can't go through as a plain signed byte (AppMessage
   // byte-array tuples are unsigned), so each value is offset by +50
   // celsius first; 255 is the "not available" sentinel for a single
-  // hour within an otherwise-successful fetch (see forecastTempC's own
+  // entry within an otherwise-successful fetch (see forecastTempC's own
   // per-index null check in weather.js).
   if (extra.forecastTempC) {
     dict['FORECAST_TEMP_C'] = extra.forecastTempC.map(function (c) {
@@ -621,19 +624,6 @@ function extraWeatherFieldsDict(extra) {
   }
   if (extra.forecastCondition) {
     dict['FORECAST_CONDITION'] = extra.forecastCondition.map(function (c) {
-      return (typeof c === 'number') ? c : 0;
-    });
-  }
-  // "Weather in N days" (features_layer.c ids 93-95) -- same shape and
-  // same +50/255 offset convention as FORECAST_TEMP_C above, just 3
-  // entries (1-3 days ahead) instead of 6.
-  if (extra.dailyForecastTempC) {
-    dict['FORECAST_DAILY_TEMP_C'] = extra.dailyForecastTempC.map(function (c) {
-      return (typeof c === 'number') ? Math.max(0, Math.min(255, Math.round(c) + 50)) : 255;
-    });
-  }
-  if (extra.dailyForecastCondition) {
-    dict['FORECAST_DAILY_CONDITION'] = extra.dailyForecastCondition.map(function (c) {
       return (typeof c === 'number') ? c : 0;
     });
   }

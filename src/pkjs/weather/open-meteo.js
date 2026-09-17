@@ -89,8 +89,8 @@ function getDailyCloudGrid(lat, lon, times, nowDate, cb) {
     sunrise: null, sunset: null, condition: 0, tempC: null, tempHighC: null, tempLowC: null,
     cloudAltitudePct: 50, uvIndexMax: null, uvIndexCurrent: null, rainChancePct: null, humidityPct: null, windSpeedKmh: null,
     currentCloudPct: null, windDirDeg: null, dewPointC: null, pressureHpa: null, pressureTrend: 0,
-    forecastTempC: [null, null, null, null, null, null], forecastCondition: [0, 0, 0, 0, 0, 0],
-    dailyForecastTempC: [null, null, null], dailyForecastCondition: [0, 0, 0]
+    forecastTempC: [null, null, null, null, null, null, null, null, null],
+    forecastCondition: [0, 0, 0, 0, 0, 0, 0, 0, 0]
   };
   xhrGetJSON(url, 8000, function (err, json) {
     if (err) return cb(err, null, emptyExtras);
@@ -176,12 +176,12 @@ function getDailyCloudGrid(lat, lon, times, nowDate, cb) {
       }
 
       // "Weather in 1-6 hours" content (features_layer.c ids 87-92) --
-      // temperature_2m/weathercode at nowIdx+1..nowIdx+6. forecast_days=4
-      // gives 96 hourly points starting at hour 0 of today, comfortably
-      // covering nowIdx+6 even late in the day -- guarded per-index below
-      // anyway rather than assumed safe.
-      var forecastTempC = [null, null, null, null, null, null];
-      var forecastCondition = [0, 0, 0, 0, 0, 0];
+      // temperature_2m/weathercode at nowIdx+1..nowIdx+6, indices 0-5.
+      // forecast_days=4 gives 96 hourly points starting at hour 0 of
+      // today, comfortably covering nowIdx+6 even late in the day --
+      // guarded per-index below anyway rather than assumed safe.
+      var forecastTempC = [null, null, null, null, null, null, null, null, null];
+      var forecastCondition = [0, 0, 0, 0, 0, 0, 0, 0, 0];
       var hourlyTemps = json.hourly.temperature_2m;
       for (var fh = 0; fh < 6; fh++) {
         var fIdx = nowIdx + 1 + fh;
@@ -209,21 +209,21 @@ function getDailyCloudGrid(lat, lon, times, nowDate, cb) {
         if (json.daily.precipitation_probability_max && typeof json.daily.precipitation_probability_max[0] === 'number') {
           rainChancePct = json.daily.precipitation_probability_max[0];
         }
-      }
 
-      // "Weather in 1-3 days" content (features_layer.c ids 93-95) -- daily
-      // max temp/weathercode at daily index 1..3 (index 0 is today, already
-      // used above for tempHighC/tempLowC).
-      var dailyForecastTempC = [null, null, null];
-      var dailyForecastCondition = [0, 0, 0];
-      if (json.daily) {
+        // "Weather in 1-3 days" content (features_layer.c ids 93-95) --
+        // same forecastTempC/forecastCondition arrays as the hours above,
+        // just continuing on at indices 6-8 (content id - 87 either way),
+        // rather than a second pair of arrays and a second wire message
+        // for what's structurally identical data. Daily max temp/weathercode
+        // at daily index 1..3 (index 0 is today, already used above for
+        // tempHighC/tempLowC).
         for (var fd = 0; fd < 3; fd++) {
           var dIdx = fd + 1;
           if (json.daily.temperature_2m_max && typeof json.daily.temperature_2m_max[dIdx] === 'number') {
-            dailyForecastTempC[fd] = Math.round(json.daily.temperature_2m_max[dIdx]);
+            forecastTempC[6 + fd] = Math.round(json.daily.temperature_2m_max[dIdx]);
           }
           if (json.daily.weathercode && typeof json.daily.weathercode[dIdx] === 'number') {
-            dailyForecastCondition[fd] = conditionFromWmoCode(json.daily.weathercode[dIdx]);
+            forecastCondition[6 + fd] = conditionFromWmoCode(json.daily.weathercode[dIdx]);
           }
         }
       }
@@ -235,8 +235,7 @@ function getDailyCloudGrid(lat, lon, times, nowDate, cb) {
         rainChancePct: rainChancePct, humidityPct: humidityPct, windSpeedKmh: windSpeedKmh,
         currentCloudPct: currentCloudPct, windDirDeg: windDirDeg, dewPointC: dewPointC,
         pressureHpa: pressureHpa, pressureTrend: pressureTrend,
-        forecastTempC: forecastTempC, forecastCondition: forecastCondition,
-        dailyForecastTempC: dailyForecastTempC, dailyForecastCondition: dailyForecastCondition
+        forecastTempC: forecastTempC, forecastCondition: forecastCondition
       });
     } catch (e) {
       cb(e, null, emptyExtras);
