@@ -831,6 +831,32 @@ directWebfontStyle() +
 // instead of by isAnalogMode alone (see that function's own comment).
 '  #slotDiagramClockBarTop { position: absolute; left: 0; right: 0; top: 0; height: 33.33%; background: rgba(0,0,0,0.55); border-radius: 8px 8px 0 0; display: none; }' +
 '  #slotDiagramClockTextTop { position: absolute; left: 50%; bottom: 8px; transform: translateX(-50%); color: #fff; font-family: "Courier New", monospace; font-size: 22px; font-weight: 700; letter-spacing: 1px; pointer-events: none; }' +
+// Big Digital's own mockup -- full-screen sky (the diagram's own
+// gradient background already IS that), just the big centered digits
+// on top, same as the real layout draws no separate panel of its own
+// (see big_digital_display.c's own "no fill here" comment). Shown only
+// in Big Digital mode (see renderSlotPicker()), alongside .center-mode's
+// repositioning of the single top/bottom feature buttons below.
+'  #slotDiagramBigDigital { position: absolute; left: 0; right: 0; top: 0; bottom: 0; display: none; align-items: center; justify-content: center; pointer-events: none; }' +
+'  #slotDiagramBigDigitalText { color: #fff; font-family: "Courier New", monospace; font-size: 40px; font-weight: 700; letter-spacing: 2px; text-shadow: 0 1px 3px rgba(0,0,0,0.45); }' +
+// Grid's own mockup -- same full-screen-sky idea as Big Digital just
+// above, a 4x4 grid of single characters instead of 4 tall digit
+// bitmaps. Sample content matches drawGridPreview()'s own real sample
+// rows (HHMM / weekday / day+ordinal / month) purely so this static
+// picker diagram and the live canvas preview elsewhere never disagree
+// about what a grid face actually shows.
+'  #slotDiagramGrid { position: absolute; left: 26px; right: 26px; top: 40px; bottom: 40px; display: none; grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(4, 1fr); pointer-events: none; }' +
+'  #slotDiagramGrid span { color: #fff; font-family: "Courier New", monospace; font-size: 20px; font-weight: 700; display: flex; align-items: center; justify-content: center; text-shadow: 0 1px 2px rgba(0,0,0,0.45); }' +
+// Big Digital/Grid share one .center-mode modifier (both reuse the
+// exact same single top-center/bottom-center feature slots -- see
+// feature_layout.c's own "Identical for both layouts, hence one
+// branch" comment) that pulls the shared analog upper-l1/bottom-l1
+// buttons in from the round dial's own 34px/62px offsets to sit right
+// at the diagram's top/bottom edge instead, next to the corner buttons
+// -- there's no dial or clock-bar panel to clear space around here, the
+// digits/grid fill the whole face same as the corners' own art does.
+'  #slotPickerDiagram.center-mode .slot-upper-l1 { top: 8px; }' +
+'  #slotPickerDiagram.center-mode .slot-bottom-l1 { bottom: 8px; }' +
 // 3 rows per side, bottom-anchored within the clock bar (row 1 nearest
 // the clock/top of the bar, row 3 nearest the screen's bottom edge --
 // same ordering as SLOT_LEFT_L1..UPPER_L1/SLOT_RIGHT_L1..UPPER_L2 in
@@ -1249,6 +1275,13 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    <div id="slotPickerDiagram">' +
 '      <div id="slotDiagramClockBar"><span id="slotDiagramClockText">12:34</span></div>' +
 '      <div id="slotDiagramClockBarTop"><span id="slotDiagramClockTextTop">12:34</span></div>' +
+'      <div id="slotDiagramBigDigital"><span id="slotDiagramBigDigitalText">12:34</span></div>' +
+'      <div id="slotDiagramGrid">' +
+'        <span>1</span><span>2</span><span>3</span><span>4</span>' +
+'        <span>M</span><span>O</span><span>N</span><span></span>' +
+'        <span>2</span><span>3</span><span>R</span><span>D</span>' +
+'        <span>S</span><span>E</span><span>P</span><span></span>' +
+'      </div>' +
 '      <button type="button" class="slot-btn slot-corner-tl" id="slotBtn-cornerTL" onclick="openSlotEditor(\'cornerTL\')"></button>' +
 '      <button type="button" class="slot-btn slot-corner-tr" id="slotBtn-cornerTR" onclick="openSlotEditor(\'cornerTR\')"></button>' +
 '      <button type="button" class="slot-btn slot-corner-bl" id="slotBtn-cornerBL" onclick="openSlotEditor(\'cornerBL\')"></button>' +
@@ -2605,30 +2638,41 @@ require('./config/config-preview') +
 '  cornerTR: { contentId: "cornerTR", colorId: "cornerTRColor", btnId: "slotBtn-cornerTR", label: "Top-right", avail: function (a) { return !a.cornersGrayed; } },' +
 '  cornerBL: { contentId: "cornerBL", colorId: "cornerBLColor", btnId: "slotBtn-cornerBL", label: "Bottom-left", avail: function (a) { return !a.cornersGrayed; } },' +
 '  cornerBR: { contentId: "cornerBR", colorId: "cornerBRColor", btnId: "slotBtn-cornerBR", label: "Bottom-right", avail: function (a) { return !a.cornersGrayed; } },' +
-'  upperMiddleLine1: { contentId: "upperMiddleLine1Content", colorId: "upperMiddleLine1Color", btnId: "slotBtn-upperMiddleLine1", label: "Upper-middle, line 1", analogOnly: true, avail: function (a) { return a.upper; } },' +
-'  upperMiddleLine2: { contentId: "upperMiddleLine2Content", colorId: "upperMiddleLine2Color", btnId: "slotBtn-upperMiddleLine2", label: "Upper-middle, line 2", analogOnly: true, avail: function (a) { return a.upper; } },' +
-'  bottomMiddleLine1: { contentId: "bottomMiddleLine1Content", colorId: "bottomMiddleLine1Color", btnId: "slotBtn-bottomMiddleLine1", label: "Bottom-middle, line 1", analogOnly: true, avail: function (a) { return a.bottom; } },' +
-'  bottomMiddleLine2: { contentId: "bottomMiddleLine2Content", colorId: "bottomMiddleLine2Color", btnId: "slotBtn-bottomMiddleLine2", label: "Bottom-middle, line 2", analogOnly: true, avail: function (a) { return a.bottom; } },' +
-'  middleLeftLine1: { contentId: "middleLeftLine1Content", colorId: "middleLeftLine1Color", btnId: "slotBtn-middleLeftLine1", label: "Middle-left, line 1", analogOnly: true, avail: function (a) { return a.left; } },' +
-'  middleLeftLine2: { contentId: "middleLeftLine2Content", colorId: "middleLeftLine2Color", btnId: "slotBtn-middleLeftLine2", label: "Middle-left, line 2", analogOnly: true, avail: function (a) { return a.left; } },' +
-'  middleRightLine1: { contentId: "middleRightLine1Content", colorId: "middleRightLine1Color", btnId: "slotBtn-middleRightLine1", label: "Middle-right, line 1", analogOnly: true, avail: function (a) { return a.right; } },' +
-'  middleRightLine2: { contentId: "middleRightLine2Content", colorId: "middleRightLine2Color", btnId: "slotBtn-middleRightLine2", label: "Middle-right, line 2", analogOnly: true, avail: function (a) { return a.right; } },' +
+  // upperMiddleLine1/bottomMiddleLine1 are shared by TWO very different
+  // contexts now: analog's own upper/lower pair of lines around the
+  // dial, AND Big Digital/Grid's single top-center/bottom-center
+  // feature (see feature_layout.c's own is_big_digital||is_grid
+  // branch) -- same underlying content/color fields either way, just a
+  // different position on the diagram (.center-mode's CSS override) and
+  // no line-2 companion in the center case. upperMiddleLine2/
+  // bottomMiddleLine2 stay analog-only since Big Digital/Grid never set
+  // a second line.
+'  upperMiddleLine1: { contentId: "upperMiddleLine1Content", colorId: "upperMiddleLine1Color", btnId: "slotBtn-upperMiddleLine1", label: "Upper-middle, line 1", contexts: ["analog", "center"], avail: function (a) { return a.upper; } },' +
+'  upperMiddleLine2: { contentId: "upperMiddleLine2Content", colorId: "upperMiddleLine2Color", btnId: "slotBtn-upperMiddleLine2", label: "Upper-middle, line 2", contexts: ["analog"], avail: function (a) { return a.upper; } },' +
+'  bottomMiddleLine1: { contentId: "bottomMiddleLine1Content", colorId: "bottomMiddleLine1Color", btnId: "slotBtn-bottomMiddleLine1", label: "Bottom-middle, line 1", contexts: ["analog", "center"], avail: function (a) { return a.bottom; } },' +
+'  bottomMiddleLine2: { contentId: "bottomMiddleLine2Content", colorId: "bottomMiddleLine2Color", btnId: "slotBtn-bottomMiddleLine2", label: "Bottom-middle, line 2", contexts: ["analog"], avail: function (a) { return a.bottom; } },' +
+'  middleLeftLine1: { contentId: "middleLeftLine1Content", colorId: "middleLeftLine1Color", btnId: "slotBtn-middleLeftLine1", label: "Middle-left, line 1", contexts: ["analog"], avail: function (a) { return a.left; } },' +
+'  middleLeftLine2: { contentId: "middleLeftLine2Content", colorId: "middleLeftLine2Color", btnId: "slotBtn-middleLeftLine2", label: "Middle-left, line 2", contexts: ["analog"], avail: function (a) { return a.left; } },' +
+'  middleRightLine1: { contentId: "middleRightLine1Content", colorId: "middleRightLine1Color", btnId: "slotBtn-middleRightLine1", label: "Middle-right, line 1", contexts: ["analog"], avail: function (a) { return a.right; } },' +
+'  middleRightLine2: { contentId: "middleRightLine2Content", colorId: "middleRightLine2Color", btnId: "slotBtn-middleRightLine2", label: "Middle-right, line 2", contexts: ["analog"], avail: function (a) { return a.right; } },' +
   // digitalLeft/Right/Bottom below deliberately point contentId/colorId
   // at the SAME underlying elements as their analog counterparts
   // (middleLeftLine1/2, middleRightLine1/2, upperMiddleLine1/2,
   // bottomMiddleLine1) rather than a separate set of digital-only ones
   // -- matches eclipse_data.h's own dual-purpose field reuse, and since
-  // analogOnly/digitalOnly slots are never both visible at once (see
-  // renderSlotPicker()), two SLOT_DEFS entries safely sharing one
-  // underlying <select>/<input> pair is no different from any other
-  // slot reading/writing its own.
-'  digitalLeft1: { contentId: "middleLeftLine1Content", colorId: "middleLeftLine1Color", btnId: "slotBtn-digitalLeft1", label: "Left side, row 1 (top)", digitalOnly: true, avail: function (a) { return a.digitalLeft; } },' +
-'  digitalLeft2: { contentId: "middleLeftLine2Content", colorId: "middleLeftLine2Color", btnId: "slotBtn-digitalLeft2", label: "Left side, row 2", digitalOnly: true, avail: function (a) { return a.digitalLeft; } },' +
-'  digitalLeft3: { contentId: "upperMiddleLine1Content", colorId: "upperMiddleLine1Color", btnId: "slotBtn-digitalLeft3", label: "Left side, row 3 (bottom)", digitalOnly: true, avail: function (a) { return a.digitalBottomRow; } },' +
-'  digitalRight1: { contentId: "middleRightLine1Content", colorId: "middleRightLine1Color", btnId: "slotBtn-digitalRight1", label: "Right side, row 1 (top)", digitalOnly: true, avail: function (a) { return a.digitalRight; } },' +
-'  digitalRight2: { contentId: "middleRightLine2Content", colorId: "middleRightLine2Color", btnId: "slotBtn-digitalRight2", label: "Right side, row 2", digitalOnly: true, avail: function (a) { return a.digitalRight; } },' +
-'  digitalRight3: { contentId: "upperMiddleLine2Content", colorId: "upperMiddleLine2Color", btnId: "slotBtn-digitalRight3", label: "Right side, row 3 (bottom)", digitalOnly: true, avail: function (a) { return a.digitalBottomRow; } },' +
-'  digitalBottom: { contentId: "bottomMiddleLine1Content", colorId: "bottomMiddleLine1Color", btnId: "slotBtn-digitalBottom", label: "Bottom feature", digitalOnly: true, avail: function () { return true; } }' +
+  // no two contexts are ever visible at once (see renderSlotPicker()),
+  // several SLOT_DEFS entries safely sharing one underlying <select>/
+  // <input> pair is no different from any other slot reading/writing
+  // its own. "digital" here means Digital Bar/Top specifically -- NOT
+  // Big Digital or Grid (their own single top/bottom feature is the
+  // "center"-context upperMiddleLine1/bottomMiddleLine1 pair above).
+'  digitalLeft1: { contentId: "middleLeftLine1Content", colorId: "middleLeftLine1Color", btnId: "slotBtn-digitalLeft1", label: "Left side, row 1 (top)", contexts: ["digital"], avail: function (a) { return a.digitalLeft; } },' +
+'  digitalLeft2: { contentId: "middleLeftLine2Content", colorId: "middleLeftLine2Color", btnId: "slotBtn-digitalLeft2", label: "Left side, row 2", contexts: ["digital"], avail: function (a) { return a.digitalLeft; } },' +
+'  digitalLeft3: { contentId: "upperMiddleLine1Content", colorId: "upperMiddleLine1Color", btnId: "slotBtn-digitalLeft3", label: "Left side, row 3 (bottom)", contexts: ["digital"], avail: function (a) { return a.digitalBottomRow; } },' +
+'  digitalRight1: { contentId: "middleRightLine1Content", colorId: "middleRightLine1Color", btnId: "slotBtn-digitalRight1", label: "Right side, row 1 (top)", contexts: ["digital"], avail: function (a) { return a.digitalRight; } },' +
+'  digitalRight2: { contentId: "middleRightLine2Content", colorId: "middleRightLine2Color", btnId: "slotBtn-digitalRight2", label: "Right side, row 2", contexts: ["digital"], avail: function (a) { return a.digitalRight; } },' +
+'  digitalRight3: { contentId: "upperMiddleLine2Content", colorId: "upperMiddleLine2Color", btnId: "slotBtn-digitalRight3", label: "Right side, row 3 (bottom)", contexts: ["digital"], avail: function (a) { return a.digitalBottomRow; } },' +
+'  digitalBottom: { contentId: "bottomMiddleLine1Content", colorId: "bottomMiddleLine1Color", btnId: "slotBtn-digitalBottom", label: "Bottom feature", contexts: ["digital"], avail: function () { return true; } }' +
 '};' +
 'var CURRENT_SLOT_KEY = null;' +
 'var SLOT_EDITOR_DRAFT_COLOR = 0;' +
@@ -2665,11 +2709,10 @@ require('./config/config-preview') +
 // ever looks at digitalSidesVal, which this never touches or is
 // touched by), so turning one of these two on/off can\'t affect
 // whether seconds are offered. Big Digital and Grid both reuse
-// upperMiddleLine1 too, but as a single centered top feature (see
-// bigDigitalTop just below), not this row-3-left/right pair, so
-// they're excluded here.
-'    digitalBottomRow: !isAnalog && !isTopCenterOnly,' +
-'    bigDigitalTop: isTopCenterOnly };' +
+// upperMiddleLine1 too, but as a single centered top feature (set via
+// avail.upper below, same as analog's own), not this row-3-left/right
+// pair, so they're excluded here.
+'    digitalBottomRow: !isAnalog && !isTopCenterOnly };' +
 '  if (isAnalog) {' +
 '    if (markerStyle < 3 || markerStyle === 8 || markerStyle === 9) {' +
 '      avail.upper = avail.bottom = avail.left = avail.right = true;' +
@@ -2682,6 +2725,12 @@ require('./config/config-preview') +
 '    } else {' +
 '      avail.upper = true; avail.bottom = avail.left = avail.right = override; avail.cornersGrayed = !override;' +
 '    }' +
+'  } else if (isTopCenterOnly) {' +
+// Big Digital/Grid: corners (always available, computed by SLOT_DEFS
+// itself) plus exactly one top-center and one bottom-center feature --
+// no sides, no line-2 variants. Matches feature_layout.c's own
+// is_big_digital||is_grid branch (SLOT_UPPER_L1/SLOT_BOTTOM_L1 only).
+'    avail.upper = avail.bottom = true;' +
 '  }' +
 '  return avail;' +
 '}' +
@@ -2694,23 +2743,30 @@ require('./config/config-preview') +
 '  var styleValNow = document.getElementById("bottomStyleValue").value;' +
 '  var isAnalogMode = styleValNow === "analog";' +
 '  var isDigitalTopMode = styleValNow === "digitalTop";' +
-'  var isDigitalBarMode = !isAnalogMode && !isDigitalTopMode;' +
+'  var isBigDigitalMode = styleValNow === "bigDigital";' +
+'  var isGridMode = styleValNow === "grid";' +
+'  var isCenterMode = isBigDigitalMode || isGridMode;' +
+'  var isDigitalBarMode = !isAnalogMode && !isDigitalTopMode && !isCenterMode;' +
+'  var mode = isAnalogMode ? "analog" : (isCenterMode ? "center" : "digital");' +
 '  document.getElementById("slotDiagramClockBar").style.display = isDigitalBarMode ? "block" : "none";' +
 '  document.getElementById("slotDiagramClockBarTop").style.display = isDigitalTopMode ? "block" : "none";' +
+'  document.getElementById("slotDiagramBigDigital").style.display = isBigDigitalMode ? "flex" : "none";' +
+'  document.getElementById("slotDiagramGrid").style.display = isGridMode ? "grid" : "none";' +
 '  document.getElementById("slotPickerDiagram").classList.toggle("top-bar-mode", isDigitalTopMode);' +
+'  document.getElementById("slotPickerDiagram").classList.toggle("center-mode", isCenterMode);' +
 '  for (var key in SLOT_DEFS) {' +
 '    var def = SLOT_DEFS[key];' +
 '    var btn = document.getElementById(def.btnId);' +
 '    var baseClass = btn.getAttribute("data-base-class");' +
 '    if (!baseClass) { baseClass = btn.className; btn.setAttribute("data-base-class", baseClass); }' +
-    // analogOnly/digitalOnly slots are two different underlying
-    // AppMessage fields sharing one settings <select> (see SLOT_DEFS'
-    // own comment) but sit at DIFFERENT diagram positions now (the
-    // digital ones on the clock bar, the analog ones around the dial)
-    // -- only one member of each pair is ever relevant at a time, so
-    // the other is fully hidden here rather than shown as a "N/A"
-    // placeholder over a spot that mode doesn't even use.
-'    if ((def.analogOnly && !isAnalogMode) || (def.digitalOnly && isAnalogMode)) {' +
+    // Each slot button only applies to one of the 3 diagram contexts
+    // (analog / digital bar-or-top / Big-Digital-or-Grid "center" -- see
+    // SLOT_DEFS' own `contexts` comment) even though several share an
+    // underlying AppMessage field across contexts -- only the current
+    // context's own button is ever relevant, so every other one is
+    // fully hidden here rather than shown as a "N/A" placeholder over a
+    // spot that context doesn't even use.
+'    if (def.contexts && def.contexts.indexOf(mode) === -1) {' +
 '      btn.style.display = "none";' +
 '      continue;' +
 '    }' +
