@@ -682,13 +682,13 @@
           "file": "fonts/GeostarFill-Regular.ttf"
         },
         {
-          "characterRegex": "[:0-9XVI]",
+          "characterRegex": "[:0-9A-ZXVI]",
           "type": "font",
           "name": "KOMIKAHB_FONT_48",
           "file": "fonts/KOMIKAHB.ttf"
         },
         {
-          "characterRegex": "[:0-9XVI]",
+          "characterRegex": "[:0-9A-ZXVI]",
           "type": "font",
           "name": "MICHROMA_FONT_48",
           "file": "fonts/Michroma-Regular.ttf"
