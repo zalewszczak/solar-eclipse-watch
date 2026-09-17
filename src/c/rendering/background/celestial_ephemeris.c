@@ -93,19 +93,6 @@ uint16_t celestial_interp_planet_az_decideg(const EclipseData *d, PlanetId plane
                         d->sky_sample_start, d->sky_sample_interval_s, t, 0);
 }
 
-uint8_t celestial_count_visible_planets(const EclipseData *d, time_t now) {
-  if (celestial_interp_sun_alt_decideg(d, now) > -60) return 0;
-  uint8_t count = 0;
-  for (int p = 0; p < PLANET_COUNT; p++) {
-    time_t rise = d->planet_rise[p], set = d->planet_set[p];
-    bool up = (rise != 0 && set != 0)
-      ? (now >= rise - CELESTIAL_RISE_SET_TRANSITION_S && now <= set + CELESTIAL_RISE_SET_TRANSITION_S)
-      : celestial_interp_planet_alt_decideg(d, (PlanetId)p, now) > 0;
-    if (up) count++;
-  }
-  return count;
-}
-
 int celestial_compute_eclipse_phase(const EclipseData *d, time_t now) {
   if (!d->has_eclipse) return 0;
   if (now < d->c1) return 1;
