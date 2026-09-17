@@ -211,7 +211,15 @@ void weather_layer_draw_clouds(GContext *ctx, GRect bounds, uint8_t cloud_pct, u
   }
 
   if (flash_active) {
-// A single jagged bolt from the first (always-present) cluster's
+// A jagged bolt from the first (always-present) cluster's underside
+// down to the ground, plus two short branch forks right at its top --
+// those read as the strike itself discharging in/at the base of the
+// cloud, not just a clean line falling out of open sky. The zigzag's
+// own shape comes from a cheap per-bolt integer hash (same
+// multiplicative-hash idea background_layer.c's own storm-flash
+// trigger already uses), not a fixed pixel table, so it's reshaped by
+// the cluster's actual position/span and isn't the same 5 numbers
+// every single strike.
     int16_t bx = bounds.origin.x + (bounds.size.w * WEATHER_CLOUD_CLUSTER_X_PCT[0]) / 100;
     int16_t by = band_y + 10;
     int16_t ground_y = bounds.origin.y + bounds.size.h - GROUND_H;
@@ -219,16 +227,26 @@ void weather_layer_draw_clouds(GContext *ctx, GRect bounds, uint8_t cloud_pct, u
     if (span > 8) {
       GPoint bolt[6];
       bolt[0] = GPoint(bx, by);
-      bolt[1] = GPoint(bx - 6, by + span * 2 / 10);
-      bolt[2] = GPoint(bx + 4, by + span * 4 / 10);
-      bolt[3] = GPoint(bx - 8, by + span * 6 / 10);
-      bolt[4] = GPoint(bx + 2, by + span * 8 / 10);
-      bolt[5] = GPoint(bx - 4, ground_y);
+      uint32_t seed = (uint32_t)bx * 2654435761u + (uint32_t)span;
+      for (int i = 1; i <= 5; i++) {
+        seed = seed * 1103515245u + 12345u; // classic LCG step -- integer multiply/add only
+        int16_t jitter = (int16_t)((seed >> 16) % 13) - 6; // -6..+6px zigzag
+        bolt[i] = GPoint(bx + jitter, by + (int16_t)(((int32_t)span * i) / 5));
+      }
+      bolt[5].y = ground_y; // last point always lands exactly on the ground
       graphics_context_set_stroke_color(ctx, GColorWhite);
       graphics_context_set_stroke_width(ctx, 2);
       for (int i = 0; i < 5; i++) {
         graphics_draw_line(ctx, bolt[i], bolt[i + 1]);
       }
+// Branch forks anchored at the very top point (by), which sits inside
+// the cloud's own lower edge (down_h above easily clears it at every
+// scale -- see down_h just above) -- short, asymmetric, thinner than
+// the main bolt, same "in the cloud" read a real strike's branching
+// has right where it leaves the cloud base.
+      graphics_context_set_stroke_width(ctx, 1);
+      graphics_draw_line(ctx, bolt[0], GPoint(bolt[0].x - 9, bolt[0].y + 7));
+      graphics_draw_line(ctx, bolt[0], GPoint(bolt[0].x + 7, bolt[0].y + 5));
     }
   }
 }

@@ -37,7 +37,11 @@ void weather_effects_draw_effect(GContext *ctx, GRect bounds, uint8_t condition,
   if (condition == 2 || condition == 4) { // rain, or a storm's heavier rain
     int16_t band_y = render_math_cloud_band_y(bounds, cloud_altitude_pct);
     int cluster_count = cloud_cluster_count(cloud_pct < 60 ? 60 : cloud_pct, condition == 4);
-    graphics_context_set_stroke_color(ctx, GColorFromRGB(40, 100, 210));
+// Turquoise rather than the previous dark navy blue -- a washed-out
+// transflective Pebble screen in daylight crushes dark, low-contrast
+// colors toward black, so the rain streaks all but disappeared; this
+// reads clearly against both the daytime sky gradient and a dark one.
+    graphics_context_set_stroke_color(ctx, GColorFromRGB(64, 224, 208));
     graphics_context_set_stroke_width(ctx, condition == 4 ? 2 : 1);
     for (int c = 0; c < cluster_count; c++) {
       int16_t cx = bounds.origin.x + (bounds.size.w * WEATHER_CLOUD_CLUSTER_X_PCT[c]) / 100;
@@ -49,16 +53,11 @@ void weather_effects_draw_effect(GContext *ctx, GRect bounds, uint8_t condition,
         graphics_draw_line(ctx, GPoint(x, y), GPoint(x - 3, y + 8));
       }
     }
-    if (condition == 4) { // plus a static lightning-bolt accent
-      graphics_context_set_stroke_color(ctx, GColorYellow);
-      graphics_context_set_stroke_width(ctx, 2);
-      static const GPoint BOLT[4] = { { 95, 45 }, { 88, 65 }, { 100, 65 }, { 90, 90 } };
-      for (int i = 0; i < 3; i++) {
-        graphics_draw_line(ctx,
-          GPoint(bounds.origin.x + BOLT[i].x, bounds.origin.y + BOLT[i].y),
-          GPoint(bounds.origin.x + BOLT[i + 1].x, bounds.origin.y + BOLT[i + 1].y));
-      }
-    }
+// Lightning itself (the cloud-lit-white glow and the actual falling
+// bolt) is drawn by weather_layer_draw_clouds()'s own flash_active
+// branch, right where the clouds themselves are painted -- a real
+// strike lights the cloud it comes from, not some unrelated fixed spot
+// mid-sky, so that's where the effect belongs. Nothing more to add here.
   } else if (condition == 3) { // snow
     int16_t band_y = render_math_cloud_band_y(bounds, cloud_altitude_pct);
     int cluster_count = cloud_cluster_count(cloud_pct < 60 ? 60 : cloud_pct, false);
@@ -72,6 +71,24 @@ void weather_effects_draw_effect(GContext *ctx, GRect bounds, uint8_t condition,
         if (y >= sky_h) continue;
         graphics_fill_rect(ctx, GRect(x, y, 2, 2), 0, GCornerNone);
       }
+    }
+// Procedural flurry filling the rest of the open sky, from just below
+// the near-cloud flakes above down to the ground -- deliberately NOT a
+// lookup table: one cheap integer hash per screen ROW (Knuth's
+// multiplicative-hash constant, same trick background_layer.c's own
+// storm-flash trigger already uses for "deterministic pseudo-random
+// hash of the current second") decides whether that row gets a flake
+// and, if so, exactly where -- O(sky height) total work, not O(height
+// * width) like a per-pixel dither test would be, so it stays cheap
+// enough for a Pebble to redraw every minute tick even at max snow
+// coverage.
+    int16_t flurry_top = band_y + 26; // just clear of the near-cloud flakes above
+    for (int16_t y = flurry_top; y < sky_h; y++) {
+      uint32_t h = (uint32_t)(y + 1) * 2654435761u;
+      if (((h >> 24) & 0x07) != 0) continue; // ~1-in-8 rows get a flake -- a scatter, not a solid wall
+      int16_t x = bounds.origin.x + (int16_t)((h >> 12) % (uint32_t)bounds.size.w);
+      int16_t flake_size = ((h >> 4) & 0x01) ? 2 : 1; // occasional slightly-larger flake for a touch of depth
+      graphics_fill_rect(ctx, GRect(x, y, flake_size, flake_size), 0, GCornerNone);
     }
   } else if (condition == 1) { // fog
 // Ground-hugging haze: density ramps up toward the horizon and
