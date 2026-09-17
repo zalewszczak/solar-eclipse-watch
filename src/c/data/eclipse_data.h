@@ -215,6 +215,8 @@ typedef struct {
   // structurally the same data.
   int16_t forecast_temp_c[9];
   uint8_t forecast_condition[9];
+  char location_name[32];  // reverse-geocoded place name.
+
   uint8_t timezone_id;     // index into the timezone table.
 
   // Additional weather data.

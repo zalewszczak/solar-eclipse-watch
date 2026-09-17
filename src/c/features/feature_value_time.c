@@ -152,6 +152,12 @@ void __attribute__((noinline)) feature_value_sky_compute(FeatureSlot *slot, uint
       feature_value_set_text_segment(slot, 1, buf, c);
       return;
     }
+    case 13: { // location name
+      snprintf(buf, sizeof(buf), "%s", data->location_name[0] != '\0' ? data->location_name : "Unknown");
+      GColor c = feature_value_resolve_flat_color(color_mode, main_color, main_color, accent_color);
+      feature_value_slot_set(slot, 8, buf, c);
+      return;
+    }
     case 16: { // sunrise/sunset -- same event/icon as the digital/analog info panel's row
       bool is_sunrise = false;
       time_t sun_event_time = 0;

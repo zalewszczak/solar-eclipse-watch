@@ -33,7 +33,7 @@ require('./settings/settings-migration');
 // MESSAGE_TYPE so the watch knows which subset of keys to expect. Keep
 // this enum in sync with the MsgType enum in src/c/eclipse_data.h.
 var MSG_TYPE = {
-  STATUS: 0,      // DATA_VALID, ERROR_CODE
+  STATUS: 0,      // DATA_VALID, ERROR_CODE, LOCATION_NAME
   ECLIPSE: 1,      // contact times, magnitude, separation/mag sample arrays
   WEATHER: 2,      // current conditions: temps, humidity, wind, AQI, ...
   ASTRONOMY: 3,    // sun/moon/planet/star position samples, rise/set times
@@ -58,7 +58,7 @@ var KEY_TYPE_MAP = (function () {
   var map = {};
   function assign(type, keys) { keys.forEach(function (k) { map[k] = type; }); }
 
-  assign(MSG_TYPE.STATUS, ['DATA_VALID', 'ERROR_CODE']);
+  assign(MSG_TYPE.STATUS, ['DATA_VALID', 'ERROR_CODE', 'LOCATION_NAME']);
 
   assign(MSG_TYPE.ECLIPSE, [
     'C1_TIME', 'C2_TIME', 'MAX_TIME', 'C3_TIME', 'C4_TIME', 'SUNSET_TIME',

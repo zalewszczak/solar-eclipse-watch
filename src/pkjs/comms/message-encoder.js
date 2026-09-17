@@ -675,6 +675,7 @@ function sendNoEclipseToday(sky, cloudGrid, headlineCloud, headlineSources, loca
     'SEP_SAMPLES': [0, 0],
     'MAG_SAMPLES': [0, 0],
     'RADIUS_RATIO_PCT': 0,
+    'LOCATION_NAME': locationName || '',
     'WEATHER_ERROR_CODE': weatherErrorCode || 0
   };
   if (haveCloudData) {
@@ -725,6 +726,7 @@ function sendEclipseData(result, sky, cloudGrid, headlineCloud, headlineSources,
     'SEP_SAMPLES': u16ArrayToBytes(result.sepSamplesCentideg),
     'MAG_SAMPLES': result.magPctSamples,
     'RADIUS_RATIO_PCT': result.radiusRatioPct,
+    'LOCATION_NAME': locationName || '',
     'WEATHER_ERROR_CODE': weatherErrorCode || 0
   };
   if (haveCloudData) {
