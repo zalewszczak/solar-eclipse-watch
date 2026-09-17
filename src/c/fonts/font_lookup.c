@@ -68,7 +68,7 @@ static const FontLookupEntry FONT_TABLE[] = {
   [29] = { .resource_id = RESOURCE_ID_CHANGO_FONT_48,        .height = 48, .y_offset = 8 }, // Chango
   [30] = { .resource_id = RESOURCE_ID_EMBLEMA_FONT_48,       .height = 48, .y_offset = 10 }, // EmblemaOne
   [31] = { .resource_id = RESOURCE_ID_FRAUNCES_FONT_48,      .height = 48, .y_offset = 8 }, // Fraunces
-  [32] = { .resource_id = RESOURCE_ID_GEOSTAR_FONT_48,       .height = 48, .y_offset = 9 }, // Geostar Fill
+  [32] = { .resource_id = RESOURCE_ID_ZCOOL_FONT_48,         .height = 48, .y_offset = 8 }, // ZCOOL Kuai Le
   [33] = { .resource_id = RESOURCE_ID_MICHROMA_FONT_48,      .height = 48, .y_offset = 5 }, // Michroma
   [34] = { .resource_id = RESOURCE_ID_NATIONALPARK_FONT_48,  .height = 48, .y_offset = 10 }, // National Park
   [35] = { .resource_id = RESOURCE_ID_KOMIKAHB_FONT_48,      .height = 48 }, // Komika
@@ -100,7 +100,6 @@ static const FontLookupEntry FONT_TABLE[] = {
   [57] = { .resource_id = RESOURCE_ID_SCIFLYSANS_FONT_54,    .height = 48, .y_offset = 16 }, // SciFlySans
   [58] = { .resource_id = RESOURCE_ID_SCIFLYSANS_FONT_21,    .height = 21, .y_offset = 2 }, // SciFlySans small
   [59] = { .resource_id = RESOURCE_ID_BITCOUNTGRID_FONT_48,  .height = 48, .y_offset = 12 }, // Bitcount Grid
-  [60] = { .resource_id = RESOURCE_ID_ZCOOL_FONT_48,         .height = 48, .y_offset = 8 }, // ZCOOL Kuai Le
 };
 
 const uint8_t FONT_LOOKUP_COUNT = sizeof(FONT_TABLE) / sizeof(FONT_TABLE[0]);

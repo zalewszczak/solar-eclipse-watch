@@ -676,12 +676,6 @@
           "file": "fonts/Fraunces.ttf"
         },
         {
-          "characterRegex": "[:0-9XVI]",
-          "type": "font",
-          "name": "GEOSTAR_FONT_48",
-          "file": "fonts/GeostarFill-Regular.ttf"
-        },
-        {
           "characterRegex": "[:0-9A-ZXVI]",
           "type": "font",
           "name": "KOMIKAHB_FONT_48",

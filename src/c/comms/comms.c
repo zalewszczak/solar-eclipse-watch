@@ -36,7 +36,10 @@ void comms_maybe_request_flights(EclipseData *data) {
   DictionaryIterator *iter;
   if (app_message_outbox_begin(&iter) != APP_MSG_OK) return;
   dict_write_uint8(iter, MESSAGE_KEY_MESSAGE_TYPE + MK_REQUEST_FLIGHTS, 1);
-  if (app_message_outbox_send() == APP_MSG_OK) data->overhead_objects_loading = true;
+  if (app_message_outbox_send() == APP_MSG_OK) {
+    data->overhead_objects_loading = true;
+    data->overhead_object_count = 0;
+  }
 }
 
 static void request_update(void) {

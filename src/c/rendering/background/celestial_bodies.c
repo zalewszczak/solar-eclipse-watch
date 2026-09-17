@@ -195,7 +195,7 @@ void celestial_bodies_draw_planet_seek(GContext *ctx, GRect bounds, const Eclips
   // function, fed the altitude squashed into az_alt_packed -- see
   // eclipse_data.h's own comment on that packing.
   if (d->show_flights || d->show_iss) {
-    GColor dot_color = (((elapsed_ms / 500) % 2) == 0) ? GColorCyan : GColorWhite;
+    GColor dot_color = (((elapsed_ms / 500) % 2) == 0) ? ((((elapsed_ms / 1000) % 2) == 0) ? GColorGreen : GColorSunsetOrange) : GColorWhite;
     for (int i = 0; i < d->overhead_object_count && i < MAX_OVERHEAD_OBJECTS; i++) {
       const OverheadObject *obj = &d->overhead_objects[i];
       uint16_t az_deg = obj->az_alt_packed & 0x1FF;

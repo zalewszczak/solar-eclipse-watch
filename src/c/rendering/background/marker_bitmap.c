@@ -1,4 +1,5 @@
 #include "./marker_bitmap.h"
+#include "./../clock/clock_display.h"
 
 void marker_bitmap_release(GBitmap **bitmap, uint8_t *bitmap_style, bool *bitmap_tinted) {
   if (*bitmap) {
@@ -42,6 +43,11 @@ void marker_bitmap_ensure(GBitmap **bitmap, uint8_t *bitmap_style, bool *bitmap_
   uint32_t res_id = marker_bitmap_resource_id(style);
   if (res_id != 0) *bitmap = gbitmap_create_with_resource(res_id);
 
+  if (!*bitmap) {
+    // OUT OF MEMORY?
+    clock_display_set_countdown("MALLOC: Restart watch", GColorRed, false);
+  }
+  
   *bitmap_style = style;
   *bitmap_tinted = false;
   *tint_color = GColorClear;
