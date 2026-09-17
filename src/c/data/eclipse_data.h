@@ -160,7 +160,10 @@ typedef struct {
 
   uint8_t big_analog_marker_style; // bitmap/procedural analog marker style.
 
-  bool bitmap_marker_transparent; // use transparent bitmap marker background.
+  bool bitmap_marker_transparent; // use transparent bitmap marker background; also
+                                   // drives Big Digital's own digit-bitmap transparency
+                                   // (see big_digital_display.c), since the two are
+                                   // never on screen together and share one setting.
 
   MarkerRingConfig custom_hour_marker;
   MarkerRingConfig custom_second_marker;

@@ -1144,6 +1144,10 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '        <span class="font-picker-preview" id="clockFontTriggerPreview"></span>' +
 '        <span class="font-picker-name" id="clockFontTriggerName"></span>' +
 '      </button>' +
+'      <div class="checkbox-row" id="bigDigitalTransparentRow" style="margin-top:12px;' + (isBigDigital ? '' : ' display:none;') + '">' +
+'        <input type="checkbox" id="bigDigitalTransparent" ' + (current.bitmapMarkerTransparent ? 'checked' : '') + ' onchange="onBigDigitalTransparentChange()">' +
+'        <label for="bigDigitalTransparent" style="margin:0;">Semi-transparent (see the sky through the digits)</label>' +
+'      </div>' +
 '    </div>' +
 
 '    <div id="showSecondsRow" style="' + ((isBigDigital || isGrid) ? 'display:none;' : '') + '">' +
@@ -1191,7 +1195,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '        <option value="8"' + (current.bigAnalogMarkerStyle === '8' ? ' selected' : '') + '>Custom</option>' +
 '      </select>' +
 '      <div class="checkbox-row" id="bitmapMarkerTransparentRow" style="margin-top:12px;' + (isBitmapMarkerStyle ? '' : ' display:none;') + '">' +
-'        <input type="checkbox" id="bitmapMarkerTransparent" ' + (current.bitmapMarkerTransparent ? 'checked' : '') + ' onchange="updatePreview()">' +
+'        <input type="checkbox" id="bitmapMarkerTransparent" ' + (current.bitmapMarkerTransparent ? 'checked' : '') + ' onchange="onBitmapMarkerTransparentChange()">' +
 '        <label for="bitmapMarkerTransparent" style="margin:0;">Semi transparent markers (see the sky through them)</label>' +
 '      </div>' +
 '      <div class="help" id="help-indicesStyle" style="display:none;">Choose the hour/second markers around the analog face. Custom lets you edit them.</div>' +
@@ -2371,6 +2375,7 @@ require('./config/config-preview') +
 '  var isBigDigital = styleVal === "bigDigital";' +
 '  document.getElementById("digitalOnlySettings").style.display = !isAnalog ? "block" : "none";' +
 '  document.getElementById("bigAnalogSettings").style.display = isAnalog ? "block" : "none";' +
+'  document.getElementById("bigDigitalTransparentRow").style.display = isBigDigital ? "" : "none";' +
 // clockFont's value has to actually belong to the right font family for
 // the layout that's now active, or the trigger button's own preview
 // renders nonsense (a text font's CSS applied to a bitmap-digit style
@@ -2919,6 +2924,24 @@ require('./config/config-preview') +
 '  document.addEventListener(ev, stopSliderHold);' +
 '});' +
 
+// Bitmap markers (Analog) and Big Digital's digit art share ONE
+// underlying setting (CONFIG_BITMAP_MARKER_TRANSPARENT -- see
+// big_digital_display.c's own comment on why reusing it is safe: the two
+// layouts never show at once). Their two checkboxes live in different,
+// mutually-exclusive-visibility parts of the page, so save() can only read
+// one fixed id -- these keep the other one mirrored live on every change,
+// rather than adding a second persisted field and a dual-context shadow
+// like the corner/edge content fields use.
+'function onBitmapMarkerTransparentChange() {' +
+'  var mirror = document.getElementById("bigDigitalTransparent");' +
+'  if (mirror) mirror.checked = document.getElementById("bitmapMarkerTransparent").checked;' +
+'  updatePreview();' +
+'}' +
+'function onBigDigitalTransparentChange() {' +
+'  var mirror = document.getElementById("bitmapMarkerTransparent");' +
+'  if (mirror) mirror.checked = document.getElementById("bigDigitalTransparent").checked;' +
+'  updatePreview();' +
+'}' +
 'function onMarkerStyleChange() {' +
 '  var val = document.getElementById("bigAnalogMarkerStyle").value;' +
 '  document.getElementById("customMarkerSection").style.display = (val === "8") ? "" : "none";' +

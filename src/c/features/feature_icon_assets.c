@@ -35,8 +35,15 @@ void feature_icon_assets_draw_tiny(GContext *ctx, GPoint top_left, const uint8_t
 // feature_icon_assets_draw_styled()'s simple/hollow tinting, exposed here
 // so any other single-resource, single-color bitmap (e.g. Big Digital's
 // digit art) can reuse it without a second tinting implementation.
+//
+// `transparent` forces the ink color's alpha bits the same way
+// marker_bitmap_tint() does for bitmap markers (0x80 for its "see the sky
+// through it" look, 0xC0 for fully opaque) -- same two-line technique, not
+// a second implementation, so callers that want that exact look (Big
+// Digital's digit art, via the same CONFIG_BITMAP_MARKER_TRANSPARENT
+// setting bitmap markers use) don't add to the binary for it.
 void feature_icon_assets_draw_bitmap_tinted_sized(GContext *ctx, GBitmap *bmp, GPoint top_left, GColor color,
-                                           int16_t w, int16_t h) {
+                                           int16_t w, int16_t h, bool transparent) {
   GColor *palette = gbitmap_get_palette(bmp);
   if (palette) {
     bool transparent0 = (palette[0].argb & 0xC0) == 0;
@@ -49,7 +56,10 @@ void feature_icon_assets_draw_bitmap_tinted_sized(GContext *ctx, GBitmap *bmp, G
       int sum1 = ((palette[1].argb >> 4) & 0x03) + ((palette[1].argb >> 2) & 0x03) + (palette[1].argb & 0x03);
       ink = (sum0 <= sum1) ? 0 : 1;
     }
-    palette[ink] = color;
+    uint8_t forced_alpha_bits = transparent ? 0x80 : 0xC0;
+    GColor tinted;
+    tinted.argb = forced_alpha_bits | (color.argb & 0x3F);
+    palette[ink] = tinted;
     palette[1 - ink] = GColorClear;
   }
   graphics_context_set_compositing_mode(ctx, GCompOpSet);
@@ -89,7 +99,7 @@ void feature_icon_assets_draw_styled(GContext *ctx, GPoint top_left, const IconR
   } else {
     GBitmap *bmp = gbitmap_create_with_resource(resource_id);
     if (!bmp) return;
-    feature_icon_assets_draw_bitmap_tinted_sized(ctx, bmp, top_left, color, w, h);
+    feature_icon_assets_draw_bitmap_tinted_sized(ctx, bmp, top_left, color, w, h, false);
     gbitmap_destroy(bmp);
   }
 }
@@ -112,7 +122,7 @@ void feature_icon_assets_draw_styled_with_outline(GContext *ctx, GPoint pos, con
         feature_icon_assets_get_outline_offsets(outline_style, &offs, &offs_n);
         for (int i = 0; i < offs_n; i++) {
           GPoint shifted = GPoint(pos.x + offs[i].x, pos.y + offs[i].y);
-          feature_icon_assets_draw_bitmap_tinted_sized(ctx, bmp, shifted, outline_color, w, h);
+          feature_icon_assets_draw_bitmap_tinted_sized(ctx, bmp, shifted, outline_color, w, h, false);
         }
         gbitmap_destroy(bmp);
       }

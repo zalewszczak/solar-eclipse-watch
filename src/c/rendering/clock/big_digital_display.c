@@ -10,11 +10,12 @@
 static EclipseData *s_data;
 static Layer *s_panel_layer;
 
-static void draw_digit(GContext *ctx, int16_t x, int16_t y, uint8_t style, uint8_t digit, GColor color) {
+static void draw_digit(GContext *ctx, int16_t x, int16_t y, uint8_t style, uint8_t digit, GColor color,
+                       bool transparent) {
   if (style >= BIG_DIGITAL_STYLE_COUNT || digit > BIG_DIGITAL_COLON_INDEX) return;
   GBitmap *bmp = gbitmap_create_with_resource(BIG_DIGITAL_DIGIT_RESOURCES[style][digit]);
   if (!bmp) return;
-  feature_icon_assets_draw_bitmap_tinted_sized(ctx, bmp, GPoint(x, y), color, DIGIT_W, DIGIT_H);
+  feature_icon_assets_draw_bitmap_tinted_sized(ctx, bmp, GPoint(x, y), color, DIGIT_W, DIGIT_H, transparent);
   gbitmap_destroy(bmp);
 }
 
@@ -39,13 +40,21 @@ static void draw_big_digital_panel(Layer *layer, GContext *ctx) {
   // nothing if it ever does.
   uint8_t style = (s_data->clock_font >= 100) ? (uint8_t)(s_data->clock_font - 100) : 0;
 
+  // Same CONFIG_BITMAP_MARKER_TRANSPARENT setting bitmap analog markers
+  // use (see marker_layer_draw()) -- Big Digital and bitmap markers are
+  // never on screen at once (mutually exclusive bottom_style values), so
+  // one shared field/settings-page checkbox can drive whichever bitmap
+  // art is actually showing without a second key or a second persisted
+  // field.
+  bool transparent = s_data->bitmap_marker_transparent;
+
   int16_t total_w = DIGIT_W * 4 + COLON_GAP_W;
   int16_t x = bounds.origin.x + (bounds.size.w - total_w) / 2;
   int16_t y = bounds.origin.y + (bounds.size.h - DIGIT_H) / 2;
 
   int hour = t->tm_hour, minute = t->tm_min;
-  draw_digit(ctx, x, y, style, (uint8_t)(hour / 10), main_color);
-  draw_digit(ctx, x + DIGIT_W, y, style, (uint8_t)(hour % 10), main_color);
+  draw_digit(ctx, x, y, style, (uint8_t)(hour / 10), main_color, transparent);
+  draw_digit(ctx, x + DIGIT_W, y, style, (uint8_t)(hour % 10), main_color, transparent);
 
   // Colon: the 11th resource per style (index BIG_DIGITAL_COLON_INDEX,
   // "10.png"), not procedural dots -- a fixed dot size never fit every
@@ -55,10 +64,10 @@ static void draw_big_digital_panel(Layer *layer, GContext *ctx) {
   // the same midpoint the dots used to be centered on -- H1/H2/M1/M2's
   // own positions below are unchanged.
   int16_t colon_cx = x + DIGIT_W * 2 + COLON_GAP_W / 2;
-  draw_digit(ctx, colon_cx - DIGIT_W / 2, y, style, BIG_DIGITAL_COLON_INDEX, main_color);
+  draw_digit(ctx, colon_cx - DIGIT_W / 2, y, style, BIG_DIGITAL_COLON_INDEX, main_color, transparent);
 
-  draw_digit(ctx, x + DIGIT_W * 2 + COLON_GAP_W, y, style, (uint8_t)(minute / 10), main_color);
-  draw_digit(ctx, x + DIGIT_W * 3 + COLON_GAP_W, y, style, (uint8_t)(minute % 10), main_color);
+  draw_digit(ctx, x + DIGIT_W * 2 + COLON_GAP_W, y, style, (uint8_t)(minute / 10), main_color, transparent);
+  draw_digit(ctx, x + DIGIT_W * 3 + COLON_GAP_W, y, style, (uint8_t)(minute % 10), main_color, transparent);
 }
 
 void big_digital_display_init(EclipseData *data) {
