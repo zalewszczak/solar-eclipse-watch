@@ -91,7 +91,7 @@ void grid_display_apply_font(void) {
     text_layer_set_font(s_cells[i], font);
     int16_t row = i / GRID_SIZE, col = i % GRID_SIZE;
     int16_t cell_cy = s_grid_y0 + row * s_cell_h + s_cell_h / 2;
-    GRect cell_frame = GRect(s_grid_x0 + col * s_cell_w, cell_cy - font_h / 2, s_cell_w, font_h);
+    GRect cell_frame = GRect(s_grid_x0 + col * s_cell_w - 10, cell_cy - font_h / 2, s_cell_w + 20, font_h);
     layer_set_frame(text_layer_get_layer(s_cells[i]), cell_frame);
   }
 }
