@@ -541,6 +541,7 @@ Pebble.addEventListener('showConfiguration', function () {
     nightCustomText: getSetting('CONFIG_NIGHT_CUSTOM_TEXT', '255'),
     nightCustomAccent: getSetting('CONFIG_NIGHT_CUSTOM_ACCENT', '255'),
     bottomStyle: getSetting('CONFIG_BOTTOM_STYLE', 'digital'),
+    gridStyle: getSetting('CONFIG_GRID_STYLE', 'default'),
     digitalSides: getSetting('CONFIG_DIGITAL_SIDES', 'none'),
     digitalSidesPreferred: getSetting('CONFIG_DIGITAL_SIDES_PREFERRED', getSetting('CONFIG_DIGITAL_SIDES', 'none')),
     sunMoonSize: getSetting('CONFIG_SUN_MOON_SIZE', '75'),
@@ -823,6 +824,9 @@ Pebble.addEventListener('webviewclosed', function (e) {
     : (settings.CONFIG_BOTTOM_STYLE === 'digitalTop' ? 'digitalTop'
     : (settings.CONFIG_BOTTOM_STYLE === 'bigDigital' ? 'bigDigital'
     : (settings.CONFIG_BOTTOM_STYLE === 'grid' ? 'grid' : 'digital'))));
+  var gridStyleIn = settings.CONFIG_GRID_STYLE;
+  var gridStyleKnown = gridStyleIn === 'weather' || gridStyleIn === 'health' || gridStyleIn === 'steps' || gridStyleIn === 'altitude' || gridStyleIn === 'week';
+  setSetting('CONFIG_GRID_STYLE', gridStyleKnown ? gridStyleIn : 'default');
   setSetting('CONFIG_DIGITAL_SIDES', settings.CONFIG_DIGITAL_SIDES || 'none');
   // The user's underlying preference, independent of whatever the
   // current font/layout collapsed CONFIG_DIGITAL_SIDES itself down to

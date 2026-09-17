@@ -98,7 +98,7 @@ void layout_controller_handle_unobstructed(AnimationProgress progress) {
   bool canvas_tracks_unobstructed_bottom =
       s_data->bottom_style == 1 ||
       s_data->bottom_style == BOTTOM_STYLE_BIG_DIGITAL ||
-      s_data->bottom_style == BOTTOM_STYLE_GRID ||
+      IS_BOTTOM_STYLE_GRID(s_data->bottom_style) ||
       feature_layout_is_digital_top_layout(s_data->bottom_style);
   if (canvas_tracks_unobstructed_bottom && s_canvas_layer) {
     int16_t canvas_top = feature_layout_is_digital_top_layout(s_data->bottom_style)
@@ -168,7 +168,7 @@ void layout_controller_apply(void) {
     layer_add_child(root, s_canvas_layer);
 
     big_digital_display_create_panel(root, GRect(0, 0, bounds.size.w, bounds.size.h));
-  } else if (style == BOTTOM_STYLE_GRID) {
+  } else if (IS_BOTTOM_STYLE_GRID(style)) {
     // Same full-screen sky as Big Digital/Analog; grid_display's own
     // panel (16 transparent-background TextLayers) sits on top of it.
     s_canvas_layer = background_layer_create(GRect(0, 0, bounds.size.w, bounds.size.h));

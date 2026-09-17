@@ -66,6 +66,9 @@ function deriveConfigState(current) {
   // columns and no seconds -- but does show the regular Clock font
   // picker rather than a restricted one.
   var isGrid = bottomStyleVal === 'grid';
+  var gridStyleVal = (current.gridStyle === 'weather' || current.gridStyle === 'health' ||
+    current.gridStyle === 'steps' || current.gridStyle === 'altitude' || current.gridStyle === 'week')
+    ? current.gridStyle : 'default';
   var clockFontId = parseInt(current.clockFont || '8', 10);
   // sidesAllowed only ever appears on mainClock fonts (see FONT_LOOKUP's
   // own comment) -- default to 2 (unrestricted) for the rare case a
@@ -210,6 +213,7 @@ function deriveConfigState(current) {
     isDigital: isDigital,
     isBigDigital: isBigDigital,
     isGrid: isGrid,
+    gridStyleVal: gridStyleVal,
     clockFontId: clockFontId,
     clockSidesAllowed: clockSidesAllowed,
     clockFontIsWide: clockFontIsWide,

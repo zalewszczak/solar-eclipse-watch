@@ -10,7 +10,7 @@ uint8_t feature_layout_digital_side_mode(uint8_t bottom_style) {
   return feature_layout_is_digital_top_layout(bottom_style) ? bottom_style - 5 : bottom_style;
 }
 bool feature_layout_is_digital_top_layout(uint8_t bottom_style) {
-  return bottom_style >= 5 && bottom_style != BOTTOM_STYLE_BIG_DIGITAL && bottom_style != BOTTOM_STYLE_GRID;
+  return bottom_style >= 5 && bottom_style != BOTTOM_STYLE_BIG_DIGITAL && !IS_BOTTOM_STYLE_GRID(bottom_style);
 }
 
 void feature_layout_digital_clock_area(uint8_t bottom_style, int16_t screen_w, int16_t *out_x, int16_t *out_w) {
@@ -35,7 +35,7 @@ void feature_layout_recompute(FeaturesState *state) {
 
   bool is_analog = d->bottom_style == 1;
   bool is_big_digital = d->bottom_style == BOTTOM_STYLE_BIG_DIGITAL;
-  bool is_grid = d->bottom_style == BOTTOM_STYLE_GRID;
+  bool is_grid = IS_BOTTOM_STYLE_GRID(d->bottom_style);
   bool is_digital_top = feature_layout_is_digital_top_layout(d->bottom_style);
   uint8_t marker_style = d->big_analog_marker_style;
   bool is_bitmap_style = is_analog && marker_style >= 3 && marker_style != 8 && marker_style != 9;

@@ -103,6 +103,7 @@ module.exports =
 '    CONFIG_NIGHT_CUSTOM_TEXT: document.getElementById("nightCustomTextValue").value,' +
 '    CONFIG_NIGHT_CUSTOM_ACCENT: document.getElementById("nightCustomAccentValue").value,' +
 '    CONFIG_BOTTOM_STYLE: bottomStyleVal || "digital",' +
+'    CONFIG_GRID_STYLE: document.getElementById("gridStyle").value,' +
 '    CONFIG_SHADOW_TRANSLUCENT: document.getElementById("shadowTranslucent").value,' +
 '    CONFIG_SHADOW_ANGLE: document.getElementById("shadowAngle").value,' +
 '    CONFIG_BIG_ANALOG_MARKER_STYLE: document.getElementById("bigAnalogMarkerStyle").value,' +

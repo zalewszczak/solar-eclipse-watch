@@ -282,6 +282,7 @@ function buildConfigHtml(current) {
   var isDigital = configState.isDigital;
   var isBigDigital = configState.isBigDigital;
   var isGrid = configState.isGrid;
+  var gridStyleVal = configState.gridStyleVal;
   var clockFontId = configState.clockFontId;
   var clockSidesAllowed = configState.clockSidesAllowed;
   var clockFontIsWide = configState.clockFontIsWide;
@@ -1136,6 +1137,19 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    </div>' +
 '    <input type="hidden" id="bottomStyleValue" value="' + esc(bottomStyleVal) + '">' +
 '    <div class="help" id="help-bottomStyle" style="display:none;">Choose the clock layout: DIGITAL BAR, DIGITAL TOP, full-screen ANALOG, BIG DIGITAL (four large digits, corner features only), or GRID (a 4x4 character grid: time, weekday, date, and month).</div>' +
+
+'    <div id="gridStyleRow" class="subsection" style="' + (isGrid ? '' : 'display:none;') + '">' +
+'      <div class="field-label-row"><label for="gridStyle">Grid style</label><button type="button" class="help-btn" onclick="toggleHelp(\'help-gridStyle\')">?</button></div>' +
+'      <select id="gridStyle" onchange="onBottomStyleChange()">' +
+'        <option value="default"' + (gridStyleVal === 'default' ? ' selected' : '') + '>Default (weekday, date, month)</option>' +
+'        <option value="weather"' + (gridStyleVal === 'weather' ? ' selected' : '') + '>Weather (date, temperature, conditions)</option>' +
+'        <option value="health"' + (gridStyleVal === 'health' ? ' selected' : '') + '>Health (date, heart rate, steps)</option>' +
+'        <option value="steps"' + (gridStyleVal === 'steps' ? ' selected' : '') + '>Steps (date, steps, goal %)</option>' +
+'        <option value="altitude"' + (gridStyleVal === 'altitude' ? ' selected' : '') + '>Altitude (date, heart rate, altitude)</option>' +
+'        <option value="week"' + (gridStyleVal === 'week' ? ' selected' : '') + '>Week number (weekday, date, week)</option>' +
+'      </select>' +
+'      <div class="help" id="help-gridStyle" style="display:none;">The top row is always the time; this picks what the other 3 rows show.</div>' +
+'    </div>' +
 
 '    <div id="digitalOnlySettings" class="subsection" style="' + (isDigitalBar || isDigitalTop || isBigDigital || isGrid ? '' : 'display:none;') + '">' +
 '      <label for="clockFont">Clock font</label>' +
@@ -2369,8 +2383,10 @@ require('./config/config-preview') +
 '  var styleVal = document.getElementById("bottomStyleValue").value;' +
 '  var isAnalog = styleVal === "analog";' +
 '  var isBigDigital = styleVal === "bigDigital";' +
+'  var isGrid = styleVal === "grid";' +
 '  document.getElementById("digitalOnlySettings").style.display = !isAnalog ? "block" : "none";' +
 '  document.getElementById("bigAnalogSettings").style.display = isAnalog ? "block" : "none";' +
+'  document.getElementById("gridStyleRow").style.display = isGrid ? "block" : "none";' +
 // clockFont's value has to actually belong to the right font family for
 // the layout that's now active, or the trigger button's own preview
 // renders nonsense (a text font's CSS applied to a bitmap-digit style

@@ -91,7 +91,20 @@ function bottomStyleCode() {
   if (isAnalogModeNow()) return 1;
   var v = getSetting('CONFIG_BOTTOM_STYLE', 'digital');
   if (v === 'bigDigital') return 10; // see BOTTOM_STYLE_BIG_DIGITAL in feature_layout.h
-  if (v === 'grid') return 11; // see BOTTOM_STYLE_GRID in feature_layout.h
+  if (v === 'grid') {
+    // One PKJS-facing "Grid style" dropdown, translated into 6 raw
+    // values of this same bottom_style field (11-16) rather than a
+    // second field for which variant is active -- see
+    // BOTTOM_STYLE_GRID_WEATHER etc. in feature_layout.h.
+    switch (getSetting('CONFIG_GRID_STYLE', 'default')) {
+      case 'weather': return 12;
+      case 'health': return 13;
+      case 'steps': return 14;
+      case 'altitude': return 15;
+      case 'week': return 16;
+      default: return 11;
+    }
+  }
   var sides = getSetting('CONFIG_DIGITAL_SIDES', 'none');
   var sideCode = sides === 'right' ? 2 : sides === 'left' ? 3 : sides === 'both' ? 4 : 0;
   return v === 'digitalTop' ? sideCode + 5 : sideCode;
