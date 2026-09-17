@@ -156,17 +156,23 @@ function digitalSidesHelpText(sidesAllowedVal, secondsTier) {
 
 // Renders <option>s for one of the four font pickers. `onlyMainClock`
 // restricts to the Clock font picker's own subset (see FONT_LOOKUP's
-// own comment above); the other three pickers (clock's small
-// companion, marker text, corner/edge content) get every font. Big
-// Digital styles (FONT_LOOKUP's own bigDigital:true entries) are never
-// mixed into any of that -- they're a different kind of "font" (bitmap
-// digit sets, not text) that only makes sense for the Clock picker
-// while Big Digital is the active layout, so `includeBigDigital` (only
-// ever passed for that one call site) is the sole way they appear.
+// own comment above) -- PLUS any font flagged `grid`, since the same
+// underlying <select id="clockFont"> also backs the Grid font picker,
+// which offers fonts by their `grid` flag alone regardless of
+// `mainClock` (see renderFontPickerGrid()'s own isGridNow branch in
+// config-page.js); leaving a grid-only font out of this <option> list
+// would mean picking it in that modal has no <option> to actually
+// select. The other three pickers (clock's small companion, marker
+// text, corner/edge content) get every font. Big Digital styles
+// (FONT_LOOKUP's own bigDigital:true entries) are never mixed into any
+// of that -- they're a different kind of "font" (bitmap digit sets,
+// not text) that only makes sense for the Clock picker while Big
+// Digital is the active layout, so `includeBigDigital` (only ever
+// passed for that one call site) is the sole way they appear.
 function fontOptionsHtml(selectedId, onlyMainClock, includeBigDigital) {
   return FONT_LOOKUP.filter(function (f) {
     if (fontFlag(f.bigDigital)) return !!includeBigDigital;
-    return !onlyMainClock || fontFlag(f.mainClock);
+    return !onlyMainClock || fontFlag(f.mainClock) || fontFlag(f.grid);
   }).map(function (f) {
     // parseInt, not a strict typeof check -- see secondsAvailableForDigital()'s
     // own comment on why: a quoted-string sidesAllowed value would

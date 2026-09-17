@@ -2299,9 +2299,26 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  renderFontCategoryRow();' +
 '  renderFontPickerGrid();' +
 '  document.getElementById("fontPickerModal").className = "modal-overlay open";' +
+'  scrollFontPickerToSelected();' +
 '}' +
 'function closeFontPicker() {' +
 '  document.getElementById("fontPickerModal").className = "modal-overlay";' +
+'}' +
+// Centers the currently-selected font button in the modal's own
+// scroll area the instant it opens -- read AFTER the "open" class
+// lands above, not before: while the overlay is still display:none
+// (see .modal-overlay's own CSS), the grid has no layout box yet, so
+// clientHeight/offsetTop would all read 0/stale. Manual offset math
+// rather than scrollIntoView()'s own block:"center" option, which
+// isn't consistently supported across the range of embedded WebViews
+// Pebble phones actually ship (same reasoning config-preview.js's own
+// getTintedFontImageCanvas() comment gives for avoiding
+// globalCompositeOperation).
+'function scrollFontPickerToSelected() {' +
+'  var container = document.querySelector("#fontPickerModal .modal-scroll-body");' +
+'  var selected = document.querySelector("#fontPickerGrid .font-picker-btn.selected");' +
+'  if (!container || !selected) return;' +
+'  container.scrollTop = selected.offsetTop - (container.clientHeight - selected.offsetHeight) / 2;' +
 '}' +
 // Rebuilds the grid for whichever role is currently open -- called on
 // open and again whenever "Show incompatible fonts" changes, since
@@ -2327,8 +2344,11 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      if (!fontFlag(f.bigDigital)) return;' + // this one picker mode: only Big Digital's own styles
 '    } else {' +
 '      if (fontFlag(f.bigDigital)) return;' + // every other picker/mode: never offer a Big Digital style
-'      if (cfg.onlyMainClock && !fontFlag(f.mainClock)) return;' +
-'      if (isGridNow && !fontFlag(f.grid)) return;' + // Grid: only fonts flagged compatible with its 4x4 single-character cells
+'      if (isGridNow) {' +
+'        if (!fontFlag(f.grid)) return;' + // Grid: only fonts flagged compatible with its 4x4 single-character cells -- operates solely on this flag, independent of mainClock, so grid-only fonts (no mainClock flag) are still offered
+'      } else {' +
+'        if (cfg.onlyMainClock && !fontFlag(f.mainClock)) return;' +
+'      }' +
 '    }' +
 '    if (!showIncompatible && !fontFlag(f.small) && f.id !== currentId) return;' +
 '    if (!fontMatchesCategoryFilters(f)) return;' +
