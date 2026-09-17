@@ -119,6 +119,23 @@ var MODE_BTN_ICONS = {
     '<rect x="110" y="44" width="22" height="140" rx="8" fill="currentColor" stroke="none"/>' +
     '<rect x="140" y="44" width="22" height="140" rx="8" fill="currentColor" stroke="none"/>' +
     '</svg>',
+  // 4x4 grid of small filled rounded squares, evenly spaced, over the
+  // same clear/transparent interior BIG DIGITAL's icon uses for its
+  // bars -- GRID's own screen is a literal 4x4 grid of characters, so
+  // this is closer to a direct depiction than an abstraction.
+  grid:
+    '<svg viewBox="0 0 200 228" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">' +
+    '<rect x="4" y="4" width="192" height="220" rx="20"/>' +
+    '<rect x="34" y="34" width="30" height="30" rx="7" fill="currentColor" stroke="none"/>' +
+    '<rect x="85" y="34" width="30" height="30" rx="7" fill="currentColor" stroke="none"/>' +
+    '<rect x="136" y="34" width="30" height="30" rx="7" fill="currentColor" stroke="none"/>' +
+    '<rect x="34" y="85" width="30" height="30" rx="7" fill="currentColor" stroke="none"/>' +
+    '<rect x="85" y="85" width="30" height="30" rx="7" fill="currentColor" stroke="none"/>' +
+    '<rect x="136" y="85" width="30" height="30" rx="7" fill="currentColor" stroke="none"/>' +
+    '<rect x="34" y="136" width="30" height="30" rx="7" fill="currentColor" stroke="none"/>' +
+    '<rect x="85" y="136" width="30" height="30" rx="7" fill="currentColor" stroke="none"/>' +
+    '<rect x="136" y="136" width="30" height="30" rx="7" fill="currentColor" stroke="none"/>' +
+    '</svg>',
 
   // Sun (top) + a solid cloud silhouette (3 overlapping circles over a
   // rounded base -- the standard "puffy cloud" icon shape) + 3 rain

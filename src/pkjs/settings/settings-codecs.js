@@ -91,6 +91,7 @@ function bottomStyleCode() {
   if (isAnalogModeNow()) return 1;
   var v = getSetting('CONFIG_BOTTOM_STYLE', 'digital');
   if (v === 'bigDigital') return 10; // see BOTTOM_STYLE_BIG_DIGITAL in feature_layout.h
+  if (v === 'grid') return 11; // see BOTTOM_STYLE_GRID in feature_layout.h
   var sides = getSetting('CONFIG_DIGITAL_SIDES', 'none');
   var sideCode = sides === 'right' ? 2 : sides === 'left' ? 3 : sides === 'both' ? 4 : 0;
   return v === 'digitalTop' ? sideCode + 5 : sideCode;

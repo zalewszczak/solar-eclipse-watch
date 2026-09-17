@@ -41,7 +41,8 @@ function deriveConfigState(current) {
     : (mostRecentRawChunk ? JSON.stringify(mostRecentRawChunk, null, 2) : '');
   var bottomStyleVal = (current.bottomStyle === 'analog' || current.bottomStyle === 'biganalog') ? 'analog'
     : (current.bottomStyle === 'digitalTop' ? 'digitalTop'
-    : (current.bottomStyle === 'bigDigital' ? 'bigDigital' : 'digital'));
+    : (current.bottomStyle === 'bigDigital' ? 'bigDigital'
+    : (current.bottomStyle === 'grid' ? 'grid' : 'digital')));
   var isAnalog = bottomStyleVal === 'analog';
   // isDigitalBar/isDigitalTop split what used to be a single "not
   // analog" case into the two digital layouts (opaque panel at the
@@ -60,6 +61,11 @@ function deriveConfigState(current) {
   // no side columns, and no seconds -- see secondsUnsupported below and
   // the Layout section's own bigDigital-only font picker.
   var isBigDigital = bottomStyleVal === 'bigDigital';
+  // Grid uses a normal text font (the SAME clockFont field, just without
+  // Big Digital's 100+ offset) and, like Big Digital, has no side
+  // columns and no seconds -- but does show the regular Clock font
+  // picker rather than a restricted one.
+  var isGrid = bottomStyleVal === 'grid';
   var clockFontId = parseInt(current.clockFont || '8', 10);
   // sidesAllowed only ever appears on mainClock fonts (see FONT_LOOKUP's
   // own comment) -- default to 2 (unrestricted) for the rare case a
@@ -100,7 +106,7 @@ function deriveConfigState(current) {
   // sides can knock it out even for a font that was fine a moment ago
   // (tier 1 fonts get one more step of headroom before that happens
   // than tier 0 ones do).
-  var secondsUnsupported = isBigDigital || (isDigital && !secondsAvailableForDigital(fontLookupEntry(clockFontId), digitalSidesVal));
+  var secondsUnsupported = isBigDigital || isGrid || (isDigital && !secondsAvailableForDigital(fontLookupEntry(clockFontId), digitalSidesVal));
   var secondsChecked = (current.showSeconds && !secondsUnsupported) ? 'checked' : '';
   var secondsDisabled = secondsUnsupported ? 'disabled' : '';
   var cornerFontId = parseInt(current.cornerFont || '1', 10);
@@ -203,6 +209,7 @@ function deriveConfigState(current) {
     isDigitalTop: isDigitalTop,
     isDigital: isDigital,
     isBigDigital: isBigDigital,
+    isGrid: isGrid,
     clockFontId: clockFontId,
     clockSidesAllowed: clockSidesAllowed,
     clockFontIsWide: clockFontIsWide,

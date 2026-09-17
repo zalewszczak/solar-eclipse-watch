@@ -1066,6 +1066,45 @@ module.exports =
 '  drawCornerSlot(ctx, "bottomMiddleLine1Content", "bottomMiddleLine1Color", clockArea.x + clockArea.w / 2, row3Y, "center", colors, cornerFontCss);' +
 '}' +
 
+'var GRID_WEEKDAY_NAMES = ["SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"];' +
+'var GRID_MONTH_NAMES = ["JANUARY", "FEBRUARY", "MARCH", "APRIL", "MAY", "JUNE", "JULY", "AUGUST", "SEPTEMBER", "OCTOBER", "NOVEMBER", "DECEMBER"];' +
+'function gridOrdinalSuffix(day) {' +
+'  var mod100 = day % 100;' +
+'  if (mod100 >= 11 && mod100 <= 13) return "TH";' +
+'  switch (day % 10) { case 1: return "ST"; case 2: return "ND"; case 3: return "RD"; default: return "TH"; }' +
+'}' +
+// Same 4x4 character grid as grid_display.c's own grid_display_refresh()
+// -- HH/MM digits, first 4 letters of the weekday, day-of-month + ordinal
+// suffix, first 4 letters of the month -- drawn with the selected clock
+// font's own CSS approximation (no baked font-image path here, unlike
+// drawDigitalPreview, since there\'s no single "12:34" image that would
+// help a 16-character grid).' +
+'function drawGridPreview(ctx, colors, now, w, h) {' +
+'  var fontSel = document.getElementById("clockFont");' +
+'  var opt = fontSel.options[fontSel.selectedIndex];' +
+'  var entry = fontLookupEntry(fontSel.value);' +
+'  var scale = w / 200;' +
+'  var padSides = 10 * scale, padTopBottom = 24 * scale;' +
+'  var gridW = w - 2 * padSides, gridH = h - 2 * padTopBottom;' +
+'  var cellW = gridW / 4, cellH = gridH / 4;' +
+'  var fontPx = Math.max(10, Math.round(entry.sizePx * scale));' +
+'  ctx.font = canvasFontFor(opt.getAttribute("data-preview") || "", fontPx);' +
+'  ctx.fillStyle = colors.text;' +
+'  ctx.textAlign = "center"; ctx.textBaseline = "middle";' +
+'  var hh = now.getHours(), mm = now.getMinutes();' +
+'  var row0 = ("0" + hh).slice(-2) + ("0" + mm).slice(-2);' +
+'  var row1 = (GRID_WEEKDAY_NAMES[now.getDay()] + "    ").slice(0, 4);' +
+'  var day = now.getDate();' +
+'  var row2 = ("0" + day).slice(-2) + gridOrdinalSuffix(day);' +
+'  var row3 = (GRID_MONTH_NAMES[now.getMonth()] + "    ").slice(0, 4);' +
+'  var rows = [row0, row1, row2, row3];' +
+'  for (var r = 0; r < 4; r++) {' +
+'    for (var c = 0; c < 4; c++) {' +
+'      ctx.fillText(rows[r].charAt(c), padSides + c * cellW + cellW / 2, padTopBottom + r * cellH + cellH / 2);' +
+'    }' +
+'  }' +
+'}' +
+
 // isTop mirrors the 42%-down-the-panel placement into 42%-UP-from-the-
 // panel\'s-bottom instead, so the clock still sits right at the edge
 // adjacent to the sky in both layouts (the panel\'s own top edge for
@@ -1195,6 +1234,23 @@ module.exports =
 '    drawCornerSlot(ctx, "upperMiddleLine1Content", "upperMiddleLine1Color", w / 2, bigDigitalInset, "center", colors, cornerFontCss);' +
 '    drawCornerSlot(ctx, "bottomMiddleLine1Content", "bottomMiddleLine1Color", w / 2, h - bigDigitalInset, "center", colors, cornerFontCss);' +
 '    drawDigitalPreview(ctx, colors, now, false, w, 0, h, null, false);' +
+'  } else if (styleVal === "grid") {' +
+// Same sky/corners/center-feature treatment as Big Digital's own branch
+// above -- see that one's comment -- just a 4x4 character grid instead
+// of 4 tall digit bitmaps for the clock face itself.
+'    drawSkyLayer(ctx, 0, 0, w, h, skyMode, phase);' +
+'    drawCelestialPreview(ctx, 0, 0, w, h, skyMode, phase, colors, now);' +
+'    drawCornersAndEdges(ctx, w, h, colors, h);' +
+'    var gridCornerFontSel = document.getElementById("cornerFont");' +
+'    var gridCornerOpt = gridCornerFontSel.options[gridCornerFontSel.selectedIndex];' +
+'    var gridCornerEntry = fontLookupEntry(gridCornerFontSel.value);' +
+'    var gridCornerScale = w / 200;' +
+'    var gridCornerPx = Math.max(7, Math.min(22, Math.round(gridCornerEntry.height * gridCornerScale)));' +
+'    var gridCornerFontCss = canvasFontFor(gridCornerOpt.getAttribute("data-preview") || "", gridCornerPx);' +
+'    var gridInset = 18 * (w / 200);' +
+'    drawCornerSlot(ctx, "upperMiddleLine1Content", "upperMiddleLine1Color", w / 2, gridInset, "center", colors, gridCornerFontCss);' +
+'    drawCornerSlot(ctx, "bottomMiddleLine1Content", "bottomMiddleLine1Color", w / 2, h - gridInset, "center", colors, gridCornerFontCss);' +
+'    drawGridPreview(ctx, colors, now, w, h);' +
 '  } else {' +
 '    var skyH = Math.round(h * 152 / 228);' +
 '    drawSkyLayer(ctx, 0, 0, w, skyH, skyMode, phase);' +

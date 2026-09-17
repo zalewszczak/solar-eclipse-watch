@@ -14,6 +14,12 @@ void feature_layout_recompute(FeaturesState *state);
 // every other bottom_style meaning already living alongside it.
 #define BOTTOM_STYLE_BIG_DIGITAL 10
 
+// bottom_style value for the "Grid" layout -- a 4x4 grid of single
+// characters (see grid_display.h) over a full-screen sky, same corner +
+// top-center/bottom-center-only feature set as Big Digital above (see
+// feature_layout_recompute()'s shared branch for both).
+#define BOTTOM_STYLE_GRID 11
+
 // Shared digital clock/feature geometry. Both the clock renderer and the
 void feature_layout_digital_clock_area(uint8_t bottom_style, int16_t screen_w,
                                        int16_t *out_x, int16_t *out_w);

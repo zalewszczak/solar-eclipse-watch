@@ -821,7 +821,8 @@ Pebble.addEventListener('webviewclosed', function (e) {
   setSetting('CONFIG_NIGHT_CUSTOM_ACCENT', settings.CONFIG_NIGHT_CUSTOM_ACCENT || '255');
   setSetting('CONFIG_BOTTOM_STYLE', (settings.CONFIG_BOTTOM_STYLE === 'analog' || settings.CONFIG_BOTTOM_STYLE === 'biganalog') ? 'analog'
     : (settings.CONFIG_BOTTOM_STYLE === 'digitalTop' ? 'digitalTop'
-    : (settings.CONFIG_BOTTOM_STYLE === 'bigDigital' ? 'bigDigital' : 'digital')));
+    : (settings.CONFIG_BOTTOM_STYLE === 'bigDigital' ? 'bigDigital'
+    : (settings.CONFIG_BOTTOM_STYLE === 'grid' ? 'grid' : 'digital'))));
   setSetting('CONFIG_DIGITAL_SIDES', settings.CONFIG_DIGITAL_SIDES || 'none');
   // The user's underlying preference, independent of whatever the
   // current font/layout collapsed CONFIG_DIGITAL_SIDES itself down to

@@ -281,6 +281,7 @@ function buildConfigHtml(current) {
   var isDigitalTop = configState.isDigitalTop;
   var isDigital = configState.isDigital;
   var isBigDigital = configState.isBigDigital;
+  var isGrid = configState.isGrid;
   var clockFontId = configState.clockFontId;
   var clockSidesAllowed = configState.clockSidesAllowed;
   var clockFontIsWide = configState.clockFontIsWide;
@@ -1131,11 +1132,12 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      <button type="button" class="mode-btn' + (bottomStyleVal === 'digitalTop' ? ' active' : '') + '" onclick="selectBottomStyle(\'digitalTop\')">' + MODE_BTN_ICONS.digitalTop + '<span>DIGITAL TOP</span></button>' +
 '      <button type="button" class="mode-btn' + (isAnalog ? ' active' : '') + '" onclick="selectBottomStyle(\'analog\')">' + MODE_BTN_ICONS.analog + '<span>ANALOG</span></button>' +
 '      <button type="button" class="mode-btn' + (isBigDigital ? ' active' : '') + '" onclick="selectBottomStyle(\'bigDigital\')">' + MODE_BTN_ICONS.bigDigital + '<span>BIG DIGITAL</span></button>' +
+'      <button type="button" class="mode-btn' + (isGrid ? ' active' : '') + '" onclick="selectBottomStyle(\'grid\')">' + MODE_BTN_ICONS.grid + '<span>GRID</span></button>' +
 '    </div>' +
 '    <input type="hidden" id="bottomStyleValue" value="' + esc(bottomStyleVal) + '">' +
-'    <div class="help" id="help-bottomStyle" style="display:none;">Choose the clock layout: DIGITAL BAR, DIGITAL TOP, full-screen ANALOG, or BIG DIGITAL (four large digits, corner features only).</div>' +
+'    <div class="help" id="help-bottomStyle" style="display:none;">Choose the clock layout: DIGITAL BAR, DIGITAL TOP, full-screen ANALOG, BIG DIGITAL (four large digits, corner features only), or GRID (a 4x4 character grid: time, weekday, date, and month).</div>' +
 
-'    <div id="digitalOnlySettings" class="subsection" style="' + (isDigitalBar || isDigitalTop || isBigDigital ? '' : 'display:none;') + '">' +
+'    <div id="digitalOnlySettings" class="subsection" style="' + (isDigitalBar || isDigitalTop || isBigDigital || isGrid ? '' : 'display:none;') + '">' +
 '      <label for="clockFont">Clock font</label>' +
 '      <select id="clockFont" onchange="onFontChange()" style="display:none;">' + fontOptions + '</select>' +
 '      <button type="button" class="font-picker-btn font-picker-trigger" id="clockFontTrigger" onclick="openFontPicker(\'clock\')">' +
@@ -1144,7 +1146,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      </button>' +
 '    </div>' +
 
-'    <div id="showSecondsRow" style="' + (isBigDigital ? 'display:none;' : '') + '">' +
+'    <div id="showSecondsRow" style="' + ((isBigDigital || isGrid) ? 'display:none;' : '') + '">' +
 '    <div class="checkbox-row subsection">' +
 '      <input type="checkbox" id="showSeconds" ' + secondsChecked + ' ' + secondsDisabled + ' onchange="onShowSecondsChange()">' +
 '      <label for="showSeconds" style="margin:0;">Show seconds</label>' +
@@ -2396,17 +2398,19 @@ require('./config/config-preview') +
 '  var styleVal = document.getElementById("bottomStyleValue").value;' +
 '  var isAnalog = styleVal === "analog";' +
 '  var isBigDigital = styleVal === "bigDigital";' +
-'  document.getElementById("showSecondsRow").style.display = isBigDigital ? "none" : "";' +
+'  var isGrid = styleVal === "grid";' +
+'  var hideSeconds = isBigDigital || isGrid;' +
+'  document.getElementById("showSecondsRow").style.display = hideSeconds ? "none" : "";' +
 '  var secondsBox = document.getElementById("showSeconds");' +
 '  var fontSel = document.getElementById("clockFont");' +
 '  var digitalSidesVal = document.getElementById("digitalSides").value;' +
 '  var fontId = parseInt(fontSel.value, 10);' +
-'  var secondsUnavailable = isBigDigital || (!isAnalog && !secondsAvailableForDigital(fontId, digitalSidesVal));' +
+'  var secondsUnavailable = hideSeconds || (!isAnalog && !secondsAvailableForDigital(fontId, digitalSidesVal));' +
 '  secondsBox.disabled = secondsUnavailable;' +
 '  if (secondsUnavailable) secondsBox.checked = false;' +
 '  var secondsHelp = document.getElementById("secondsHelp");' +
-'  if (secondsUnavailable && !isBigDigital) secondsHelp.textContent = secondsUnavailableReason(fontId);' +
-'  secondsHelp.style.display = (secondsUnavailable && !isBigDigital) ? "block" : "none";' +
+'  if (secondsUnavailable && !hideSeconds) secondsHelp.textContent = secondsUnavailableReason(fontId);' +
+'  secondsHelp.style.display = (secondsUnavailable && !hideSeconds) ? "block" : "none";' +
 '}' +
 // A font switch can turn side features on/off (the "too wide" check
 // depends on the clock font, not just digital-vs-analog), so both this
@@ -2613,12 +2617,14 @@ require('./config/config-preview') +
 '  var styleVal = document.getElementById("bottomStyleValue").value;' +
 '  var isAnalog = styleVal === "analog";' +
 '  var isBigDigital = styleVal === "bigDigital";' +
+'  var isGrid = styleVal === "grid";' +
+'  var isTopCenterOnly = isBigDigital || isGrid;' +
 '  var markerStyle = parseInt(document.getElementById("bigAnalogMarkerStyle").value, 10);' +
 '  var override = document.getElementById("bitmapCornerOverride").checked;' +
 '  var digitalSidesVal = document.getElementById("digitalSides").value;' +
 '  var avail = { upper: false, bottom: false, left: false, right: false, cornersGrayed: false,' +
-'    digitalLeft: !isAnalog && !isBigDigital && (digitalSidesVal === "left" || digitalSidesVal === "both"),' +
-'    digitalRight: !isAnalog && !isBigDigital && (digitalSidesVal === "right" || digitalSidesVal === "both"),' +
+'    digitalLeft: !isAnalog && !isTopCenterOnly && (digitalSidesVal === "left" || digitalSidesVal === "both"),' +
+'    digitalRight: !isAnalog && !isTopCenterOnly && (digitalSidesVal === "right" || digitalSidesVal === "both"),' +
 // Row 3 (digitalLeft3/digitalRight3 -- upperMiddleLine1/2Content) sits
 // in the SAME row as the always-on "digital bottom" feature
 // (digitalBottom, bottomMiddleLine1Content -- see that SLOT_DEFS
@@ -2629,11 +2635,12 @@ require('./config/config-preview') +
 // NOT read anywhere near the seconds-availability logic (that only
 // ever looks at digitalSidesVal, which this never touches or is
 // touched by), so turning one of these two on/off can\'t affect
-// whether seconds are offered. Big Digital reuses upperMiddleLine1
-// too, but as a single centered top feature (see bigDigitalTop just
-// below), not this row-3-left/right pair, so it's excluded here.
-'    digitalBottomRow: !isAnalog && !isBigDigital,' +
-'    bigDigitalTop: isBigDigital };' +
+// whether seconds are offered. Big Digital and Grid both reuse
+// upperMiddleLine1 too, but as a single centered top feature (see
+// bigDigitalTop just below), not this row-3-left/right pair, so
+// they're excluded here.
+'    digitalBottomRow: !isAnalog && !isTopCenterOnly,' +
+'    bigDigitalTop: isTopCenterOnly };' +
 '  if (isAnalog) {' +
 '    if (markerStyle < 3 || markerStyle === 8 || markerStyle === 9) {' +
 '      avail.upper = avail.bottom = avail.left = avail.right = true;' +
@@ -4053,7 +4060,7 @@ require('./config/config-preview') +
 '  swapDualContextFields(previousVal, val);' +
 '  document.getElementById("bottomStyleValue").value = val;' +
 '  var buttons = document.getElementById("bottomStyleGroup").getElementsByClassName("mode-btn");' +
-'  var order = ["digital", "digitalTop", "analog", "bigDigital"];' +
+'  var order = ["digital", "digitalTop", "analog", "bigDigital", "grid"];' +
 '  for (var i = 0; i < buttons.length; i++) {' +
 '    buttons[i].className = "mode-btn" + (order[i] === val ? " active" : "");' +
 '  }' +
