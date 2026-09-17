@@ -13,6 +13,7 @@ static Layer *s_panel_layer;
 static TextLayer *s_cells[GRID_CELLS];
 static char s_cell_text[GRID_CELLS][2]; // 1 char + NUL; TextLayer keeps a pointer, not a copy
 static FontSlot s_font_slot = FONT_SLOT_EMPTY;
+static int16_t s_grid_x0, s_grid_y0, s_cell_w, s_cell_h;
 
 static const char *ordinal_suffix(int day) {
   int mod100 = day % 100;
@@ -76,8 +77,22 @@ void grid_display_refresh(void) {
 void grid_display_apply_font(void) {
   if (!s_data) return;
   GFont font = font_lookup_resolve(&s_font_slot, s_data->clock_font);
+  // Same technique as clock_display.c's own digital clock: a fixed
+  // per-cell box tall enough for the tallest font would leave every
+  // shorter font sitting high in its cell (Pebble draws text top-aligned
+  // within its box), so instead each cell's own box is resized to the
+  // selected font's real height + fine-tune offset and re-centered on
+  // that cell's fixed center point -- text_layer_set_font() alone
+  // doesn't touch layout, so this has to happen here too, not just at
+  // creation.
+  int16_t font_h = font_lookup_height(s_data->clock_font) + font_lookup_y_offset(s_data->clock_font);
   for (int i = 0; i < GRID_CELLS; i++) {
-    if (s_cells[i]) text_layer_set_font(s_cells[i], font);
+    if (!s_cells[i]) continue;
+    text_layer_set_font(s_cells[i], font);
+    int16_t row = i / GRID_SIZE, col = i % GRID_SIZE;
+    int16_t cell_cy = s_grid_y0 + row * s_cell_h + s_cell_h / 2;
+    GRect cell_frame = GRect(s_grid_x0 + col * s_cell_w, cell_cy - font_h / 2, s_cell_w, font_h);
+    layer_set_frame(text_layer_get_layer(s_cells[i]), cell_frame);
   }
 }
 
@@ -100,22 +115,24 @@ void grid_display_create_panel(Layer *parent, GRect frame) {
 
   int16_t grid_w = frame.size.w - 2 * GRID_PAD_SIDES;
   int16_t grid_h = frame.size.h - 2 * GRID_PAD_TOPBOTTOM;
-  int16_t cell_w = grid_w / GRID_SIZE;
-  int16_t cell_h = grid_h / GRID_SIZE;
+  s_grid_x0 = GRID_PAD_SIDES;
+  s_grid_y0 = GRID_PAD_TOPBOTTOM;
+  s_cell_w = grid_w / GRID_SIZE;
+  s_cell_h = grid_h / GRID_SIZE;
 
-  for (int r = 0; r < GRID_SIZE; r++) {
-    for (int c = 0; c < GRID_SIZE; c++) {
-      int idx = r * GRID_SIZE + c;
-      GRect cell_frame = GRect(GRID_PAD_SIDES + c * cell_w, GRID_PAD_TOPBOTTOM + r * cell_h, cell_w, cell_h);
-      TextLayer *cell = text_layer_create(cell_frame);
-      text_layer_set_background_color(cell, GColorClear);
-      text_layer_set_text_alignment(cell, GTextAlignmentCenter);
-      s_cell_text[idx][0] = ' ';
-      s_cell_text[idx][1] = '\0';
-      text_layer_set_text(cell, s_cell_text[idx]);
-      layer_add_child(s_panel_layer, text_layer_get_layer(cell));
-      s_cells[idx] = cell;
-    }
+  for (int i = 0; i < GRID_CELLS; i++) {
+    // Real per-cell frame (font-height-aware) is set by
+    // grid_display_apply_font() below, once the font is known -- this
+    // placeholder just needs to exist so text_layer_create() has
+    // somewhere to put it first; its exact position/size doesn't matter.
+    TextLayer *cell = text_layer_create(GRectZero);
+    text_layer_set_background_color(cell, GColorClear);
+    text_layer_set_text_alignment(cell, GTextAlignmentCenter);
+    s_cell_text[i][0] = ' ';
+    s_cell_text[i][1] = '\0';
+    text_layer_set_text(cell, s_cell_text[i]);
+    layer_add_child(s_panel_layer, text_layer_get_layer(cell));
+    s_cells[i] = cell;
   }
 
   grid_display_apply_font();
