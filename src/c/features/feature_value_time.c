@@ -168,6 +168,47 @@ void __attribute__((noinline)) feature_value_sky_compute(FeatureSlot *slot, uint
       feature_value_set_text_segment(slot, 1, buf, c);
       return;
     }
+    case 79: { // how many of the 5 tracked planets are above the horizon right now
+      GColor c;
+      if (data->error_code != 0) {
+        snprintf(buf, sizeof(buf), "ERR %d", data->error_code);
+        c = GColorRed;
+      } else {
+        uint8_t count = celestial_count_visible_planets(data, now);
+        snprintf(buf, sizeof(buf), "%d planet%s", count, count == 1 ? "" : "s");
+        c = feature_value_resolve_flat_color(color_mode, main_color, main_color, accent_color);
+      }
+      feature_value_slot_set(slot, 23, buf, c);
+      return;
+    }
+    case 80: { // active meteor shower name, if any -- grayscale by intensity (more meteors = whiter)
+      GColor c;
+      if (data->error_code != 0) {
+        snprintf(buf, sizeof(buf), "ERR %d", data->error_code);
+        c = GColorRed;
+      } else if (data->meteor_intensity > 0 && data->meteor_shower_name[0] != '\0') {
+        snprintf(buf, sizeof(buf), "%s", data->meteor_shower_name);
+        c = feature_value_resolve_flat_color(color_mode, feature_colors_meteor_intensity_gradient(data->meteor_intensity), main_color, accent_color);
+      } else {
+        snprintf(buf, sizeof(buf), "N/A");
+        c = GColorLightGray;
+      }
+      slot->segment_count = 1;
+      feature_value_set_text_segment(slot, 0, buf, c);
+      return;
+    }
+    case 81: { // Saturn's current ring-opening angle
+      GColor c;
+      if (data->error_code != 0) {
+        snprintf(buf, sizeof(buf), "ERR %d", data->error_code);
+        c = GColorRed;
+      } else {
+        snprintf(buf, sizeof(buf), "Rings %d%%", data->saturn_ring_open_pct);
+        c = feature_value_resolve_flat_color(color_mode, main_color, main_color, accent_color);
+      }
+      feature_value_slot_set(slot, 24, buf, c);
+      return;
+    }
     case 82: { // which of the 5 tracked planets rises next today, and when
       GColor c;
       if (data->error_code != 0) {

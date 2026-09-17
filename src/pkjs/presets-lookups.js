@@ -821,6 +821,21 @@ var CORNER_CATEGORIES = [
         "preview": "19:42"
       },
       {
+        "id": 79,
+        "label": "Planets visible now",
+        "preview": "3 planets"
+      },
+      {
+        "id": 80,
+        "label": "Meteor shower",
+        "preview": "Perseids"
+      },
+      {
+        "id": 81,
+        "label": "Saturn ring angle",
+        "preview": "Rings 12%"
+      },
+      {
         "id": 82,
         "label": "Next planet rise",
         "preview": "VEN 18:32"
@@ -846,6 +861,11 @@ var CORNER_CATEGORIES = [
         "id": 100,
         "label": "Heart rate + steps",
         "preview": "72 5234"
+      },
+      {
+        "id": 101,
+        "label": "Bed time + wake time",
+        "preview": "23:45 /07:20"
       },
       {
         "id": 104,
