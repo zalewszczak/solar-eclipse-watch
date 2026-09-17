@@ -54,12 +54,20 @@ function boundingBox(lat, lon, radiusKm) {
   return { lamin: lat - dLat, lamax: lat + dLat, lomin: lon - dLon, lomax: lon + dLon };
 }
 
+// Cruise altitude assumed for every aircraft, rather than each one's own
+// reported (and sometimes missing/noisy) geo_altitude/baro_altitude --
+// good enough to make "further away = lower on the horizon" hold, which
+// is the only thing this angle is actually used for on a 150-ish-pixel
+// screen; real cruise varies roughly 9-12km but that's well within the
+// slop this approximation already has.
+var ASSUMED_ALTITUDE_M = 10000;
+
 /**
  * @param {number} lat
  * @param {number} lon
  * @param {number} radiusKm
  * @param {string|null} apiKey  "username:password", or falsy for anonymous
- * @param {function(Error|null, Array<{az:number, alt:number, distanceKm:number}>|null)} cb
+ * @param {function(Error|null, Array<{az:number, alt:number, distanceKm:number, callsign:string}>|null)} cb
  */
 function getNearbyFlights(lat, lon, radiusKm, apiKey, cb) {
   var box = boundingBox(lat, lon, radiusKm);
@@ -83,15 +91,15 @@ function getNearbyFlights(lat, lon, radiusKm, apiKey, cb) {
     var flights = [];
     for (var i = 0; i < json.states.length; i++) {
       var s = json.states[i];
-      // Index layout per OpenSky's OpenSkyStateVector: 5=lon, 6=lat,
-      // 7=baro_altitude, 8=on_ground, 13=geo_altitude (meters).
+      // Index layout per OpenSky's OpenSkyStateVector: 1=callsign, 5=lon,
+      // 6=lat, 8=on_ground.
       if (!s || s[8]) continue; // on_ground
       var fLon = s[5], fLat = s[6];
-      var fAltM = (typeof s[13] === 'number') ? s[13] : s[7];
-      if (typeof fLat !== 'number' || typeof fLon !== 'number' || typeof fAltM !== 'number') continue;
+      if (typeof fLat !== 'number' || typeof fLon !== 'number') continue;
 
-      var look = groundLookAngle(lat, lon, 0, fLat, fLon, fAltM);
+      var look = groundLookAngle(lat, lon, 0, fLat, fLon, ASSUMED_ALTITUDE_M);
       if (look.alt <= 0) continue; // below the horizon from here
+      look.callsign = (typeof s[1] === 'string') ? s[1].trim() : '';
       flights.push(look);
     }
     // Closest first, capped -- see MAX_OVERHEAD_OBJECTS on the watch side

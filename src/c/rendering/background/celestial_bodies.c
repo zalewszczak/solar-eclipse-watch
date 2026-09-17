@@ -181,22 +181,30 @@ void celestial_bodies_draw_planet_seek(GContext *ctx, GRect bounds, const Eclips
     }
   }
   // Overhead objects: ISS (when show_iss is on) and nearby flights (when
-  // show_flights is on) unified into one dynamic, cyan-blinking-point list
-  // -- see comms_maybe_request_flights() for how/when it gets (re)fetched.
-  // This replaces the old ISS-only draw here; the ambient, always-on ISS
-  // dot drawn on the regular (non-shake) sky canvas is untouched and still
-  // uses its own state->iss_visible/state->iss_center. Blinks by skipping
-  // the whole draw (body + label) for half of every second; no "normal"
-  // on-canvas position exists for these (they're shake-only), so they
-  // always seek in from the center of the compass view rather than
-  // blending from one.
-  if ((d->show_flights || d->show_iss) && ((elapsed_ms / 500) % 2) == 0) {
-    GPoint center_pt = GPoint(bounds.origin.x + bounds.size.w / 2, bounds.origin.y + bounds.size.h / 2);
+  // show_flights is on) unified into one dynamic list -- see
+  // comms_maybe_request_flights() for how/when it gets (re)fetched. This
+  // replaces the old ISS-only draw here; the ambient, always-on ISS dot
+  // drawn on the regular (non-shake) sky canvas is untouched and still
+  // uses its own state->iss_visible/state->iss_center.
+  //
+  // The dot alternates white/cyan every half second (never off -- the
+  // point stays visible throughout, only its color blinks); the label
+  // stays a fixed cyan regardless, since flashing the identification text
+  // along with the dot just makes it harder to read. Vertical position
+  // comes from celestial_alt_to_y() like every other body in this
+  // function, fed the altitude squashed into az_alt_packed -- see
+  // eclipse_data.h's own comment on that packing.
+  if (d->show_flights || d->show_iss) {
+    GColor dot_color = (((elapsed_ms / 500) % 2) == 0) ? GColorCyan : GColorWhite;
     for (int i = 0; i < d->overhead_object_count && i < MAX_OVERHEAD_OBJECTS; i++) {
       const OverheadObject *obj = &d->overhead_objects[i];
-      if (obj->alt_deg <= 0) continue;
-      draw_planet_seek_body(ctx, bounds, obj->is_iss ? "ISS" : "Flight",
-                             (uint16_t)(obj->az_deg * 10), center_pt, 2, GColorCyan,
+      uint16_t az_deg = obj->az_alt_packed & 0x1FF;
+      int16_t alt_deg = (int16_t)((obj->az_alt_packed >> 9) & 0x7F);
+      if (alt_deg <= 0) continue;
+      GPoint center_pt = GPoint(bounds.origin.x + bounds.size.w / 2,
+                                celestial_alt_to_y((int16_t)(alt_deg * 10), d->sky_scale_max_alt_decideg, bounds.size.h, 2));
+      draw_planet_seek_body(ctx, bounds, obj->label,
+                             (uint16_t)(az_deg * 10), center_pt, 2, dot_color,
                              heading_deg, blend_t_1000, label_style, GColorCyan,
                              false, 0, false, false, 0);
     }

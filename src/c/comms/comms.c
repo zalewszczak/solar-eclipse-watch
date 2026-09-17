@@ -21,7 +21,10 @@ bool comms_send_battery_saver_phase(uint8_t phase) {
   return app_message_outbox_send() == APP_MSG_OK;
 }
 
-#define OVERHEAD_OBJECTS_MAX_AGE_S (5 * 60)
+// Flight azimuths change quickly enough that 5 minutes was noticeably
+// stale by the time it expired -- 3 minutes keeps the shake-triggered
+// refetch closer to what's actually still overhead.
+#define OVERHEAD_OBJECTS_MAX_AGE_S (3 * 60)
 
 void comms_maybe_request_flights(EclipseData *data) {
   if (!data || data->overhead_objects_loading) return;

@@ -1714,7 +1714,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      <label for="showFlights" style="margin:0;">Flights (shake to show nearby aircraft)</label>' +
 '      <button type="button" class="help-btn" onclick="toggleHelp(\'help-showFlights\')">?</button>' +
 '    </div>' +
-'    <div class="help" id="help-showFlights" style="display:none;">Shows nearby aircraft (and the ISS, if enabled above) as blinking points when you shake the watch. Fetched on demand from OpenSky Network, cached on the watch for 5 minutes.</div>' +
+'    <div class="help" id="help-showFlights" style="display:none;">Shows nearby aircraft (and the ISS, if enabled above) as blinking points when you shake the watch. Fetched on demand from OpenSky Network, cached on the watch for 3 minutes.</div>' +
 '    <div id="flightsSubOptions" class="' + (current.showFlights ? '' : 'grayed-out') + '">' +
 '      <div class="slider-row">' +
 '        <div class="field-label-row"><label for="flightsRangeKm">Search radius <span class="val" id="flightsRangeKmVal">' + esc(current.flightsRangeKm || '50') + ' km</span></label></div>' +

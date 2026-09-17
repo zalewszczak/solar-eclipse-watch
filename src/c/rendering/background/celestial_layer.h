@@ -16,6 +16,10 @@
 // like an eclipse is underway.
 #define CELESTIAL_MIN_BODY_GAP_PX 4
 
+// Altitude (decidegrees) -> screen Y for the sky canvas's own vertical
+// scale, shared by every body drawn there (see celestial_layer.c).
+int16_t celestial_alt_to_y(int16_t alt_decideg, int16_t scale_max_decideg, int16_t canvas_h, int16_t radius);
+
 typedef struct {
   GPoint sun_center;
   GPoint moon_center;

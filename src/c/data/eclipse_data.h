@@ -18,10 +18,12 @@
 #define MAX_OVERHEAD_OBJECTS 6
 
 typedef struct {
-  uint16_t az_deg;  // 0-359, plain degrees (matches iss_az_deg's convention)
-  int8_t alt_deg;   // elevation above horizon; not drawn when <= 0
-  uint8_t is_iss;   // 0 = flight, 1 = ISS -- only used to pick the label text
-} OverheadObject; // 4 bytes
+  uint16_t az_alt_packed; // bits 0-8: az_deg (0-359); bits 9-15: alt_deg (0-90,
+                          // clamped to 7 bits) -- squashed into one field since
+                          // az alone only needs 9 of a uint16's 16 bits, leaving
+                          // exactly enough room for alt without a second field.
+  char label[6];          // e.g. "UAL47", "ISS" -- up to 5 chars + NUL.
+} OverheadObject; // 8 bytes
 
 // AppMessage chunk types. Values must match PKJS MSG_TYPE.
 typedef enum {

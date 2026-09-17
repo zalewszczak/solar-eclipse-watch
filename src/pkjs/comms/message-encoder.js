@@ -270,16 +270,25 @@ function skyFieldsDict(sky, cloudGrid, moonPhase, riseSet, meteorShower, cloudAl
 
 function toU8(v) { return ((v % 256) + 256) % 256; }
 
-// OVERHEAD_OBJECTS: 4 bytes per object (az_deg low, az_deg high, alt_deg,
-// is_iss) -- see overhead-objects.js for the {az, alt, isIss} list shape
-// and MAX_OVERHEAD_OBJECTS in eclipse_data.h for the cap this is already
-// capped to before it ever gets here.
+// OVERHEAD_OBJECTS: 8 bytes per object -- 2 bytes packing az (9 bits,
+// 0-359) and alt (7 bits, 0-90) into one uint16 (low byte first), plus a
+// fixed 6-byte label (5 chars + NUL, truncated already by
+// overhead-objects.js's own MAX_LABEL_CHARS). See eclipse_data.h's
+// OverheadObject for the matching C-side layout.
 function overheadObjectsBytes(objects) {
   var bytes = [];
   objects.forEach(function (obj) {
     var az = Math.round(obj.az) % 360;
     if (az < 0) az += 360;
-    bytes.push(az & 0xFF, (az >> 8) & 0xFF, toU8(Math.round(obj.alt)), obj.isIss ? 1 : 0);
+    var alt = Math.max(0, Math.min(90, Math.round(obj.alt)));
+    var packed = (az & 0x1FF) | ((alt & 0x7F) << 9);
+    bytes.push(packed & 0xFF, (packed >> 8) & 0xFF);
+
+    var label = String(obj.label || '').slice(0, 5);
+    for (var i = 0; i < 5; i++) {
+      bytes.push(i < label.length ? label.charCodeAt(i) : 0);
+    }
+    bytes.push(0); // NUL terminator (6th label byte)
   });
   return bytes;
 }

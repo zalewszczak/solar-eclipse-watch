@@ -491,7 +491,7 @@ Pebble.addEventListener('appmessage', function (e) {
   }
   // Fired on a shake when the watch's own cached overhead-objects list
   // (ISS + flights, for the Planet Seek view) is missing or older than
-  // 5 minutes -- see comms_maybe_request_flights() on the watch side.
+  // 3 minutes -- see comms_maybe_request_flights() on the watch side.
   // Fetches are on-demand only, never on the regular refresh timer, so a
   // shake that lands while one's still in flight just gets nothing new
   // (the watch's own loading flag only clears once a reply arrives).

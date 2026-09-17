@@ -202,10 +202,10 @@ _Static_assert(sizeof(time_t) == 4, "PLANET_RISE/SET wire format assumes a 4-byt
 static const BlobFieldMapping BLOB_FIELD_MAP[] = {
   { MK_CORNER_CONTENT, 1, offsetof(EclipseData, corner_content), 4 },
   { MK_CORNER_COLOR_MODE, 1, offsetof(EclipseData, corner_color_mode), 4 },
-  { MK_OVERHEAD_OBJECTS, 4, offsetof(EclipseData, overhead_objects), MAX_OVERHEAD_OBJECTS * 4 },
+  { MK_OVERHEAD_OBJECTS, 8, offsetof(EclipseData, overhead_objects), MAX_OVERHEAD_OBJECTS * 8 },
 };
 
-_Static_assert(sizeof(OverheadObject) == 4, "OVERHEAD_OBJECTS wire format assumes a 4-byte OverheadObject");
+_Static_assert(sizeof(OverheadObject) == 8, "OVERHEAD_OBJECTS wire format assumes an 8-byte OverheadObject");
 
 // Applied only for valid payloads.
 static const BlobFieldMapping BLOB_FIELD_MAP_VALID[] = {
