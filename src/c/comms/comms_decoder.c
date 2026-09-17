@@ -370,7 +370,6 @@ CommsChangeFlags comms_decoder_apply(DictionaryIterator *iter, EclipseData *data
   apply_blob_fields(iter, d, BLOB_FIELD_MAP_VALID, NELEM(BLOB_FIELD_MAP_VALID));
   apply_planet_grid(iter, MK_PLANET_ALT_SAMPLES, d->planet_alt_decideg);
   apply_planet_grid(iter, MK_PLANET_AZ_SAMPLES, d->planet_az_decideg);
-  apply_cstring(iter, MK_LOCATION_NAME, d->location_name, sizeof(d->location_name));
   apply_cstring(iter, MK_METEOR_SHOWER_NAME, d->meteor_shower_name, sizeof(d->meteor_shower_name));
 
   return changes;

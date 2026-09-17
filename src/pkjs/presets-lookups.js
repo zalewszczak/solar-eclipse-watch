@@ -327,11 +327,6 @@ var CORNER_CATEGORIES = [
         "preview": "82%"
       },
       {
-        "id": 13,
-        "label": "Location",
-        "preview": "Innsbruck"
-      },
-      {
         "id": 17,
         "label": "Pebble logo /w battery bar",
         "preview": "LOGO"

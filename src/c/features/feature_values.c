@@ -32,7 +32,7 @@ void feature_values_compute_slot(FeatureSlot *slot, const EclipseData *data,
     case 1: case 2: case 3: case 10: case 17: case 39: case 40: case 41: case 42: case 43: case 78:
       feature_value_health_compute(slot, content, data, color_mode, main_color, accent_color);
       break;
-    case 11: case 13: case 16: case 79: case 80: case 81: case 82: case 83: case 84: case 85:
+    case 11: case 16: case 79: case 80: case 81: case 82: case 83: case 84: case 85:
       feature_value_sky_compute(slot, content, data, color_mode, main_color, accent_color, now);
       break;
     case 4: case 5: case 6: case 7: case 8: case 9: case 14: case 15: case 31: case 32: case 34:
