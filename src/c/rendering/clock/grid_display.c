@@ -40,7 +40,7 @@ void grid_display_refresh(void) {
   eclipse_ui_get_active_color_scheme(s_data, now, &bg, &main_color, &accent_color);
   (void)bg;
 
-  char buf[8];
+  char buf[10];
 
   // Row 0: HH MM, one digit per cell, always zero-padded.
   int hour = t->tm_hour, minute = t->tm_min;
