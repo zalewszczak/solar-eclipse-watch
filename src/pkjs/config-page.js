@@ -2309,6 +2309,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  var sel = document.getElementById(cfg.selectId);' +
 '  var currentId = parseInt(sel.value, 10);' +
 '  var isBigDigitalNow = currentFontPickerRole === "clock" && document.getElementById("bottomStyleValue").value === "bigDigital";' +
+'  var isGridNow = currentFontPickerRole === "clock" && document.getElementById("bottomStyleValue").value === "grid";' +
 '  var showIncompatible = (cfg.showIncompatibleToggle && !isBigDigitalNow) ? document.getElementById("fontPickerShowIncompatible").checked : true;' +
 '  var previewText = cfg.previewText();' +
 '  var html = "";' +
@@ -2323,6 +2324,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    } else {' +
 '      if (fontFlag(f.bigDigital)) return;' + // every other picker/mode: never offer a Big Digital style
 '      if (cfg.onlyMainClock && !fontFlag(f.mainClock)) return;' +
+'      if (isGridNow && !fontFlag(f.grid)) return;' + // Grid: only fonts flagged compatible with its 4x4 single-character cells
 '    }' +
 '    if (!showIncompatible && !fontFlag(f.small) && f.id !== currentId) return;' +
 '    if (!fontMatchesCategoryFilters(f)) return;' +
