@@ -1158,9 +1158,9 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    <div class="mode-btn-group" id="bottomStyleGroup">' +
 '      <button type="button" class="mode-btn' + (bottomStyleVal === 'digital' ? ' active' : '') + '" onclick="selectBottomStyle(\'digital\')">' + MODE_BTN_ICONS.digital + '<span>DIGITAL BAR</span></button>' +
 '      <button type="button" class="mode-btn' + (bottomStyleVal === 'digitalTop' ? ' active' : '') + '" onclick="selectBottomStyle(\'digitalTop\')">' + MODE_BTN_ICONS.digitalTop + '<span>DIGITAL TOP</span></button>' +
-'      <button type="button" class="mode-btn' + (isAnalog ? ' active' : '') + '" onclick="selectBottomStyle(\'analog\')">' + MODE_BTN_ICONS.analog + '<span>ANALOG</span></button>' +
+'      <button type="button" class="mode-btn' + (isAnalog ? ' active' : '') + '" onclick="selectBottomStyle(\'analog\')">' + MODE_BTN_ICONS.analog + '<span>BIG ANALOG</span></button>' +
 '      <button type="button" class="mode-btn' + (isBigDigital ? ' active' : '') + '" onclick="selectBottomStyle(\'bigDigital\')">' + MODE_BTN_ICONS.bigDigital + '<span>BIG DIGITAL</span></button>' +
-'      <button type="button" class="mode-btn' + (isGrid ? ' active' : '') + '" onclick="selectBottomStyle(\'grid\')">' + MODE_BTN_ICONS.grid + '<span>GRID</span></button>' +
+'      <button type="button" class="mode-btn' + (isGrid ? ' active' : '') + '" onclick="selectBottomStyle(\'grid\')">' + MODE_BTN_ICONS.grid + '<span>GRID VIEW</span></button>' +
 '    </div>' +
 '    <input type="hidden" id="bottomStyleValue" value="' + esc(bottomStyleVal) + '">' +
 '    <div class="help" id="help-bottomStyle" style="display:none;">Choose the clock layout: DIGITAL BAR, DIGITAL TOP, full-screen ANALOG, BIG DIGITAL (four large digits, corner features only), or GRID (a 4x4 character grid: time, weekday, date, and month).</div>' +
@@ -1611,7 +1611,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 
 '    <div class="checkbox-row subsection' + (current.skyMode === '2' ? '' : ' grayed-out') + '" id="showMajorStarsRow">' +
 '      <input type="checkbox" id="showMajorStars" ' + (current.showMajorStars === false ? '' : 'checked') + ' onchange="updatePreview()">' +
-'      <label for="showMajorStars" style="margin:0;">Show major stars</label>' +
+'      <label for="showMajorStars" style="margin:0;">Show major stars in space view</label>' +
 '      <button type="button" class="help-btn" onclick="toggleHelp(\'help-showMajorStars\')">?</button>' +
 '    </div>' +
 '    <div class="help" id="help-showMajorStars" style="display:none;">Shows a field of major stars in Space mode.</div>' +
@@ -4663,6 +4663,12 @@ require('./config/config-runtime') +
 '  var clockPart;' +
 '  if (bottomStyleVal === "analog") {' +
 '    clockPart = "analog clock";' +
+'  } else if (bottomStyleVal === "bigDigital") {' +
+'    var fontId = parseInt(document.getElementById("clockFont").value, 10);' +
+'    clockPart = fontLookupEntry(fontId).label + " big digital clock";' +
+'  } else if (bottomStyleVal === "grid") {' +
+'    var fontId = parseInt(document.getElementById("clockFont").value, 10);' +
+'    clockPart = fontLookupEntry(fontId).label + " grid view";' +
 '  } else {' +
 '    var fontId = parseInt(document.getElementById("clockFont").value, 10);' +
 '    clockPart = fontLookupEntry(fontId).label + " digital clock";' +
@@ -4810,6 +4816,8 @@ require('./config/config-runtime') +
 'function computeDebugSubheader() {' +
 '  var testOn = document.getElementById("testMode").checked;' +
 '  var overridePart = testOn ? ("Override: " + (formatTestDateTime(document.getElementById("testDateTime").value) || "not set")) : "Override: off";' +
+'  var boxesOn = document.getElementById("drawDebug").checked;' +
+'  var boxesPart = testOn ? "bounding boxes enabled, ": "bounding boxes disabled, ";' +
 '  var lastPart = "last: none yet";' +
 '  try {' +
 '    var log = JSON.parse(document.getElementById("rawMessageLogJson").value || "[]");' +
@@ -4820,7 +4828,7 @@ require('./config/config-runtime') +
 '      lastPart = "last " + pad(d.getHours()) + ":" + pad(d.getMinutes()) + ":" + pad(d.getSeconds()) + "." + pad(d.getMilliseconds(), 3);' +
 '    }' +
 '  } catch (e) {}' +
-'  return overridePart + ", " + lastPart;' +
+'  return overridePart + ", " + boxesPart + lastPart;' +
 '}' +
 // Called on init, after every click/change/input anywhere on the page
 // (see the delegated listeners below -- cheaper and far less fragile
