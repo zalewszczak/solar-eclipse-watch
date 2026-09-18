@@ -10,7 +10,7 @@
 // other digit -- see big_digital_display.c's own comment on why -- with
 // its visible art just a thin mark in the middle of an otherwise
 // transparent canvas).
-#define BIG_DIGITAL_STYLE_COUNT 5
+#define BIG_DIGITAL_STYLE_COUNT 7
 #define BIG_DIGITAL_COLON_INDEX 10
 
 extern const uint32_t BIG_DIGITAL_DIGIT_RESOURCES[BIG_DIGITAL_STYLE_COUNT][11];

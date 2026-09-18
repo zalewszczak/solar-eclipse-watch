@@ -10,7 +10,7 @@
                         TD(style, 5), TD(style, 6), TD(style, 7), TD(style, 8), TD(style, 9), \
                         TD(style, 10) }
 const uint32_t BIG_DIGITAL_DIGIT_RESOURCES[BIG_DIGITAL_STYLE_COUNT][11] = {
-  TD_ROW(0), TD_ROW(1), TD_ROW(2), TD_ROW(3), TD_ROW(4)
+  TD_ROW(0), TD_ROW(1), TD_ROW(2), TD_ROW(3), TD_ROW(4), TD_ROW(5), TD_ROW(6)
 };
 #undef TD_ROW
 #undef TD

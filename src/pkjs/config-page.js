@@ -466,7 +466,7 @@ directWebfontStyle() +
 // pickers using that same class (marker style, hand style, colors...)
 // already size themselves reasonably to their own fixed content and
 // don\'t have this problem.
-'  #fontPickerModal .modal-box { height: 50vh; max-height: 50vh; }' +
+'  #fontPickerModal .modal-box { height: 65vh; max-height: 65vh; }' +
 '  .font-picker-btn:active { background: var(--border-light); }' +
 '  .font-picker-btn.selected { border-color: #ff9200; border-width: 2px; }' +
 '  .font-picker-preview { flex: 0 0 34%; display: flex; align-items: center; justify-content: center; padding: 10px 4px; box-sizing: border-box; border-right: 1px solid var(--border); overflow: hidden; white-space: nowrap; color: var(--text-strong); line-height: 1.1; }' +
@@ -2353,7 +2353,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  var container = document.querySelector("#fontPickerModal .modal-scroll-body");' +
 '  var selected = document.querySelector("#fontPickerGrid .font-picker-btn.selected");' +
 '  if (!container || !selected) return;' +
-'  container.scrollTop = selected.offsetTop - (container.clientHeight - selected.offsetHeight) / 2;' +
+'  container.scrollTop = selected.offsetTop - (container.clientHeight + selected.offsetHeight + selected.offsetHeight);' +
 '}' +
 // Rebuilds the grid for whichever role is currently open -- called on
 // open and again whenever "Show incompatible fonts" changes, since
