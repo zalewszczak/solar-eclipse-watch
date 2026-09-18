@@ -62,15 +62,28 @@ static void time_service_tick_handler(struct tm *tick_time, TimeUnits units_chan
 
 // ---- window lifecycle ----------------------------------------------------
 
-// Rebuild layers when bottom_style changes; the sky cache is sized at creation.
-// Keep the digital panel above system overlays and shrink the sky to match.
+// Keep the watchface composition synchronized with Pebble OS system overlays.
+// The change callback tracks the obstruction animation, while the final
+// callback forces one last layout pass. Some firmware/system overlays can
+// finish their transition without the last useful change frame reaching the
+// app, so relying on .change alone can leave the face in its pre-obstruction
+// layout until the next full app/layout initialization.
 static void unobstructed_change_handler(AnimationProgress progress, void *context) {
   (void)context;
   layout_controller_handle_unobstructed(progress);
 }
 
+static void unobstructed_did_change_handler(void *context) {
+  (void)context;
+  // Re-read layer_get_unobstructed_bounds() after the system has committed
+  // the final obstruction state. This also corrects any rounding/frame
+  // differences left by the animated .change callbacks.
+  layout_controller_handle_unobstructed(0);
+}
+
 static UnobstructedAreaHandlers s_unobstructed_handlers = {
-  .change = unobstructed_change_handler
+  .change = unobstructed_change_handler,
+  .did_change = unobstructed_did_change_handler
 };
 
 static void window_load(Window *window) {
@@ -150,10 +163,14 @@ void app_controller_init(void) {
   });
   layout_controller_init(&s_data, s_window);
   watchface_ui_init(&s_data);
+
+  // Subscribe before the window enters the stack so an obstruction that is
+  // already active (or begins during the push/load transition) cannot be
+  // missed by the UnobstructedArea service.
+  unobstructed_area_service_subscribe(s_unobstructed_handlers, NULL);
   window_stack_push(s_window, true);
 
   input_init(&s_data, *watchface_ui_input_callbacks(), NULL);
-  unobstructed_area_service_subscribe(s_unobstructed_handlers, NULL);
   feature_refresh_init();
   feature_refresh_start();
 
