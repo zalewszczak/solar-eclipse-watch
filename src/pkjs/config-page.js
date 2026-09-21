@@ -471,7 +471,13 @@ directWebfontStyle() +
 '  .font-picker-btn:active { background: var(--border-light); }' +
 '  .font-picker-btn.selected { border-color: #ff9200; border-width: 2px; }' +
 '  .font-picker-preview { flex: 0 0 34%; display: flex; align-items: center; justify-content: center; padding: 10px 4px; box-sizing: border-box; border-right: 1px solid var(--border); overflow: hidden; white-space: nowrap; color: var(--text-strong); line-height: 1.1; }' +
-'  .font-picker-name { flex: 1 1 auto; display: flex; align-items: center; padding: 10px 12px; font-size: 13px; font-weight: 600; color: var(--text-strong); box-sizing: border-box; }' +
+'  .font-picker-name { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 4px; padding: 8px 12px; font-size: 13px; font-weight: 600; color: var(--text-strong); box-sizing: border-box; }' +
+'  .font-picker-size { display: inline-flex; align-items: center; justify-content: center; padding: 2px 7px; border-radius: 999px; font-size: 9px; line-height: 1.2; font-weight: 700; letter-spacing: 0.45px; white-space: nowrap; }' +
+'  .font-picker-size-xs { background: #dbeafe; color: #245b9e; }' +
+'  .font-picker-size-s { background: #dcfce7; color: #28734a; }' +
+'  .font-picker-size-m { background: #fef3c7; color: #8a6410; }' +
+'  .font-picker-size-l { background: #ffedd5; color: #a45116; }' +
+'  .font-picker-size-xl { background: #fee2e2; color: #a33a3a; }' +
 // Real on-watch renderings (see FONT_PREVIEW_IMAGES's own comment)
 // rather than styled text, for the fonts that have one. Unlike
 // .bitmap-marker-img/.hand-style-icon-preview img just below (which
@@ -2429,6 +2435,13 @@ fontManagerSource +
 // open and again whenever "Show incompatible fonts" changes, since
 // that changes which entries even appear rather than just their
 // styling.
+'function fontSizeCategoryLabel(category) {' +
+'  var labels = { XS: "EXTRA SMALL", S: "SMALL", M: "MEDIUM", L: "LARGE", XL: "EXTRA LARGE" };' +
+'  return labels[category] || "";' +
+'}' +
+'function fontSizeCategoryClass(category) {' +
+'  return category === "XS" || category === "S" || category === "M" || category === "L" || category === "XL" ? category.toLowerCase() : "";' +
+'}' +
 'function renderFontPickerGrid() {' +
 '  var cfg = FONT_PICKER_ROLES[currentFontPickerRole];' +
 '  if (!cfg) return;' +
@@ -2463,9 +2476,12 @@ fontManagerSource +
 '    if (!showIncompatible && !fontFlag(f.small) && f.id !== currentId) return;' +
 '    if (!fontMatchesCategoryFilters(f)) return;' +
 '    var previewStyle = f.preview + " font-size:" + fontPickerPreviewPx(f.sizePx) + "px;";' +
+'    var sizeCategory = f.sizeCategory || "";' +
+'    var sizeCategoryLabel = fontSizeCategoryLabel(sizeCategory);' +
+'    var sizeCategoryClass = fontSizeCategoryClass(sizeCategory);' +
 '    html += \'<button type="button" class="font-picker-btn\' + (f.id === currentId ? " selected" : "") + \'" onclick="chooseFontOption(\' + f.id + \')">\' +' +
 '      \'<span class="font-picker-preview" style="\' + previewStyle + \'">\' + fontPreviewInnerHtml(f.id, currentFontPickerRole, previewText) + "</span>" +' +
-'      \'<span class="font-picker-name">\' + esc(f.label) + "</span></button>";' +
+'      \'<span class="font-picker-name"><span>\' + esc(f.label) + \'</span>\' + (sizeCategoryLabel ? \'<span class="font-picker-size font-picker-size-\' + sizeCategoryClass + \'">\' + sizeCategoryLabel + "</span>" : "") + "</span></button>";' +
 '  });' +
 '  document.getElementById("fontPickerGrid").innerHTML = html;' +
 '  document.getElementById("fontPickerEmptyMsg").style.display = html ? "none" : "block";' +
