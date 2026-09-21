@@ -264,17 +264,46 @@ var FONT_CATEGORIES = [
 // Must match get_color_scheme() in pebble-eclipse-watch.c exactly --
 // same order, same id, same colors.
 var COLOR_SCHEMES = [
-  { id: 0, grid: true, label: 'Black on White', bg: '#ffffff', text: '#000000', accent: '#000000' },
-  { id: 1, grid: true, label: 'White on Black', bg: '#000000', text: '#ffffff', accent: '#ffffff' },
-  { id: 2, grid: true, label: 'Red on Black', bg: '#000000', text: '#ff0000', accent: '#ff0000' },
-  { id: 3, grid: true, label: 'White on Dark Blue', bg: '#00003c', text: '#ffffff', accent: '#ffffff' },
-  { id: 4, grid: true, label: 'Yellow on Dark Blue', bg: '#00003c', text: '#ffff00', accent: '#ffff00' },
-  { id: 5, grid: true, label: 'White on Black, Red accent', bg: '#000000', text: '#ffffff', accent: '#ff0000' },
-  { id: 6, grid: true, label: 'Black on White, Dark Red accent', bg: '#ffffff', text: '#000000', accent: '#8b0000' },
-  { id: 7, grid: true, label: 'Black on White, Dark Blue accent', bg: '#ffffff', text: '#000000', accent: '#00008b' },
-  { id: 8, grid: true, label: 'Red on Black, White accent', bg: '#000000', text: '#ff0000', accent: '#ffffff' },
-  { id: 9, grid: true, label: 'Red on White, Orange accent', bg: '#ffffff', text: '#ff0000', accent: '#ff8c00' },
-  { id: 11, grid: true, label: 'Brown on Green, Orange accent', bg: '#228b22', text: '#8b4513', accent: '#ff8c00' }
+  // Proven classics retained from the original set.
+  { id: 0, grid: true, label: 'Black on White', altLabel: 'Ink on Snow', bg: '#ffffff', text: '#000000', accent: '#000000', mode: 'both' },
+  { id: 1, grid: true, label: 'White on Black', altLabel: 'Chalk on Coal', bg: '#000000', text: '#ffffff', accent: '#ffffff', mode: 'both' },
+  { id: 2, grid: true, label: 'Red on Black', altLabel: 'Ruby Night', bg: '#000000', text: '#ff0000', accent: '#ff0000', mode: 'both' },
+  { id: 5, grid: true, label: 'White on Black, Red accent', altLabel: 'Snow & Ember', bg: '#000000', text: '#ffffff', accent: '#ff0000', mode: 'both' },
+  { id: 6, grid: true, label: 'Black on White, Dark Red accent', altLabel: 'Ink & Garnet', bg: '#ffffff', text: '#000000', accent: '#550000', mode: 'both' },
+
+  // Existing schemes retained after review. They have strong luminance
+  // separation and use colors that remain distinguishable on reflective
+  // 64-colour Pebble displays.
+  { id: 3, grid: true, label: 'White on Dark Blue', altLabel: 'Moonlight Navy', bg: '#000055', text: '#ffffff', accent: '#ffffff', mode: 'both' },
+  { id: 4, grid: true, label: 'Yellow on Dark Blue', altLabel: 'Signal Gold', bg: '#000055', text: '#ffff00', accent: '#ffff00', mode: 'both' },
+  { id: 8, grid: true, label: 'Red on Black, White accent', altLabel: 'Ruby & Snow', bg: '#000000', text: '#ff0000', accent: '#ffffff', mode: 'both' },
+
+  // Day presets: reflective-screen friendly, light backgrounds with strong
+  // dark/saturated foregrounds. New entries deliberately avoid midtone-on-
+  // midtone combinations that tend to wash together on e-paper.
+  { id: 12, grid: true, label: 'Cobalt Paper', altLabel: 'Blueprint Snow', bg: '#ffffff', text: '#000055', accent: '#0000ff', mode: 'day' },
+  { id: 13, grid: true, label: 'Forest Ink', altLabel: 'Pine on Paper', bg: '#ffffff', text: '#005500', accent: '#ff5500', mode: 'day' },
+  { id: 14, grid: true, label: 'Violet Ledger', altLabel: 'Plum & Sun', bg: '#ffffff', text: '#550055', accent: '#ffff00', mode: 'day' },
+  { id: 15, grid: true, label: 'Teal Signal', altLabel: 'Harbor Ink', bg: '#ffffff', text: '#005555', accent: '#ff5500', mode: 'day' },
+  { id: 16, grid: true, label: 'Garnet Paper', altLabel: 'Crimson Ledger', bg: '#ffffff', text: '#550000', accent: '#0000aa', mode: 'day' },
+  { id: 17, grid: true, label: 'Navy Ember', altLabel: 'Midnight Ink', bg: '#ffffff', text: '#000055', accent: '#ff0000', mode: 'day' },
+  { id: 18, grid: true, label: 'Evergreen Gold', altLabel: 'Pine & Brass', bg: '#ffffaa', text: '#005500', accent: '#aa5500', mode: 'day' },
+  { id: 19, grid: true, label: 'Sunlit Indigo', altLabel: 'Ochre & Cobalt', bg: '#ffffaa', text: '#000055', accent: '#aa0000', mode: 'day' },
+  { id: 20, grid: true, label: 'Skyline Ink', altLabel: 'Azure Paper', bg: '#aaaaff', text: '#000000', accent: '#0000aa', mode: 'day' },
+  { id: 21, grid: true, label: 'Mint & Charcoal', altLabel: 'Frosted Forest', bg: '#aaffaa', text: '#000000', accent: '#005500', mode: 'day' },
+
+  // Night presets: black/deep-colour backgrounds with very bright text or
+  // accents. These favour high luminance contrast when the backlight is off.
+  { id: 22, grid: true, label: 'Moonlit Cobalt', altLabel: 'Ice on Navy', bg: '#000055', text: '#ffffff', accent: '#55ffff', mode: 'night' },
+  { id: 23, grid: true, label: 'Ember Night', altLabel: 'Snow & Flame', bg: '#000000', text: '#ffffff', accent: '#ff5500', mode: 'night' },
+  { id: 24, grid: true, label: 'Aurora Green', altLabel: 'Frost & Pine', bg: '#000000', text: '#aaffaa', accent: '#00aa00', mode: 'night' },
+  { id: 25, grid: true, label: 'Violet Moon', altLabel: 'Lilac Signal', bg: '#000055', text: '#ffffff', accent: '#ff55ff', mode: 'night' },
+  { id: 26, grid: true, label: 'Arctic Teal', altLabel: 'Icewater Night', bg: '#000000', text: '#aaffff', accent: '#00aaaa', mode: 'night' },
+  { id: 27, grid: true, label: 'Solar Flare', altLabel: 'Gold on Ink', bg: '#000000', text: '#ffff00', accent: '#ff5500', mode: 'night' },
+  { id: 28, grid: true, label: 'Ruby Eclipse', altLabel: 'White & Ruby', bg: '#550000', text: '#ffffff', accent: '#ff5555', mode: 'night' },
+  { id: 29, grid: true, label: 'Deep Forest', altLabel: 'Moon & Moss', bg: '#005500', text: '#ffffff', accent: '#aaff55', mode: 'night' },
+  { id: 30, grid: true, label: 'Royal Night', altLabel: 'Crown & Cobalt', bg: '#000055', text: '#ffffaa', accent: '#aaaaff', mode: 'night' },
+  { id: 31, grid: true, label: 'Copper Midnight', altLabel: 'Amber on Coal', bg: '#000000', text: '#ffaa00', accent: '#ffffff', mode: 'night' }
 ];
 
 // Roman-numeral compatibility lives on FONT_LOOKUP itself now (each
