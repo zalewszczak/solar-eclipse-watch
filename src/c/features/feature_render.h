@@ -11,6 +11,15 @@ void feature_render_draw_text_outlined(GContext *ctx, const char *text, GFont fo
                                        GTextOverflowMode overflow, GTextAlignment alignment,
                                        GColor color, uint8_t outline_style);
 
+// Split halves of the above, for the primitive renderer's genuine two-pass
+// draw (Section 13) -- see primitive_renderer.c.
+void feature_render_draw_text_outline_only(GContext *ctx, const char *text, GFont font, GRect box,
+                                           GTextOverflowMode overflow, GTextAlignment alignment,
+                                           GColor color, uint8_t outline_style);
+void feature_render_draw_text_content_only(GContext *ctx, const char *text, GFont font, GRect box,
+                                           GTextOverflowMode overflow, GTextAlignment alignment,
+                                           GColor color);
+
 void feature_render_resolve_segment_offsets(FeatureSlot *slot, GFont font, int16_t font_h);
 
 void feature_render_draw_slot(GContext *ctx, GRect bounds, const FeatureSlot *slot,

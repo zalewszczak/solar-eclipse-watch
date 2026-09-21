@@ -79,6 +79,8 @@ static const SimpleFieldMapping SIMPLE_FIELD_MAP[] = {
   { MK_VIS_SCORE, F_U8, offsetof(EclipseData, vis_score_pct) },
   { MK_WEATHER_SOURCES, F_U8, offsetof(EclipseData, weather_sources) },
   { MK_WEATHER_CONDITION, F_U8, offsetof(EclipseData, weather_condition) },
+  { MK_WEATHER_ICON_CATEGORY, F_U8, offsetof(EclipseData, weather_icon_category) },
+  { MK_WEATHER_ICON_COLOR, F_U8, offsetof(EclipseData, weather_icon_color) },
   { MK_WIND_DIR_DEG, F_I16, offsetof(EclipseData, wind_dir_deg) },
   { MK_DEW_POINT_C, F_I16, offsetof(EclipseData, dew_point_c) },
   { MK_PRESSURE_HPA, F_I16, offsetof(EclipseData, pressure_hpa) },
@@ -91,6 +93,22 @@ static const SimpleFieldMapping SIMPLE_FIELD_MAP[] = {
   { MK_WEATHER_TEMP_C, F_I16, offsetof(EclipseData, weather_temp_c) },
   { MK_WEATHER_TEMP_HIGH_C, F_I16, offsetof(EclipseData, temp_high_c) },
   { MK_WEATHER_TEMP_LOW_C, F_I16, offsetof(EclipseData, temp_low_c) },
+  { MK_CURRENT_TEMP_COLOR, F_U8, offsetof(EclipseData, current_temp_color) },
+  { MK_TEMP_HIGH_COLOR, F_U8, offsetof(EclipseData, temp_high_color) },
+  { MK_TEMP_LOW_COLOR, F_U8, offsetof(EclipseData, temp_low_color) },
+  { MK_FEELS_LIKE_COLOR, F_U8, offsetof(EclipseData, feels_like_color) },
+  { MK_UV_DAILY_COLOR, F_U8, offsetof(EclipseData, uv_daily_color) },
+  { MK_UV_CURRENT_COLOR, F_U8, offsetof(EclipseData, uv_current_color) },
+  { MK_RAIN_CHANCE_COLOR, F_U8, offsetof(EclipseData, rain_chance_color) },
+  { MK_HUMIDITY_COLOR, F_U8, offsetof(EclipseData, humidity_color) },
+  { MK_WIND_SPEED_COLOR, F_U8, offsetof(EclipseData, wind_speed_color) },
+  { MK_CLOUD_COVER_COLOR, F_U8, offsetof(EclipseData, cloud_cover_color) },
+  { MK_VIS_SCORE_COLOR, F_U8, offsetof(EclipseData, vis_score_color) },
+  { MK_ALTITUDE_COLOR, F_U8, offsetof(EclipseData, altitude_color) },
+  { MK_PRESSURE_COLOR, F_U8, offsetof(EclipseData, pressure_color) },
+  { MK_AQI_COLOR, F_U8, offsetof(EclipseData, aqi_color) },
+  { MK_AURORA_KP_COLOR, F_U8, offsetof(EclipseData, aurora_kp_color) },
+  { MK_METEOR_COLOR, F_U8, offsetof(EclipseData, meteor_color) },
   { MK_UV_INDEX_X10, F_U8, offsetof(EclipseData, uv_index_x10) },
   { MK_UV_INDEX_CURRENT_X10, F_U8, offsetof(EclipseData, uv_index_current_x10) },
   { MK_RAIN_CHANCE_PCT, F_U8, offsetof(EclipseData, rain_chance_pct) },
@@ -202,6 +220,10 @@ _Static_assert(sizeof(time_t) == 4, "PLANET_RISE/SET wire format assumes a 4-byt
 static const BlobFieldMapping BLOB_FIELD_MAP[] = {
   { MK_CORNER_CONTENT, 1, offsetof(EclipseData, corner_content), 4 },
   { MK_CORNER_COLOR_MODE, 1, offsetof(EclipseData, corner_color_mode), 4 },
+  { MK_CORNER_PRIMITIVE_IDS, 1, offsetof(EclipseData, corner_primitive_ids), 40 }, // 4 * 10, see eclipse_data.h
+  { MK_CORNER_PRIMITIVE_AUX, 1, offsetof(EclipseData, corner_primitive_aux), 40 },
+  { MK_EDGE_LINE_PRIMITIVE_IDS, 1, offsetof(EclipseData, edge_line_primitive_ids), 80 }, // 8 * 10, see eclipse_data.h
+  { MK_EDGE_LINE_PRIMITIVE_AUX, 1, offsetof(EclipseData, edge_line_primitive_aux), 80 },
   { MK_OVERHEAD_OBJECTS, 8, offsetof(EclipseData, overhead_objects), MAX_OVERHEAD_OBJECTS * 8 },
 };
 
@@ -212,6 +234,8 @@ static const BlobFieldMapping BLOB_FIELD_MAP_VALID[] = {
   { MK_SEP_SAMPLES, 2, offsetof(EclipseData, sep_samples_centideg), MAX_SEP_SAMPLES * 2 },
   { MK_MAG_SAMPLES, 1, offsetof(EclipseData, mag_pct_samples), MAX_SEP_SAMPLES },
   { MK_FORECAST_CONDITION, 1, offsetof(EclipseData, forecast_condition), 9 },
+  { MK_FORECAST_ICON_CATEGORIES, 1, offsetof(EclipseData, forecast_icon_category), 9 },
+  { MK_FORECAST_TEMP_COLORS, 1, offsetof(EclipseData, forecast_temp_color), 9 },
   { MK_SUN_ALT_SAMPLES, 2, offsetof(EclipseData, sun_alt_decideg), MAX_SKY_SAMPLES * 2 },
   { MK_SUN_AZ_SAMPLES, 2, offsetof(EclipseData, sun_az_decideg), MAX_SKY_SAMPLES * 2 },
   { MK_CLOUD_SAMPLES, 1, offsetof(EclipseData, cloud_pct_samples), MAX_SKY_SAMPLES },
@@ -257,6 +281,14 @@ static void apply_cstring(DictionaryIterator *iter, uint8_t key_index, char *dst
   strncpy(dst, t->value->cstring, cap - 1);
   dst[cap - 1] = '\0';
 }
+
+// One MK_* per forecast-temp index (see eclipse_data.h's forecast_temp_display
+// comment for why 9 discrete keys rather than one delimited string).
+static const uint8_t FORECAST_TEMP_DISPLAY_KEYS[9] = {
+  MK_FORECAST_TEMP_DISPLAY_0, MK_FORECAST_TEMP_DISPLAY_1, MK_FORECAST_TEMP_DISPLAY_2,
+  MK_FORECAST_TEMP_DISPLAY_3, MK_FORECAST_TEMP_DISPLAY_4, MK_FORECAST_TEMP_DISPLAY_5,
+  MK_FORECAST_TEMP_DISPLAY_6, MK_FORECAST_TEMP_DISPLAY_7, MK_FORECAST_TEMP_DISPLAY_8,
+};
 
 // Consolidated settings fields use fixed wire layouts.
 // HANDS, MARKER_RINGS, and EDGE_LINES can be copied directly; MARKER_TEXT and COLORS are packed.
@@ -372,6 +404,28 @@ CommsChangeFlags comms_decoder_apply(DictionaryIterator *iter, EclipseData *data
   apply_planet_grid(iter, MK_PLANET_AZ_SAMPLES, d->planet_az_decideg);
   apply_cstring(iter, MK_LOCATION_NAME, d->location_name, sizeof(d->location_name));
   apply_cstring(iter, MK_METEOR_SHOWER_NAME, d->meteor_shower_name, sizeof(d->meteor_shower_name));
+  apply_cstring(iter, MK_METEOR_DISPLAY, d->meteor_display, sizeof(d->meteor_display));
+  apply_cstring(iter, MK_MOON_PHASE_DISPLAY, d->moon_phase_display, sizeof(d->moon_phase_display));
+  apply_cstring(iter, MK_SATURN_RINGS_DISPLAY, d->saturn_rings_display, sizeof(d->saturn_rings_display));
+  apply_cstring(iter, MK_AURORA_KP_DISPLAY, d->aurora_kp_display, sizeof(d->aurora_kp_display));
+  apply_cstring(iter, MK_CURRENT_TEMP_DISPLAY, d->current_temp_display, sizeof(d->current_temp_display));
+  apply_cstring(iter, MK_TEMP_HIGH_DISPLAY, d->temp_high_display, sizeof(d->temp_high_display));
+  apply_cstring(iter, MK_TEMP_LOW_DISPLAY, d->temp_low_display, sizeof(d->temp_low_display));
+  apply_cstring(iter, MK_FEELS_LIKE_DISPLAY, d->feels_like_display, sizeof(d->feels_like_display));
+  apply_cstring(iter, MK_UV_DAILY_DISPLAY, d->uv_daily_display, sizeof(d->uv_daily_display));
+  apply_cstring(iter, MK_UV_CURRENT_DISPLAY, d->uv_current_display, sizeof(d->uv_current_display));
+  apply_cstring(iter, MK_RAIN_CHANCE_DISPLAY, d->rain_chance_display, sizeof(d->rain_chance_display));
+  apply_cstring(iter, MK_HUMIDITY_DISPLAY, d->humidity_display, sizeof(d->humidity_display));
+  apply_cstring(iter, MK_WIND_SPEED_DISPLAY, d->wind_speed_display, sizeof(d->wind_speed_display));
+  apply_cstring(iter, MK_CLOUD_COVER_DISPLAY, d->cloud_cover_display, sizeof(d->cloud_cover_display));
+  apply_cstring(iter, MK_VIS_SCORE_DISPLAY, d->vis_score_display, sizeof(d->vis_score_display));
+  apply_cstring(iter, MK_ALTITUDE_DISPLAY, d->altitude_display, sizeof(d->altitude_display));
+  apply_cstring(iter, MK_DEW_POINT_DISPLAY, d->dew_point_display, sizeof(d->dew_point_display));
+  apply_cstring(iter, MK_PRESSURE_DISPLAY, d->pressure_display, sizeof(d->pressure_display));
+  apply_cstring(iter, MK_AQI_DISPLAY, d->aqi_display, sizeof(d->aqi_display));
+  for (int i = 0; i < 9; i++) {
+    apply_cstring(iter, FORECAST_TEMP_DISPLAY_KEYS[i], d->forecast_temp_display[i], sizeof(d->forecast_temp_display[i]));
+  }
 
   return changes;
 }

@@ -78,9 +78,7 @@ void __attribute__((noinline)) feature_value_composite_compute(FeatureSlot *slot
         struct tm *bt = localtime(&span.earliest_start);
         strftime(buf1, sizeof(buf1), clock_is_24h_style() ? "%H:%M" : "%I:%M", bt);
         struct tm *wt = localtime(&span.latest_end);
-        char wake_time[8];
-        strftime(wake_time, sizeof(wake_time), clock_is_24h_style() ? "%H:%M" : "%I:%M", wt);
-        snprintf(buf2, sizeof(buf2), "/%s", wake_time);
+        strftime(buf2, sizeof(buf2), clock_is_24h_style() ? "%H:%M" : "%I:%M", wt);
         if (dynamic) {
           bed_c = feature_colors_daynight_gradient(span.earliest_start, data->sun_rise, data->sun_set);
           wake_c = feature_colors_daynight_gradient(span.latest_end, data->sun_rise, data->sun_set);
@@ -90,10 +88,22 @@ void __attribute__((noinline)) feature_value_composite_compute(FeatureSlot *slot
         buf2[0] = '\0';
         if (dynamic) bed_c = wake_c = GColorLightGray;
       }
-      slot->segment_count = 3;
-      feature_value_set_icon_segment(slot, 0, 21, flat);
-      feature_value_set_text_segment(slot, 1, buf1, bed_c);
-      feature_value_set_text_segment(slot, 2, buf2, wake_c);
+      // Atomic decomposition (Phase 8): the wake-time half is now SLASH +
+      // WAKE_TIME_TEXT (reusing content 43's own wake-time primitive)
+      // instead of one composed "/22:10" primitive. When there's no sleep
+      // data, buf2 is empty and the slash+wake segments are simply omitted
+      // -- same "N/A" bed-time-only display as before.
+      if (buf2[0] != '\0') {
+        slot->segment_count = 4;
+        feature_value_set_icon_segment(slot, 0, 21, flat);
+        feature_value_set_text_segment(slot, 1, buf1, bed_c);
+        feature_value_set_text_segment(slot, 2, "/", wake_c);
+        feature_value_set_text_segment(slot, 3, buf2, wake_c);
+      } else {
+        slot->segment_count = 2;
+        feature_value_set_icon_segment(slot, 0, 21, flat);
+        feature_value_set_text_segment(slot, 1, buf1, bed_c);
+      }
       return;
     }
     case 102: case 103: { // battery + BT (icons only, 102), battery % + BT (103)
@@ -214,10 +224,10 @@ void __attribute__((noinline)) feature_value_composite_compute(FeatureSlot *slot
     }
     case 105: { // "long date" + sunset/sunrise, e.g. "Mon 23 Sep <icon> 19:45"
       struct tm *t = localtime(&now);
-      char day_buf[4], mon_buf[4];
+      char day_buf[4], daynum_buf[4], mon_buf[4];
       strftime(day_buf, sizeof(day_buf), "%a", t);
+      snprintf(daynum_buf, sizeof(daynum_buf), "%d", t->tm_mday);
       strftime(mon_buf, sizeof(mon_buf), "%b", t);
-      snprintf(buf1, sizeof(buf1), "%s %d %s", day_buf, t->tm_mday, mon_buf);
       GColor date_c = dynamic ? feature_colors_date_year_progress_gradient(t) : flat;
 
       bool is_sunrise = false;
@@ -230,11 +240,18 @@ void __attribute__((noinline)) feature_value_composite_compute(FeatureSlot *slot
         snprintf(time_buf, sizeof(time_buf), "N/A");
       }
 
-      slot->segment_count = 3;
-      feature_value_set_text_segment(slot, 0, buf1, date_c);
-      feature_value_set_icon_segment(slot, 1, 11, flat);
-      slot->segments[1].icon_flag = is_sunrise;
-      feature_value_set_text_segment(slot, 2, time_buf, flat);
+      // Atomic decomposition (Phase 8): the date half is now 5 primitives
+      // (weekday, space, day, space, month) instead of one composed
+      // "Mon 23 Sep" string; 5 + icon + time = 7 segments total.
+      slot->segment_count = 7;
+      feature_value_set_text_segment(slot, 0, day_buf, date_c);
+      feature_value_set_text_segment(slot, 1, " ", date_c);
+      feature_value_set_text_segment(slot, 2, daynum_buf, date_c);
+      feature_value_set_text_segment(slot, 3, " ", date_c);
+      feature_value_set_text_segment(slot, 4, mon_buf, date_c);
+      feature_value_set_icon_segment(slot, 5, 11, flat);
+      slot->segments[5].icon_flag = is_sunrise;
+      feature_value_set_text_segment(slot, 6, time_buf, flat);
       return;
     }
     default:

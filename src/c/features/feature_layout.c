@@ -120,6 +120,7 @@ void feature_layout_recompute(FeaturesState *state) {
     state->slots[SLOT_UPPER_L1] = (FeatureSlot){
       .active = true, .content = d->upper_middle_line1_content, .color_mode = d->upper_middle_line1_color_mode,
       .is_top = true, .is_left = true, .is_middle = false, .is_edge = false,
+      .use_primitive_pipeline = true,
       .top_offset = line1_offset, .bottom_shift = 0, .middle_inset = 0,
       .center_horizontal = true, .center_vertical = false, .allow_outline = true,
       .needs_second_refresh = feature_rules_content_needs_second_refresh(d->upper_middle_line1_content),
@@ -128,6 +129,7 @@ void feature_layout_recompute(FeaturesState *state) {
       state->slots[SLOT_UPPER_L2] = (FeatureSlot){
         .active = true, .content = d->upper_middle_line2_content, .color_mode = d->upper_middle_line2_color_mode,
         .is_top = true, .is_left = true, .is_middle = false, .is_edge = false,
+        .use_primitive_pipeline = true,
         .top_offset = dyn_upper_offset + CORNER_ROW_H, .bottom_shift = 0, .middle_inset = 0,
         .center_horizontal = true, .center_vertical = false, .allow_outline = true,
         .needs_second_refresh = feature_rules_content_needs_second_refresh(d->upper_middle_line2_content),
@@ -139,6 +141,7 @@ void feature_layout_recompute(FeaturesState *state) {
     state->slots[SLOT_BOTTOM_L1] = (FeatureSlot){
       .active = true, .content = d->bottom_middle_line1_content, .color_mode = d->bottom_middle_line1_color_mode,
       .is_top = false, .is_left = true, .is_middle = false, .is_edge = false,
+      .use_primitive_pipeline = true,
       .top_offset = 0, .bottom_shift = line1_shift, .middle_inset = 0,
       .center_horizontal = true, .center_vertical = false, .allow_outline = true,
       .needs_second_refresh = feature_rules_content_needs_second_refresh(d->bottom_middle_line1_content),
@@ -147,6 +150,7 @@ void feature_layout_recompute(FeaturesState *state) {
       state->slots[SLOT_BOTTOM_L2] = (FeatureSlot){
         .active = true, .content = d->bottom_middle_line2_content, .color_mode = d->bottom_middle_line2_color_mode,
         .is_top = false, .is_left = true, .is_middle = false, .is_edge = false,
+        .use_primitive_pipeline = true,
         .top_offset = 0, .bottom_shift = dyn_bottom_shift, .middle_inset = 0,
         .center_horizontal = true, .center_vertical = false, .allow_outline = true,
         .needs_second_refresh = feature_rules_content_needs_second_refresh(d->bottom_middle_line2_content),
@@ -158,6 +162,7 @@ void feature_layout_recompute(FeaturesState *state) {
     state->slots[SLOT_LEFT_L1] = (FeatureSlot){
       .active = true, .content = d->middle_left_line1_content, .color_mode = d->middle_left_line1_color_mode,
       .is_top = false, .is_left = true, .is_middle = true, .is_edge = false,
+      .use_primitive_pipeline = true,
       .top_offset = line1_offset, .bottom_shift = 0, .middle_inset = dyn_left_inset,
       .center_horizontal = false, .center_vertical = true, .allow_outline = true,
       .needs_second_refresh = feature_rules_content_needs_second_refresh(d->middle_left_line1_content),
@@ -166,6 +171,7 @@ void feature_layout_recompute(FeaturesState *state) {
       state->slots[SLOT_LEFT_L2] = (FeatureSlot){
         .active = true, .content = d->middle_left_line2_content, .color_mode = d->middle_left_line2_color_mode,
         .is_top = false, .is_left = true, .is_middle = true, .is_edge = false,
+        .use_primitive_pipeline = true,
         .top_offset = CORNER_ROW_H / 2, .bottom_shift = 0, .middle_inset = dyn_left_inset,
         .center_horizontal = false, .center_vertical = true, .allow_outline = true,
         .needs_second_refresh = feature_rules_content_needs_second_refresh(d->middle_left_line2_content),
@@ -177,6 +183,7 @@ void feature_layout_recompute(FeaturesState *state) {
     state->slots[SLOT_RIGHT_L1] = (FeatureSlot){
       .active = true, .content = d->middle_right_line1_content, .color_mode = d->middle_right_line1_color_mode,
       .is_top = false, .is_left = false, .is_middle = true, .is_edge = false,
+      .use_primitive_pipeline = true,
       .top_offset = line1_offset, .bottom_shift = 0, .middle_inset = dyn_right_inset,
       .center_horizontal = false, .center_vertical = true, .allow_outline = true,
       .needs_second_refresh = feature_rules_content_needs_second_refresh(d->middle_right_line1_content),
@@ -185,6 +192,7 @@ void feature_layout_recompute(FeaturesState *state) {
       state->slots[SLOT_RIGHT_L2] = (FeatureSlot){
         .active = true, .content = d->middle_right_line2_content, .color_mode = d->middle_right_line2_color_mode,
         .is_top = false, .is_left = false, .is_middle = true, .is_edge = false,
+        .use_primitive_pipeline = true,
         .top_offset = CORNER_ROW_H / 2, .bottom_shift = 0, .middle_inset = dyn_right_inset,
         .center_horizontal = false, .center_vertical = true, .allow_outline = true,
         .needs_second_refresh = feature_rules_content_needs_second_refresh(d->middle_right_line2_content),
@@ -202,6 +210,7 @@ void feature_layout_recompute(FeaturesState *state) {
     state->slots[SLOT_UPPER_L1] = (FeatureSlot){
       .active = true, .content = d->upper_middle_line1_content, .color_mode = d->upper_middle_line1_color_mode,
       .is_top = true, .is_left = true, .is_middle = false, .is_edge = false,
+      .use_primitive_pipeline = true,
       .top_offset = FEATURE_LAYOUT_CORNER_INSET_PX, .bottom_shift = 0, .middle_inset = 0,
       .center_horizontal = true, .center_vertical = false, .allow_outline = true,
       .needs_second_refresh = feature_rules_content_needs_second_refresh(d->upper_middle_line1_content),
@@ -209,6 +218,7 @@ void feature_layout_recompute(FeaturesState *state) {
     state->slots[SLOT_BOTTOM_L1] = (FeatureSlot){
       .active = true, .content = d->bottom_middle_line1_content, .color_mode = d->bottom_middle_line1_color_mode,
       .is_top = false, .is_left = true, .is_middle = false, .is_edge = false,
+      .use_primitive_pipeline = true,
       .top_offset = 0, .bottom_shift = FEATURE_LAYOUT_CORNER_INSET_PX, .middle_inset = 0,
       .center_horizontal = true, .center_vertical = false, .allow_outline = true,
       .needs_second_refresh = feature_rules_content_needs_second_refresh(d->bottom_middle_line1_content),
@@ -225,6 +235,7 @@ void feature_layout_recompute(FeaturesState *state) {
     state->slots[SLOT_LEFT_L1] = (FeatureSlot){
       .active = true, .content = d->middle_left_line1_content, .color_mode = d->middle_left_line1_color_mode,
       .is_top = is_digital_top, .is_left = true, .is_middle = false, .is_edge = true,
+      .use_primitive_pipeline = true,
       .top_offset = is_digital_top ? row1_off : 0, .bottom_shift = is_digital_top ? 0 : row1_off, .middle_inset = 0,
       .center_horizontal = false, .center_vertical = false, .allow_outline = true,
       .needs_second_refresh = feature_rules_content_needs_second_refresh(d->middle_left_line1_content),
@@ -232,6 +243,7 @@ void feature_layout_recompute(FeaturesState *state) {
     state->slots[SLOT_LEFT_L2] = (FeatureSlot){
       .active = true, .content = d->middle_left_line2_content, .color_mode = d->middle_left_line2_color_mode,
       .is_top = is_digital_top, .is_left = true, .is_middle = false, .is_edge = true,
+      .use_primitive_pipeline = true,
       .top_offset = is_digital_top ? row2_off : 0, .bottom_shift = is_digital_top ? 0 : row2_off, .middle_inset = 0,
       .center_horizontal = false, .center_vertical = false, .allow_outline = true,
       .needs_second_refresh = feature_rules_content_needs_second_refresh(d->middle_left_line2_content),
@@ -239,6 +251,7 @@ void feature_layout_recompute(FeaturesState *state) {
     state->slots[SLOT_UPPER_L1] = (FeatureSlot){ // reused: digital left column, row 3 -- reads upper_middle_line1
       .active = true, .content = d->upper_middle_line1_content, .color_mode = d->upper_middle_line1_color_mode,
       .is_top = is_digital_top, .is_left = true, .is_middle = false, .is_edge = true,
+      .use_primitive_pipeline = true,
       .top_offset = row3_off, .bottom_shift = row3_off, .middle_inset = 0,
       .center_horizontal = false, .center_vertical = false, .allow_outline = true,
       .needs_second_refresh = feature_rules_content_needs_second_refresh(d->upper_middle_line1_content),
@@ -247,6 +260,7 @@ void feature_layout_recompute(FeaturesState *state) {
     state->slots[SLOT_RIGHT_L1] = (FeatureSlot){
       .active = true, .content = d->middle_right_line1_content, .color_mode = d->middle_right_line1_color_mode,
       .is_top = is_digital_top, .is_left = false, .is_middle = false, .is_edge = true,
+      .use_primitive_pipeline = true,
       .top_offset = is_digital_top ? row1_off : 0, .bottom_shift = is_digital_top ? 0 : row1_off, .middle_inset = 0,
       .center_horizontal = false, .center_vertical = false, .allow_outline = true,
       .needs_second_refresh = feature_rules_content_needs_second_refresh(d->middle_right_line1_content),
@@ -254,6 +268,7 @@ void feature_layout_recompute(FeaturesState *state) {
     state->slots[SLOT_RIGHT_L2] = (FeatureSlot){
       .active = true, .content = d->middle_right_line2_content, .color_mode = d->middle_right_line2_color_mode,
       .is_top = is_digital_top, .is_left = false, .is_middle = false, .is_edge = true,
+      .use_primitive_pipeline = true,
       .top_offset = is_digital_top ? row2_off : 0, .bottom_shift = is_digital_top ? 0 : row2_off, .middle_inset = 0,
       .center_horizontal = false, .center_vertical = false, .allow_outline = true,
       .needs_second_refresh = feature_rules_content_needs_second_refresh(d->middle_right_line2_content),
@@ -261,6 +276,7 @@ void feature_layout_recompute(FeaturesState *state) {
     state->slots[SLOT_UPPER_L2] = (FeatureSlot){ // reused: digital right column, row 3 -- reads upper_middle_line2
       .active = true, .content = d->upper_middle_line2_content, .color_mode = d->upper_middle_line2_color_mode,
       .is_top = is_digital_top, .is_left = false, .is_middle = false, .is_edge = true,
+      .use_primitive_pipeline = true,
       .top_offset = row3_off, .bottom_shift = row3_off, .middle_inset = 0,
       .center_horizontal = false, .center_vertical = false, .allow_outline = true,
       .needs_second_refresh = feature_rules_content_needs_second_refresh(d->upper_middle_line2_content),
@@ -270,6 +286,7 @@ void feature_layout_recompute(FeaturesState *state) {
     state->slots[SLOT_BOTTOM_L1] = (FeatureSlot){
       .active = true, .content = d->bottom_middle_line1_content, .color_mode = d->bottom_middle_line1_color_mode,
       .is_top = is_digital_top, .is_left = true, .is_middle = false, .is_edge = false,
+      .use_primitive_pipeline = true,
       .top_offset = 0, .bottom_shift = 0, .middle_inset = 0,
       .center_horizontal = false, .center_vertical = false, .allow_outline = true,
       .custom_box = true, .box_x = clock_x, .box_w = clock_w,
@@ -282,6 +299,7 @@ void feature_layout_recompute(FeaturesState *state) {
   state->slots[SLOT_CORNER_TL] = (FeatureSlot){
     .active = true, .content = d->corner_content[0], .color_mode = d->corner_color_mode[0],
     .is_top = true, .is_left = true, .is_middle = false, .is_edge = true,
+    .use_primitive_pipeline = true,
     .top_offset = FEATURE_LAYOUT_CORNER_INSET_PX + top_corner_shift, .bottom_shift = 0,
     .center_horizontal = false, .center_vertical = false, .allow_outline = true,
     .needs_second_refresh = feature_rules_content_needs_second_refresh(d->corner_content[0]),
@@ -289,6 +307,7 @@ void feature_layout_recompute(FeaturesState *state) {
   state->slots[SLOT_CORNER_TR] = (FeatureSlot){
     .active = true, .content = d->corner_content[1], .color_mode = d->corner_color_mode[1],
     .is_top = true, .is_left = false, .is_middle = false, .is_edge = true,
+    .use_primitive_pipeline = true,
     .top_offset = FEATURE_LAYOUT_CORNER_INSET_PX + top_corner_shift, .bottom_shift = 0,
     .center_horizontal = false, .center_vertical = false, .allow_outline = true,
     .needs_second_refresh = feature_rules_content_needs_second_refresh(d->corner_content[1]),
@@ -298,6 +317,7 @@ void feature_layout_recompute(FeaturesState *state) {
   state->slots[SLOT_CORNER_BL] = (FeatureSlot){
     .active = true, .content = d->corner_content[2], .color_mode = d->corner_color_mode[2],
     .is_top = false, .is_left = true, .is_middle = false, .is_edge = true,
+    .use_primitive_pipeline = true,
     .top_offset = 0, .bottom_shift = bottom_corner_shift,
     .center_horizontal = false, .center_vertical = false, .allow_outline = true,
     .needs_second_refresh = feature_rules_content_needs_second_refresh(d->corner_content[2]),
@@ -305,6 +325,7 @@ void feature_layout_recompute(FeaturesState *state) {
   state->slots[SLOT_CORNER_BR] = (FeatureSlot){
     .active = true, .content = d->corner_content[3], .color_mode = d->corner_color_mode[3],
     .is_top = false, .is_left = false, .is_middle = false, .is_edge = true,
+    .use_primitive_pipeline = true,
     .top_offset = 0, .bottom_shift = bottom_corner_shift,
     .center_horizontal = false, .center_vertical = false, .allow_outline = true,
     .needs_second_refresh = feature_rules_content_needs_second_refresh(d->corner_content[3]),

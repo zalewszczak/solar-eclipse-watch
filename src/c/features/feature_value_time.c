@@ -27,42 +27,99 @@ void __attribute__((noinline)) feature_value_date_compute(FeatureSlot *slot, uin
   GColor dyn = main_color;
 
   switch (content) {
-    case 12: { // short date (multi-value), e.g. "Mon 15"
-      char day_buf[4];
+    case 12: { // short date, atomically decomposed (Phase 8): weekday(mixed), space, day
+      char day_buf[4], num_buf[4];
       strftime(day_buf, sizeof(day_buf), "%a", t);
-      snprintf(buf, sizeof(buf), "%s %d", day_buf, t->tm_mday);
-      dyn = feature_colors_date_year_progress_gradient(t);
-      break;
+      snprintf(num_buf, sizeof(num_buf), "%d", t->tm_mday);
+      GColor c = feature_value_resolve_flat_color(color_mode, feature_colors_date_year_progress_gradient(t), main_color, accent_color);
+      slot->segment_count = 3;
+      feature_value_set_text_segment(slot, 0, day_buf, c);
+      feature_value_set_text_segment(slot, 1, " ", c);
+      feature_value_set_text_segment(slot, 2, num_buf, c);
+      return;
     }
     case 18: { // digital time ("Time") -- day/night gradient off the actual sunrise/sunset
       strftime(buf, sizeof(buf), clock_is_24h_style() ? "%H:%M" : "%I:%M %p", t);
       dyn = feature_colors_daynight_gradient(now, data->sun_rise, data->sun_set);
       break;
     }
-    case 19: { // week number (single-value) -- 7-stop gradient over its own 1-52 range
+    case 19: { // week number, atomically decomposed (Phase 8): "WK" label, space, number
       char wk_buf[4];
       strftime(wk_buf, sizeof(wk_buf), "%V", t);
-      snprintf(buf, sizeof(buf), "WK %s", wk_buf);
-      dyn = feature_colors_seven_stop_gradient(atoi(wk_buf), 1, 52);
-      break;
+      GColor c = feature_value_resolve_flat_color(color_mode, feature_colors_seven_stop_gradient(atoi(wk_buf), 1, 52), main_color, accent_color);
+      slot->segment_count = 3;
+      feature_value_set_text_segment(slot, 0, "WK", c);
+      feature_value_set_text_segment(slot, 1, " ", c);
+      feature_value_set_text_segment(slot, 2, wk_buf, c);
+      return;
     }
-    case 21: { // month + day (multi-value), e.g. "SEP 11"
-      char mon_buf[4];
+    case 21: { // month + day, atomically decomposed (Phase 8): month(upper), space, day
+      char mon_buf[4], num_buf[4];
       strftime(mon_buf, sizeof(mon_buf), "%b", t);
       feature_rules_to_upper_str(mon_buf);
-      snprintf(buf, sizeof(buf), "%s %d", mon_buf, t->tm_mday);
-      dyn = feature_colors_date_year_progress_gradient(t);
-      break;
+      snprintf(num_buf, sizeof(num_buf), "%d", t->tm_mday);
+      GColor c = feature_value_resolve_flat_color(color_mode, feature_colors_date_year_progress_gradient(t), main_color, accent_color);
+      slot->segment_count = 3;
+      feature_value_set_text_segment(slot, 0, mon_buf, c);
+      feature_value_set_text_segment(slot, 1, " ", c);
+      feature_value_set_text_segment(slot, 2, num_buf, c);
+      return;
     }
     case 22: snprintf(buf, sizeof(buf), "%d", t->tm_mday); dyn = feature_colors_seven_stop_gradient(t->tm_mday, 1, 31); break;
     case 23: strftime(buf, sizeof(buf), "%a", t); feature_rules_to_upper_str(buf); dyn = feature_colors_seven_stop_gradient(t->tm_wday, 0, 6); break;
     case 24: strftime(buf, sizeof(buf), "%A", t); dyn = feature_colors_seven_stop_gradient(t->tm_wday, 0, 6); break;
     case 25: strftime(buf, sizeof(buf), "%b", t); feature_rules_to_upper_str(buf); dyn = feature_colors_seven_stop_gradient(t->tm_mon, 0, 11); break;
     case 26: strftime(buf, sizeof(buf), "%B", t); dyn = feature_colors_seven_stop_gradient(t->tm_mon, 0, 11); break;
-    case 27: snprintf(buf, sizeof(buf), "%d/%d", t->tm_mday, t->tm_mon + 1); dyn = feature_colors_date_year_progress_gradient(t); break;
-    case 28: snprintf(buf, sizeof(buf), "%d/%d", t->tm_mon + 1, t->tm_mday); dyn = feature_colors_date_year_progress_gradient(t); break;
-    case 29: snprintf(buf, sizeof(buf), "%d/%d/%d", t->tm_mday, t->tm_mon + 1, t->tm_year + 1900); dyn = feature_colors_date_year_progress_gradient(t); break;
-    case 30: snprintf(buf, sizeof(buf), "%d/%d/%02d", t->tm_mon + 1, t->tm_mday, (t->tm_year + 1900) % 100); dyn = feature_colors_date_year_progress_gradient(t); break;
+    case 27: { // day/month, atomically decomposed (Phase 8): day, slash, month
+      char day_buf[4], mon_buf[4];
+      snprintf(day_buf, sizeof(day_buf), "%d", t->tm_mday);
+      snprintf(mon_buf, sizeof(mon_buf), "%d", t->tm_mon + 1);
+      GColor c = feature_value_resolve_flat_color(color_mode, feature_colors_date_year_progress_gradient(t), main_color, accent_color);
+      slot->segment_count = 3;
+      feature_value_set_text_segment(slot, 0, day_buf, c);
+      feature_value_set_text_segment(slot, 1, "/", c);
+      feature_value_set_text_segment(slot, 2, mon_buf, c);
+      return;
+    }
+    case 28: { // month/day, atomically decomposed (Phase 8): month, slash, day
+      char day_buf[4], mon_buf[4];
+      snprintf(mon_buf, sizeof(mon_buf), "%d", t->tm_mon + 1);
+      snprintf(day_buf, sizeof(day_buf), "%d", t->tm_mday);
+      GColor c = feature_value_resolve_flat_color(color_mode, feature_colors_date_year_progress_gradient(t), main_color, accent_color);
+      slot->segment_count = 3;
+      feature_value_set_text_segment(slot, 0, mon_buf, c);
+      feature_value_set_text_segment(slot, 1, "/", c);
+      feature_value_set_text_segment(slot, 2, day_buf, c);
+      return;
+    }
+    case 29: { // day/month/year, atomically decomposed (Phase 8)
+      char day_buf[4], mon_buf[4], yr_buf[6];
+      snprintf(day_buf, sizeof(day_buf), "%d", t->tm_mday);
+      snprintf(mon_buf, sizeof(mon_buf), "%d", t->tm_mon + 1);
+      snprintf(yr_buf, sizeof(yr_buf), "%d", t->tm_year + 1900);
+      GColor c = feature_value_resolve_flat_color(color_mode, feature_colors_date_year_progress_gradient(t), main_color, accent_color);
+      slot->segment_count = 5;
+      feature_value_set_text_segment(slot, 0, day_buf, c);
+      feature_value_set_text_segment(slot, 1, "/", c);
+      feature_value_set_text_segment(slot, 2, mon_buf, c);
+      feature_value_set_text_segment(slot, 3, "/", c);
+      feature_value_set_text_segment(slot, 4, yr_buf, c);
+      return;
+    }
+    case 30: { // month/day/year(short), atomically decomposed (Phase 8)
+      char day_buf[4], mon_buf[4], yr_buf[4];
+      snprintf(mon_buf, sizeof(mon_buf), "%d", t->tm_mon + 1);
+      snprintf(day_buf, sizeof(day_buf), "%d", t->tm_mday);
+      snprintf(yr_buf, sizeof(yr_buf), "%02d", (t->tm_year + 1900) % 100);
+      GColor c = feature_value_resolve_flat_color(color_mode, feature_colors_date_year_progress_gradient(t), main_color, accent_color);
+      slot->segment_count = 5;
+      feature_value_set_text_segment(slot, 0, mon_buf, c);
+      feature_value_set_text_segment(slot, 1, "/", c);
+      feature_value_set_text_segment(slot, 2, day_buf, c);
+      feature_value_set_text_segment(slot, 3, "/", c);
+      feature_value_set_text_segment(slot, 4, yr_buf, c);
+      return;
+    }
     case 63: { // full time with seconds -- day/night gradient, same as digital time
       strftime(buf, sizeof(buf), clock_is_24h_style() ? "%H:%M:%S" : "%I:%M:%S %p", t);
       dyn = feature_colors_daynight_gradient(now, data->sun_rise, data->sun_set);
@@ -82,28 +139,52 @@ void __attribute__((noinline)) feature_value_date_compute(FeatureSlot *slot, uin
     case 71: snprintf(buf, sizeof(buf), "%d", t->tm_sec / 10); dyn = feature_colors_linear_white_black(t->tm_sec / 10, 0, 5); break;
     case 72: snprintf(buf, sizeof(buf), "%d", t->tm_sec % 10); dyn = feature_colors_linear_white_black(t->tm_sec % 10, 0, 9); break;
     case 86: snprintf(buf, sizeof(buf), "%s", t->tm_hour < 12 ? "AM" : "PM"); dyn = (t->tm_hour < 12) ? GColorBlack : GColorWhite; break;
-    case 98: { // weekday + day/month (multi-value), e.g. "MON 24/9"
-      char day_buf[4];
+    case 98: { // weekday + day/month, atomically decomposed (Phase 8): weekday(upper), space, day, slash, month
+      char day_buf[4], daynum_buf[4], mon_buf[4];
       strftime(day_buf, sizeof(day_buf), "%a", t); feature_rules_to_upper_str(day_buf);
-      snprintf(buf, sizeof(buf), "%s %d/%d", day_buf, t->tm_mday, t->tm_mon + 1);
-      dyn = feature_colors_date_year_progress_gradient(t);
-      break;
+      snprintf(daynum_buf, sizeof(daynum_buf), "%d", t->tm_mday);
+      snprintf(mon_buf, sizeof(mon_buf), "%d", t->tm_mon + 1);
+      GColor c = feature_value_resolve_flat_color(color_mode, feature_colors_date_year_progress_gradient(t), main_color, accent_color);
+      slot->segment_count = 5;
+      feature_value_set_text_segment(slot, 0, day_buf, c);
+      feature_value_set_text_segment(slot, 1, " ", c);
+      feature_value_set_text_segment(slot, 2, daynum_buf, c);
+      feature_value_set_text_segment(slot, 3, "/", c);
+      feature_value_set_text_segment(slot, 4, mon_buf, c);
+      return;
     }
-    case 99: { // weekday + month/day (multi-value), e.g. "MON 9/24"
-      char day_buf[4];
+    case 99: { // weekday + month/day, atomically decomposed (Phase 8): weekday(upper), space, month, slash, day
+      char day_buf[4], daynum_buf[4], mon_buf[4];
       strftime(day_buf, sizeof(day_buf), "%a", t); feature_rules_to_upper_str(day_buf);
-      snprintf(buf, sizeof(buf), "%s %d/%d", day_buf, t->tm_mon + 1, t->tm_mday);
-      dyn = feature_colors_date_year_progress_gradient(t);
-      break;
+      snprintf(mon_buf, sizeof(mon_buf), "%d", t->tm_mon + 1);
+      snprintf(daynum_buf, sizeof(daynum_buf), "%d", t->tm_mday);
+      GColor c = feature_value_resolve_flat_color(color_mode, feature_colors_date_year_progress_gradient(t), main_color, accent_color);
+      slot->segment_count = 5;
+      feature_value_set_text_segment(slot, 0, day_buf, c);
+      feature_value_set_text_segment(slot, 1, " ", c);
+      feature_value_set_text_segment(slot, 2, mon_buf, c);
+      feature_value_set_text_segment(slot, 3, "/", c);
+      feature_value_set_text_segment(slot, 4, daynum_buf, c);
+      return;
     }
-    case 106: { // "long date" + week number (multi-value), e.g. "Mon 23 Sep WK34"
-      char day_buf[4], mon_buf[4], wk_buf[4];
+    case 106: { // "long date" + week number, atomically decomposed (Phase 8):
+                // weekday(mixed), space, day, space, month(mixed), space, "WK" label, week number
+      char day_buf[4], daynum_buf[4], mon_buf[4], wk_buf[4];
       strftime(day_buf, sizeof(day_buf), "%a", t);
+      snprintf(daynum_buf, sizeof(daynum_buf), "%d", t->tm_mday);
       strftime(mon_buf, sizeof(mon_buf), "%b", t);
       strftime(wk_buf, sizeof(wk_buf), "%V", t);
-      snprintf(buf, sizeof(buf), "%s %d %s WK%s", day_buf, t->tm_mday, mon_buf, wk_buf);
-      dyn = feature_colors_date_year_progress_gradient(t);
-      break;
+      GColor c = feature_value_resolve_flat_color(color_mode, feature_colors_date_year_progress_gradient(t), main_color, accent_color);
+      slot->segment_count = 8;
+      feature_value_set_text_segment(slot, 0, day_buf, c);
+      feature_value_set_text_segment(slot, 1, " ", c);
+      feature_value_set_text_segment(slot, 2, daynum_buf, c);
+      feature_value_set_text_segment(slot, 3, " ", c);
+      feature_value_set_text_segment(slot, 4, mon_buf, c);
+      feature_value_set_text_segment(slot, 5, " ", c);
+      feature_value_set_text_segment(slot, 6, "WK", c);
+      feature_value_set_text_segment(slot, 7, wk_buf, c);
+      return;
     }
     default:
       slot->segment_count = 0;
@@ -123,15 +204,31 @@ void __attribute__((noinline)) feature_value_timezone_compute(FeatureSlot *slot,
   int32_t local_secs_of_day = ((local_time % 86400) + 86400) % 86400;
   int local_hour24 = (int)(local_secs_of_day / 3600);
   int local_min = (int)((local_secs_of_day % 3600) / 60);
-  char buf[16];
+  char time_buf[8];
+  GColor c = feature_value_resolve_flat_color(color_mode, feature_timezone_daylight_color(local_hour24), main_color, accent_color);
+  // Atomic decomposition (Phase 8): abbr + space + time, plus AM/PM as its
+  // own primitive (reusing PRIM_AMPM, the same one content 86 uses) in 12h
+  // style, instead of one composed "PST 07:45" string.
+  uint8_t zone_idx = (uint8_t)(content - 44);
   if (clock_is_24h_style()) {
-    snprintf(buf, sizeof(buf), "%s %02d:%02d", tz->abbr, local_hour24, local_min);
+    snprintf(time_buf, sizeof(time_buf), "%02d:%02d", local_hour24, local_min);
+    slot->segment_count = 3;
+    feature_value_set_text_segment(slot, 0, tz->abbr, c);
+    feature_value_set_text_segment(slot, 1, " ", c);
+    feature_value_set_text_segment(slot, 2, time_buf, c);
+    slot->segments[0].icon_extra = zone_idx; // aux, carried through even though these are text segments
+    slot->segments[2].icon_extra = zone_idx;
   } else {
     int hour12 = local_hour24 % 12; if (hour12 == 0) hour12 = 12;
-    snprintf(buf, sizeof(buf), "%s %d:%02d%s", tz->abbr, hour12, local_min, local_hour24 < 12 ? "AM" : "PM");
+    snprintf(time_buf, sizeof(time_buf), "%d:%02d", hour12, local_min);
+    slot->segment_count = 4;
+    feature_value_set_text_segment(slot, 0, tz->abbr, c);
+    feature_value_set_text_segment(slot, 1, " ", c);
+    feature_value_set_text_segment(slot, 2, time_buf, c);
+    feature_value_set_text_segment(slot, 3, local_hour24 < 12 ? "AM" : "PM", c);
+    slot->segments[0].icon_extra = zone_idx;
+    slot->segments[2].icon_extra = zone_idx;
   }
-  slot->segment_count = 1;
-  feature_value_set_text_segment(slot, 0, buf, feature_value_resolve_flat_color(color_mode, feature_timezone_daylight_color(local_hour24), main_color, accent_color));
 }
 
 // sky/astronomy cluster: moon phase, location, sunrise/sunset,
@@ -143,7 +240,11 @@ void __attribute__((noinline)) feature_value_sky_compute(FeatureSlot *slot, uint
 
   switch (content) {
     case 11: { // Moon phase -- icon + short name, no natural "value" to grade -- always white
-      snprintf(buf, sizeof(buf), "%s", celestial_moon_phase_short_name(data->moon_phase_pct, data->moon_waxing));
+      if (data->moon_phase_display[0] != '\0') {
+        snprintf(buf, sizeof(buf), "%s", data->moon_phase_display);
+      } else {
+        snprintf(buf, sizeof(buf), "%s", celestial_moon_phase_short_name(data->moon_phase_pct, data->moon_waxing));
+      }
       GColor c = feature_value_resolve_flat_color(color_mode, GColorWhite, main_color, accent_color);
       slot->segment_count = 2;
       feature_value_set_icon_segment(slot, 0, 4, c);
@@ -192,6 +293,12 @@ void __attribute__((noinline)) feature_value_sky_compute(FeatureSlot *slot, uint
       if (data->error_code != 0) {
         snprintf(buf, sizeof(buf), "ERR %d", data->error_code);
         c = GColorRed;
+      } else if (data->meteor_display[0] != '\0') {
+        // Phase 7: PKJS already replicates the active/inactive check below
+        // (meteor_intensity > 0 && a real name) into a single "name or
+        // N/A" string -- see weather-normalize.js's sky-display.js.
+        snprintf(buf, sizeof(buf), "%s", data->meteor_display);
+        c = feature_value_color_from_packed(data->meteor_color);
       } else if (data->meteor_intensity > 0 && data->meteor_shower_name[0] != '\0') {
         snprintf(buf, sizeof(buf), "%s", data->meteor_shower_name);
         c = feature_value_resolve_flat_color(color_mode, feature_colors_meteor_intensity_gradient(data->meteor_intensity), main_color, accent_color);
@@ -209,7 +316,11 @@ void __attribute__((noinline)) feature_value_sky_compute(FeatureSlot *slot, uint
         snprintf(buf, sizeof(buf), "ERR %d", data->error_code);
         c = GColorRed;
       } else {
-        snprintf(buf, sizeof(buf), "Rings %d%%", data->saturn_ring_open_pct);
+        if (data->saturn_rings_display[0] != '\0') {
+          snprintf(buf, sizeof(buf), "%s", data->saturn_rings_display);
+        } else {
+          snprintf(buf, sizeof(buf), "Rings %d%%", data->saturn_ring_open_pct);
+        }
         c = feature_value_resolve_flat_color(color_mode, main_color, main_color, accent_color);
       }
       feature_value_slot_set(slot, 24, buf, c);
@@ -264,6 +375,9 @@ void __attribute__((noinline)) feature_value_sky_compute(FeatureSlot *slot, uint
       if (data->aurora_error_code != 0) {
         snprintf(buf, sizeof(buf), "ERR %d", data->aurora_error_code);
         c = GColorRed;
+      } else if (data->aurora_kp_display[0] != '\0') {
+        snprintf(buf, sizeof(buf), "%s", data->aurora_kp_display);
+        c = feature_value_resolve_flat_color(color_mode, feature_value_color_from_packed(data->aurora_kp_color), main_color, accent_color);
       } else {
         snprintf(buf, sizeof(buf), "Kp %d.%d", data->aurora_kp_x10 / 10, data->aurora_kp_x10 % 10);
         c = feature_value_resolve_flat_color(color_mode, feature_colors_white_to_red_gradient(data->aurora_kp_x10), main_color, accent_color);

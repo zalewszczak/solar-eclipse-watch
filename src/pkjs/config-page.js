@@ -183,6 +183,21 @@ var configFeatures = require('./config/config-features');
 var CORNER_CONTENT_OPTIONS = configFeatures.CORNER_CONTENT_OPTIONS;
 var cornerContentOptionsHtml = configFeatures.cornerContentOptionsHtml;
 
+// Primitive-strip preview (Feature Primitive Refactor Phase 9) -- see
+// config/primitive-decompose.js's own header for what this can and can't
+// do yet. Only the raw decomposition table is needed here; the actual
+// chip-building runs client-side (see PRIMITIVE_DECOMPOSITIONS/
+// primitiveChipsForContent in the generated <script> below), same pattern
+// as CORNER_CATEGORIES/CORNER_PREVIEW_LABELS.
+var primitiveDecomposeModule = require('./config/primitive-decompose');
+var primitiveAtomicDecompositions = primitiveDecomposeModule.ATOMIC_DECOMPOSITIONS;
+// Phase 9 composer: the palette of resolver-covered primitives a person
+// can actually build a custom sequence from, and the raw numeric
+// transport table (so "start from this content" can seed the composer --
+// see PRIMITIVE_TRANSPORT_SEQUENCES in the generated script below).
+var primitivePalette = primitiveDecomposeModule.PRIMITIVE_PALETTE;
+var primitiveTransportSequences = primitiveDecomposeModule.PRIMITIVE_TRANSPORT_SEQUENCES;
+
 // Whether a font renders Roman numerals correctly now lives on
 // FONT_LOOKUP itself (each entry's own `romanOk` field) -- see its
 // comment in presets-lookups.js. The Roman numerals checkbox in the
@@ -655,6 +670,19 @@ directWebfontStyle() +
 '  .example-style-modal-img { max-width: min(50%, 3cm); width: auto; height: auto; margin: 0 auto; border-radius: 8px; display: block; }' +
 '  .example-style-modal-title { font-weight: 700; font-size: 16px; margin-top: 10px; text-align: center; color: var(--text-strong); }' +
 '  .mode-btn-group { display: flex; width: 100%; margin-top: 6px; border-radius: 6px; overflow: hidden; border: 1px solid var(--border); box-sizing: border-box; }' +
+// Primitive-strip preview (Feature Primitive Refactor Phase 9) -- a row of
+// small chips under the Content dropdown showing what that content
+// actually decomposes into on the watch (see primitiveChipsForContent()
+// below). Read-only for now (no drag/append/remove -- see
+// config/primitive-decompose.js's header for why), so styled as a plain
+// inline preview, not as interactive buttons: no hover/active states,
+// smaller and quieter than .mode-btn/.category-btn.
+'  .primitive-strip { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }' +
+'  .primitive-chip { display: inline-block; padding: 3px 8px; font-size: 11px; font-weight: 600; border-radius: 10px; line-height: 1.4; }' +
+'  .primitive-chip-value { background: var(--btn-bg); color: var(--text-strong); border: 1px solid var(--border); }' +
+'  .primitive-chip-label { background: #ff9200; color: #fff; }' +
+'  .primitive-chip-icon { background: var(--btn-bg); color: var(--text-faint); border: 1px dashed var(--border); font-style: italic; }' +
+'  .primitive-chip-space, .primitive-chip-slash { background: none; color: var(--text-faint); padding: 3px 2px; font-weight: 700; }' +
 // 9 icon-only, roughly-square buttons for the slot editor's category
 // picker (replacing what used to be a plain <select>). A fixed 44px
 // button size (>= this page's other buttons -- .slider-step-btn is
@@ -936,6 +964,7 @@ directWebfontStyle() +
 '    <input type="hidden" id="slotEditCategory">' +
 '    <label for="slotEditContent" style="margin-top:10px;">Content</label>' +
 '    <select id="slotEditContent" onchange="onSlotEditContentChange()">' + cornerContentOptionsHtml(0) + '</select>' +
+'    <div class="primitive-strip" id="slotEditPrimitives" style="display:none;"></div>' +
 '    <div class="help" id="slotEditCategoryHelp" style="display:none;">Shows the time-zone option used for the selected location. Daylight saving rules may vary by location.</div>' +
 '    <div class="mode-btn-group" id="slotEditColorGroup" style="margin-top:10px;">' +
 '      <button type="button" class="mode-btn" onclick="slotEditorSelectColor(0)">MONO</button>' +
@@ -2610,6 +2639,37 @@ require('./config/config-preview') +
 '    if (it.preview) CORNER_PREVIEW_LABELS[it.id] = it.preview;' +
 '  });' +
 '});' +
+// Primitive-strip preview (Feature Primitive Refactor Phase 9) -- client-
+// side mirror of config/primitive-decompose.js's primitiveChipsForContent(),
+// same "serialize the canonical table, don't hand-duplicate it" pattern as
+// CORNER_CATEGORIES above. See that module's header comment for what a
+// chip is and why this can't yet be a true composable primitive editor
+// (needs Phase 3's real primitive-sequence transport first).
+'var PRIMITIVE_DECOMPOSITIONS = ' + JSON.stringify(primitiveAtomicDecompositions) + ';' +
+'function primitiveChipsForContent(contentId) {' +
+'  var idNum = parseInt(contentId, 10);' +
+'  if (idNum === 0) return [];' +
+'  if (PRIMITIVE_DECOMPOSITIONS[idNum]) return PRIMITIVE_DECOMPOSITIONS[idNum];' +
+'  if (idNum >= 44 && idNum <= 62) {' +
+'    var previewText = CORNER_PREVIEW_LABELS[idNum] || "";' +
+'    var spaceIdx = previewText.indexOf(" ");' +
+'    if (spaceIdx < 0) return previewText ? [{ kind: "value", text: previewText }] : [];' +
+'    return [{ kind: "value", text: previewText.slice(0, spaceIdx) }, { kind: "space", text: " " },' +
+'            { kind: "value", text: previewText.slice(spaceIdx + 1) }];' +
+'  }' +
+'  var fallback = CORNER_PREVIEW_LABELS[idNum];' +
+'  return fallback ? [{ kind: "value", text: fallback }] : [];' +
+'}' +
+'function renderSlotEditPrimitiveStrip(contentId) {' +
+'  var strip = document.getElementById("slotEditPrimitives");' +
+'  if (!strip) return;' +
+'  var chips = primitiveChipsForContent(contentId);' +
+'  if (!chips.length) { strip.style.display = "none"; strip.innerHTML = ""; return; }' +
+'  strip.style.display = "flex";' +
+'  strip.innerHTML = chips.map(function (chip) {' +
+'    return "<span class=\'primitive-chip primitive-chip-" + chip.kind + "\'>" + esc(chip.text) + "</span>";' +
+'  }).join("");' +
+'}' +
 'function categoryForContentId(contentId) {' +
 '  var idNum = parseInt(contentId, 10);' +
 '  for (var i = 0; i < CORNER_CATEGORIES.length; i++) {' +
@@ -2817,7 +2877,9 @@ require('./config/config-preview') +
 '  setSlotEditorColorButtons(value);' +
 '}' +
 'function onSlotEditContentChange() {' +
-'  setSlotEditorColorGroupVisibility(document.getElementById("slotEditContent").value);' +
+'  var contentVal = document.getElementById("slotEditContent").value;' +
+'  setSlotEditorColorGroupVisibility(contentVal);' +
+'  renderSlotEditPrimitiveStrip(contentVal);' +
 '}' +
 // Renders the 9 category picker buttons once (their icons/order never
 // change at runtime, unlike Content below which is rebuilt per open) --
@@ -2873,6 +2935,7 @@ require('./config/config-preview') +
 '  contentSelect.disabled = (categoryId === "none");' +
 '  document.getElementById("slotEditCategoryHelp").style.display = (categoryId === "timezone") ? "" : "none";' +
 '  setSlotEditorColorGroupVisibility(contentVal);' +
+'  renderSlotEditPrimitiveStrip(contentVal);' +
 '  setSlotEditorColorButtons(colorVal);' +
 '  document.getElementById("slotEditModal").className = "modal-overlay open";' +
 '}' +

@@ -11,6 +11,17 @@ GColor feature_value_resolve_flat_color(uint8_t color_mode, GColor dynamic_color
   }
 }
 
+// Phase 7 (Feature Primitive Refactor): unpacks a PKJS-sent GColor8 byte
+// (see eclipse_data.h's current_temp_color et al.) the same way
+// eclipse_ui.c's eclipse_ui_color_from_packed() does for the SETTINGS
+// custom-color fields -- GColor8 IS its own wire byte, no conversion table
+// needed, just reinterpreting the byte as the struct.
+GColor feature_value_color_from_packed(uint8_t packed) {
+  GColor color;
+  color.argb = packed;
+  return color;
+}
+
 void feature_value_set_icon_segment(FeatureSlot *slot, int i, uint8_t icon_kind, GColor color) {
   RenderSegment *g = &slot->segments[i];
   g->is_icon = true;

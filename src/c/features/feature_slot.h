@@ -2,6 +2,7 @@
 
 #include <pebble.h>
 #include "../data/eclipse_data.h"
+#include "./primitives/primitive_storage.h"
 
 // Shared feature-row geometry used by both layout and rendering.
 #define CORNER_ROW_H 24
@@ -49,6 +50,18 @@ typedef struct FeatureSlot {
   GColor pill_bg;
   int16_t segment_count;
   RenderSegment segments[MAX_RENDER_SEGMENTS];
+
+  // Feature Primitive Refactor (see FEATURE_PRIMITIVE_REFACTOR_REPORT_REVISED.md):
+  // when true, this slot's value/layout/draw goes through the primitive
+  // pipeline (primitives/primitive_bridge.c, primitive_layout.c,
+  // primitive_renderer.c) instead of the legacy segment path above. Set only
+  // for the corner and middle-left/middle-right slots by feature_layout.c --
+  // see IMPLEMENTATION_NOTES.md for why this pass is scoped to those slots.
+  // `segments`/`segment_count` above are still populated either way (the
+  // primitive bridge is built from them) and still used for the legacy
+  // upper/bottom slots.
+  bool use_primitive_pipeline;
+  PrimitiveFeature primitives;
 } FeatureSlot;
 
 typedef struct {

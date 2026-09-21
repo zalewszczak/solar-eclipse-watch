@@ -1,6 +1,7 @@
 #include "./feature_render.h"
 #include "./feature_icons.h"
 #include "./feature_icon_assets.h"
+#include "./primitives/primitive_renderer.h"
 
 #define CORNER_INSET_PX 2
 
@@ -12,22 +13,39 @@ GColor feature_render_contrasting_outline_color(GColor c) {
   return (luma >= 9) ? GColorBlack : GColorWhite;
 }
 
+// Split into two halves so the primitive renderer (primitive_renderer.c) can
+// run a genuine outline-pass-then-content-pass across every text primitive
+// in a feature (Section 13), instead of interleaving outline+content per
+// segment as the legacy per-slot path below still does. feature_render_draw_text_outlined()
+// is kept calling both, unchanged, for the legacy (non-primitive) slots.
+
+void feature_render_draw_text_outline_only(GContext *ctx, const char *text, GFont font, GRect box,
+                                           GTextOverflowMode overflow, GTextAlignment alignment,
+                                           GColor color, uint8_t outline_style) {
+  if (outline_style == 0) return;
+  const GPoint *offsets;
+  int offset_count;
+  feature_icon_assets_get_outline_offsets(outline_style, &offsets, &offset_count);
+  graphics_context_set_text_color(ctx, feature_render_contrasting_outline_color(color));
+  for (int i = 0; i < offset_count; i++) {
+    GRect shifted = GRect(box.origin.x + offsets[i].x, box.origin.y + offsets[i].y,
+                           box.size.w, box.size.h);
+    graphics_draw_text(ctx, text, font, shifted, overflow, alignment, NULL);
+  }
+}
+
+void feature_render_draw_text_content_only(GContext *ctx, const char *text, GFont font, GRect box,
+                                           GTextOverflowMode overflow, GTextAlignment alignment,
+                                           GColor color) {
+  graphics_context_set_text_color(ctx, color);
+  graphics_draw_text(ctx, text, font, box, overflow, alignment, NULL);
+}
+
 void feature_render_draw_text_outlined(GContext *ctx, const char *text, GFont font, GRect box,
                                        GTextOverflowMode overflow, GTextAlignment alignment,
                                        GColor color, uint8_t outline_style) {
-  if (outline_style != 0) {
-    const GPoint *offsets;
-    int offset_count;
-    feature_icon_assets_get_outline_offsets(outline_style, &offsets, &offset_count);
-    graphics_context_set_text_color(ctx, feature_render_contrasting_outline_color(color));
-    for (int i = 0; i < offset_count; i++) {
-      GRect shifted = GRect(box.origin.x + offsets[i].x, box.origin.y + offsets[i].y,
-                             box.size.w, box.size.h);
-      graphics_draw_text(ctx, text, font, shifted, overflow, alignment, NULL);
-    }
-  }
-  graphics_context_set_text_color(ctx, color);
-  graphics_draw_text(ctx, text, font, box, overflow, alignment, NULL);
+  feature_render_draw_text_outline_only(ctx, text, font, box, overflow, alignment, color, outline_style);
+  feature_render_draw_text_content_only(ctx, text, font, box, overflow, alignment, color);
 }
 
 void feature_render_resolve_segment_offsets(FeatureSlot *slot, GFont font, int16_t font_h) {
@@ -74,7 +92,12 @@ void feature_render_draw_slot(GContext *ctx, GRect bounds, const FeatureSlot *sl
                               GFont font, int16_t font_h, int16_t font_offset,
                               uint8_t outline_style, uint8_t icon_style,
                               bool draw_debug) {
-  if (!slot->active || slot->segment_count == 0) return;
+  if (!slot->active) return;
+  if (slot->use_primitive_pipeline) {
+    if (slot->primitives.count == 0) return;
+  } else if (slot->segment_count == 0) {
+    return;
+  }
 
   int16_t box_w = slot->custom_box ? slot->box_w : CORNER_BOX_W;
   int16_t box_x = slot->custom_box ? bounds.origin.x + slot->box_x
@@ -100,6 +123,13 @@ void feature_render_draw_slot(GContext *ctx, GRect bounds, const FeatureSlot *sl
   }
 
   uint8_t effective_outline_style = slot->allow_outline ? outline_style : 0;
+
+  if (slot->use_primitive_pipeline) {
+    primitive_renderer_draw_feature(ctx, box_x, box_y, CORNER_ROW_H, &slot->primitives, slot,
+                                    font, font_h, font_offset, outline_style, icon_style, draw_debug);
+    return;
+  }
+
   for (int i = 0; i < slot->segment_count; i++) {
     const RenderSegment *seg = &slot->segments[i];
     int16_t seg_x = box_x + seg->x_offset;
