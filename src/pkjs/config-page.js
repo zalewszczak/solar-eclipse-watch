@@ -170,6 +170,7 @@ var secondsAvailableForDigital = configFonts.secondsAvailableForDigital;
 var secondsUnavailableReason = configFonts.secondsUnavailableReason;
 var digitalSidesHelpText = configFonts.digitalSidesHelpText;
 var fontOptionsHtml = configFonts.fontOptionsHtml;
+var fontManagerSource = require('./config/font-manager');
 
 
 // verticalButtonGroupHtml/modeButtonGroupHtml/colorRoleButtonGroupHtml
@@ -1057,6 +1058,12 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      <button type="button" id="fontPickerResetFiltersBtn" class="secondary-btn" style="display:none; width:auto; margin:10px auto 0; padding:10px 16px;" onclick="resetFontCategoryFilters()">Reset filters</button>' +
 '    </div>' +
 '    <div class="modal-footer">' +
+'      <div id="fontPickerImportRow" style="margin-top:10px; text-align:left;">' +
+'        <button type="button" class="secondary-btn" style="width:100%;" onclick="triggerFontImport()">Import font for preview</button>' +
+'        <input type="file" id="fontPickerImportInput" accept=".ttf,.otf,.woff,.woff2,font/ttf,font/otf,font/woff,font/woff2" style="display:none;" onchange="onFontImportSelected()">' +
+'        <div class="help" id="fontPickerImportStatus" style="margin-top:6px;"></div>' +
+'        <button type="button" id="fontPickerClearImportBtn" class="secondary-btn" style="display:none; width:100%; margin-top:6px;" onclick="clearImportedFont()">Use normal preview font</button>' +
+'      </div>' +
 '      <div class="checkbox-row" id="fontPickerIncompatibleRow" style="margin-top:10px;">' +
 '        <input type="checkbox" id="fontPickerShowIncompatible" onchange="renderFontPickerGrid()">' +
 '        <label for="fontPickerShowIncompatible" style="margin:0;">Show incompatible fonts</label>' +
@@ -2066,14 +2073,19 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  return "var(--text-strong)";' +
 '}' +
 
-'function canvasFontFor(previewCss, px) {' +
+'function canvasFontFor(previewCss, px, fontId) {' +
 '  var familyMatch = /font-family:\\s*([^;]+);?/.exec(previewCss);' +
 '  var family = familyMatch ? familyMatch[1] : "sans-serif";' +
 '  var weightMatch = /font-weight:\\s*([^;]+);?/.exec(previewCss);' +
 '  var weight = weightMatch ? weightMatch[1].trim() : "400";' +
 '  var boldPrefix = (parseInt(weight, 10) >= 600 || weight === "bold") ? "bold " : "";' +
 '  var italicPrefix = /font-style:\\s*italic/.test(previewCss) ? "italic " : "";' +
-'  return italicPrefix + boldPrefix + px + "px " + family;' +
+'  var fallback = italicPrefix + boldPrefix + px + "px " + family;' +
+'  if (fontId !== undefined && fontId !== null) {' +
+'    FontManager.ensure(fontId, updatePreview);' +
+'    return FontManager.canvasFont(fontId, px, fallback);' +
+'  }' +
+'  return fallback;' +
 '}' +
 
 // Runtime copy of this file's own top-level esc() -- needed here since
@@ -2090,6 +2102,9 @@ handEditorModalHtml('sec', 'Edit second hand') +
 // so the two can never drift apart the way two independently-typed
 // copies could.
 'var FONT_LOOKUP = ' + JSON.stringify(FONT_LOOKUP) + ';' +
+// Live font manager: actual webfont binaries, preview overrides, and best-effort persistent cache.
+fontManagerSource +
+'FontManager.init(FONT_LOOKUP);' +
 // Runtime copy of the generator-side FONT_CATEGORIES (see its own
 // comment in presets-lookups.js) -- drives the font picker's
 // horizontal category filter row below.
@@ -2281,11 +2296,13 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  var images = FONT_PREVIEW_IMAGES[fontId];' +
 '  var src = images && images[role];' +
 '  var color = fontPreviewColor();' +
-'  if (src) {' +
+'  if (src && !FontManager.customName(fontId)) {' +
 '    var maskCss = "-webkit-mask-image:url(\'" + src + "\'); mask-image:url(\'" + src + "\'); background-color:" + color + ";";' +
-'    return \'<span class="font-preview-img" role="img" aria-label="\' + esc(text) + \'" style="\' + maskCss + \'"></span>\';' +
+'    return "<span class=\\\"font-preview-img\\\" role=\\\"img\\\" aria-label=\\\"" + esc(text) + "\\\" style=\\\"" + maskCss + "\\\"></span>";' +
 '  }' +
-'  return \'<span style="color:\' + color + \';">\' + esc(text) + "</span>";' +
+'  var textStyle = "color:" + color + ";";' +
+'  textStyle = FontManager.previewStyle(fontId, textStyle);' +
+'  return "<span style=\\\"" + textStyle + "\\\">" + esc(text) + "</span>";' +
 '}' +
 
 // Fills one trigger button\'s own preview/name spans from whatever its
@@ -2300,6 +2317,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  var trigger = document.getElementById(cfg.triggerId);' +
 '  if (!sel || !trigger) return;' +
 '  var entry = fontLookupEntry(sel.value);' +
+'  FontManager.ensure(entry.id, refreshAllFontTriggerLabels);' +
 '  var preview = trigger.querySelector(".font-picker-preview");' +
 '  var name = trigger.querySelector(".font-picker-name");' +
 '  if (preview) {' +
@@ -2310,6 +2328,51 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '}' +
 'function refreshAllFontTriggerLabels() {' +
 '  Object.keys(FONT_PICKER_ROLES).forEach(updateFontTriggerLabel);' +
+'}' +
+
+'function fontPickerSelectedId() {' +
+'  var cfg = currentFontPickerRole && FONT_PICKER_ROLES[currentFontPickerRole];' +
+'  if (!cfg) return null;' +
+'  var sel = document.getElementById(cfg.selectId);' +
+'  return sel ? parseInt(sel.value, 10) : null;' +
+'}' +
+
+'function triggerFontImport() {' +
+'  var id = fontPickerSelectedId();' +
+'  if (id === null || isNaN(id)) return;' +
+'  var input = document.getElementById("fontPickerImportInput");' +
+'  if (input) input.click();' +
+'}' +
+
+'function onFontImportSelected() {' +
+'  var id = fontPickerSelectedId();' +
+'  var input = document.getElementById("fontPickerImportInput");' +
+'  if (id === null || !input) return;' +
+'  var status = document.getElementById("fontPickerImportStatus");' +
+'  if (status) status.textContent = "Loading font…";' +
+'  FontManager.importSelected(id, input, function () {' +
+'    refreshAllFontTriggerLabels();' +
+'    renderFontPickerGrid();' +
+'    updatePreview();' +
+'    var name = FontManager.customName(id);' +
+'    if (status) status.textContent = name ? "Preview override: " + name : "Couldn\'t load that font file.";' +
+'    var clearBtn = document.getElementById("fontPickerClearImportBtn");' +
+'    if (clearBtn) clearBtn.style.display = name ? "" : "none";' +
+'  });' +
+'}' +
+
+'function clearImportedFont() {' +
+'  var id = fontPickerSelectedId();' +
+'  if (id === null || isNaN(id)) return;' +
+'  FontManager.clearCustom(id, function () {' +
+'    refreshAllFontTriggerLabels();' +
+'    renderFontPickerGrid();' +
+'    updatePreview();' +
+'    var status = document.getElementById("fontPickerImportStatus");' +
+'    if (status) status.textContent = "Using the normal preview font.";' +
+'    var clearBtn = document.getElementById("fontPickerClearImportBtn");' +
+'    if (clearBtn) clearBtn.style.display = "none";' +
+'  });' +
 '}' +
 
 'function openFontPicker(role) {' +
@@ -2323,6 +2386,12 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    var currentId = document.getElementById(cfg.selectId).value;' +
 '    document.getElementById("fontPickerShowIncompatible").checked = !fontFlag(fontLookupEntry(currentId).small);' +
 '  }' +
+'  var importRow = document.getElementById("fontPickerImportRow");' +
+'  var importStatus = document.getElementById("fontPickerImportStatus");' +
+'  if (importRow) importRow.style.display = isBigDigitalNow ? "none" : "";' +
+'  if (importStatus) importStatus.textContent = FontManager.customName(document.getElementById(cfg.selectId).value) ? "Preview override is active for this font." : "";' +
+'  var clearImportBtn = document.getElementById("fontPickerClearImportBtn");' +
+'  if (clearImportBtn) clearImportBtn.style.display = FontManager.customName(document.getElementById(cfg.selectId).value) ? "" : "none";' +
 // Big Digital styles only carry the "bigDigital" category tag, which
 // none of the normal category-filter buttons (modern/bold/etc, shared
 // globally across all 3 roles) match -- a stale non-"all" filter left
