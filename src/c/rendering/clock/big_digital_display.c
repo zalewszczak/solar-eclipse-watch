@@ -10,24 +10,58 @@
 static EclipseData *s_data;
 static Layer *s_panel_layer;
 
-static void draw_digit(GContext *ctx, int16_t x, int16_t y, uint8_t style, uint8_t digit, GColor color,
-                       bool transparent) {
-  if (style >= BIG_DIGITAL_STYLE_COUNT || digit > BIG_DIGITAL_COLON_INDEX) return;
-  GBitmap *bmp = gbitmap_create_with_resource(BIG_DIGITAL_DIGIT_RESOURCES[style][digit]);
-  if (!bmp) return;
-  feature_icon_assets_draw_bitmap_tinted_sized(ctx, bmp, GPoint(x, y), color, DIGIT_W, DIGIT_H, transparent);
-  gbitmap_destroy(bmp);
+static int16_t draw_digit(GContext *ctx, int16_t x, int16_t y, uint8_t style, uint8_t digit, GColor color,
+                       bool transparent, bool draw) {
+  int16_t width = DIGIT_W;
+  GPoint p = GPoint(x, y);
+  if (digit == 1) {
+    width -= 20;
+    p.x -= 10;
+  } else if (digit == BIG_DIGITAL_COLON_INDEX) {
+    width = COLON_GAP_W;
+    p.x -= (DIGIT_W - COLON_GAP_W) / 2;
+  }
+  
+  if (draw) {
+    if (style >= BIG_DIGITAL_STYLE_COUNT || digit > BIG_DIGITAL_COLON_INDEX) return x;
+    GBitmap *bmp = gbitmap_create_with_resource(BIG_DIGITAL_DIGIT_RESOURCES[style][digit]);
+    if (!bmp) return x;
+    feature_icon_assets_draw_bitmap_tinted_sized(ctx, bmp, p, color, DIGIT_W, DIGIT_H, transparent);
+    gbitmap_destroy(bmp);
+  }
+  
+  return x + width;
+}
+
+static int16_t run_big_digits_sequence(GContext *ctx, int16_t x, int16_t y, uint8_t style, GColor main_color, bool transparent, bool draw) {
+  time_t now = time(NULL);
+  struct tm *t = localtime(&now);
+  int8_t hour = t->tm_hour;
+  if (!clock_is_24h_style()) {
+    hour = hour % 12;
+  }
+  
+  int8_t hour_tens = (int8_t)(hour / 10),
+         hour_singles = (uint8_t)(hour % 10),
+         minute_tens = (int8_t)(t->tm_min / 10),
+         minute_singles = (uint8_t)(t->tm_min % 10);
+  
+  if (hour_tens > 0) x = draw_digit(ctx, x, y, style, hour_tens, main_color, transparent, draw);
+  x = draw_digit(ctx, x, y, style, hour_singles, main_color, transparent, draw);
+  x = draw_digit(ctx, x, y, style, BIG_DIGITAL_COLON_INDEX, main_color, transparent, draw);
+  x = draw_digit(ctx, x, y, style, minute_tens, main_color, transparent, draw);
+  x = draw_digit(ctx, x, y, style, minute_singles, main_color, transparent, draw);
+  
+  return x;
 }
 
 static void draw_big_digital_panel(Layer *layer, GContext *ctx) {
   GRect bounds = layer_get_bounds(layer);
-  time_t now = time(NULL);
-  struct tm *t = localtime(&now);
 
   // No fill here -- this panel sits on top of a full-screen sky canvas
   // (same as Analog's hands layer does), not its own background.
   GColor bg, main_color, accent_color;
-  eclipse_ui_get_active_color_scheme(s_data, now, &bg, &main_color, &accent_color);
+  eclipse_ui_get_active_color_scheme(s_data, time(NULL), &bg, &main_color, &accent_color);
   (void)bg; // only main_color (digit/colon tint) is used now that the sky underneath draws the background
 
   // clock_font's normal meaning (a text font id, see font_lookup.h) doesn't
@@ -47,27 +81,19 @@ static void draw_big_digital_panel(Layer *layer, GContext *ctx) {
   // art is actually showing without a second key or a second persisted
   // field.
   bool transparent = s_data->bitmap_marker_transparent;
-
-  int16_t total_w = DIGIT_W * 4 + COLON_GAP_W;
+  
+  int16_t total_w = 0;
+  total_w = run_big_digits_sequence(ctx, total_w, 0, style, main_color, transparent, false);
   int16_t x = bounds.origin.x + (bounds.size.w - total_w) / 2;
   int16_t y = bounds.origin.y + (bounds.size.h - DIGIT_H) / 2;
-
-  int hour = t->tm_hour, minute = t->tm_min;
-  draw_digit(ctx, x, y, style, (uint8_t)(hour / 10), main_color, transparent);
-  draw_digit(ctx, x + DIGIT_W, y, style, (uint8_t)(hour % 10), main_color, transparent);
-
-  // Colon: the 11th resource per style (index BIG_DIGITAL_COLON_INDEX,
-  // "10.png"), not procedural dots -- a fixed dot size never fit every
-  // style's actual digit proportions. Drawn at the same DIGIT_W x
-  // DIGIT_H canvas as every other digit (its own art is just a thin
-  // mark in the middle of an otherwise transparent image), centered on
-  // the same midpoint the dots used to be centered on -- H1/H2/M1/M2's
-  // own positions below are unchanged.
-  int16_t colon_cx = x + DIGIT_W * 2 + COLON_GAP_W / 2;
-  draw_digit(ctx, colon_cx - DIGIT_W / 2, y, style, BIG_DIGITAL_COLON_INDEX, main_color, transparent);
-
-  draw_digit(ctx, x + DIGIT_W * 2 + COLON_GAP_W, y, style, (uint8_t)(minute / 10), main_color, transparent);
-  draw_digit(ctx, x + DIGIT_W * 3 + COLON_GAP_W, y, style, (uint8_t)(minute % 10), main_color, transparent);
+  
+  if (s_data->upper_middle_line1_content == 0 && s_data->bottom_middle_line1_content != 0) {
+    y -= 10;
+  } else if (s_data->upper_middle_line1_content != 0 && s_data->bottom_middle_line1_content == 0) {
+    y += 10;
+  }
+  
+  run_big_digits_sequence(ctx, x, y, style, main_color, transparent, true);
 }
 
 void big_digital_display_init(EclipseData *data) {

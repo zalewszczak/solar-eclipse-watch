@@ -5,7 +5,6 @@
 #include "../fonts/font_lookup.h"
 
 #define FEATURE_LAYOUT_CORNER_INSET_PX 2
-#define FEATURE_LAYOUT_CENTER_INSET_PX (FEATURE_LAYOUT_CORNER_INSET_PX + CORNER_ROW_H)
 
 uint8_t feature_layout_digital_side_mode(uint8_t bottom_style) {
   return feature_layout_is_digital_top_layout(bottom_style) ? bottom_style - 5 : bottom_style;
@@ -202,14 +201,14 @@ void feature_layout_recompute(FeaturesState *state) {
     state->slots[SLOT_UPPER_L1] = (FeatureSlot){
       .active = true, .content = d->upper_middle_line1_content, .color_mode = d->upper_middle_line1_color_mode,
       .is_top = true, .is_left = true, .is_middle = false, .is_edge = false,
-      .top_offset = FEATURE_LAYOUT_CENTER_INSET_PX, .bottom_shift = 0, .middle_inset = 0,
+      .top_offset = CORNER_ROW_H, .bottom_shift = 0, .middle_inset = 0,
       .center_horizontal = true, .center_vertical = false, .allow_outline = true,
       .needs_second_refresh = feature_rules_content_needs_second_refresh(d->upper_middle_line1_content),
     };
     state->slots[SLOT_BOTTOM_L1] = (FeatureSlot){
       .active = true, .content = d->bottom_middle_line1_content, .color_mode = d->bottom_middle_line1_color_mode,
       .is_top = false, .is_left = true, .is_middle = false, .is_edge = false,
-      .top_offset = 0, .bottom_shift = FEATURE_LAYOUT_CENTER_INSET_PX, .middle_inset = 0,
+      .top_offset = 0, .bottom_shift = CORNER_ROW_H, .middle_inset = 0,
       .center_horizontal = true, .center_vertical = false, .allow_outline = true,
       .needs_second_refresh = feature_rules_content_needs_second_refresh(d->bottom_middle_line1_content),
     };

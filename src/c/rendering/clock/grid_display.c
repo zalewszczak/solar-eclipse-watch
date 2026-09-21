@@ -7,6 +7,7 @@
 #define GRID_CELLS (GRID_SIZE * GRID_SIZE)
 #define GRID_PAD_SIDES 10
 #define GRID_PAD_TOPBOTTOM 24
+#define GRID_EXTRA_BUFFER 20
 
 static EclipseData *s_data;
 static Layer *s_panel_layer;
@@ -45,6 +46,9 @@ void grid_display_refresh(void) {
 
   // Row 0: HH MM, one digit per cell, always zero-padded.
   int hour = t->tm_hour, minute = t->tm_min;
+  if (!clock_is_24h_style()) {
+    hour = hour % 12;
+  }
   set_cell(0, (char)('0' + hour / 10));
   set_cell(1, (char)('0' + hour % 10));
   set_cell(2, (char)('0' + minute / 10));
@@ -91,7 +95,7 @@ void grid_display_apply_font(void) {
     text_layer_set_font(s_cells[i], font);
     int16_t row = i / GRID_SIZE, col = i % GRID_SIZE;
     int16_t cell_cy = s_grid_y0 + row * s_cell_h + s_cell_h / 2;
-    GRect cell_frame = GRect(s_grid_x0 + col * s_cell_w - 10, cell_cy - font_h / 2, s_cell_w + 20, font_h);
+    GRect cell_frame = GRect(s_grid_x0 + col * s_cell_w - GRID_EXTRA_BUFFER / 2, cell_cy - font_h / 2, s_cell_w + GRID_EXTRA_BUFFER, font_h + GRID_EXTRA_BUFFER);
     layer_set_frame(text_layer_get_layer(s_cells[i]), cell_frame);
   }
 }
