@@ -467,7 +467,7 @@ directWebfontStyle() +
 // pickers using that same class (marker style, hand style, colors...)
 // already size themselves reasonably to their own fixed content and
 // don\'t have this problem.
-'  #fontPickerModal .modal-box { height: 65vh; max-height: 65vh; }' +
+'  #fontPickerModal .modal-box { height: 75vh; max-height: 75vh; }' +
 '  .font-picker-btn:active { background: var(--border-light); }' +
 '  .font-picker-btn.selected { border-color: #ff9200; border-width: 2px; }' +
 '  .font-picker-preview { flex: 0 0 34%; display: flex; align-items: center; justify-content: center; padding: 10px 4px; box-sizing: border-box; border-right: 1px solid var(--border); overflow: hidden; white-space: nowrap; color: var(--text-strong); line-height: 1.1; }' +
@@ -2383,7 +2383,8 @@ fontManagerSource +
 '  currentFontPickerRole = role;' +
 '  var cfg = FONT_PICKER_ROLES[role];' +
 '  var isBigDigitalNow = role === "clock" && document.getElementById("bottomStyleValue").value === "bigDigital";' +
-'  document.getElementById("fontPickerTitle").textContent = isBigDigitalNow ? "Big Digital style" : cfg.title;' +
+'  var isGridNow = role === "clock" && document.getElementById("bottomStyleValue").value === "grid";' +
+'  document.getElementById("fontPickerTitle").textContent = isBigDigitalNow ? "Big Digital style" : (isGridNow ? "Grid font" : cfg.title);' +
 '  var incompatibleRow = document.getElementById("fontPickerIncompatibleRow");' +
 '  var showIncompatibleToggle = cfg.showIncompatibleToggle && !isBigDigitalNow && (!cfg.showIncompatibleForGridOnly || (document.getElementById("bottomStyleValue") && document.getElementById("bottomStyleValue").value === "grid"));' +
 '  incompatibleRow.style.display = showIncompatibleToggle ? "" : "none";' +
@@ -2463,15 +2464,13 @@ fontManagerSource +
 '  pickerFonts.forEach(function (f) {' +
 '    if (isBigDigitalNow) {' +
 '      if (!fontFlag(f.bigDigital)) return;' + // this one picker mode: only Big Digital's own styles
+'    } else if (isGridNow) {' +
+'      if (!fontFlag(f.grid)) return;' + // Grid: only fonts flagged compatible with its 4x4 single-character cells -- operates solely on this flag, independent of mainClock, so grid-only fonts (no mainClock flag) are still offered
 '    } else {' +
 '      if (fontFlag(f.bigDigital)) return;' + // every other picker/mode: never offer a Big Digital style
-'      if (isGridNow) {' +
-'        if (!fontFlag(f.grid)) return;' + // Grid: only fonts flagged compatible with its 4x4 single-character cells -- operates solely on this flag, independent of mainClock, so grid-only fonts (no mainClock flag) are still offered
-'      } else {' +
-'        if (cfg.onlyMainClock && !fontFlag(f.mainClock)) return;' +
-'      }' +
+'      if (cfg.onlyMainClock && !fontFlag(f.mainClock)) return;' +
+  '    if (!showIncompatible && !fontFlag(f.small) && f.id !== currentId) return;' +
 '    }' +
-'    if (!showIncompatible && !fontFlag(f.small) && f.id !== currentId) return;' +
 '    if (!fontMatchesCategoryFilters(f)) return;' +
 '    var previewStyle = f.preview + " font-size:" + fontPickerPreviewPx(f.sizePx) + "px;";' +
 '    var sizeCategory = f.sizeCategory || "";' +
@@ -4440,9 +4439,9 @@ require('./config/config-preview') +
 '  if (matchId !== null) {' +
 '    var preset = findPresetById(matchId);' +
 '    if (mainLine) { mainLine.textContent = mainColorPhrase(preset.label); mainLine.style.color = preset.text; }' +
-'    if (accentLine) { accentLine.textContent = accentColorName(preset.label) + " accent color"; accentLine.style.color = preset.accent; }' +
+'    if (accentLine) { accentLine.textContent = accentColorName(preset.altLabel); accentLine.style.color = preset.accent; }' +
 '  } else {' +
-'    if (mainLine) { mainLine.textContent = "Custom: Main color on Background color"; mainLine.style.color = colors.text; }' +
+'    if (mainLine) { mainLine.textContent = "Custom"; mainLine.style.color = colors.text; }' +
 '    if (accentLine) { accentLine.textContent = "Accent color"; accentLine.style.color = colors.accent; }' +
 '  }' +
 '}' +
@@ -4473,12 +4472,12 @@ require('./config/config-preview') +
 '    if (s.mode && s.mode !== "both" && s.mode !== scheme) return;' +
 '    var selected = matchId !== null && String(matchId) === String(s.id);' +
 '    html += \'<button type="button" class="color-preset-btn\' + (selected ? " selected" : "") + \'" style="background:\' + s.bg + \';" onclick="chooseColorPreset(\' + s.id + \')">\' +' +
-'      \'<span class="color-preset-main-line" style="color:\' + s.text + \';">\' + esc(mainColorPhrase(s.label)) + "</span>" +' +
-'      \'<span class="color-preset-accent-line" style="color:\' + s.accent + \';">\' + esc(accentColorName(s.label) + " accent color") + "</span></button>";' +
+'      \'<span class="color-preset-main-line" style="color:\' + s.text + \';">\' + esc(s.label) + "</span>" +' +
+'      \'<span class="color-preset-accent-line" style="color:\' + s.accent + \';">\' + esc(s.altLabel) + "</span></button>";' +
 '  });' +
 '  var customSelected = matchId === null;' +
 '  html += \'<button type="button" class="color-preset-btn\' + (customSelected ? " selected" : "") + \'" style="background:\' + colors.bg + \';" onclick="chooseColorPreset(null)">\' +' +
-'    \'<span class="color-preset-main-line" style="color:\' + colors.text + \';">Custom: Main color on Background color</span>\' +' +
+'    \'<span class="color-preset-main-line" style="color:\' + colors.text + \';">(Custom)Main color</span>\' +' +
 '    \'<span class="color-preset-accent-line" style="color:\' + colors.accent + \';">Accent color</span></button>\';' +
 '  document.getElementById("colorPresetPickerGrid").innerHTML = html;' +
 '}' +
