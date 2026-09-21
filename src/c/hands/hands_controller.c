@@ -15,58 +15,79 @@ static HandsControllerInvalidateHandler s_invalidate_handler = NULL;
 static void *s_invalidate_context = NULL;
 
 #define STARTUP_CLOCK_ANIM_MS 1400
-#define STARTUP_ANIM_FRAME_MS 40  // 25 fps.
-#define STARTUP_ANIM_PHASE_A_MS ((STARTUP_CLOCK_ANIM_MS * 3) / 10)  // Grow from center before rotating to the target.
+#define STARTUP_ANIM_PHASE_A_MS ((STARTUP_CLOCK_ANIM_MS * 3) / 10)
+#define STARTUP_ANIM_PHASE_B_MS (STARTUP_CLOCK_ANIM_MS - STARTUP_ANIM_PHASE_A_MS)
 
-
-static AppTimer *s_startup_anim_timer = NULL;
+static Animation *s_startup_animation = NULL;
+static Animation *s_startup_phase_a = NULL;
+static Animation *s_startup_phase_b = NULL;
 static bool s_startup_clock_anim_active = false;
 static bool s_startup_clock_anim_played = false; // Prevent replay after settings/data updates.
-
 static uint16_t s_startup_anim_elapsed_ms = 0;
+static int32_t s_startup_phase_eased_progress_1000 = 0;
+static int32_t s_startup_overall_eased_progress_1000 = 0;
 
-
-// Animation progress uses integer 0..1000 values.
-static int32_t ease_out_cubic_1000(int32_t t) {
-  int32_t inv = 1000 - t;
-  int64_t inv3 = ((int64_t)inv * inv * inv) / 1000000;
-  int32_t r = 1000 - (int32_t)inv3;
-  return (r > 1000) ? 1000 : r;
+// The Pebble animation subsystem supplies the eased progress directly to the
+// custom implementation. Keeping the conversion here avoids reimplementing
+// the SDK's cubic ease-out curve in application code.
+static int32_t animation_progress_to_1000(AnimationProgress progress) {
+  int32_t value = ((int32_t)progress * 1000) / ANIMATION_NORMALIZED_MAX;
+  if (value < 0) return 0;
+  if (value > 1000) return 1000;
+  return value;
 }
 
-
-// Ease out with a decaying oscillation for the analog-hand settle.
-static int32_t ease_out_wiggle_1000(int32_t t) {
-  int32_t base = ease_out_cubic_1000(t);
-  int32_t inv = 1000 - t;
-  int32_t decay = (int32_t)(((int64_t)inv * inv) / 1000); 
-  int32_t wiggle_angle = (int32_t)(((int64_t)t * TRIG_MAX_ANGLE * 5) / 1000); 
-  int32_t wiggle = (int32_t)(((int64_t)sin_lookup(wiggle_angle) * decay) / TRIG_MAX_RATIO / 12); 
-  return base + wiggle;
+static void startup_overall_animation_update(Animation *animation, AnimationProgress progress) {
+  (void)animation;
+  s_startup_overall_eased_progress_1000 = animation_progress_to_1000(progress);
 }
 
+static void startup_phase_animation_update(Animation *animation, AnimationProgress progress) {
+  int32_t elapsed = 0;
+  animation_get_elapsed(animation, &elapsed);
+  if (elapsed < 0) elapsed = 0;
 
-// Phase A grows from -60° to 12 o'clock; phase B takes the shortest path to the target.
-static void compute_startup_hand_anim(int32_t target_angle, uint16_t elapsed_ms,
+  if (animation == s_startup_phase_a) {
+    if (elapsed > STARTUP_ANIM_PHASE_A_MS) elapsed = STARTUP_ANIM_PHASE_A_MS;
+    s_startup_anim_elapsed_ms = (uint16_t)elapsed;
+  } else {
+    if (elapsed > STARTUP_ANIM_PHASE_B_MS) elapsed = STARTUP_ANIM_PHASE_B_MS;
+    s_startup_anim_elapsed_ms = (uint16_t)(STARTUP_ANIM_PHASE_A_MS + elapsed);
+  }
+  s_startup_phase_eased_progress_1000 = animation_progress_to_1000(progress);
+}
+
+static const AnimationImplementation s_startup_overall_implementation = {
+  .setup = NULL,
+  .update = startup_overall_animation_update,
+  .teardown = NULL
+};
+
+static const AnimationImplementation s_startup_phase_implementation = {
+  .setup = NULL,
+  .update = startup_phase_animation_update,
+  .teardown = NULL
+};
+
+static void compute_startup_hand_anim(int32_t target_angle, int32_t phase_eased,
                                        int32_t *out_angle, uint16_t *out_length_scale_1000) {
-  if (elapsed_ms <= STARTUP_ANIM_PHASE_A_MS) {
-    int32_t p = ((int32_t)elapsed_ms * 1000) / STARTUP_ANIM_PHASE_A_MS;
-    if (p > 1000) p = 1000;
-    int32_t eased = ease_out_cubic_1000(p);
+  if (s_startup_anim_elapsed_ms <= STARTUP_ANIM_PHASE_A_MS) {
+    int32_t eased = phase_eased;
     *out_length_scale_1000 = (uint16_t)eased;
-    int32_t start_angle = -(TRIG_MAX_ANGLE / 6); 
+    int32_t start_angle = -(TRIG_MAX_ANGLE / 6);
     int32_t angle = start_angle + (int32_t)(((int64_t)(-start_angle) * eased) / 1000);
     if (angle < 0) angle += TRIG_MAX_ANGLE;
     *out_angle = angle;
   } else {
     *out_length_scale_1000 = 1000;
-    uint16_t phase_b_elapsed = elapsed_ms - STARTUP_ANIM_PHASE_A_MS;
-    uint16_t phase_b_total = STARTUP_CLOCK_ANIM_MS - STARTUP_ANIM_PHASE_A_MS;
-    int32_t p = ((int32_t)phase_b_elapsed * 1000) / phase_b_total;
-    if (p > 1000) p = 1000;
-    int32_t eased = ease_out_wiggle_1000(p);
-    
-    
+    int32_t eased = phase_eased;
+    // Preserve the intentional settling wiggle; only its cubic ease-out base
+    // is now supplied by Pebble's AnimationCurveEaseOut.
+    int32_t inv = 1000 - eased;
+    int32_t decay = (int32_t)(((int64_t)inv * inv) / 1000);
+    int32_t wiggle_angle = (int32_t)(((int64_t)eased * TRIG_MAX_ANGLE * 5) / 1000);
+    int32_t wiggle = (int32_t)(((int64_t)sin_lookup(wiggle_angle) * decay) / TRIG_MAX_RATIO / 12);
+    eased += wiggle;
     int32_t delta = target_angle;
     if (delta > TRIG_MAX_ANGLE / 2) delta -= TRIG_MAX_ANGLE;
     int32_t angle = (int32_t)(((int64_t)delta * eased) / 1000);
@@ -75,19 +96,22 @@ static void compute_startup_hand_anim(int32_t target_angle, uint16_t elapsed_ms,
   }
 }
 
-
-// Shared 21-point cubic ease-out lookup table.
-static const int16_t EASE_OUT_LUT[21] = {
-  0, 143, 271, 386, 488, 579, 657, 726, 784, 834, 875, 909, 936, 958, 973, 985, 992, 997, 999, 1000, 1000
-};
-static int32_t ease_out_lut_1000(int32_t t) {
-  if (t <= 0) return 0;
-  if (t >= 1000) return 1000;
-  int32_t idx = t / 50;
-  int32_t frac = t - idx * 50;
-  int32_t lo = EASE_OUT_LUT[idx];
-  int32_t hi = EASE_OUT_LUT[idx + 1];
-  return lo + ((hi - lo) * frac) / 50;
+static void startup_animation_stopped(Animation *animation, bool finished, void *context) {
+  (void)animation;
+  (void)context;
+  if (finished) {
+    s_startup_anim_elapsed_ms = STARTUP_CLOCK_ANIM_MS;
+    s_startup_phase_eased_progress_1000 = 1000;
+    s_startup_overall_eased_progress_1000 = 1000;
+  }
+  s_startup_clock_anim_active = false;
+  Animation *completed = s_startup_animation;
+  s_startup_animation = NULL;
+  s_startup_phase_a = NULL;
+  s_startup_phase_b = NULL;
+  if (completed) animation_destroy(completed);
+  if (s_invalidate_handler) s_invalidate_handler(s_invalidate_context);
+  else if (s_hands_layer) layer_mark_dirty(s_hands_layer);
 }
 
 static void hands_controller_update_proc(Layer *layer, GContext *ctx) {
@@ -164,8 +188,7 @@ static void hands_controller_update_proc(Layer *layer, GContext *ctx) {
     
     
     if (s_data->startup_clock_anim_mode == 2 && background_animation_is_active() && s_data->bg_anim_mode == 1) {
-      int32_t progress = background_animation_progress_1000();
-      int32_t eased = ease_out_cubic_1000(progress);
+      int32_t eased = s_startup_overall_eased_progress_1000;
       time_t past = now - 120 * 60;
       time_t swept_now = past + (time_t)(((int64_t)(now - past) * eased) / 1000);
       struct tm *st = localtime(&swept_now);
@@ -182,9 +205,9 @@ static void hands_controller_update_proc(Layer *layer, GContext *ctx) {
       
       
     }
-    compute_startup_hand_anim(target_hour_angle, s_startup_anim_elapsed_ms, &hour_angle, &hour_length_scale_1000);
-    compute_startup_hand_anim(target_min_angle, s_startup_anim_elapsed_ms, &min_angle, &min_length_scale_1000);
-    compute_startup_hand_anim(target_sec_angle, s_startup_anim_elapsed_ms, &sec_angle, &sec_length_scale_1000);
+    compute_startup_hand_anim(target_hour_angle, s_startup_phase_eased_progress_1000, &hour_angle, &hour_length_scale_1000);
+    compute_startup_hand_anim(target_min_angle, s_startup_phase_eased_progress_1000, &min_angle, &min_length_scale_1000);
+    compute_startup_hand_anim(target_sec_angle, s_startup_phase_eased_progress_1000, &sec_angle, &sec_length_scale_1000);
   }
 
   
@@ -219,19 +242,6 @@ static void hands_controller_update_proc(Layer *layer, GContext *ctx) {
                                  main_color, accent_color, bg);
 }
 
-static void startup_anim_timer_callback(void *data) {
-  s_startup_anim_elapsed_ms += STARTUP_ANIM_FRAME_MS;
-  if (s_startup_anim_elapsed_ms >= STARTUP_CLOCK_ANIM_MS) {
-    s_startup_clock_anim_active = false;
-    s_startup_anim_timer = NULL;
-  } else {
-    s_startup_anim_timer = app_timer_register(STARTUP_ANIM_FRAME_MS, startup_anim_timer_callback, NULL);
-  }
-  if (s_invalidate_handler) s_invalidate_handler(s_invalidate_context);
-  else if (s_hands_layer) layer_mark_dirty(s_hands_layer);
-}
-
-
 void hands_controller_init(EclipseData *data, HandsControllerInvalidateHandler handler, void *context) {
   s_data = data;
   s_invalidate_handler = handler;
@@ -239,10 +249,13 @@ void hands_controller_init(EclipseData *data, HandsControllerInvalidateHandler h
 }
 
 void hands_controller_deinit(void) {
-  if (s_startup_anim_timer) {
-    app_timer_cancel(s_startup_anim_timer);
-    s_startup_anim_timer = NULL;
+  if (s_startup_animation) {
+    Animation *animation = s_startup_animation;
+    s_startup_animation = NULL;
+    animation_unschedule(animation);
   }
+  s_startup_phase_a = NULL;
+  s_startup_phase_b = NULL;
   s_data = NULL;
   s_invalidate_handler = NULL;
   s_invalidate_context = NULL;
@@ -264,14 +277,8 @@ bool hands_controller_animation_active(void) {
   return s_startup_clock_anim_active;
 }
 
-static int32_t hands_controller_animation_progress_1000(void) {
-  if (!s_startup_clock_anim_active) return 1000;
-  int32_t progress = ((int32_t)s_startup_anim_elapsed_ms * 1000) / STARTUP_CLOCK_ANIM_MS;
-  return progress > 1000 ? 1000 : progress;
-}
-
 int32_t hands_controller_animation_eased_progress_1000(void) {
-  return ease_out_lut_1000(hands_controller_animation_progress_1000());
+  return s_startup_clock_anim_active ? s_startup_overall_eased_progress_1000 : 1000;
 }
 
 void hands_controller_start_startup_animation(void) {
@@ -280,5 +287,69 @@ void hands_controller_start_startup_animation(void) {
   s_startup_clock_anim_played = true;
   s_startup_clock_anim_active = true;
   s_startup_anim_elapsed_ms = 0;
-  s_startup_anim_timer = app_timer_register(STARTUP_ANIM_FRAME_MS, startup_anim_timer_callback, NULL);
+  s_startup_phase_eased_progress_1000 = 0;
+  s_startup_overall_eased_progress_1000 = 0;
+
+  Animation *overall = animation_create();
+  Animation *phase_a = animation_create();
+  Animation *phase_b = animation_create();
+  if (!overall || !phase_a || !phase_b) {
+    if (overall) animation_destroy(overall);
+    if (phase_a) animation_destroy(phase_a);
+    if (phase_b) animation_destroy(phase_b);
+    s_startup_clock_anim_active = false;
+    return;
+  }
+
+  animation_set_duration(overall, STARTUP_CLOCK_ANIM_MS);
+  animation_set_curve(overall, AnimationCurveEaseOut);
+  animation_set_implementation(overall, &s_startup_overall_implementation);
+
+  animation_set_duration(phase_a, STARTUP_ANIM_PHASE_A_MS);
+  animation_set_curve(phase_a, AnimationCurveEaseOut);
+  animation_set_implementation(phase_a, &s_startup_phase_implementation);
+
+  animation_set_duration(phase_b, STARTUP_ANIM_PHASE_B_MS);
+  animation_set_curve(phase_b, AnimationCurveEaseOut);
+  animation_set_implementation(phase_b, &s_startup_phase_implementation);
+
+  s_startup_phase_a = phase_a;
+  s_startup_phase_b = phase_b;
+  Animation *phase_sequence = animation_sequence_create(phase_a, phase_b, NULL);
+  if (!phase_sequence) {
+    s_startup_phase_a = NULL;
+    s_startup_phase_b = NULL;
+    animation_destroy(overall);
+    animation_destroy(phase_a);
+    animation_destroy(phase_b);
+    s_startup_clock_anim_active = false;
+    return;
+  }
+
+  Animation *spawn = animation_spawn_create(overall, phase_sequence, NULL);
+  if (!spawn) {
+    s_startup_phase_a = NULL;
+    s_startup_phase_b = NULL;
+    animation_destroy(overall);
+    animation_destroy(phase_sequence);
+    s_startup_clock_anim_active = false;
+    return;
+  }
+
+  s_startup_animation = spawn;
+  animation_set_handlers(spawn, (AnimationHandlers) {
+    .started = NULL,
+    .stopped = startup_animation_stopped
+  }, NULL);
+
+  if (!animation_schedule(spawn)) {
+    Animation *failed = s_startup_animation;
+    s_startup_animation = NULL;
+    s_startup_phase_a = NULL;
+    s_startup_phase_b = NULL;
+    s_startup_clock_anim_active = false;
+    animation_destroy(failed);
+    return;
+  }
 }
+

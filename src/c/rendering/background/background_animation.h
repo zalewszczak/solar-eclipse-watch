@@ -9,7 +9,7 @@
 // Starts the one-shot startup background animation when the current settings
 void background_animation_start(EclipseData *data, Layer *canvas_layer);
 
-// Cancels any pending animation timer. Call during app shutdown.
+// Cancels the startup animation. Call during app shutdown.
 void background_animation_deinit(void);
 
 // True while the startup background animation is actively running.

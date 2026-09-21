@@ -52,15 +52,6 @@ typedef struct {
 // ---- hour/second markers (sub-pixel & rotation fix) --------------------
 
 // Symmetric integer division with rounding to nearest integer for sub-pixel precision
-static int32_t bg_anim_ease_out_1000(int32_t t) {
-  int32_t inv = 1000 - t;
-  int64_t inv3 = ((int64_t)inv * inv * inv) / 1000000;
-  int32_t r = 1000 - (int32_t)inv3;
-  return (r > 1000) ? 1000 : r;
-}
-
-
-
 
 static void canvas_update_proc(Layer *layer, GContext *ctx) {
   CanvasState *state = (CanvasState *)layer_get_data(layer);
@@ -87,9 +78,7 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
 // "Animate background on start": sweeps the Sun/Moon/planets' own
   time_t sky_now = now;
   if (state->bg_anim_active && d->bg_anim_mode == 1) {
-    int32_t progress = ((int32_t)state->bg_anim_elapsed_ms * 1000) / BACKGROUND_ANIMATION_DURATION_MS;
-    if (progress > 1000) progress = 1000;
-    int32_t eased = bg_anim_ease_out_1000(progress);
+    int32_t eased = background_animation_progress_1000();
     time_t past = now - 2 * 3600; // "a couple hours ago"
     sky_now = past + (time_t)(((int64_t)(now - past) * eased) / 1000);
   }
