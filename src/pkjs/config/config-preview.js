@@ -370,7 +370,7 @@ module.exports =
 '  var cornerEntry = fontLookupEntry(cornerFontSel.value);' +
 '  var cornerScale = w / 200;' +
 '  var cornerPx = Math.max(7, Math.min(22, Math.round(cornerEntry.height * cornerScale)));' +
-'  var cornerFontCss = canvasFontFor(cornerOpt.getAttribute("data-preview") || "", cornerPx);' +
+'  var cornerFontCss = canvasFontFor(cornerOpt.getAttribute("data-preview") || "", cornerPx, cornerFontSel.value);' +
 '  var lineH = Math.round(cornerPx * 1.4);' +
 '  if (slotAvailable("cornerTLWrap")) drawCornerSlot(ctx, "cornerTL", "cornerTLColor", 5, topY + 5, "left", colors, cornerFontCss);' +
 '  if (slotAvailable("cornerTRWrap")) drawCornerSlot(ctx, "cornerTR", "cornerTRColor", w - 5, topY + 5, "right", colors, cornerFontCss);' +
@@ -929,7 +929,7 @@ module.exports =
 '  var roman = document.getElementById("markerTextRoman").checked;' +
 '  var offsetPx = parseFloat(document.getElementById("markerTextOffset").value) || 0;' +
 '  var scale = w / 200;' +
-'  ctx.font = canvasFontFor(opt.getAttribute("data-preview") || "", 14 * scale);' +
+'  ctx.font = canvasFontFor(opt.getAttribute("data-preview") || "", 14 * scale, fontSel.value);' +
 '  ctx.fillStyle = colors.text;' +
 '  ctx.textAlign = "center"; ctx.textBaseline = "middle";' +
 '  for (var i = 0; i < 12; i++) {' +
@@ -1046,7 +1046,7 @@ module.exports =
 '  var cornerOpt = cornerFontSel.options[cornerFontSel.selectedIndex];' +
 '  var cornerEntry = fontLookupEntry(cornerFontSel.value);' +
 '  var cornerPx = Math.max(7, Math.min(22, Math.round(cornerEntry.height * scale)));' +
-'  var cornerFontCss = canvasFontFor(cornerOpt.getAttribute("data-preview") || "", cornerPx);' +
+'  var cornerFontCss = canvasFontFor(cornerOpt.getAttribute("data-preview") || "", cornerPx, cornerFontSel.value);' +
 '  if (avail.digitalLeft) {' +
 '    drawCornerSlot(ctx, "middleLeftLine1Content", "middleLeftLine1Color", xInset, row1Y, "left", colors, cornerFontCss);' +
 '    drawCornerSlot(ctx, "middleLeftLine2Content", "middleLeftLine2Color", xInset, row2Y, "left", colors, cornerFontCss);' +
@@ -1088,7 +1088,7 @@ module.exports =
 '  var gridW = w - 2 * padSides, gridH = h - 2 * padTopBottom;' +
 '  var cellW = gridW / 4, cellH = gridH / 4;' +
 '  var fontPx = Math.max(10, Math.round(entry.sizePx * scale));' +
-'  ctx.font = canvasFontFor(opt.getAttribute("data-preview") || "", fontPx);' +
+'  ctx.font = canvasFontFor(opt.getAttribute("data-preview") || "", fontPx, fontSel.value);' +
 '  ctx.fillStyle = colors.text;' +
 '  ctx.textAlign = "center"; ctx.textBaseline = "middle";' +
 '  var hh = now.getHours(), mm = now.getMinutes();' +
@@ -1148,7 +1148,7 @@ module.exports =
 '  var images = FONT_PREVIEW_IMAGES[fontSel.value];' +
 '  var clockImgSrc = images && images.clock;' +
 '  var drewImage = false;' +
-'  if (clockImgSrc && !showSeconds) {' +
+'  if (clockImgSrc && !showSeconds && !FontManager.customName(fontSel.value)) {' +
 '    var tinted = getTintedFontImageCanvas(clockImgSrc, colors.text);' +
 '    if (tinted) {' +
 '      var targetH = fontPx, targetW = targetH * (tinted.width / tinted.height);' +
@@ -1157,7 +1157,7 @@ module.exports =
 '    }' +
 '  }' +
 '  if (!drewImage) {' +
-'    ctx.font = canvasFontFor(opt.getAttribute("data-preview") || "", fontPx);' +
+'    ctx.font = canvasFontFor(opt.getAttribute("data-preview") || "", fontPx, fontSel.value);' +
 '    ctx.fillStyle = colors.text;' +
 '    ctx.textAlign = "center"; ctx.textBaseline = "middle";' +
 '    ctx.fillText(txt, cx, clockY);' +
@@ -1229,7 +1229,7 @@ module.exports =
 '    var cornerEntry = fontLookupEntry(cornerFontSel.value);' +
 '    var cornerScale = w / 200;' +
 '    var cornerPx = Math.max(7, Math.min(22, Math.round(cornerEntry.height * cornerScale)));' +
-'    var cornerFontCss = canvasFontFor(cornerOpt.getAttribute("data-preview") || "", cornerPx);' +
+'    var cornerFontCss = canvasFontFor(cornerOpt.getAttribute("data-preview") || "", cornerPx, cornerFontSel.value);' +
 '    var bigDigitalInset = 18 * (w / 200);' +
 '    drawCornerSlot(ctx, "upperMiddleLine1Content", "upperMiddleLine1Color", w / 2, bigDigitalInset, "center", colors, cornerFontCss);' +
 '    drawCornerSlot(ctx, "bottomMiddleLine1Content", "bottomMiddleLine1Color", w / 2, h - bigDigitalInset, "center", colors, cornerFontCss);' +
@@ -1246,7 +1246,7 @@ module.exports =
 '    var gridCornerEntry = fontLookupEntry(gridCornerFontSel.value);' +
 '    var gridCornerScale = w / 200;' +
 '    var gridCornerPx = Math.max(7, Math.min(22, Math.round(gridCornerEntry.height * gridCornerScale)));' +
-'    var gridCornerFontCss = canvasFontFor(gridCornerOpt.getAttribute("data-preview") || "", gridCornerPx);' +
+'    var gridCornerFontCss = canvasFontFor(gridCornerOpt.getAttribute("data-preview") || "", gridCornerPx, gridCornerFontSel.value);' +
 '    var gridInset = 18 * (w / 200);' +
 '    drawCornerSlot(ctx, "upperMiddleLine1Content", "upperMiddleLine1Color", w / 2, gridInset, "center", colors, gridCornerFontCss);' +
 '    drawCornerSlot(ctx, "bottomMiddleLine1Content", "bottomMiddleLine1Color", w / 2, h - gridInset, "center", colors, gridCornerFontCss);' +
