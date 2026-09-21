@@ -2216,7 +2216,7 @@ fontManagerSource +
 // reads a time, a corner/edge feature reads a temperature, and the
 // numerals picker reads a number (Roman if that checkbox is on).
 'var FONT_PICKER_ROLES = {' +
-'  clock: { selectId: "clockFont", triggerId: "clockFontTrigger", title: "Clock font", onlyMainClock: true, showIncompatibleToggle: false,' +
+'  clock: { selectId: "clockFont", triggerId: "clockFontTrigger", title: "Clock font", onlyMainClock: true, showIncompatibleToggle: true, showIncompatibleForGridOnly: true,' +
 '    previewText: function () { return "12:34"; } },' +
 '  cornerFont: { selectId: "cornerFont", triggerId: "cornerFontTrigger", title: "Font", onlyMainClock: false, showIncompatibleToggle: true,' +
 '    previewText: function () { return "-10\\u00b0C"; } },' +
@@ -2381,8 +2381,9 @@ fontManagerSource +
 '  var isBigDigitalNow = role === "clock" && document.getElementById("bottomStyleValue").value === "bigDigital";' +
 '  document.getElementById("fontPickerTitle").textContent = isBigDigitalNow ? "Big Digital style" : cfg.title;' +
 '  var incompatibleRow = document.getElementById("fontPickerIncompatibleRow");' +
-'  incompatibleRow.style.display = (cfg.showIncompatibleToggle && !isBigDigitalNow) ? "" : "none";' +
-'  if (cfg.showIncompatibleToggle && !isBigDigitalNow) {' +
+'  var showIncompatibleToggle = cfg.showIncompatibleToggle && !isBigDigitalNow && (!cfg.showIncompatibleForGridOnly || (document.getElementById("bottomStyleValue") && document.getElementById("bottomStyleValue").value === "grid"));' +
+'  incompatibleRow.style.display = showIncompatibleToggle ? "" : "none";' +
+'  if (showIncompatibleToggle) {' +
 '    var currentId = document.getElementById(cfg.selectId).value;' +
 '    document.getElementById("fontPickerShowIncompatible").checked = !fontFlag(fontLookupEntry(currentId).small);' +
 '  }' +
@@ -2435,7 +2436,8 @@ fontManagerSource +
 '  var currentId = parseInt(sel.value, 10);' +
 '  var isBigDigitalNow = currentFontPickerRole === "clock" && document.getElementById("bottomStyleValue").value === "bigDigital";' +
 '  var isGridNow = currentFontPickerRole === "clock" && document.getElementById("bottomStyleValue").value === "grid";' +
-'  var showIncompatible = (cfg.showIncompatibleToggle && !isBigDigitalNow) ? document.getElementById("fontPickerShowIncompatible").checked : true;' +
+'  var showIncompatibleToggle = cfg.showIncompatibleToggle && !isBigDigitalNow && (!cfg.showIncompatibleForGridOnly || isGridNow);' +
+'  var showIncompatible = showIncompatibleToggle ? document.getElementById("fontPickerShowIncompatible").checked : true;' +
 '  var previewText = cfg.previewText();' +
 '  var html = "";' +
 // Category filters are just another AND-ed condition alongside the
