@@ -4479,6 +4479,7 @@ require('./config/config-preview') +
 '  var matchId = matchingPresetId(colors);' +
 '  var html = "";' +
 '  COLOR_SCHEMES.forEach(function (s) {' +
+'    if (s.mode && s.mode !== "both" && s.mode !== scheme) return;' +
 '    var selected = matchId !== null && String(matchId) === String(s.id);' +
 '    html += \'<button type="button" class="color-preset-btn\' + (selected ? " selected" : "") + \'" style="background:\' + s.bg + \';" onclick="chooseColorPreset(\' + s.id + \')">\' +' +
 '      \'<span class="color-preset-main-line" style="color:\' + s.text + \';">\' + esc(mainColorPhrase(s.label)) + "</span>" +' +
