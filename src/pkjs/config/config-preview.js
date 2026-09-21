@@ -1230,7 +1230,7 @@ module.exports =
 '    var cornerScale = w / 200;' +
 '    var cornerPx = Math.max(7, Math.min(22, Math.round(cornerEntry.height * cornerScale)));' +
 '    var cornerFontCss = canvasFontFor(cornerOpt.getAttribute("data-preview") || "", cornerPx, cornerFontSel.value);' +
-'    var bigDigitalInset = 18 * (w / 200);' +
+'    var bigDigitalInset = 42 * (w / 200);' +
 '    drawCornerSlot(ctx, "upperMiddleLine1Content", "upperMiddleLine1Color", w / 2, bigDigitalInset, "center", colors, cornerFontCss);' +
 '    drawCornerSlot(ctx, "bottomMiddleLine1Content", "bottomMiddleLine1Color", w / 2, h - bigDigitalInset, "center", colors, cornerFontCss);' +
 '    drawDigitalPreview(ctx, colors, now, false, w, 0, h, null, false);' +

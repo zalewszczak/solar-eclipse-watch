@@ -854,16 +854,14 @@ directWebfontStyle() +
 // about what a grid face actually shows.
 '  #slotDiagramGrid { position: absolute; left: 26px; right: 26px; top: 40px; bottom: 40px; display: none; grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(4, 1fr); pointer-events: none; }' +
 '  #slotDiagramGrid span { color: #fff; font-family: "Courier New", monospace; font-size: 20px; font-weight: 700; display: flex; align-items: center; justify-content: center; text-shadow: 0 1px 2px rgba(0,0,0,0.45); }' +
-// Big Digital/Grid share one .center-mode modifier (both reuse the
-// exact same single top-center/bottom-center feature slots -- see
-// feature_layout.c's own "Identical for both layouts, hence one
-// branch" comment) that pulls the shared analog upper-l1/bottom-l1
-// buttons in from the round dial's own 34px/62px offsets to sit right
-// at the diagram's top/bottom edge instead, next to the corner buttons
-// -- there's no dial or clock-bar panel to clear space around here, the
-// digits/grid fill the whole face same as the corners' own art does.
+// Big Digital and Grid use the same center-mode diagram styling, but only
+// Big Digital actually has the top/bottom center feature slots. Big Digital
+// pulls those buttons inward by one feature row; Grid leaves them marked
+// unavailable by renderSlotPicker().
 '  #slotPickerDiagram.center-mode .slot-upper-l1 { top: 8px; }' +
 '  #slotPickerDiagram.center-mode .slot-bottom-l1 { bottom: 8px; }' +
+'  #slotPickerDiagram.center-mode.big-digital-mode .slot-upper-l1 { top: 32px; }' +
+'  #slotPickerDiagram.center-mode.big-digital-mode .slot-bottom-l1 { bottom: 32px; }' +
 // 3 rows per side, bottom-anchored within the clock bar (row 1 nearest
 // the clock/top of the bar, row 3 nearest the screen's bottom edge --
 // same ordering as SLOT_LEFT_L1..UPPER_L1/SLOT_RIGHT_L1..UPPER_L2 in
@@ -2729,15 +2727,10 @@ require('./config/config-preview') +
 '  cornerTR: { contentId: "cornerTR", colorId: "cornerTRColor", btnId: "slotBtn-cornerTR", label: "Top-right", avail: function (a) { return !a.cornersGrayed; } },' +
 '  cornerBL: { contentId: "cornerBL", colorId: "cornerBLColor", btnId: "slotBtn-cornerBL", label: "Bottom-left", avail: function (a) { return !a.cornersGrayed; } },' +
 '  cornerBR: { contentId: "cornerBR", colorId: "cornerBRColor", btnId: "slotBtn-cornerBR", label: "Bottom-right", avail: function (a) { return !a.cornersGrayed; } },' +
-  // upperMiddleLine1/bottomMiddleLine1 are shared by TWO very different
-  // contexts now: analog's own upper/lower pair of lines around the
-  // dial, AND Big Digital/Grid's single top-center/bottom-center
-  // feature (see feature_layout.c's own is_big_digital||is_grid
-  // branch) -- same underlying content/color fields either way, just a
-  // different position on the diagram (.center-mode's CSS override) and
-  // no line-2 companion in the center case. upperMiddleLine2/
-  // bottomMiddleLine2 stay analog-only since Big Digital/Grid never set
-  // a second line.
+  // upperMiddleLine1/bottomMiddleLine1 are shared by analog's upper/lower
+  // pair and Big Digital's single top-center/bottom-center features. Grid
+  // does not use these two center slots, but the underlying content/color
+  // fields remain shared by the settings model.
 '  upperMiddleLine1: { contentId: "upperMiddleLine1Content", colorId: "upperMiddleLine1Color", btnId: "slotBtn-upperMiddleLine1", label: "Upper-middle, line 1", contexts: ["analog", "center"], avail: function (a) { return a.upper; } },' +
 '  upperMiddleLine2: { contentId: "upperMiddleLine2Content", colorId: "upperMiddleLine2Color", btnId: "slotBtn-upperMiddleLine2", label: "Upper-middle, line 2", contexts: ["analog"], avail: function (a) { return a.upper; } },' +
 '  bottomMiddleLine1: { contentId: "bottomMiddleLine1Content", colorId: "bottomMiddleLine1Color", btnId: "slotBtn-bottomMiddleLine1", label: "Bottom-middle, line 1", contexts: ["analog", "center"], avail: function (a) { return a.bottom; } },' +
@@ -2798,11 +2791,9 @@ require('./config/config-preview') +
 // digitalSidesVal, unlike digitalLeft/digitalRight above. Deliberately
 // NOT read anywhere near the seconds-availability logic (that only
 // ever looks at digitalSidesVal, which this never touches or is
-// touched by), so turning one of these two on/off can\'t affect
-// whether seconds are offered. Big Digital and Grid both reuse
-// upperMiddleLine1 too, but as a single centered top feature (set via
-// avail.upper below, same as analog's own), not this row-3-left/right
-// pair, so they're excluded here.
+// touched by), so turning one of these two on/off can't affect
+// whether seconds are offered. Big Digital and Grid are excluded here
+// because their center layouts are handled separately below.
 '    digitalBottomRow: !isAnalog && !isTopCenterOnly };' +
 '  if (isAnalog) {' +
 '    if (markerStyle < 3 || markerStyle === 8 || markerStyle === 9) {' +
@@ -2817,11 +2808,10 @@ require('./config/config-preview') +
 '      avail.upper = true; avail.bottom = avail.left = avail.right = override; avail.cornersGrayed = !override;' +
 '    }' +
 '  } else if (isTopCenterOnly) {' +
-// Big Digital/Grid: corners (always available, computed by SLOT_DEFS
-// itself) plus exactly one top-center and one bottom-center feature --
-// no sides, no line-2 variants. Matches feature_layout.c's own
-// is_big_digital||is_grid branch (SLOT_UPPER_L1/SLOT_BOTTOM_L1 only).
-'    avail.upper = avail.bottom = true;' +
+// Big Digital: corners plus exactly one top-center and one bottom-center
+// feature. Grid deliberately has no center feature slots, so those two
+// picker buttons are shown as unavailable there.
+'    avail.upper = avail.bottom = !isGrid;' +
 '  }' +
 '  return avail;' +
 '}' +
@@ -2845,6 +2835,7 @@ require('./config/config-preview') +
 '  document.getElementById("slotDiagramGrid").style.display = isGridMode ? "grid" : "none";' +
 '  document.getElementById("slotPickerDiagram").classList.toggle("top-bar-mode", isDigitalTopMode);' +
 '  document.getElementById("slotPickerDiagram").classList.toggle("center-mode", isCenterMode);' +
+'  document.getElementById("slotPickerDiagram").classList.toggle("big-digital-mode", isBigDigitalMode);' +
 '  for (var key in SLOT_DEFS) {' +
 '    var def = SLOT_DEFS[key];' +
 '    var btn = document.getElementById(def.btnId);' +
