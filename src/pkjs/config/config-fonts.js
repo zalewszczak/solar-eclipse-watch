@@ -193,6 +193,9 @@ function fontOptionsHtml(selectedId, onlyMainClock, includeBigDigital) {
   return FONT_LOOKUP.filter(function (f) {
     if (fontFlag(f.bigDigital)) return !!includeBigDigital;
     return !onlyMainClock || fontFlag(f.mainClock) || fontFlag(f.grid);
+  }).sort(function (a, b) {
+    var byLabel = String(a.label || '').localeCompare(String(b.label || ''), undefined, { sensitivity: 'base' });
+    return byLabel || (a.id - b.id);
   }).map(function (f) {
     // parseInt, not a strict typeof check -- see secondsAvailableForDigital()'s
     // own comment on why: a quoted-string sidesAllowed value would

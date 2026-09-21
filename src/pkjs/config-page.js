@@ -2443,7 +2443,11 @@ fontManagerSource +
 // fonts" still wins regardless of category selection (including
 // "All"), exactly per the request: unchecking it hides small:false
 // fonts no matter what categories are active.
-'  FONT_LOOKUP.forEach(function (f) {' +
+'  var pickerFonts = FONT_LOOKUP.slice().sort(function (a, b) {' +
+'    var byLabel = String(a.label || "").localeCompare(String(b.label || ""), undefined, { sensitivity: "base" });' +
+'    return byLabel || (a.id - b.id);' +
+'  });' +
+'  pickerFonts.forEach(function (f) {' +
 '    if (isBigDigitalNow) {' +
 '      if (!fontFlag(f.bigDigital)) return;' + // this one picker mode: only Big Digital's own styles
 '    } else {' +
