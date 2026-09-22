@@ -2231,6 +2231,11 @@ fontManagerSource +
 '    previewText: function () { var roman = document.getElementById("markerTextRoman"); return (roman && roman.checked) ? "XII" : "12"; } }' +
 '};' +
 'var currentFontPickerRole = null;' +
+// Big Digital and the other digital layouts intentionally use different
+// font-id ranges. Keep the last selection for each family so switching
+// between them does not overwrite the user's previous choice.
+'var lastBigDigitalFontId = null;' +
+'var lastDigitalFontId = null;' +
 
 // Font picker category filter state -- shared across all 3 roles
 // (clock/cornerFont/markerTextFont) rather than kept per-role, since
@@ -2501,6 +2506,10 @@ fontManagerSource +
 '  var cfg = FONT_PICKER_ROLES[currentFontPickerRole];' +
 '  if (!cfg) return;' +
 '  var sel = document.getElementById(cfg.selectId);' +
+'  if (currentFontPickerRole === "clock") {' +
+'    if (fontFlag(fontLookupEntry(id).bigDigital)) lastBigDigitalFontId = id;' +
+'    else lastDigitalFontId = id;' +
+'  }' +
 '  sel.value = id;' +
 '  if (typeof Event === "function") sel.dispatchEvent(new Event("change"));' +
 '  else { var evt = document.createEvent("HTMLEvents"); evt.initEvent("change", true, true); sel.dispatchEvent(evt); }' +
@@ -2521,14 +2530,24 @@ require('./config/config-preview') +
 '  document.getElementById("digitalOnlySettings").style.display = !isAnalog ? "block" : "none";' +
 '  document.getElementById("bigAnalogSettings").style.display = isAnalog ? "block" : "none";' +
 '  document.getElementById("bigDigitalTransparentRow").style.display = isBigDigital ? "" : "none";' +
-// clockFont's value has to actually belong to the right font family for
-// the layout that's now active, or the trigger button's own preview
-// renders nonsense (a text font's CSS applied to a bitmap-digit style
-// id, or vice versa) even though the watch itself falls back gracefully.
+// Keep one remembered font for Big Digital and another for the normal
+// digital layouts. Switching the layout should restore that context's
+// last choice instead of replacing it with a hard-coded fallback.
 '  var clockFontSel = document.getElementById("clockFont");' +
-'  var currentFontIsBigDigital = fontFlag(fontLookupEntry(clockFontSel.value).bigDigital);' +
-'  if (isBigDigital && !currentFontIsBigDigital) clockFontSel.value = "100";' +
-'  else if (!isBigDigital && currentFontIsBigDigital) clockFontSel.value = "8";' +
+'  var currentFontId = parseInt(clockFontSel.value, 10);' +
+'  var currentFontIsBigDigital = fontFlag(fontLookupEntry(currentFontId).bigDigital);' +
+'  if (!isNaN(currentFontId)) {' +
+'    if (currentFontIsBigDigital) lastBigDigitalFontId = currentFontId;' +
+'    else lastDigitalFontId = currentFontId;' +
+'  }' +
+'  var rememberedId = isBigDigital ? lastBigDigitalFontId : lastDigitalFontId;' +
+'  if (rememberedId !== null && !isNaN(rememberedId)) {' +
+'    clockFontSel.value = String(rememberedId);' +
+'  } else if (isBigDigital) {' +
+'    clockFontSel.value = "100";' +
+'  } else {' +
+'    clockFontSel.value = "8";' +
+'  }' +
 '  refreshAllFontTriggerLabels();' +
 '  updateDigitalSidesVisibility();' +
 '  updateSecondsAvailability();' +
