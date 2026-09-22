@@ -150,7 +150,8 @@ module.exports =
 '    CONFIG_SHOW_ISS: document.getElementById("showIss").checked,' +
 '    CONFIG_SHOW_FLIGHTS: document.getElementById("showFlights").checked,' +
 '    CONFIG_FLIGHTS_RANGE_KM: document.getElementById("flightsRangeKm").value,' +
-'    CONFIG_FLIGHTS_API_KEY: document.getElementById("flightsApiKey").value,' +
+'    CONFIG_FLIGHTS_CLIENT_ID: document.getElementById("flightsClientId").value,' +
+'    CONFIG_FLIGHTS_CLIENT_SECRET: document.getElementById("flightsClientSecret").value,' +
 '    CONFIG_AURORA_ENABLED: document.getElementById("auroraEnabled").checked,' +
 '    CONFIG_VIBRATE_ON_PHASE_CHANGE: document.getElementById("vibrateOnPhaseChange").checked,' +
 '    CONFIG_STARTUP_CLOCK_ANIM_MODE: document.getElementById("startupClockAnimMode").value,' +

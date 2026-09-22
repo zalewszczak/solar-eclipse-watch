@@ -465,7 +465,6 @@ Pebble.addEventListener('ready', function () {
 });
 
 Pebble.addEventListener('appmessage', function (e) {
-  console.log("got appmessage: ", e);
   if (e && e.payload && e.payload.REQUEST_UPDATE) {
     // The watch sends this both on every app launch/relaunch and on
     // a deliberate select-button press -- we can't tell which, so
@@ -508,7 +507,8 @@ Pebble.addEventListener('appmessage', function (e) {
         showIss: getSetting('CONFIG_SHOW_ISS', 'false') === 'true',
         showFlights: getSetting('CONFIG_SHOW_FLIGHTS', 'false') === 'true',
         flightsRadiusKm: parseInt(getSetting('CONFIG_FLIGHTS_RANGE_KM', '50'), 10) || 50,
-        flightsApiKey: getSetting('CONFIG_FLIGHTS_API_KEY', '')
+        flightsClientId: getSetting('CONFIG_FLIGHTS_CLIENT_ID', ''),
+    flightsClientSecret: getSetting('CONFIG_FLIGHTS_CLIENT_SECRET', '')
       };
       overheadObjects.buildOverheadObjectList(lat, lon, opts, function (objects, hadError) {
         sendFlatDict({
@@ -686,7 +686,8 @@ Pebble.addEventListener('showConfiguration', function () {
     showIss: getSetting('CONFIG_SHOW_ISS', 'false') === 'true',
     showFlights: getSetting('CONFIG_SHOW_FLIGHTS', 'false') === 'true',
     flightsRangeKm: getSetting('CONFIG_FLIGHTS_RANGE_KM', '50'),
-    flightsApiKey: getSetting('CONFIG_FLIGHTS_API_KEY', ''),
+    flightsClientId: getSetting('CONFIG_FLIGHTS_CLIENT_ID', ''),
+    flightsClientSecret: getSetting('CONFIG_FLIGHTS_CLIENT_SECRET', ''),
     showMajorStars: getSetting('CONFIG_SHOW_MAJOR_STARS', 'true') === 'true',
     auroraEnabled: getSetting('CONFIG_AURORA_ENABLED', 'false') === 'true',
     vibrateOnPhaseChange: getSetting('CONFIG_VIBRATE_ON_PHASE_CHANGE', 'false') === 'true',
@@ -967,7 +968,8 @@ Pebble.addEventListener('webviewclosed', function (e) {
   setSetting('CONFIG_SHOW_ISS', settings.CONFIG_SHOW_ISS ? 'true' : 'false');
   setSetting('CONFIG_SHOW_FLIGHTS', settings.CONFIG_SHOW_FLIGHTS ? 'true' : 'false');
   setSetting('CONFIG_FLIGHTS_RANGE_KM', settings.CONFIG_FLIGHTS_RANGE_KM || '50');
-  setSetting('CONFIG_FLIGHTS_API_KEY', settings.CONFIG_FLIGHTS_API_KEY || '');
+  setSetting('CONFIG_FLIGHTS_CLIENT_ID', settings.CONFIG_FLIGHTS_CLIENT_ID || '');
+  setSetting('CONFIG_FLIGHTS_CLIENT_SECRET', settings.CONFIG_FLIGHTS_CLIENT_SECRET || '');
   setSetting('CONFIG_SHOW_MAJOR_STARS', settings.CONFIG_SHOW_MAJOR_STARS === false ? 'false' : 'true');
   setSetting('CONFIG_AURORA_ENABLED', settings.CONFIG_AURORA_ENABLED ? 'true' : 'false');
   setSetting('CONFIG_VIBRATE_ON_PHASE_CHANGE', settings.CONFIG_VIBRATE_ON_PHASE_CHANGE ? 'true' : 'false');
