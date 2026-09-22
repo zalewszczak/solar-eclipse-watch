@@ -23,7 +23,7 @@ void feature_values_compute_slot(FeatureSlot *slot, const EclipseData *data,
   switch (content) {
     case 100: case 103: case 104: case 105:
     case 112: case 113: case 118:
-      feature_value_composite_compute(slot, content, data, color_mode, main_color, now);
+      feature_value_composite_compute(slot, content, data, color_mode, main_color, accent_color, now);
       break;
     case 44: case 45: case 46: case 47: case 48: case 49: case 50: case 51: case 52: case 53:
     case 54: case 55: case 56: case 57: case 58: case 59: case 60: case 61: case 62:
