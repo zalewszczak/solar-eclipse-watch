@@ -87,6 +87,8 @@ module.exports =
 '    CONFIG_OWM_KEY: document.getElementById("owmKey").value,' +
 '    CONFIG_UPDATE_MINS: mins,' +
 '    CONFIG_CLOCK_FONT: document.getElementById("clockFont").value,' +
+'    CONFIG_LAST_BIG_DIGITAL_FONT_ID: lastBigDigitalFontId === null ? "" : String(lastBigDigitalFontId),' +
+'    CONFIG_LAST_DIGITAL_FONT_ID: lastDigitalFontId === null ? "" : String(lastDigitalFontId),' +
 '    CONFIG_TEMP_UNIT: document.getElementById("tempUnit").value,' +
 '    CONFIG_WIND_SPEED_UNIT: document.getElementById("windSpeedUnit").value,' +
 '    CONFIG_AQI_UNIT: document.getElementById("aqiUnit").value,' +

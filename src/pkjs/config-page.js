@@ -2239,9 +2239,11 @@ fontManagerSource +
 'var currentFontPickerRole = null;' +
 // Big Digital and the other digital layouts intentionally use different
 // font-id ranges. Keep the last selection for each family so switching
-// between them does not overwrite the user's previous choice.
-'var lastBigDigitalFontId = null;' +
-'var lastDigitalFontId = null;' +
+// between them does not overwrite the user's previous choice. These are
+// persisted settings rather than page-session variables, so the remembered
+// choices survive closing/reopening the settings page as well.
+'var lastBigDigitalFontId = ' + JSON.stringify(current.lastBigDigitalFontId || null) + ';' +
+'var lastDigitalFontId = ' + JSON.stringify(current.lastDigitalFontId || null) + ';' +
 
 // Font picker category filter state -- shared across all 3 roles
 // (clock/cornerFont/markerTextFont) rather than kept per-role, since

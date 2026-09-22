@@ -535,6 +535,11 @@ Pebble.addEventListener('showConfiguration', function () {
     owmKey: getSetting('CONFIG_OWM_KEY', ''),
     updateMins: getSetting('CONFIG_UPDATE_MINS', '20'),
     clockFont: getSetting('CONFIG_CLOCK_FONT', '8'),
+    // Settings-page-only remembered font choices. These are not sent to
+    // the watch; they let the browser-side picker restore each font family
+    // after the settings page itself is reloaded.
+    lastBigDigitalFontId: getSetting('CONFIG_LAST_BIG_DIGITAL_FONT_ID', ''),
+    lastDigitalFontId: getSetting('CONFIG_LAST_DIGITAL_FONT_ID', ''),
     tempUnit: getSetting('CONFIG_TEMP_UNIT', 'C'),
     windSpeedUnit: getSetting('CONFIG_WIND_SPEED_UNIT', 'kmh'),
     showSeconds: getSetting('CONFIG_SHOW_SECONDS', 'false') === 'true',
@@ -815,6 +820,15 @@ Pebble.addEventListener('webviewclosed', function (e) {
   setSetting('CONFIG_OWM_KEY', settings.CONFIG_OWM_KEY || '');
   setSetting('CONFIG_UPDATE_MINS', settings.CONFIG_UPDATE_MINS || '20');
   setSetting('CONFIG_CLOCK_FONT', settings.CONFIG_CLOCK_FONT);
+  // Browser-side-only font context memory. Do not add these to the
+  // AppMessage schema: they are purely for restoring the settings-page
+  // picker after a page reload.
+  if (settings.CONFIG_LAST_BIG_DIGITAL_FONT_ID !== undefined) {
+    setSetting('CONFIG_LAST_BIG_DIGITAL_FONT_ID', settings.CONFIG_LAST_BIG_DIGITAL_FONT_ID || '');
+  }
+  if (settings.CONFIG_LAST_DIGITAL_FONT_ID !== undefined) {
+    setSetting('CONFIG_LAST_DIGITAL_FONT_ID', settings.CONFIG_LAST_DIGITAL_FONT_ID || '');
+  }
   setSetting('CONFIG_TEMP_UNIT', (settings.CONFIG_TEMP_UNIT === 'F' || settings.CONFIG_TEMP_UNIT === 'K') ? settings.CONFIG_TEMP_UNIT : 'C');
   setSetting('CONFIG_WIND_SPEED_UNIT', settings.CONFIG_WIND_SPEED_UNIT || 'kmh');
   setSetting('CONFIG_SHOW_SECONDS', settings.CONFIG_SHOW_SECONDS ? 'true' : 'false');
