@@ -395,57 +395,57 @@
       {
         "type": "bitmap",
         "name": "IMAGE_TALLDIGITS_4_0",
-        "file": "images/talldigits/Matrix/0.png"
+        "file": "images/talldigits/BarlowCondensed/0.png"
       },
       {
         "type": "bitmap",
         "name": "IMAGE_TALLDIGITS_4_1",
-        "file": "images/talldigits/Matrix/1.png"
+        "file": "images/talldigits/BarlowCondensed/1.png"
       },
       {
         "type": "bitmap",
         "name": "IMAGE_TALLDIGITS_4_2",
-        "file": "images/talldigits/Matrix/2.png"
+        "file": "images/talldigits/BarlowCondensed/2.png"
       },
       {
         "type": "bitmap",
         "name": "IMAGE_TALLDIGITS_4_3",
-        "file": "images/talldigits/Matrix/3.png"
+        "file": "images/talldigits/BarlowCondensed/3.png"
       },
       {
         "type": "bitmap",
         "name": "IMAGE_TALLDIGITS_4_4",
-        "file": "images/talldigits/Matrix/4.png"
+        "file": "images/talldigits/BarlowCondensed/4.png"
       },
       {
         "type": "bitmap",
         "name": "IMAGE_TALLDIGITS_4_5",
-        "file": "images/talldigits/Matrix/5.png"
+        "file": "images/talldigits/BarlowCondensed/5.png"
       },
       {
         "type": "bitmap",
         "name": "IMAGE_TALLDIGITS_4_6",
-        "file": "images/talldigits/Matrix/6.png"
+        "file": "images/talldigits/BarlowCondensed/6.png"
       },
       {
         "type": "bitmap",
         "name": "IMAGE_TALLDIGITS_4_7",
-        "file": "images/talldigits/Matrix/7.png"
+        "file": "images/talldigits/BarlowCondensed/7.png"
       },
       {
         "type": "bitmap",
         "name": "IMAGE_TALLDIGITS_4_8",
-        "file": "images/talldigits/Matrix/8.png"
+        "file": "images/talldigits/BarlowCondensed/8.png"
       },
       {
         "type": "bitmap",
         "name": "IMAGE_TALLDIGITS_4_9",
-        "file": "images/talldigits/Matrix/9.png"
+        "file": "images/talldigits/BarlowCondensed/9.png"
       },
       {
         "type": "bitmap",
         "name": "IMAGE_TALLDIGITS_4_10",
-        "file": "images/talldigits/Matrix/10.png"
+        "file": "images/talldigits/BarlowCondensed/10.png"
       },
       {
         "type": "bitmap",
@@ -505,57 +505,57 @@
       {
         "type": "bitmap",
         "name": "IMAGE_TALLDIGITS_6_0",
-        "file": "images/talldigits/TallDarkHandsome/0.png"
+        "file": "images/talldigits/SixCaps/0.png"
       },
       {
         "type": "bitmap",
         "name": "IMAGE_TALLDIGITS_6_1",
-        "file": "images/talldigits/TallDarkHandsome/1.png"
+        "file": "images/talldigits/SixCaps/1.png"
       },
       {
         "type": "bitmap",
         "name": "IMAGE_TALLDIGITS_6_2",
-        "file": "images/talldigits/TallDarkHandsome/2.png"
+        "file": "images/talldigits/SixCaps/2.png"
       },
       {
         "type": "bitmap",
         "name": "IMAGE_TALLDIGITS_6_3",
-        "file": "images/talldigits/TallDarkHandsome/3.png"
+        "file": "images/talldigits/SixCaps/3.png"
       },
       {
         "type": "bitmap",
         "name": "IMAGE_TALLDIGITS_6_4",
-        "file": "images/talldigits/TallDarkHandsome/4.png"
+        "file": "images/talldigits/SixCaps/4.png"
       },
       {
         "type": "bitmap",
         "name": "IMAGE_TALLDIGITS_6_5",
-        "file": "images/talldigits/TallDarkHandsome/5.png"
+        "file": "images/talldigits/SixCaps/5.png"
       },
       {
         "type": "bitmap",
         "name": "IMAGE_TALLDIGITS_6_6",
-        "file": "images/talldigits/TallDarkHandsome/6.png"
+        "file": "images/talldigits/SixCaps/6.png"
       },
       {
         "type": "bitmap",
         "name": "IMAGE_TALLDIGITS_6_7",
-        "file": "images/talldigits/TallDarkHandsome/7.png"
+        "file": "images/talldigits/SixCaps/7.png"
       },
       {
         "type": "bitmap",
         "name": "IMAGE_TALLDIGITS_6_8",
-        "file": "images/talldigits/TallDarkHandsome/8.png"
+        "file": "images/talldigits/SixCaps/8.png"
       },
       {
         "type": "bitmap",
         "name": "IMAGE_TALLDIGITS_6_9",
-        "file": "images/talldigits/TallDarkHandsome/9.png"
+        "file": "images/talldigits/SixCaps/9.png"
       },
       {
         "type": "bitmap",
         "name": "IMAGE_TALLDIGITS_6_10",
-        "file": "images/talldigits/TallDarkHandsome/10.png"
+        "file": "images/talldigits/SixCaps/10.png"
       },
       {
         "type": "bitmap",
