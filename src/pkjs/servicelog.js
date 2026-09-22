@@ -43,10 +43,10 @@ var ERR_DATA = 4;    // parsed fine, but the shape/contents weren't usable
 function classifyError(err) {
   if (!err) return { code: 0, label: 'OK' };
   var msg = err.message || String(err);
-  var m = /^HTTP (\d+)$/.exec(msg);
+  var m = /^HTTP (\d+)(?:\s+-\s+(.+))?$/.exec(msg);
   if (m) {
     var status = parseInt(m[1], 10);
-    return { code: Math.min(status, 255), label: 'HTTP ' + status };
+    return { code: status, label: m[2] || ('HTTP ' + status) };
   }
   if (msg === 'network error') return { code: ERR_NETWORK, label: 'Network error' };
   if (msg === 'timeout') return { code: ERR_TIMEOUT, label: 'Timeout' };

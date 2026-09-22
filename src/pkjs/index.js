@@ -465,6 +465,7 @@ Pebble.addEventListener('ready', function () {
 });
 
 Pebble.addEventListener('appmessage', function (e) {
+  console.log("got appmessage: ", e);
   if (e && e.payload && e.payload.REQUEST_UPDATE) {
     // The watch sends this both on every app launch/relaunch and on
     // a deliberate select-button press -- we can't tell which, so
@@ -499,7 +500,8 @@ Pebble.addEventListener('appmessage', function (e) {
     refreshManager.getLocation(function (err, lat, lon) {
       if (err) {
         console.log('eclipse-watch: overhead objects: no location - ' + err.message);
-        sendFlatDict({ 'OVERHEAD_OBJECTS_COMPUTED_AT': Math.floor(Date.now() / 1000) });
+        // Keep the cache stale so the next shake can retry.
+        sendFlatDict({ 'OVERHEAD_OBJECTS_COMPUTED_AT': 0 });
         return;
       }
       var opts = {
@@ -508,13 +510,16 @@ Pebble.addEventListener('appmessage', function (e) {
         flightsRadiusKm: parseInt(getSetting('CONFIG_FLIGHTS_RANGE_KM', '50'), 10) || 50,
         flightsApiKey: getSetting('CONFIG_FLIGHTS_API_KEY', '')
       };
-      overheadObjects.buildOverheadObjectList(lat, lon, opts, function (objects) {
+      overheadObjects.buildOverheadObjectList(lat, lon, opts, function (objects, hadError) {
         sendFlatDict({
           'OVERHEAD_OBJECTS': overheadObjectsBytes(objects),
           'OVERHEAD_OBJECT_COUNT': objects.length,
           // Sent whether or not anything came back -- this is what clears
           // the watch's "loading" flag either way (comms_decoder.c).
-          'OVERHEAD_OBJECTS_COMPUTED_AT': Math.floor(Date.now() / 1000)
+          // A failed source must not make the watch think its cache is fresh.
+          // Presence of this field still clears the loading flag; zero keeps
+          // the list immediately eligible for a retry on the next shake.
+          'OVERHEAD_OBJECTS_COMPUTED_AT': hadError ? 0 : Math.floor(Date.now() / 1000)
         });
       });
     });

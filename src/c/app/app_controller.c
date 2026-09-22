@@ -146,6 +146,7 @@ void app_controller_init(void) {
   // more MESSAGE_KEY_* words in .data and their relocations) than it
   // could ever save.
   persistence_load(&s_data);
+  s_data.overhead_objects_loading = false;
   battery_saver_controller_init(&s_data);
 
   // Initialize time service before pushing the window; window_load() may run synchronously.

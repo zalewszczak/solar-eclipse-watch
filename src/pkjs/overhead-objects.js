@@ -37,6 +37,7 @@ var MAX_LABEL_CHARS = 5;
 function buildOverheadObjectList(lat, lon, opts, cb) {
   var objects = [];
   var pending = 0;
+  var hadError = false;
   var done = false;
 
   function finish() {
@@ -44,7 +45,7 @@ function buildOverheadObjectList(lat, lon, opts, cb) {
     pending--;
     if (pending > 0) return;
     done = true;
-    cb(objects.slice(0, MAX_OVERHEAD_OBJECTS));
+    cb(objects.slice(0, MAX_OVERHEAD_OBJECTS), hadError);
   }
 
   if (opts.showIss) {
@@ -54,6 +55,7 @@ function buildOverheadObjectList(lat, lon, opts, cb) {
       if (!err && pos.alt > 0) {
         objects.push({ az: pos.az, alt: pos.alt, label: 'ISS' });
       } else if (err) {
+        hadError = true;
         console.log('eclipse-watch: ISS fetch failed (overhead objects) - ' + err.message);
       }
       void cls;
@@ -66,6 +68,7 @@ function buildOverheadObjectList(lat, lon, opts, cb) {
     flights.getNearbyFlights(lat, lon, opts.flightsRadiusKm, opts.flightsApiKey, function (err, list) {
       servicelog.recordAttempt('flights', err);
       if (err) {
+        hadError = true;
         console.log('eclipse-watch: flights fetch failed - ' + err.message);
       } else {
         list.forEach(function (look) {
@@ -81,7 +84,7 @@ function buildOverheadObjectList(lat, lon, opts, cb) {
     // Neither source enabled -- still respond (with an empty list) so the
     // watch's "loading" state clears rather than hanging until the next
     // shake's 3-minute staleness check retries.
-    cb([]);
+    cb([], false);
   }
 }
 

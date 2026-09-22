@@ -26,13 +26,26 @@ function xhrGetJSON(url, timeoutMs, user, pass, cb) {
     if (done) return;
     done = true;
     if (xhr.status >= 200 && xhr.status < 300) {
+      console.log(xhr.responseText);
       try {
         cb(null, JSON.parse(xhr.responseText));
       } catch (e) {
         cb(e);
       }
     } else {
-      cb(new Error('HTTP ' + xhr.status));
+      var msg = 'HTTP ' + xhr.status;
+      // OpenSky reports exhausted API credits/rate limits as HTTP 429 and
+      // provides the retry delay in X-Rate-Limit-Retry-After-Seconds.
+      if (xhr.status === 429) {
+        var retryAfter = xhr.getResponseHeader &&
+          xhr.getResponseHeader('X-Rate-Limit-Retry-After-Seconds');
+        if (!retryAfter && xhr.getResponseHeader) {
+          retryAfter = xhr.getResponseHeader('Retry-After');
+        }
+        msg = 'HTTP 429 - OpenSky rate limit reached' +
+          (retryAfter ? ' (retry after ' + retryAfter + 's)' : '');
+      }
+      cb(new Error(msg));
     }
   };
   xhr.onerror = function () { if (!done) { done = true; cb(new Error('network error')); } };
