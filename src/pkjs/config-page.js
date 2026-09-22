@@ -1447,6 +1447,10 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      <div class="modal-box">' +
 '        <div class="modal-title" id="colorPresetPickerTitle">Color preset</div>' +
 '        <div class="modal-scroll-body" id="colorPresetPickerGrid"></div>' +
+'        <div class="checkbox-row" style="margin-top:12px; padding-top:10px; border-top:1px solid var(--border);">' +
+'          <input type="checkbox" id="showAllColorPresets" onchange="onShowAllColorPresetsToggle()">' +
+'          <label for="showAllColorPresets" style="margin:0;">Show all presets</label>' +
+'        </div>' +
 '      </div>' +
 '    </div>' +
 
@@ -4469,9 +4473,14 @@ require('./config/config-preview') +
 '  }' +
 '}' +
 'var CURRENT_PRESET_SCHEME = "day";' +
+'var SHOW_ALL_COLOR_PRESETS = false;' +
 'function openColorPresetPicker(scheme) {' +
 '  CURRENT_PRESET_SCHEME = scheme || "day";' +
+'  var nightEnabled = document.getElementById("nightEnabled");' +
+'  SHOW_ALL_COLOR_PRESETS = nightEnabled ? !nightEnabled.checked : false;' +
 '  document.getElementById("colorPresetPickerTitle").textContent = (scheme === "night") ? "Night color preset" : "Color preset";' +
+'  var showAll = document.getElementById("showAllColorPresets");' +
+'  if (showAll) showAll.checked = SHOW_ALL_COLOR_PRESETS;' +
 '  renderColorPresetGrid();' +
 '  document.getElementById("colorPresetPickerModal").className = "modal-overlay open";' +
 '}' +
@@ -4492,7 +4501,7 @@ require('./config/config-preview') +
 '  var matchId = matchingPresetId(colors);' +
 '  var html = "";' +
 '  COLOR_SCHEMES.forEach(function (s) {' +
-'    if (s.mode && s.mode !== "both" && s.mode !== scheme) return;' +
+'    if (!SHOW_ALL_COLOR_PRESETS && s.mode && s.mode !== "both" && s.mode !== scheme) return;' +
 '    var selected = matchId !== null && String(matchId) === String(s.id);' +
 '    html += \'<button type="button" class="color-preset-btn\' + (selected ? " selected" : "") + \'" style="background:\' + s.bg + \';" onclick="chooseColorPreset(\' + s.id + \')">\' +' +
 '      \'<span class="color-preset-main-line" style="color:\' + s.text + \';">\' + esc(s.label) + "</span>" +' +
@@ -4503,6 +4512,11 @@ require('./config/config-preview') +
 '    \'<span class="color-preset-main-line" style="color:\' + colors.text + \';">(Custom)Main color</span>\' +' +
 '    \'<span class="color-preset-accent-line" style="color:\' + colors.accent + \';">Accent color</span></button>\';' +
 '  document.getElementById("colorPresetPickerGrid").innerHTML = html;' +
+'}' +
+'function onShowAllColorPresetsToggle() {' +
+'  var checkbox = document.getElementById("showAllColorPresets");' +
+'  SHOW_ALL_COLOR_PRESETS = !!(checkbox && checkbox.checked);' +
+'  renderColorPresetGrid();' +
 '}' +
 // null id means "Custom" was tapped -- same as tapping outside the
 // popup, that just closes it without touching any colors (there\'s
