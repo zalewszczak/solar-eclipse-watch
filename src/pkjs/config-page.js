@@ -1062,12 +1062,6 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      <button type="button" id="fontPickerResetFiltersBtn" class="secondary-btn" style="display:none; width:auto; margin:10px auto 0; padding:10px 16px;" onclick="resetFontCategoryFilters()">Reset filters</button>' +
 '    </div>' +
 '    <div class="modal-footer">' +
-'      <div id="fontPickerImportRow" style="margin-top:10px; text-align:left;">' +
-'        <button type="button" class="secondary-btn" style="width:100%;" onclick="triggerFontImport()">Import font for preview</button>' +
-'        <input type="file" id="fontPickerImportInput" accept=".ttf,.otf,.woff,.woff2,font/ttf,font/otf,font/woff,font/woff2" style="display:none;" onchange="onFontImportSelected()">' +
-'        <div class="help" id="fontPickerImportStatus" style="margin-top:6px;"></div>' +
-'        <button type="button" id="fontPickerClearImportBtn" class="secondary-btn" style="display:none; width:100%; margin-top:6px;" onclick="clearImportedFont()">Use normal preview font</button>' +
-'      </div>' +
 '      <div class="checkbox-row" id="fontPickerIncompatibleRow" style="margin-top:10px;">' +
 '        <input type="checkbox" id="fontPickerShowIncompatible" onchange="renderFontPickerGrid()">' +
 '        <label for="fontPickerShowIncompatible" style="margin:0;">Show incompatible fonts</label>' +
@@ -1805,6 +1799,15 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      <label for="drawDebug" style="margin:0;">Draw debug bounding boxes</label>' +
 '    </div>' +
 '    <div class="subsection">' +
+'      <div class="field-label-row"><label for="fontImportTarget">Import font for preview</label><button type="button" class="help-btn" onclick="toggleHelp(\'help-fontImport\')">?</button></div>' +
+'      <div class="help" id="help-fontImport" style="display:none;">Imports a local TTF, OTF, WOFF or WOFF2 file as the live settings-page preview for the selected font. This does not change the font installed on the watch or the app resources. Choose the exact font entry the file is replacing before importing it, and use the same family, weight and italic/regular style. For the most accurate result, use the original font file rather than a different webfont or a visually similar substitute. The replacement is matched to the selected font entry, not detected automatically from the filename. If the same font is used by several entries (for example different sizes), import it separately for each entry you want to override.</div>' +
+'      <select id="fontImportTarget" style="width:100%;" onchange="updateFontImportStatus()">' + fontOptionsHtml(clockFontId, false, true) + '</select>' +
+'      <button type="button" class="secondary-btn" style="width:100%; margin-top:6px;" onclick="triggerFontImport()">Import font for preview</button>' +
+'      <input type="file" id="fontPickerImportInput" accept=".ttf,.otf,.woff,.woff2,font/ttf,font/otf,font/woff,font/woff2" style="display:none;" onchange="onFontImportSelected()">' +
+'      <div class="help" id="fontPickerImportStatus" style="margin-top:6px;"></div>' +
+'      <button type="button" id="fontPickerClearImportBtn" class="secondary-btn" style="display:none; width:100%; margin-top:6px;" onclick="clearImportedFont()">Use normal preview font</button>' +
+'    </div>' +
+'    <div class="subsection">' +
 '      <div class="field-label-row"><label>Last 10 raw messages sent to watch</label><button type="button" class="help-btn" onclick="toggleHelp(\'help-rawMessageLog\')">?</button></div>' +
 '      <div class="help" id="help-rawMessageLog" style="display:none;">Shows recently sent data messages for troubleshooting.</div>' +
       rawMessageLogButtonsHtml(current) +
@@ -2334,48 +2337,52 @@ fontManagerSource +
 '  Object.keys(FONT_PICKER_ROLES).forEach(updateFontTriggerLabel);' +
 '}' +
 
-'function fontPickerSelectedId() {' +
-'  var cfg = currentFontPickerRole && FONT_PICKER_ROLES[currentFontPickerRole];' +
-'  if (!cfg) return null;' +
-'  var sel = document.getElementById(cfg.selectId);' +
+'function fontImportTargetId() {' +
+'  var sel = document.getElementById("fontImportTarget");' +
 '  return sel ? parseInt(sel.value, 10) : null;' +
 '}' +
 
+'function updateFontImportStatus() {' +
+'  var id = fontImportTargetId();' +
+'  var status = document.getElementById("fontPickerImportStatus");' +
+'  var clearBtn = document.getElementById("fontPickerClearImportBtn");' +
+'  var name = id === null || isNaN(id) ? null : FontManager.customName(id);' +
+'  if (status) status.textContent = name ? "Preview override: " + name : "";' +
+'  if (clearBtn) clearBtn.style.display = name ? "" : "none";' +
+'}' +
+
 'function triggerFontImport() {' +
-'  var id = fontPickerSelectedId();' +
+'  var id = fontImportTargetId();' +
 '  if (id === null || isNaN(id)) return;' +
 '  var input = document.getElementById("fontPickerImportInput");' +
 '  if (input) input.click();' +
 '}' +
 
 'function onFontImportSelected() {' +
-'  var id = fontPickerSelectedId();' +
+'  var id = fontImportTargetId();' +
 '  var input = document.getElementById("fontPickerImportInput");' +
-'  if (id === null || !input) return;' +
+'  if (id === null || isNaN(id) || !input) return;' +
 '  var status = document.getElementById("fontPickerImportStatus");' +
 '  if (status) status.textContent = "Loading font…";' +
 '  FontManager.importSelected(id, input, function () {' +
 '    refreshAllFontTriggerLabels();' +
 '    renderFontPickerGrid();' +
 '    updatePreview();' +
-'    var name = FontManager.customName(id);' +
-'    if (status) status.textContent = name ? "Preview override: " + name : "Couldn\'t load that font file.";' +
-'    var clearBtn = document.getElementById("fontPickerClearImportBtn");' +
-'    if (clearBtn) clearBtn.style.display = name ? "" : "none";' +
+'    updateFontImportStatus();' +
+'    if (!FontManager.customName(id) && status) status.textContent = "Couldn\'t load that font file.";' +
 '  });' +
 '}' +
 
 'function clearImportedFont() {' +
-'  var id = fontPickerSelectedId();' +
+'  var id = fontImportTargetId();' +
 '  if (id === null || isNaN(id)) return;' +
 '  FontManager.clearCustom(id, function () {' +
 '    refreshAllFontTriggerLabels();' +
 '    renderFontPickerGrid();' +
 '    updatePreview();' +
+'    updateFontImportStatus();' +
 '    var status = document.getElementById("fontPickerImportStatus");' +
 '    if (status) status.textContent = "Using the normal preview font.";' +
-'    var clearBtn = document.getElementById("fontPickerClearImportBtn");' +
-'    if (clearBtn) clearBtn.style.display = "none";' +
 '  });' +
 '}' +
 
@@ -2392,12 +2399,7 @@ fontManagerSource +
 '    var currentId = document.getElementById(cfg.selectId).value;' +
 '    document.getElementById("fontPickerShowIncompatible").checked = !fontFlag(fontLookupEntry(currentId).small);' +
 '  }' +
-'  var importRow = document.getElementById("fontPickerImportRow");' +
-'  var importStatus = document.getElementById("fontPickerImportStatus");' +
-'  if (importRow) importRow.style.display = isBigDigitalNow ? "none" : "";' +
-'  if (importStatus) importStatus.textContent = FontManager.customName(document.getElementById(cfg.selectId).value) ? "Preview override is active for this font." : "";' +
-'  var clearImportBtn = document.getElementById("fontPickerClearImportBtn");' +
-'  if (clearImportBtn) clearImportBtn.style.display = FontManager.customName(document.getElementById(cfg.selectId).value) ? "" : "none";' +
+'  updateFontImportStatus();' +
 // Big Digital styles only carry the "bigDigital" category tag, which
 // none of the normal category-filter buttons (modern/bold/etc, shared
 // globally across all 3 roles) match -- a stale non-"all" filter left
@@ -4957,6 +4959,7 @@ require('./config/config-runtime') +
 'updateHourlyVibeVisibility();' +
 'updateHandStyleButtonLabel();' +
 'refreshAllFontTriggerLabels();' +
+'updateFontImportStatus();' +
 'refreshEditButtonLabels();' +
 'renderHandStyleGrid();' +
 'renderMarkerStyleGrid();' +
