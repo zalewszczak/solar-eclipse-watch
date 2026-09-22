@@ -638,18 +638,6 @@
           "file": "fonts/NotoSerif-MediumItalic.ttf"
         },
         {
-          "characterRegex": "[:0-9A-ZXVI]",
-          "type": "font",
-          "name": "MPLUSBLACK_FONT_48",
-          "file": "fonts/MPLUSRounded1c-Black.ttf"
-        },
-        {
-          "characterRegex": "[:0-9A-ZXVI]",
-          "type": "font",
-          "name": "REDITBOLD_FONT_48",
-          "file": "fonts/RedditSans-Bold.ttf"
-        },
-        {
           "type": "font",
           "name": "ARCADE_FONT_18",
           "file": "fonts/ArcadeClassic.ttf"
@@ -675,49 +663,81 @@
           "file": "fonts/RADIOLAND.ttf"
         },
         {
-          "type": "font",
-          "name": "ZEROZERO_FONT_48",
-          "file": "fonts/00TT.TTF"
-        },
-        {
+          "characterRegex": "[:0-9A-ZXVI]",
           "type": "font",
           "name": "DSDIGIT_FONT_48",
           "file": "fonts/DS-DIGIT.TTF"
         },
         {
+          "characterRegex": "[:0-9A-ZXVI]",
           "type": "font",
           "name": "DSDIGIB_FONT_48",
           "file": "fonts/DS-DIGIB.TTF"
         },
         {
+          "characterRegex": "[:0-9A-ZXVI]",
           "type": "font",
           "name": "LCDSOLID_FONT_48",
           "file": "fonts/LCD_Solid.ttf"
         },
         {
+          "characterRegex": "[:0-9A-ZXVI]",
           "type": "font",
           "name": "REBELREDUX_FONT_48",
           "file": "fonts/RebelRedux.ttf"
         },
         {
+          "characterRegex": "[:0-9A-ZXVI]",
           "type": "font",
-          "name": "SCIFLYSANS_FONT_54",
-          "file": "fonts/SciFly-Sans.ttf"
+          "name": "NUNITO_FONT_48",
+          "file": "fonts/Nunito-Bold.ttf"
         },
         {
           "type": "font",
-          "name": "SCIFLYSANS_FONT_21",
-          "file": "fonts/SciFly-Sans.ttf"
+          "name": "NUNITO_FONT_21",
+          "file": "fonts/Nunito-Bold.ttf"
         },
         {
+          "characterRegex": "[:0-9A-ZXVI]",
           "type": "font",
           "name": "BITCOUNTGRID_FONT_48",
           "file": "fonts/BitcountGridDouble-Light.ttf"
         },
         {
+          "characterRegex": "[:0-9A-ZXVI]",
           "type": "font",
           "name": "ZCOOL_FONT_48",
           "file": "fonts/ZCOOLKuaiLe-Regular.ttf"
+        },
+        {
+          "characterRegex": "[:0-9A-ZXVI]",
+          "type": "font",
+          "name": "RAJDHANI_FONT_48",
+          "file": "fonts/Rajdhani-Medium.ttf"
+        },
+        {
+          "characterRegex": "[:0-9A-ZXVI]",
+          "type": "font",
+          "name": "BARLOW_FONT_52",
+          "file": "fonts/BarlowCondensed-SemiBoldItalic.ttf"
+        },
+        {
+          "characterRegex": "[:0-9A-ZXVI]",
+          "type": "font",
+          "name": "OPENRUNDE_FONT_48",
+          "file": "fonts/OpenRunde-Regular.otf"
+        },
+        {
+          "characterRegex": "[:0-9A-ZXVI]",
+          "type": "font",
+          "name": "MAJORMONO_FONT_48",
+          "file": "fonts/MajorMonoDisplay-Regular.ttf"
+        },
+        {
+          "characterRegex": "[:0-9A-ZXVI]",
+          "type": "font",
+          "name": "JURABOLD_FONT_48",
+          "file": "fonts/Jura-Bold.ttf"
         },
         {
           "type": "png",
@@ -758,7 +778,7 @@
         {
           "characterRegex": "[:0-9A-ZXVI]",
           "type": "font",
-          "name": "BRICOLAGE_FONT_48",
+          "name": "BRICOLAGE_FONT_54",
           "file": "fonts/BricolageGrotesque.ttf"
         },
         {
@@ -808,12 +828,6 @@
           "type": "font",
           "name": "NATIONALPARK_FONT_48",
           "file": "fonts/NationalPark-VariableFont_wght.ttf"
-        },
-        {
-          "characterRegex": "[:0-9A-ZXVI]",
-          "type": "font",
-          "name": "QUANTICO_FONT_48",
-          "file": "fonts/Quantico-BoldItalic.ttf"
         },
         {
           "characterRegex": "[:0-9A-ZXVI]",

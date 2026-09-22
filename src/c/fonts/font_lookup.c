@@ -64,7 +64,7 @@ static const FontLookupEntry FONT_TABLE[] = {
   [25] = { .resource_id = RESOURCE_ID_AMITA_FONT_48,         .height = 48, .y_offset = 6 }, // Amita
   [26] = { .resource_id = RESOURCE_ID_AVERIA_FONT_48,        .height = 48, .y_offset = 12 }, // AveriaSerifLibre
   [27] = { .resource_id = RESOURCE_ID_BAGEL_FONT_48,         .height = 48, .y_offset = 9 }, // Bagel
-  [28] = { .resource_id = RESOURCE_ID_BRICOLAGE_FONT_48,     .height = 48, .y_offset = 10 }, // Bricolage Grotesque
+  [28] = { .resource_id = RESOURCE_ID_BRICOLAGE_FONT_54,     .height = 54, .y_offset = 10 }, // Bricolage Grotesque
   [29] = { .resource_id = RESOURCE_ID_CHANGO_FONT_48,        .height = 48, .y_offset = 8 }, // Chango
   [30] = { .resource_id = RESOURCE_ID_EMBLEMA_FONT_48,       .height = 48, .y_offset = 10 }, // EmblemaOne
   [31] = { .resource_id = RESOURCE_ID_FRAUNCES_FONT_48,      .height = 48, .y_offset = 8 }, // Fraunces
@@ -72,7 +72,7 @@ static const FontLookupEntry FONT_TABLE[] = {
   [33] = { .resource_id = RESOURCE_ID_MICHROMA_FONT_48,      .height = 48, .y_offset = 5 }, // Michroma
   [34] = { .resource_id = RESOURCE_ID_NATIONALPARK_FONT_48,  .height = 48, .y_offset = 10 }, // National Park
   [35] = { .resource_id = RESOURCE_ID_KOMIKAHB_FONT_48,      .height = 48 }, // Komika
-  [36] = { .resource_id = RESOURCE_ID_QUANTICO_FONT_48,      .height = 48, .y_offset = 9 }, // Quantico
+  [36] = { .resource_id = RESOURCE_ID_OPENRUNDE_FONT_48,      .height = 48, .y_offset = 9 }, // Open Runde
   [37] = { .resource_id = RESOURCE_ID_SILKSCREEN_FONT_48,    .height = 48, .y_offset = 12 }, // Silkscreen
   [38] = { .resource_id = RESOURCE_ID_STACKSANSHEADLINE_FONT_48, .height = 48, .y_offset = 8 }, // StackSansHeadline
   [39] = { .resource_id = RESOURCE_ID_UNBOUNDED_FONT_48,     .height = 48, .y_offset = 7 }, // Unbounded
@@ -83,8 +83,8 @@ static const FontLookupEntry FONT_TABLE[] = {
   [43] = { .resource_id = RESOURCE_ID_MPLUSBLACK_FONT_16,    .height = 16, .y_offset = -2 }, // M PLus 1C
   [44] = { .resource_id = RESOURCE_ID_NOTOITALIC_FONT_18,    .height = 18, .y_offset = -2 }, // Noto Serif
   
-  [45] = { .resource_id = RESOURCE_ID_MPLUSBLACK_FONT_48,    .height = 48, .y_offset = 6 }, // M Plus 1C (big)
-  [46] = { .resource_id = RESOURCE_ID_REDITBOLD_FONT_48,     .height = 48, .y_offset = 9 }, // Reddit Sans
+  [45] = { .resource_id = RESOURCE_ID_RAJDHANI_FONT_48,      .height = 48, .y_offset = 6 }, // Rajdhani (big)
+  [46] = { .resource_id = RESOURCE_ID_JURABOLD_FONT_48,      .height = 48, .y_offset = 9 }, // Jura Bold
   
   [47] = { .resource_id = RESOURCE_ID_ARCADE_FONT_18,        .height = 18 }, // Arcade
   [48] = { .resource_id = RESOURCE_ID_DSDIGIB_FONT_20,       .height = 20, .y_offset = 1 }, // DS Digital Bold
@@ -96,10 +96,11 @@ static const FontLookupEntry FONT_TABLE[] = {
   [53] = { .resource_id = RESOURCE_ID_DSDIGIT_FONT_48,       .height = 48, .y_offset = 12 }, // DS Digital Bold Italic
   [54] = { .resource_id = RESOURCE_ID_LCDSOLID_FONT_48,      .height = 48, .y_offset = 1 }, // LCD
   [55] = { .resource_id = RESOURCE_ID_REBELREDUX_FONT_48,    .height = 48, .y_offset = 14 }, // Rebel Redux
-  [56] = { .resource_id = RESOURCE_ID_ZEROZERO_FONT_48,      .height = 48, .y_offset = 12 }, // 00TT
-  [57] = { .resource_id = RESOURCE_ID_SCIFLYSANS_FONT_54,    .height = 48, .y_offset = 16 }, // SciFlySans
-  [58] = { .resource_id = RESOURCE_ID_SCIFLYSANS_FONT_21,    .height = 21, .y_offset = 2 }, // SciFlySans small
+  [56] = { .resource_id = RESOURCE_ID_BARLOW_FONT_52,        .height = 52, .y_offset = 12 }, // 00TT
+  [57] = { .resource_id = RESOURCE_ID_NUNITO_FONT_48,        .height = 48, .y_offset = 16 }, // Nunito
+  [58] = { .resource_id = RESOURCE_ID_NUNITO_FONT_21,        .height = 21, .y_offset = 2 }, // Nunito small
   [59] = { .resource_id = RESOURCE_ID_BITCOUNTGRID_FONT_48,  .height = 48, .y_offset = 12 }, // Bitcount Grid
+  [60] = { .resource_id = RESOURCE_ID_MAJORMONO_FONT_48,     .height = 48, .y_offset = 12 }, // Major Mono Display
 };
 
 const uint8_t FONT_LOOKUP_COUNT = sizeof(FONT_TABLE) / sizeof(FONT_TABLE[0]);
