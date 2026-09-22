@@ -198,8 +198,8 @@ void celestial_bodies_draw_planet_seek(GContext *ctx, GRect bounds, const Eclips
 //    GColor dot_color = ((elapsed_ms % 1200) < 120)
 //      ? ((((elapsed_ms / 1200) % 2) == 0) ? GColorGreen : GColorSunsetOrange)
 //      : GColorWhite;
-    GColor dot_color = (((elapsed_ms % 1500) < 120) || (((elapsed_ms % 1500) >= 180) && ((elapsed_ms % 1500) < 260))) ? ((((elapsed_ms / 1500) % 2) == 0) ? GColorGreen : GColorSunsetOrange) : GColorWhite;
     for (int i = 0; i < d->overhead_object_count && i < MAX_OVERHEAD_OBJECTS; i++) {
+      GColor dot_color = ((((elapsed_ms + 350 * i)  % 1500) < 120) || ((((elapsed_ms + 350 * i) % 1500) >= 180) && (((elapsed_ms + 350 * i) % 1500) < 260))) ? (((((elapsed_ms + 350 * i) / 1500) % 2) == 0) ? GColorGreen : GColorSunsetOrange) : GColorWhite;
       const OverheadObject *obj = &d->overhead_objects[i];
       uint16_t az_deg = obj->az_alt_packed & 0x1FF;
       int16_t alt_deg = (int16_t)((obj->az_alt_packed >> 9) & 0x7F);
