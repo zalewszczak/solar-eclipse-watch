@@ -6,6 +6,7 @@
 #define DIGIT_W 38
 #define DIGIT_H 160
 #define COLON_GAP_W 20
+#define ONE_W_OFFSET 14
 
 static EclipseData *s_data;
 static Layer *s_panel_layer;
@@ -15,8 +16,8 @@ static int16_t draw_digit(GContext *ctx, int16_t x, int16_t y, uint8_t style, ui
   int16_t width = DIGIT_W;
   GPoint p = GPoint(x, y);
   if (digit == 1) {
-    width -= 20;
-    p.x -= 10;
+    width -= ONE_W_OFFSET;
+    p.x -= ONE_W_OFFSET / 2;
   } else if (digit == BIG_DIGITAL_COLON_INDEX) {
     width = COLON_GAP_W;
     p.x -= (DIGIT_W - COLON_GAP_W) / 2;
