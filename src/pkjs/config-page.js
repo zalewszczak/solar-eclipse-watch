@@ -925,8 +925,8 @@ directWebfontStyle() +
 '      <button type="button" class="back-btn" onclick="goBack()">&lsaquo; Back</button>' +
 '      <button type="button" class="donate-btn" onclick="openDonateModal()">&#9825; Donate</button>' +
 '    </div>' +
-'    <div class="top-bar-title">Eclipz</div>' +
-'    <div class="top-bar-desc">Configure where the eclipse geometry should be calculated for, and (optionally) a second weather source.</div>' +
+'    <div class="top-bar-title">Eclipz Watchface Preview</div>' +
+'    <div class="top-bar-desc">This preview is not perfect - it does not reflect watch screen 1:1 and has couple bugs that either I did not see or I couldnt fix easily. Im trying my best, thank you for understanding -Ł</div>' +
 '  </div>' +
 '  <div class="top-bar-preview">' +
 '    <canvas id="previewCanvas" width="176" height="201"></canvas>' +
@@ -1093,9 +1093,24 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '<div class="modal-overlay" id="donateModal">' +
 '  <div class="modal-box">' +
 '    <div class="modal-title">Support this project</div>' +
-'    <a class="secondary-btn" style="display:block; box-sizing:border-box; text-align:center; text-decoration:none;" href="#" onclick="return false;">Donate via PayPal</a>' +
-'    <a class="secondary-btn" style="display:block; box-sizing:border-box; text-align:center; text-decoration:none; margin-top:8px;" href="#" onclick="return false;">Donate Bitcoin</a>' +
-'    <div class="help" style="text-align:center; margin-top:10px;">Links coming soon.</div>' +
+'   <div class="help" style="text-align:center; margin-top:10px;">Donate via paypal with button below:<br>Amounts below ~1USD gets eaten by fees, just FYI</div>' +
+'   <div class="help" style="text-align:center; margin-top:10px;">   </div>' +
+' <center>' +
+' <form action="https://www.paypal.com/cgi-bin/webscr" method="post" target="_top">' +
+'  <input type="hidden" name="cmd" value="_s-xclick">' +
+'  <input type="hidden" name="hosted_button_id" value="D3C427GK2PGE8">' +
+'  <input type="image" src="https://www.paypalobjects.com/en_US/i/btn/btn_donate_LG.gif" border="0" name="submit" alt="PayPal - The safer, easier way to pay online!">' +
+'  <img alt="" border="0" src="https://www.paypalobjects.com/pl_PL/i/scr/pixel.gif" width="1" height="1">' +
+'  </form>' +
+'    <div class="help" style="text-align:center; margin-top:10px;">Donate bitcoin by sending BTC to this address:</div>' +
+'     1DAvDGQCXJtL2SHPz47QUjaSXBXLSXwThJ' +
+'   <div class="help" style="text-align:center; margin-top:10px;">   </div>' +
+'    <div class="help" style="text-align:center; margin-top:10px;">Donate coins via Coinbase to this email:</div>' +
+'     zalewszczak@gmail.com' +
+'   <div class="help" style="text-align:center; margin-top:10px;">   </div>' +
+'    <div class="help" style="text-align:center; margin-top:10px;">All donations will be spent wisely on beer and Pebble Round 2<br>(whichever target gets hit first)</div>' +
+'    <div class="help" style="text-align:center; margin-top:10px;"></div>' +
+'  </center>' +
 '    <button type="button" class="modal-cancel-btn" onclick="closeDonateModal()">Close</button>' +
 '  </div>' +
 '</div>' +
