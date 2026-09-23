@@ -1279,10 +1279,10 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      <div class="field-label-row"><label>Hour/seconds indices style</label><button type="button" class="help-btn" onclick="toggleHelp(\'help-indicesStyle\')">?</button></div>' +
 '      <button type="button" class="marker-edit-btn" id="markerStyleTriggerBtn" style="margin-top:8px;" onclick="openMarkerStyleModal()">Indices style: <span id="markerStyleTriggerLabel"></span> &rsaquo;</button>' +
 '      <select id="bigAnalogMarkerStyle" style="display:none;" onchange="onMarkerStyleChange()">' +
-'        <option value="9"' + (current.bigAnalogMarkerStyle === '9' ? ' selected' : '') + '>None</option>' +
+'        <option value="9"' + (current.bigAnalogMarkerStyle === '9' ? ' selected' : '') + '>Classy</option>' +
 '        <option value="0"' + (current.bigAnalogMarkerStyle === '0' || !current.bigAnalogMarkerStyle ? ' selected' : '') + '>Minimal (thin hour indices only)</option>' +
-'        <option value="1"' + (current.bigAnalogMarkerStyle === '1' ? ' selected' : '') + '>Small markers (hour + second)</option>' +
-'        <option value="2"' + (current.bigAnalogMarkerStyle === '2' ? ' selected' : '') + '>Big markers (thick hour, thin second)</option>' +
+'        <option value="1"' + (current.bigAnalogMarkerStyle === '1' ? ' selected' : '') + '>Braun</option>' +
+'        <option value="2"' + (current.bigAnalogMarkerStyle === '2' ? ' selected' : '') + '>Swiss</option>' +
 '        <option value="3"' + (current.bigAnalogMarkerStyle === '3' ? ' selected' : '') + '>Modern</option>' +
 '        <option value="4"' + (current.bigAnalogMarkerStyle === '4' ? ' selected' : '') + '>Shadow</option>' +
 '        <option value="5"' + (current.bigAnalogMarkerStyle === '5' ? ' selected' : '') + '>Tally</option>' +
@@ -3250,14 +3250,20 @@ require('./config/config-preview') +
 'function cmPopupPrefix(kind) { return kind === "hour" ? "cmHour" : "cmSec"; }' +
 'var MARKER_PRESETS = {' +
 '  hour: {' +
-'    minimal: { Style: "1", Thickness: "1", InnerEcc: "0", OuterEcc: "0", InnerBorder: "20", OuterBorder: "100" },' +
-'    small:   { Style: "1", Thickness: "1", InnerEcc: "0", OuterEcc: "0", InnerBorder: "0", OuterBorder: "100" },' +
-'    big:     { Style: "2", Thickness: "3", InnerEcc: "0", OuterEcc: "0", InnerBorder: "0", OuterBorder: "100" }' +
+'    small:   { Style: "1", Thickness: "1", InnerEcc: "0", OuterEcc: "0", InnerBorder: "0", OuterBorder: "100" },' + // legacy
+'    big:     { Style: "2", Thickness: "3", InnerEcc: "0", OuterEcc: "0", InnerBorder: "0", OuterBorder: "100" },' + // legacy
+'    minimal: { Style: "1", Thickness: "2", InnerThickness: "2", InnerEcc: "100", OuterEcc: "100", InnerBorder: "66", OuterBorder: "100" },' +
+'    braun:   { Style: "1", Thickness: "3", InnerThickness: "3", InnerEcc: "100", OuterEcc: "100", InnerBorder: "48", OuterBorder: "100" },' +
+'    swiss:   { Style: "2", Thickness: "7", InnerThickness: "1", InnerEcc: "70", OuterEcc: "100", InnerBorder: "75", OuterBorder: "100" },' +
+'    classy:  { Style: "4", Thickness: "10", InnerThickness: "3", InnerEcc: "0", OuterEcc: "100", InnerBorder: "69", OuterBorder: "100" }' +
 '  },' +
 '  sec: {' +
-'    minimal: { Style: "0", Thickness: "1", InnerEcc: "0", OuterEcc: "0", InnerBorder: "85", OuterBorder: "100" },' +
-'    small:   { Style: "1", Thickness: "1", InnerEcc: "0", OuterEcc: "0", InnerBorder: "60", OuterBorder: "100" },' +
-'    big:     { Style: "1", Thickness: "1", InnerEcc: "0", OuterEcc: "0", InnerBorder: "60", OuterBorder: "100" }' +
+'    small:   { Style: "1", Thickness: "1", InnerEcc: "0", OuterEcc: "0", InnerBorder: "60", OuterBorder: "100" },' + // legacy
+'    big:     { Style: "1", Thickness: "1", InnerEcc: "0", OuterEcc: "0", InnerBorder: "60", OuterBorder: "100" },' + // legacy
+'    minimal: { Style: "0", Thickness: "0", InnerThickness: "1", InnerEcc: "100", OuterEcc: "100", InnerBorder: "73", OuterBorder: "100" },' +
+'    braun:   { Style: "2", Thickness: "1", InnerThickness: "1", InnerEcc: "100", OuterEcc: "100", InnerBorder: "73", OuterBorder: "100" },' +
+'    swiss:   { Style: "2", Thickness: "1", InnerThickness: "1", InnerEcc: "70", OuterEcc: "75", InnerBorder: "75", OuterBorder: "80" },' +
+'    classy:  { Style: "2", Thickness: "1", InnerThickness: "1", InnerEcc: "0", OuterEcc: "0", InnerBorder: "73", OuterBorder: "80" }' +
 '  }' +
 '};' +
 // A rough approximation of the 3 built-in procedural styles, translated
@@ -3675,10 +3681,10 @@ require('./config/config-preview') +
 '  { value: "7", title: "Fancy" }' +
 '];' +
 'var MARKER_PRESET_STYLES = [' +
-'  { value: "9", title: "None", image: "none" },' +
+'  { value: "9", title: "Classy", image: "classy" },' +
 '  { value: "0", title: "Minimal", image: "minimal" },' +
-'  { value: "1", title: "Small", image: "small" },' +
-'  { value: "2", title: "Big", image: "big" }' +
+'  { value: "1", title: "Braun", image: "braun" },' +
+'  { value: "2", title: "Swiss", image: "swiss" }' +
 '];' +
 // Trigger-button label lookup -- every MARKER_BITMAP_STYLES/
 // MARKER_PRESET_STYLES entry\'s own title, plus "8" (Custom, the only

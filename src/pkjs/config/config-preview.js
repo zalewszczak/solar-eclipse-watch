@@ -316,14 +316,18 @@ module.exports =
 '  var isBitmapStyle = markerStyle >= 3 && markerStyle !== 8 && markerStyle !== 9;' +
 '  if (isBitmapStyle) return margins;' + // BITMAP_STYLE_MARGINS's 5 entries are all identical to the defaults above -- nothing to differ
 '  var pct, ecc;' +
-'  if (markerStyle === 8) {' +
+//'  if (markerStyle === 8) {' +
 '    var hourCfg = readCustomMarkerConfig("hour");' +
 '    pct = hourCfg.innerBorderPct; ecc = hourCfg.innerEccentricity;' +
-'  } else if (markerStyle <= 2) {' +
-'    var hour = MARKER_STYLE_HOUR_PRESETS[markerStyle], sec = MARKER_STYLE_SECOND_PRESETS[markerStyle];' +
-'    if (sec.thickness === 0 || hour.innerBorderPct <= sec.innerBorderPct) { pct = hour.innerBorderPct; ecc = hour.innerEccentricity; }' +
-'    else { pct = sec.innerBorderPct; ecc = sec.innerEccentricity; }' +
-'  } else { pct = 100; ecc = 0; }' + // 9 ("none") or anything unrecognized -- background_marker_inner_reach()'s own "fully retracted" fallback
+//'  } else if (markerStyle <= 2) {' +
+//'    var hour = MARKER_STYLE_HOUR_PRESETS[markerStyle], sec = MARKER_STYLE_SECOND_PRESETS[markerStyle];' +
+//'    if (sec.thickness === 0 || hour.innerBorderPct <= sec.innerBorderPct) { pct = hour.innerBorderPct; ecc = hour.innerEccentricity; }' +
+//'    else { pct = sec.innerBorderPct; ecc = sec.innerEccentricity; }' +
+//'  } else if (markerStyle === 9) {' + // 9 (old "none" and new classy)
+//'    var hour = MARKER_STYLE_HOUR_PRESETS[3], sec = MARKER_STYLE_SECOND_PRESETS[3];' +
+//'    if (sec.thickness === 0 || hour.innerBorderPct <= sec.innerBorderPct) { pct = hour.innerBorderPct; ecc = hour.innerEccentricity; }' +
+//'    else { pct = sec.innerBorderPct; ecc = sec.innerEccentricity; }' +
+//'  } else { pct = 100; ecc = 0; }' + // anything unrecognized -- background_marker_inner_reach()'s own "fully retracted" fallback
 '  var cx = w / 2, cy = h / 2;' +
 '  var topPt = pointOnRing(cx, cy, w, h, 0, pct, ecc);' +
 '  var rightPt = pointOnRing(cx, cy, w, h, Math.PI / 2, pct, ecc);' +
@@ -877,14 +881,16 @@ module.exports =
 // background_layer.c exactly (style/thickness/eccentricity/border by
 // index 0=minimal, 1=small, 2=big) -- used for bigAnalogMarkerStyle 0-2.
 'var MARKER_STYLE_HOUR_PRESETS = [' +
-'  { style: 1, thickness: 1, innerEccentricity: 0, outerEccentricity: 0, innerBorderPct: 65, outerBorderPct: 85, translucent: false, color: 0 },' +
-'  { style: 1, thickness: 1, innerEccentricity: 0, outerEccentricity: 0, innerBorderPct: 60, outerBorderPct: 85, translucent: false, color: 0 },' +
-'  { style: 2, thickness: 5, innerEccentricity: 0, outerEccentricity: 0, innerBorderPct: 60, outerBorderPct: 85, translucent: false, color: 0 }' +
+'  { style: 1, Thickness: 2, innerThickness: 2, innerEccentricity: 100, outerEccentricity: 100, innerBorderPct: 66, outerBorderPct: 100, translucent: false, color: 0 },' +
+'  { style: 1, Thickness: 3, innerThickness: 3, innerEccentricity: 100, outerEccentricity: 100, innerBorderPct: 48, outerBorderPct: 100, translucent: false, color: 0 },' +
+'  { style: 2, Thickness: 7, innerThickness: 1, innerEccentricity: 70, outerEccentricity: 100, innerBorderPct: 75, outerBorderPct: 100, translucent: false, color: 0 },' +
+'  { style: 4, Thickness: 10, innerThickness: 3, innerEccentricity: 0, outerEccentricity: 100, innerBorderPct: 69, outerBorderPct: 100, translucent: false, color: 0 }' +
 '];' +
 'var MARKER_STYLE_SECOND_PRESETS = [' +
-'  { style: 1, thickness: 0, innerEccentricity: 0, outerEccentricity: 0, innerBorderPct: 65, outerBorderPct: 85, translucent: false, color: 0 },' +
-'  { style: 1, thickness: 1, innerEccentricity: 0, outerEccentricity: 0, innerBorderPct: 65, outerBorderPct: 85, translucent: false, color: 0 },' +
-'  { style: 1, thickness: 1, innerEccentricity: 0, outerEccentricity: 0, innerBorderPct: 65, outerBorderPct: 85, translucent: false, color: 0 }' +
+'  { style: 0, thickness: 0, innerThickness: 1, innerEccentricity: 100, outerEccentricity: 100, innerBorderPct: 73, outerBorderPct: 100, translucent: false, color: 0 },' +
+'  { style: 2, thickness: 1, innerThickness: 1, innerEccentricity: 100, outerEccentricity: 100, innerBorderPct: 73, outerBorderPct: 100, translucent: false, color: 0 },' +
+'  { style: 2, thickness: 1, innerThickness: 1, innerEccentricity: 70, outerEccentricity: 75, innerBorderPct: 75, outerBorderPct: 80, translucent: false, color: 0 },' +
+'  { style: 2, thickness: 1, innerThickness: 1, innerEccentricity: 0, outerEccentricity: 0, innerBorderPct: 73, outerBorderPct: 80, translucent: false, color: 0 }' +
 '];' +
 // Reads the customHour*/customSec* hidden fields into a cfg object in
 // drawMarkerRing()\'s own shape, same field-per-field mapping
@@ -948,17 +954,20 @@ module.exports =
 '  var scale = w / 200;' + // every hand/shadow dimension below is a real on-watch px value (200x228 screen) -- see readHandConfig()'s own comment
 '  var markerStyle = parseInt(document.getElementById("bigAnalogMarkerStyle").value, 10);' +
 
-'  if (markerStyle <= 2) {' +
-'    var idx = markerStyle;' +
-'    drawMarkerRing(ctx, cx, cy, w, h, MARKER_STYLE_SECOND_PRESETS[idx], 60, 5, colors);' +
-'    drawMarkerRing(ctx, cx, cy, w, h, MARKER_STYLE_HOUR_PRESETS[idx], 12, 0, colors);' +
-'  } else if (markerStyle === 8) {' +
+//'  if (markerStyle <= 2) {' +
+//'    var idx = markerStyle;' +
+//'    drawMarkerRing(ctx, cx, cy, w, h, MARKER_STYLE_SECOND_PRESETS[idx], 60, 5, colors);' +
+//'    drawMarkerRing(ctx, cx, cy, w, h, MARKER_STYLE_HOUR_PRESETS[idx], 12, 0, colors);' +
+//'  } else if (markerStyle === 9) {' +
+//'    var idx = markerStyle;' +
+//'    drawMarkerRing(ctx, cx, cy, w, h, MARKER_STYLE_SECOND_PRESETS[3], 60, 5, colors);' +
+//'    drawMarkerRing(ctx, cx, cy, w, h, MARKER_STYLE_HOUR_PRESETS[3], 12, 0, colors);' +
+//'  } else if (markerStyle === 8) {' +
+'  if (markerStyle <= 2 || markerStyle === 8 || markerStyle === 9) {' +
 '    var secCfg = readCustomMarkerConfig("sec"), hourCfg = readCustomMarkerConfig("hour");' +
 '    drawMarkerRing(ctx, cx, cy, w, h, secCfg, 60, 5, colors);' +
 '    drawMarkerRing(ctx, cx, cy, w, h, hourCfg, 12, 0, colors);' +
 '    drawTextMarkers(ctx, cx, cy, w, h, colors);' +
-'  } else if (markerStyle === 9) {' +
-'    /* none -- no marker ring, no placeholder text either */' +
 '  } else if (!markerImageDrawn) {' +
 '    ctx.font = "10px sans-serif";' +
 '    ctx.fillStyle = colors.text;' +
