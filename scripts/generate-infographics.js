@@ -90,7 +90,7 @@ if (fs.existsSync(SOURCE_DIR)) {
 (function () {
   var OUTPUT_FILE = path.join(__dirname, '..', 'src', 'pkjs', 'data', 'generated', 'marker-preset-images.js');
   var PREFIX = 'marker_preset_';
-  var KNOWN_NAMES = ['none', 'minimal', 'small', 'big'];
+  var KNOWN_NAMES = ['braun', 'minimal', 'classy', 'swiss'];
   var entries = {};
   var found = [];
   var totalBytes = 0;

@@ -203,38 +203,8 @@ static void draw_marker_ring(GContext *ctx, GPoint center, GRect screen, const M
   }
 }
 
-// Hardcoded MarkerRingConfig pairs recreating the 3 non-bitmap,
-static const uint8_t MARKER_HOUR_THICKNESS[3] = { 1, 1, 5 };
-static const uint8_t MARKER_HOUR_INNER_PCT[3] = { 65, 60, 60 };
-static const uint8_t MARKER_SECOND_THICKNESS[3] = { 0, 1, 1 };
-static const uint8_t MARKER_SECOND_INNER_PCT[3] = { 65, 65, 65 };
-
-static void marker_layer_make_preset(MarkerRingConfig *out, uint8_t style, bool second) {
-  out->style = second ? 1 : (style == 2 ? 2 : 1);
-  out->thickness = second ? MARKER_SECOND_THICKNESS[style] : MARKER_HOUR_THICKNESS[style];
-  out->inner_eccentricity = 0;
-  out->outer_eccentricity = 0;
-  out->inner_border_pct = second ? MARKER_SECOND_INNER_PCT[style] : MARKER_HOUR_INNER_PCT[style];
-  out->outer_border_pct = 85;
-  out->translucent = false;
-  out->color = 0;
-}
-
 void marker_layer_inner_reach(uint8_t marker_style, uint8_t *out_pct, uint8_t *out_eccentricity) {
-  if (marker_style > 2) { // "none" (9), or any other non-procedural style a caller shouldn't be asking about
-    *out_pct = 100; // fully retracted -- never the tighter reach against a caller's own floor margin
-    *out_eccentricity = 0;
-    return;
-  }
-  uint8_t hour_pct = MARKER_HOUR_INNER_PCT[marker_style];
-  uint8_t second_pct = MARKER_SECOND_INNER_PCT[marker_style];
-  uint8_t second_thickness = MARKER_SECOND_THICKNESS[marker_style];
-  // Whichever ring reaches closer to center constrains the inner empty area.
-  if (second_thickness == 0 || hour_pct <= second_pct) {
-    *out_pct = hour_pct;
-  } else {
-    *out_pct = second_pct;
-  }
+  *out_pct = 65;
   *out_eccentricity = 0;
 }
 
@@ -262,12 +232,6 @@ void marker_layer_draw(GContext *ctx, MarkerLayerState *state, GPoint center, GR
                               bool anim_active, int32_t anim_progress_1000, bool draw_debug) {
   uint8_t marker_style = d->big_analog_marker_style;
 
-  if (marker_style == 9) { // none -- no ring, no bitmap, nothing to draw
-    marker_bitmap_ensure(&state->bitmap, &state->bitmap_style, &state->bitmap_tinted,
-                         &state->bitmap_tint_color, &state->bitmap_tint_transparent, marker_style); // frees any currently-loaded bitmap
-    return;
-  }
-
   bool is_bitmap_style = marker_style >= 3 && marker_style != 8;
 
   marker_bitmap_ensure(&state->bitmap, &state->bitmap_style, &state->bitmap_tinted,
@@ -283,28 +247,16 @@ void marker_layer_draw(GContext *ctx, MarkerLayerState *state, GPoint center, GR
   const MarkerRingConfig *hour_cfg, *second_cfg;
   MarkerRingConfig hour_preset, second_preset;
   uint8_t hour_inner_thickness, second_inner_thickness;
-  if (marker_style == 8) {
-    hour_cfg = &d->custom_hour_marker;
-    second_cfg = &d->custom_second_marker;
-    hour_inner_thickness = d->custom_hour_marker_inner_thickness;
-    second_inner_thickness = d->custom_second_marker_inner_thickness;
-  } else {
-    uint8_t idx = (marker_style <= 2) ? marker_style : 0;
-    marker_layer_make_preset(&hour_preset, idx, false);
-    marker_layer_make_preset(&second_preset, idx, true);
-    hour_cfg = &hour_preset;
-    second_cfg = &second_preset;
-    hour_inner_thickness = hour_preset.thickness;
-    second_inner_thickness = second_preset.thickness;
-  }
+  hour_cfg = &d->custom_hour_marker;
+  second_cfg = &d->custom_second_marker;
+  hour_inner_thickness = d->custom_hour_marker_inner_thickness;
+  second_inner_thickness = d->custom_second_marker_inner_thickness;
 
 // Second ring first so the hour ring's marks draw on top at shared
   draw_marker_ring(ctx, center, screen, second_cfg, 60, 5, main_color, accent_color, bg_color, false, 0, second_inner_thickness);
   draw_marker_ring(ctx, center, screen, hour_cfg, 12, 0, main_color, accent_color, bg_color, anim_active, anim_progress_1000, hour_inner_thickness);
 
-  if (marker_style == 8) {
-    marker_text_draw(ctx, center, screen, &state->text_font_slot, &d->marker_text, hour_cfg, second_cfg, main_color, anim_active, anim_progress_1000, draw_debug);
-  }
+  marker_text_draw(ctx, center, screen, &state->text_font_slot, &d->marker_text, hour_cfg, second_cfg, main_color, anim_active, anim_progress_1000, draw_debug);
 }
 
 
