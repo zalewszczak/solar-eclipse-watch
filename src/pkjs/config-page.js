@@ -627,10 +627,31 @@ directWebfontStyle() +
 '  .service-name { flex: 1 1 auto; font-size: 13px; color: var(--text); }' +
 '  .service-info-btn { width: 20px; height: 20px; border-radius: 50%; border: 1px solid var(--border); background: var(--btn-bg); color: var(--text-faint2); font-size: 12px; font-style: italic; font-weight: 700; line-height: 18px; text-align: center; padding: 0; flex: 0 0 auto; }' +
 '  .service-log-line { font-family: monospace; font-size: 11px; white-space: pre-wrap; word-break: break-word; padding: 3px 0; border-bottom: 1px solid var(--border-light); color: var(--text); }' +
-'  .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: none; align-items: flex-end; justify-content: center; z-index: 100; }' +
+'  .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: none; align-items: flex-end; justify-content: center; z-index: 100; overflow: hidden; }' +
 '  .modal-overlay.open { display: flex; }' +
 '  .modal-box { background: var(--card-bg); border-radius: 12px 12px 0 0; padding: 16px; width: 100%; max-width: 400px; max-height: 80vh; box-sizing: border-box; display: flex; flex-direction: column; overflow: hidden; }' +
 '  .modal-title { font-weight: 600; font-size: 15px; margin-bottom: 10px; text-align: center; color: var(--text); flex: 0 0 auto; }' +
+'  .donate-modal-box { position: relative; animation: donate-modal-in 480ms cubic-bezier(.2,.85,.25,1) both; }' +
+'  @keyframes donate-modal-in { from { transform: translateY(28px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }' +
+'  .donate-modal-box::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 92px; pointer-events: none; border-radius: 12px 12px 0 0; background: linear-gradient(135deg, rgba(18,22,34,.98), rgba(31,31,46,.96)); opacity: .98; }' +
+'  .donate-header { position: relative; overflow: hidden; margin: -16px -16px 13px; padding: 10px 16px 13px; border-bottom: 1px solid var(--border-light); background: linear-gradient(180deg, #171a28 0%, #242333 100%); }' +
+'  .donate-header-content { position: relative; z-index: 2; text-align: center; }' +
+'  .donate-header-title { font-size: 19px; font-weight: 800; letter-spacing: .3px; color: #fff; text-shadow: 0 1px 0 rgba(0,0,0,.35); }' +
+'  .donate-header-subtitle { margin-top: 3px; font-size: 11px; color: rgba(255,255,255,.72); }' +
+'  .donate-sparkle { display: inline-block; margin: 0 4px; animation: donate-sparkle 1.8s ease-in-out infinite; }' +
+'  @keyframes donate-sparkle { 0%,100% { transform: scale(.8) rotate(0deg); opacity: .45; } 50% { transform: scale(1.2) rotate(45deg); opacity: 1; } }' +
+'  .donate-eclipse { position: relative; z-index: 1; width: 122px; height: 42px; margin: 0 auto 3px; overflow: hidden; }' +
+'  .donate-sun { position: absolute; width: 34px; height: 34px;  left: 50%; top: 50%; border-radius: 50%; background: #fff4bd; box-shadow: 0 0 10px 2px rgba(255,223,130,.85), 0 0 22px 5px rgba(255,195,90,.28); animation: donate-sun-eclipse 14s ease-in-out infinite; }' +
+'  .donate-moon { position: absolute; width: 35px; height: 35px; left: 50%; top: 50%; border-radius: 50%; background: #090b12; box-shadow: 0 0 5px rgba(0,0,0,.8); animation: donate-moon-eclipse 14s ease-in-out infinite; }' +
+'  .donate-corona { position: absolute; width: 35px; height: 35px; left: 50%; top: 50%; border-radius: 50%; border: 2px solid rgba(255,236,174,.18); box-shadow: 0 0 12px 3px rgba(255,222,145,.18), inset 0 0 9px rgba(255,240,185,.12); opacity: 0; animation: donate-corona 14s ease-in-out infinite; }' +
+'  .donate-bead { position: absolute; width: 5px; height: 5px; border-radius: 50%; background: #fff9d5; box-shadow: 0 0 5px 2px rgba(255,224,130,.9); opacity: 0; }' +
+'  .donate-bead.b1 { left: calc(50% - 18px); top: calc(50%); animation: donate-bead-1 14s ease-in-out infinite; }' +
+'  .donate-bead.b2 { left: calc(50% - 18px); top: calc(50%); width: 4px; height: 4px; animation: donate-bead-2 14s ease-in-out infinite; }' +
+'  @keyframes donate-sun-eclipse { 0%, 18% { transform: translate(-150%, -50%); opacity: 1; } 40%, 62% { transform: translate(-50%, -50%); opacity: .9; } 84%, 100% { transform: translate(-150%, -50%); opacity: 1; } }' +
+'  @keyframes donate-moon-eclipse { 0%, 18% { transform: translate(50%, -50%); } 40%, 62% { transform: translate(-50%, -50%); } 84%, 100% { transform: translate(50%, -50%); } }' +
+'  @keyframes donate-corona { 0%, 34% { opacity: 0; transform: translate(-50%, -50%) scale(.75); } 43%, 58% { opacity: 1; transform: translate(-50%, -50%) scale(1); } 70%, 100% { opacity: 0; transform: translate(-50%, -50%) scale(.8); } }' +
+'  @keyframes donate-bead-1 { 0%, 36% { opacity: 0; transform: scale(.2); } 37%, 38% { opacity: 1; transform: scale(1.35); } 42%, 100% { opacity: 0; transform: scale(.2); } }' +
+'  @keyframes donate-bead-2 { 0%, 58% { opacity: 0; transform: scale(.2); } 59%, 64% { opacity: .95; transform: scale(1.2); } 66%, 100% { opacity: 0; transform: scale(.2); } }' +
 '  .hand-editor-diagram { width: 100%; height: auto; display: block; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 10px; flex: 0 0 auto; }' +
 '  .hand-editor-diagram:not([src]), .hand-editor-diagram[src=""] { display: none; }' +
 '  .modal-scroll-body { overflow-y: auto; flex: 1 1 auto; min-height: 0; }' +
@@ -641,10 +662,16 @@ directWebfontStyle() +
 '  .hex-swatch.selected { border: 2px solid #ff9200; }' +
 '  .modal-cancel-btn { width: 100%; padding: 12px; font-size: 14px; font-weight: 600; color: var(--text-strong); background: var(--border-light); border: none; border-radius: 8px; margin-top: 12px; }' +
 '  .donate-modal-box { max-height: 90vh; }' +
-'  .donate-content { overflow-y: auto; flex: 1 1 auto; min-height: 0; }' +
-'  .donate-intro { text-align: center; color: var(--text-muted); font-size: 12px; line-height: 1.45; margin: 0 4px 12px; }' +
-'  .donate-method { border: 1px solid var(--border); border-radius: 10px; padding: 12px; margin-top: 9px; background: var(--btn-bg); }' +
-'  .donate-method-title { font-size: 13px; font-weight: 700; color: var(--text-strong); margin-bottom: 5px; }' +
+'  .donate-content { overflow-y: auto; flex: 1 1 auto; min-height: 0; position: relative; z-index: 1; }' +
+'  .donate-intro { text-align: center; color: var(--text-muted); font-size: 12px; line-height: 1.45; margin: 0 4px 12px; animation: donate-content-in 500ms 120ms both; }' +
+'  @keyframes donate-content-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }' +
+'  .donate-method { position: relative; isolation: isolate; border: 2px solid transparent; border-radius: 11px; padding: 12px; margin-top: 10px; background: linear-gradient(var(--card-bg), var(--card-bg)) padding-box, conic-gradient(from 0deg, #ffd6e7, #ffe7b8, #e1f7c9, #ccecff, #ddd0ff, #ffd6e7) border-box; background-size: 100% 100%, 200% 200%; animation: donate-rainbow 5s linear infinite, donate-card-in 550ms both; box-shadow: 0 2px 8px rgba(0,0,0,.06); }' +
+'  .donate-method:nth-child(2) { animation-delay: 370ms; }' +
+'  .donate-method:nth-child(3) { animation-delay: 670ms; }' +
+'  .donate-method:nth-child(4) { animation-delay: 970ms; }' +
+'  @keyframes donate-rainbow { to { background-position: 100% 100%, 0% 50%; } }' +
+'  @keyframes donate-card-in { from { opacity: 0; transform: translateY(12px) scale(.985); } to { opacity: 1; transform: translateY(0) scale(1); } }' +
+'  .donate-method-title { font-size: 13px; font-weight: 800; color: var(--text-strong); margin-bottom: 5px; }' +
 '  .donate-method-note { font-size: 11px; line-height: 1.35; color: var(--text-muted); margin-bottom: 9px; }' +
 '  .donate-paypal { text-align: center; padding: 4px 0 2px; }' +
 '  .donate-paypal input[type=image] { max-width: 100%; height: auto; }' +
@@ -1102,9 +1129,12 @@ handEditorModalHtml('sec', 'Edit second hand') +
 
 '<div class="modal-overlay" id="donateModal">' +
 '  <div class="modal-box donate-modal-box">' +
-'    <div class="modal-title">Support Eclipz</div>' +
+'    <div class="donate-header">' +
+'      <div class="donate-eclipse" aria-hidden="true"><div class="donate-corona"></div><div class="donate-sun"></div><div class="donate-moon"></div><span class="donate-bead b1"></span><span class="donate-bead b2"></span><span class="donate-bead b3"></span></div>' +
+'      <div class="donate-header-content"><div class="donate-header-title"><span class="donate-sparkle">✦</span>Support Eclipz<span class="donate-sparkle">✦</span></div><div class="donate-header-subtitle">Keep the eclipse magic going</div></div>' +
+'    </div>' +
 '    <div class="donate-content">' +
-'      <div class="donate-intro">Eclipz is a little passion project built for Pebble fans. If you enjoy using it and would like to help keep the project going, a small donation is very much appreciated. Thank you! ♥</div>' +
+'      <div class="donate-intro">Eclipz is a little passion project born out of need to track the rare eclipse event that spiraled out of control and ended up being this monster of configuration options and astronomy/sky fanatic dream. If you enjoy using it and would like to help keep the project going, a small donation is very much appreciated. Thank you! ♥</div>' +
 '      <div class="donate-method">' +
 '        <div class="donate-method-title">PayPal</div>' +
 '        <div class="donate-method-note">The easiest option. Very small payments can be reduced by processing fees, so anything above about $1 helps a little more.</div>' +
@@ -1127,7 +1157,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '        <div class="donate-method-note">You can also send supported coins through Coinbase to:</div>' +
 '        <div class="donate-address">zalewszczak@gmail.com</div>' +
 '      </div>' +
-'      <div class="donate-footnote">Every contribution goes back into the project — with a little help for beer and, hopefully, Pebble Round 2 along the way. 🍻</div>' +
+'      <div class="donate-footnote">Every contribution goes back into the project — with a little help for beer or Pebble Round 2 (whichever goal gets hit first). Cheers! 🍻</div>' +
 '    </div>' +
 '    <button type="button" class="modal-cancel-btn" onclick="closeDonateModal()">Close</button>' +
 '  </div>' +
@@ -2443,7 +2473,7 @@ fontManagerSource +
 '  incompatibleRow.style.display = showIncompatibleToggle ? "" : "none";' +
 '  if (showIncompatibleToggle) {' +
 '    var currentId = document.getElementById(cfg.selectId).value;' +
-'    document.getElementById("fontPickerShowIncompatible").checked = isGridNow ? false : !fontFlag(fontLookupEntry(currentId).small);' +
+'    document.getElementById("fontPickerShowIncompatible").checked = !fontFlag(fontLookupEntry(currentId).small);' +
 '  }' +
 '  updateFontImportStatus();' +
 // Big Digital styles only carry the "bigDigital" category tag, which
@@ -2513,7 +2543,7 @@ fontManagerSource +
 '    if (isBigDigitalNow) {' +
 '      if (!fontFlag(f.bigDigital)) return;' + // this one picker mode: only Big Digital's own styles
 '    } else if (isGridNow) {' +
-'      if (!showIncompatible && f.grid !== true) return;' +
+'      if (!fontFlag(f.grid)) return;' + // Grid: only fonts flagged compatible with its 4x4 single-character cells -- operates solely on this flag, independent of mainClock, so grid-only fonts (no mainClock flag) are still offered
 '    } else {' +
 '      if (fontFlag(f.bigDigital)) return;' + // every other picker/mode: never offer a Big Digital style
 '      if (cfg.onlyMainClock && !fontFlag(f.mainClock)) return;' +
