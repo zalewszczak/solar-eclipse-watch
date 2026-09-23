@@ -640,6 +640,16 @@ directWebfontStyle() +
 '  .hex-swatch.hollow { border: none; background: transparent !important; pointer-events: none; }' +
 '  .hex-swatch.selected { border: 2px solid #ff9200; }' +
 '  .modal-cancel-btn { width: 100%; padding: 12px; font-size: 14px; font-weight: 600; color: var(--text-strong); background: var(--border-light); border: none; border-radius: 8px; margin-top: 12px; }' +
+'  .donate-modal-box { max-height: 90vh; }' +
+'  .donate-content { overflow-y: auto; flex: 1 1 auto; min-height: 0; }' +
+'  .donate-intro { text-align: center; color: var(--text-muted); font-size: 12px; line-height: 1.45; margin: 0 4px 12px; }' +
+'  .donate-method { border: 1px solid var(--border); border-radius: 10px; padding: 12px; margin-top: 9px; background: var(--btn-bg); }' +
+'  .donate-method-title { font-size: 13px; font-weight: 700; color: var(--text-strong); margin-bottom: 5px; }' +
+'  .donate-method-note { font-size: 11px; line-height: 1.35; color: var(--text-muted); margin-bottom: 9px; }' +
+'  .donate-paypal { text-align: center; padding: 4px 0 2px; }' +
+'  .donate-paypal input[type=image] { max-width: 100%; height: auto; }' +
+'  .donate-address { display: block; padding: 8px 9px; border-radius: 6px; background: var(--card-bg); border: 1px solid var(--border-light); color: var(--text); font-family: monospace; font-size: 11px; line-height: 1.35; word-break: break-all; user-select: text; -webkit-user-select: text; }' +
+'  .donate-footnote { text-align: center; color: var(--text-faint); font-size: 11px; line-height: 1.4; margin: 12px 6px 2px; }' +
 '  .modal-confirm-btn { width: 100%; padding: 12px; font-size: 14px; font-weight: 600; color: #fff; background: #ff9200; border: none; border-radius: 8px; margin-top: 8px; }' +
 '  .modal-confirm-btn:active { background: #e08300; }' +
 // Delete's own red variant of .modal-confirm-btn, for the delete-preset
@@ -1091,26 +1101,34 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '</div>' +
 
 '<div class="modal-overlay" id="donateModal">' +
-'  <div class="modal-box">' +
-'    <div class="modal-title">Support this project</div>' +
-'   <div class="help" style="text-align:center; margin-top:10px;">Donate via paypal with button below:<br>Amounts below ~1USD gets eaten by fees, just FYI</div>' +
-'   <div class="help" style="text-align:center; margin-top:10px;">   </div>' +
-' <center>' +
-' <form action="https://www.paypal.com/cgi-bin/webscr" method="post" target="_top">' +
-'  <input type="hidden" name="cmd" value="_s-xclick">' +
-'  <input type="hidden" name="hosted_button_id" value="D3C427GK2PGE8">' +
-'  <input type="image" src="https://www.paypalobjects.com/en_US/i/btn/btn_donate_LG.gif" border="0" name="submit" alt="PayPal - The safer, easier way to pay online!">' +
-'  <img alt="" border="0" src="https://www.paypalobjects.com/pl_PL/i/scr/pixel.gif" width="1" height="1">' +
-'  </form>' +
-'    <div class="help" style="text-align:center; margin-top:10px;">Donate bitcoin by sending BTC to this address:</div>' +
-'     1DAvDGQCXJtL2SHPz47QUjaSXBXLSXwThJ' +
-'   <div class="help" style="text-align:center; margin-top:10px;">   </div>' +
-'    <div class="help" style="text-align:center; margin-top:10px;">Donate coins via Coinbase to this email:</div>' +
-'     zalewszczak@gmail.com' +
-'   <div class="help" style="text-align:center; margin-top:10px;">   </div>' +
-'    <div class="help" style="text-align:center; margin-top:10px;">All donations will be spent wisely on beer and Pebble Round 2<br>(whichever target gets hit first)</div>' +
-'    <div class="help" style="text-align:center; margin-top:10px;"></div>' +
-'  </center>' +
+'  <div class="modal-box donate-modal-box">' +
+'    <div class="modal-title">Support Eclipz</div>' +
+'    <div class="donate-content">' +
+'      <div class="donate-intro">Eclipz is a little passion project built for Pebble fans. If you enjoy using it and would like to help keep the project going, a small donation is very much appreciated. Thank you! ♥</div>' +
+'      <div class="donate-method">' +
+'        <div class="donate-method-title">PayPal</div>' +
+'        <div class="donate-method-note">The easiest option. Very small payments can be reduced by processing fees, so anything above about $1 helps a little more.</div>' +
+'        <div class="donate-paypal">' +
+'          <form action="https://www.paypal.com/cgi-bin/webscr" method="post" target="_top">' +
+'            <input type="hidden" name="cmd" value="_s-xclick">' +
+'            <input type="hidden" name="hosted_button_id" value="D3C427GK2PGE8">' +
+'            <input type="image" src="https://www.paypalobjects.com/en_US/i/btn/btn_donate_LG.gif" border="0" name="submit" alt="Donate with PayPal">' +
+'            <img alt="" border="0" src="https://www.paypalobjects.com/pl_PL/i/scr/pixel.gif" width="1" height="1">' +
+'          </form>' +
+'        </div>' +
+'      </div>' +
+'      <div class="donate-method">' +
+'        <div class="donate-method-title">Bitcoin</div>' +
+'        <div class="donate-method-note">If you prefer crypto, you can send BTC directly to this address:</div>' +
+'        <div class="donate-address">1DAvDGQCXJtL2SHPz47QUjaSXBXLSXwThJ</div>' +
+'      </div>' +
+'      <div class="donate-method">' +
+'        <div class="donate-method-title">Coinbase</div>' +
+'        <div class="donate-method-note">You can also send supported coins through Coinbase to:</div>' +
+'        <div class="donate-address">zalewszczak@gmail.com</div>' +
+'      </div>' +
+'      <div class="donate-footnote">Every contribution goes back into the project — with a little help for beer and, hopefully, Pebble Round 2 along the way. 🍻</div>' +
+'    </div>' +
 '    <button type="button" class="modal-cancel-btn" onclick="closeDonateModal()">Close</button>' +
 '  </div>' +
 '</div>' +
