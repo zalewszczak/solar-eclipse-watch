@@ -2443,7 +2443,7 @@ fontManagerSource +
 '  incompatibleRow.style.display = showIncompatibleToggle ? "" : "none";' +
 '  if (showIncompatibleToggle) {' +
 '    var currentId = document.getElementById(cfg.selectId).value;' +
-'    document.getElementById("fontPickerShowIncompatible").checked = !fontFlag(fontLookupEntry(currentId).small);' +
+'    document.getElementById("fontPickerShowIncompatible").checked = isGridNow ? false : !fontFlag(fontLookupEntry(currentId).small);' +
 '  }' +
 '  updateFontImportStatus();' +
 // Big Digital styles only carry the "bigDigital" category tag, which
@@ -2513,7 +2513,7 @@ fontManagerSource +
 '    if (isBigDigitalNow) {' +
 '      if (!fontFlag(f.bigDigital)) return;' + // this one picker mode: only Big Digital's own styles
 '    } else if (isGridNow) {' +
-'      if (!fontFlag(f.grid)) return;' + // Grid: only fonts flagged compatible with its 4x4 single-character cells -- operates solely on this flag, independent of mainClock, so grid-only fonts (no mainClock flag) are still offered
+'      if (!showIncompatible && f.grid !== true) return;' +
 '    } else {' +
 '      if (fontFlag(f.bigDigital)) return;' + // every other picker/mode: never offer a Big Digital style
 '      if (cfg.onlyMainClock && !fontFlag(f.mainClock)) return;' +
