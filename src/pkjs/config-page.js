@@ -675,6 +675,7 @@ directWebfontStyle() +
 '  .donate-meteor.m4 { top: 55%; left: 18%; width: 17px; animation: donate-perseid-4 14s linear infinite; animation-delay: -12.7s; }' +
 '  .donate-eclipse { position: relative; z-index: 1; width: 122px; height: 42px; margin: 0 auto 3px; overflow: hidden; }' +
 '  .donate-sun { position: absolute; width: 34px; height: 34px; left: 50%; top: 50%; border-radius: 50%; background: #fff4bd; box-shadow: 0 0 10px 2px rgba(255,223,130,.85), 0 0 22px 5px rgba(255,195,90,.28); animation: donate-sun-eclipse 14s ease-in-out infinite; }' +
+'  .donate-moon { position: absolute; width: 35px; height: 35px; left: 50%; top: 50%; border-radius: 50%; background: #d4e9df; box-shadow: 0 0 0 rgba(0,0,0,0); animation: donate-moon-eclipse 14s ease-in-out infinite, donate-moon-sky 14s ease-in-out infinite; }' +
 '  .donate-corona { position: absolute; width: 35px; height: 35px; left: 50%; top: 50%; border-radius: 50%; border: 2px solid rgba(255,236,174,.18); box-shadow: 0 0 12px 3px rgba(255,222,145,.18), inset 0 0 9px rgba(255,240,185,.12); opacity: 0; animation: donate-corona 14s ease-in-out infinite; }' +
 '  .donate-bead { position: absolute; width: 5px; height: 5px; border-radius: 50%; background: #fff9d5; box-shadow: 0 0 5px 2px rgba(255,224,130,.9); opacity: 0; }' +
 '  .donate-bead.b1 { left: calc(50% - 18px); top: calc(50%); animation: donate-bead-1 14s ease-in-out infinite; }' +
