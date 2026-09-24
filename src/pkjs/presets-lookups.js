@@ -3,7 +3,8 @@
  * config-page.js needs: font metadata, color scheme presets, the
  * corner/edge feature content catalogue (grouped into categories for
  * the picker, complete with each item's own live-preview text),
- * and the starter hand-style presets. Pulled out into its own plain
+ * the starter hand-style presets, and the built-in marker-ring presets
+ * (Minimal/Braun/Swiss/Classy). Pulled out into its own plain
  * JS module -- real object/array literals, no string-concatenation
  * escaping -- specifically so these are easy to read and hand-edit
  * (add a font, retune a color preset, add a new feature id) without
@@ -1253,6 +1254,74 @@ var HAND_PRESETS = {
   }
 };
 
+// Built-in marker-ring presets -- the "Indices style" picker's Minimal
+// (bigAnalogMarkerStyle 0), Braun (1), Swiss (2) and Classy (9) tiles.
+// The watch itself has no concept of these any more: picking one on
+// the settings page copies its hour + second ring values into the same
+// customHour*/customSec* fields the "Custom" style edits (see
+// applyMarkerStylePresetToCustom() in config-page.js), and
+// settings-codecs.js sends the watch style 8 ("Custom") plus those
+// values whenever one of these is the selected style. The selected
+// preset itself is still what's stored and shown in the menu.
+//
+// One entry per preset, index-aligned across both arrays:
+//   0 = Minimal, 1 = Braun, 2 = Swiss, 3 = Classy
+// (MARKER_STYLE_PRESET_INDEX below maps a bigAnalogMarkerStyle value
+// to that index). Field meanings/ranges are MarkerRingConfig's own
+// -- see eclipse_data.h and customMarkerStyleCode() etc. in
+// settings-codecs.js. `style`: 0 dot, 1 line, 2 square, 4 tapered;
+// `thickness` 0 means that ring draws nothing at all;
+// `innerThickness` is only read by style 4; `color`: 0 main, 1
+// accent, 2 background.
+var MARKER_STYLE_HOUR_PRESETS = [
+  { style: 1, thickness: 2,  innerThickness: 2, innerEccentricity: 100, outerEccentricity: 100, innerBorderPct: 66, outerBorderPct: 100, translucent: false, color: 0 }, // Minimal
+  { style: 1, thickness: 3,  innerThickness: 3, innerEccentricity: 100, outerEccentricity: 100, innerBorderPct: 48, outerBorderPct: 100, translucent: false, color: 0 }, // Braun
+  { style: 2, thickness: 7,  innerThickness: 1, innerEccentricity: 70,  outerEccentricity: 100, innerBorderPct: 75, outerBorderPct: 100, translucent: false, color: 0 }, // Swiss
+  { style: 4, thickness: 10, innerThickness: 3, innerEccentricity: 0,   outerEccentricity: 100, innerBorderPct: 69, outerBorderPct: 100, translucent: false, color: 0 }  // Classy
+];
+var MARKER_STYLE_SECOND_PRESETS = [
+  { style: 0, thickness: 0, innerThickness: 1, innerEccentricity: 100, outerEccentricity: 100, innerBorderPct: 73, outerBorderPct: 100, translucent: false, color: 0 }, // Minimal (no second indices)
+  { style: 2, thickness: 1, innerThickness: 1, innerEccentricity: 100, outerEccentricity: 100, innerBorderPct: 73, outerBorderPct: 100, translucent: false, color: 0 }, // Braun
+  { style: 2, thickness: 1, innerThickness: 1, innerEccentricity: 70,  outerEccentricity: 75,  innerBorderPct: 75, outerBorderPct: 80,  translucent: false, color: 0 }, // Swiss
+  { style: 2, thickness: 1, innerThickness: 1, innerEccentricity: 0,   outerEccentricity: 0,   innerBorderPct: 73, outerBorderPct: 80,  translucent: false, color: 0 }  // Classy
+];
+
+// bigAnalogMarkerStyle value -> index into the two arrays above. Any
+// style not listed here (3-7 bitmap, 8 custom) isn't a ring preset.
+var MARKER_STYLE_PRESET_INDEX = { '0': 0, '1': 1, '2': 2, '9': 3 };
+
+// One ring preset in the exact shape the config page's hidden
+// customHour*/customSec* inputs (and the popup editors' CM_FIELDS)
+// use: field name -> string value, so applying it is a plain
+// `element.value = fields[name]` loop with no per-field conversion.
+function markerRingPresetToFields(p) {
+  return {
+    Style: String(p.style),
+    Thickness: String(p.thickness),
+    InnerThickness: String(p.innerThickness),
+    InnerEcc: String(p.innerEccentricity),
+    OuterEcc: String(p.outerEccentricity),
+    InnerBorder: String(p.innerBorderPct),
+    OuterBorder: String(p.outerBorderPct),
+    Translucent: String(p.translucent),
+    Color: String(p.color)
+  };
+}
+
+// bigAnalogMarkerStyle value ("0"/"1"/"2"/"9") -> { hour: {...}, sec:
+// {...} } of the field values above. Built once here from the two
+// arrays so both consumers -- the config page (serialized into the
+// webview) and settings-codecs.js (what actually goes to the watch)
+// -- read the exact same numbers.
+var MARKER_STYLE_PRESET_FIELDS = {};
+Object.keys(MARKER_STYLE_PRESET_INDEX).forEach(function (styleId) {
+  var i = MARKER_STYLE_PRESET_INDEX[styleId];
+  MARKER_STYLE_PRESET_FIELDS[styleId] = {
+    hour: markerRingPresetToFields(MARKER_STYLE_HOUR_PRESETS[i]),
+    sec: markerRingPresetToFields(MARKER_STYLE_SECOND_PRESETS[i])
+  };
+});
+
 module.exports = {
   FONT_LOOKUP: FONT_LOOKUP,
   FONT_MAX_CONTENT_ID: FONT_MAX_CONTENT_ID,
@@ -1261,5 +1330,9 @@ module.exports = {
   CORNER_COLOR_MODE_LABELS: CORNER_COLOR_MODE_LABELS,
   CORNER_CATEGORIES: CORNER_CATEGORIES,
   MAX_FEATURES: MAX_FEATURES,
-  HAND_PRESETS: HAND_PRESETS
+  HAND_PRESETS: HAND_PRESETS,
+  MARKER_STYLE_HOUR_PRESETS: MARKER_STYLE_HOUR_PRESETS,
+  MARKER_STYLE_SECOND_PRESETS: MARKER_STYLE_SECOND_PRESETS,
+  MARKER_STYLE_PRESET_INDEX: MARKER_STYLE_PRESET_INDEX,
+  MARKER_STYLE_PRESET_FIELDS: MARKER_STYLE_PRESET_FIELDS
 };

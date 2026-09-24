@@ -16,6 +16,7 @@ var getSetting = settings.getSetting;
 var presetsLookups = require('../presets-lookups');
 var MAX_FEATURES = presetsLookups.MAX_FEATURES;
 var FONT_MAX_CONTENT_ID = presetsLookups.FONT_MAX_CONTENT_ID;
+var MARKER_STYLE_PRESET_FIELDS = presetsLookups.MARKER_STYLE_PRESET_FIELDS;
 
 // Unified font ids (see font_lookup.h) -- CONFIG_CLOCK_FONT/
 // CONFIG_CORNER_FONT/CONFIG_MARKER_TEXT_FONT are all just the numeric
@@ -156,10 +157,31 @@ function shadowTranslucentCode() { return getSetting('CONFIG_SHADOW_TRANSLUCENT'
 // made no sense.
 function shadowAngleCode() { return clampInt(getSetting('CONFIG_SHADOW_ANGLE', '120'), 0, 359, 120); }
 
-function bigAnalogMarkerStyleCode() {
+// The 4 built-in ring presets (bigAnalogMarkerStyle 0 Minimal, 1 Braun,
+// 2 Swiss, 9 Classy -- see MARKER_STYLE_PRESET_FIELDS in
+// presets-lookups.js) don't exist on the watch any more: it only knows
+// the bitmap styles (3-7) and Custom (8). While one of those presets is
+// the selected style, this sends 8 and every customHour*/customSec*
+// codec below reports the preset's own values in place of whatever is
+// stored, so the watch simply receives an ordinary custom marker. The
+// stored choice itself is untouched, so the settings menu keeps showing
+// the preset. Normally the stored custom fields already equal the preset
+// (the settings page copies them in on selection -- see
+// applyMarkerStylePresetToCustom() in config-page.js); resolving here as
+// well covers settings saved before that existed and a refresh that
+// lands before the settings page has ever been reopened.
+var MARKER_STYLE_CUSTOM = 8;
+function storedMarkerStyleId() {
   var id = parseInt(getSetting('CONFIG_BIG_ANALOG_MARKER_STYLE', '0'), 10);
   if (isNaN(id) || id < 0 || id > 9) id = 0;
   return id;
+}
+function activeMarkerPresetFields() {
+  return MARKER_STYLE_PRESET_FIELDS[String(storedMarkerStyleId())] || null;
+}
+function bigAnalogMarkerStyleCode() {
+  var id = storedMarkerStyleId();
+  return MARKER_STYLE_PRESET_FIELDS[String(id)] ? MARKER_STYLE_CUSTOM : id;
 }
 // Bitmap marker styles' own transparency -- deliberately separate from
 // bigAnalogHandsTransparentCode() above (that one used to double as
@@ -172,7 +194,8 @@ function bitmapMarkerTransparentCode() { return getSetting('CONFIG_BITMAP_MARKER
 // shown on the settings page) when bottomStyle is 'analog'.
 function drawFeaturesBeneathHandsCode() { return getSetting('CONFIG_DRAW_FEATURES_BENEATH_HANDS', 'false') === 'true' ? 1 : 0; }
 
-// Custom hour/second marker system (bigAnalogMarkerStyleCode() === 8) --
+// Custom hour/second marker system (bigAnalogMarkerStyleCode() === 8,
+// which is also what a Minimal/Braun/Swiss/Classy preset is sent as) --
 // see MarkerRingConfig/MarkerTextConfig in marker_layer.h for what each
 // field means and its valid range. Border values are 0-100% "reach"
 // (marker_reach_px() in marker_layer.c does the actual px mapping,
@@ -186,41 +209,63 @@ function clampInt(v, lo, hi, fallback) {
   if (n > hi) return hi;
   return n;
 }
-function customMarkerStyleCode(key, fallback) { return clampInt(getSetting(key, fallback), 0, 4, fallback); } // 3 is reserved/unused -- see MarkerRingConfig's own style comment
-function customMarkerBorderCode(key, fallback) { return clampInt(getSetting(key, fallback), MARKER_BORDER_MIN, MARKER_BORDER_MAX, fallback); }
+// CONFIG_CUSTOM_HOUR_INNER_BORDER -> ['hour', 'InnerBorder'] etc. -- each
+// stored custom-marker key paired with the same ring/field name
+// presets-lookups.js's MARKER_STYLE_PRESET_FIELDS uses.
+var CUSTOM_MARKER_KEY_FIELDS = {};
+['hour', 'sec'].forEach(function (kind) {
+  ['Style', 'Thickness', 'InnerThickness', 'InnerEcc', 'OuterEcc', 'InnerBorder', 'OuterBorder', 'Translucent', 'Color'].forEach(function (field) {
+    var key = 'CONFIG_CUSTOM_' + (kind === 'hour' ? 'HOUR' : 'SEC') + '_' + field.replace(/([a-z])([A-Z])/g, '$1_$2').toUpperCase();
+    CUSTOM_MARKER_KEY_FIELDS[key] = [kind, field];
+  });
+});
+// getSetting() for one of those keys, except that while a ring preset is
+// the selected marker style the preset's own value wins (see the comment
+// above bigAnalogMarkerStyleCode()).
+function customMarkerSetting(key, fallback) {
+  var preset = activeMarkerPresetFields();
+  var where = CUSTOM_MARKER_KEY_FIELDS[key];
+  if (preset && where) return preset[where[0]][where[1]];
+  return getSetting(key, fallback);
+}
+function customMarkerStyleCode(key, fallback) { return clampInt(customMarkerSetting(key, fallback), 0, 4, fallback); } // 3 is reserved/unused -- see MarkerRingConfig's own style comment
+function customMarkerBorderCode(key, fallback) { return clampInt(customMarkerSetting(key, fallback), MARKER_BORDER_MIN, MARKER_BORDER_MAX, fallback); }
 
 function customHourStyleCode() { return customMarkerStyleCode('CONFIG_CUSTOM_HOUR_STYLE', 0); }
-function customHourThicknessCode() { return clampInt(getSetting('CONFIG_CUSTOM_HOUR_THICKNESS', '3'), 0, 20, 3); } // 0 is a real value here -- see draw_marker_ring()'s own "thickness 0 means this ring draws nothing at all" comment; the config page's "None" shape commits exactly that
+function customHourThicknessCode() { return clampInt(customMarkerSetting('CONFIG_CUSTOM_HOUR_THICKNESS', '3'), 0, 20, 3); } // 0 is a real value here -- see draw_marker_ring()'s own "thickness 0 means this ring draws nothing at all" comment; the config page's "None" shape commits exactly that
 // Only meaningful for style 4 (tapered) -- sent as its own simple
 // field, not part of the MARKER_RINGS blob, see custom_hour_marker_
 // inner_thickness's own comment in eclipse_data.h for why.
-function customHourInnerThicknessCode() { return clampInt(getSetting('CONFIG_CUSTOM_HOUR_INNER_THICKNESS', '3'), 1, 20, 3); }
-function customHourInnerEccCode() { return clampInt(getSetting('CONFIG_CUSTOM_HOUR_INNER_ECC', '0'), 0, 100, 0); }
-function customHourOuterEccCode() { return clampInt(getSetting('CONFIG_CUSTOM_HOUR_OUTER_ECC', '0'), 0, 100, 0); }
+function customHourInnerThicknessCode() { return clampInt(customMarkerSetting('CONFIG_CUSTOM_HOUR_INNER_THICKNESS', '3'), 1, 20, 3); }
+function customHourInnerEccCode() { return clampInt(customMarkerSetting('CONFIG_CUSTOM_HOUR_INNER_ECC', '0'), 0, 100, 0); }
+function customHourOuterEccCode() { return clampInt(customMarkerSetting('CONFIG_CUSTOM_HOUR_OUTER_ECC', '0'), 0, 100, 0); }
 function customHourInnerBorderCode() { return customMarkerBorderCode('CONFIG_CUSTOM_HOUR_INNER_BORDER', 20); }
 function customHourOuterBorderCode() {
   var outer = customMarkerBorderCode('CONFIG_CUSTOM_HOUR_OUTER_BORDER', 100);
   var inner = customHourInnerBorderCode();
   return outer < inner ? inner : outer; // outer never below inner -- see MarkerRingConfig
 }
-function customHourTranslucentCode() { return getSetting('CONFIG_CUSTOM_HOUR_TRANSLUCENT', 'false') === 'true' ? 1 : 0; }
+function customHourTranslucentCode() { return customMarkerSetting('CONFIG_CUSTOM_HOUR_TRANSLUCENT', 'false') === 'true' ? 1 : 0; }
 // 0=main, 1=accent, 2=background -- see MarkerRingConfig's own color
 // comment in eclipse_data.h.
-function customHourColorCode() { return clampInt(getSetting('CONFIG_CUSTOM_HOUR_COLOR', '0'), 0, 2, 0); }
+function customHourColorCode() { return clampInt(customMarkerSetting('CONFIG_CUSTOM_HOUR_COLOR', '0'), 0, 2, 0); }
 function customSecStyleCode() { return customMarkerStyleCode('CONFIG_CUSTOM_SEC_STYLE', 0); }
-function customSecThicknessCode() { return clampInt(getSetting('CONFIG_CUSTOM_SEC_THICKNESS', '1'), 0, 10, 1); } // see customHourThicknessCode()
-function customSecInnerThicknessCode() { return clampInt(getSetting('CONFIG_CUSTOM_SEC_INNER_THICKNESS', '1'), 1, 10, 1); } // see customHourInnerThicknessCode()
-function customSecInnerEccCode() { return clampInt(getSetting('CONFIG_CUSTOM_SEC_INNER_ECC', '0'), 0, 100, 0); }
-function customSecOuterEccCode() { return clampInt(getSetting('CONFIG_CUSTOM_SEC_OUTER_ECC', '0'), 0, 100, 0); }
+function customSecThicknessCode() { return clampInt(customMarkerSetting('CONFIG_CUSTOM_SEC_THICKNESS', '1'), 0, 10, 1); } // see customHourThicknessCode()
+function customSecInnerThicknessCode() { return clampInt(customMarkerSetting('CONFIG_CUSTOM_SEC_INNER_THICKNESS', '1'), 1, 10, 1); } // see customHourInnerThicknessCode()
+function customSecInnerEccCode() { return clampInt(customMarkerSetting('CONFIG_CUSTOM_SEC_INNER_ECC', '0'), 0, 100, 0); }
+function customSecOuterEccCode() { return clampInt(customMarkerSetting('CONFIG_CUSTOM_SEC_OUTER_ECC', '0'), 0, 100, 0); }
 function customSecInnerBorderCode() { return customMarkerBorderCode('CONFIG_CUSTOM_SEC_INNER_BORDER', 70); }
 function customSecOuterBorderCode() {
   var outer = customMarkerBorderCode('CONFIG_CUSTOM_SEC_OUTER_BORDER', 100);
   var inner = customSecInnerBorderCode();
   return outer < inner ? inner : outer;
 }
-function customSecTranslucentCode() { return getSetting('CONFIG_CUSTOM_SEC_TRANSLUCENT', 'false') === 'true' ? 1 : 0; }
-function customSecColorCode() { return clampInt(getSetting('CONFIG_CUSTOM_SEC_COLOR', '0'), 0, 2, 0); }
-function markerTextTargetCode() { return clampInt(getSetting('CONFIG_MARKER_TEXT_TARGET', '0'), 0, 2, 0); }
+function customSecTranslucentCode() { return customMarkerSetting('CONFIG_CUSTOM_SEC_TRANSLUCENT', 'false') === 'true' ? 1 : 0; }
+function customSecColorCode() { return clampInt(customMarkerSetting('CONFIG_CUSTOM_SEC_COLOR', '0'), 0, 2, 0); }
+// Numerals (marker text) are a Custom-only feature -- forced off while a
+// ring preset is selected, without touching the stored choice, so it's
+// still there when the user switches back to Custom.
+function markerTextTargetCode() { return activeMarkerPresetFields() ? 0 : clampInt(getSetting('CONFIG_MARKER_TEXT_TARGET', '0'), 0, 2, 0); }
 function markerTextFontCode() { return clampInt(getSetting('CONFIG_MARKER_TEXT_FONT', '0'), 0, FONT_MAX_CONTENT_ID, 0); }
 function markerTextOffsetCode() { return clampInt(getSetting('CONFIG_MARKER_TEXT_OFFSET', '0'), -50, 50, 0); }
 function markerTextHourMaskCode() { return clampInt(getSetting('CONFIG_MARKER_TEXT_HOUR_MASK', '4095'), 0, 4095, 4095); }

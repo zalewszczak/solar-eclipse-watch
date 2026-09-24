@@ -40,6 +40,7 @@ var COLOR_SCHEMES = PRESETS_LOOKUPS.COLOR_SCHEMES;
 var CORNER_COLOR_MODE_LABELS = PRESETS_LOOKUPS.CORNER_COLOR_MODE_LABELS;
 var CORNER_CATEGORIES = PRESETS_LOOKUPS.CORNER_CATEGORIES;
 var HAND_PRESETS = PRESETS_LOOKUPS.HAND_PRESETS;
+var MARKER_STYLE_PRESET_FIELDS = PRESETS_LOOKUPS.MARKER_STYLE_PRESET_FIELDS;
 
 // The 7 corner/edge base field names that mean something different in
 // Analog vs Digital (bar/top) -- an analog edge line vs. a digital
@@ -224,7 +225,7 @@ var handEditorModalHtml = configHands.handEditorModalHtml;
  * @param {object} current  current settings, as plain values:
  *   { autoLoc, lat, lon, owmKey, updateMins,
  *     clockFont, showSeconds, bottomStyle: 'digital'|'analog' (a persisted 'biganalog' from before this app version is treated as 'analog'),
- *     bigAnalogMarkerStyle: '0'-'8' (8=custom -- see customHour.../customSec.../markerText... below), upperMiddleLine1Content/upperMiddleLine2Content: '0'-'12', upperMiddleLine1Color/upperMiddleLine2Color: '0'-'3',
+ *     bigAnalogMarkerStyle: '0'-'9' (0/1/2/9=Minimal/Braun/Swiss/Classy ring presets, which copy their values into customHour.../customSec... and reach the watch as 8; 3-7=bitmap styles; 8=custom -- see customHour.../customSec.../markerText... below), upperMiddleLine1Content/upperMiddleLine2Content: '0'-'12', upperMiddleLine1Color/upperMiddleLine2Color: '0'-'3',
  *     colorScheme: '0'-'9'|'custom', customBg, customText, customAccent (packed byte strings),
  *     nightEnabled, nightScheme, nightCustomBg, nightCustomText, nightCustomAccent,
  *     showSunTime, showIss, showMajorStars, sunMoonSize: '25'|'50'|'75'|'100', shakeLabelSeconds, vibrateOnPhaseChange,
@@ -3195,6 +3196,10 @@ require('./config/config-preview') +
 '}' +
 'function onMarkerStyleChange() {' +
 '  var val = document.getElementById("bigAnalogMarkerStyle").value;' +
+// Materialize a built-in preset into the custom marker fields first, so the
+// preview, the Custom editors and the saved settings all see its values.
+'  applyMarkerStylePresetToCustom(val);' +
+'  refreshEditButtonLabels();' +
 '  document.getElementById("customMarkerSection").style.display = (val === "8") ? "" : "none";' +
 '  var isBitmap = (val === "3" || val === "4" || val === "5" || val === "6" || val === "7");' +
 '  document.getElementById("bitmapMarkerTransparentRow").style.display = isBitmap ? "" : "none";' +
@@ -3248,24 +3253,59 @@ require('./config/config-preview') +
 'var CM_CHECKBOX_FIELDS = ["Translucent"];' +
 'function cmHiddenPrefix(kind) { return kind === "hour" ? "customHour" : "customSec"; }' +
 'function cmPopupPrefix(kind) { return kind === "hour" ? "cmHour" : "cmSec"; }' +
+// Serialized straight from presets-lookups.js's MARKER_STYLE_PRESET_FIELDS (bigAnalogMarkerStyle
+// "0"/"1"/"2"/"9" -> hour/sec ring field values) -- the one place the
+// Minimal/Braun/Swiss/Classy numbers live. Used by BOTH the Indices style
+// picker (applyMarkerStylePresetToCustom() below) and the hour/second
+// editor popups' own preset buttons (MARKER_PRESETS below).
+'var MARKER_STYLE_PRESET_FIELDS = ' + JSON.stringify(MARKER_STYLE_PRESET_FIELDS) + ';' +
 'var MARKER_PRESETS = {' +
 '  hour: {' +
 '    small:   { Style: "1", Thickness: "1", InnerEcc: "0", OuterEcc: "0", InnerBorder: "0", OuterBorder: "100" },' + // legacy
 '    big:     { Style: "2", Thickness: "3", InnerEcc: "0", OuterEcc: "0", InnerBorder: "0", OuterBorder: "100" },' + // legacy
-'    minimal: { Style: "1", Thickness: "2", InnerThickness: "2", InnerEcc: "100", OuterEcc: "100", InnerBorder: "66", OuterBorder: "100" },' +
-'    braun:   { Style: "1", Thickness: "3", InnerThickness: "3", InnerEcc: "100", OuterEcc: "100", InnerBorder: "48", OuterBorder: "100" },' +
-'    swiss:   { Style: "2", Thickness: "7", InnerThickness: "1", InnerEcc: "70", OuterEcc: "100", InnerBorder: "75", OuterBorder: "100" },' +
-'    classy:  { Style: "4", Thickness: "10", InnerThickness: "3", InnerEcc: "0", OuterEcc: "100", InnerBorder: "69", OuterBorder: "100" }' +
 '  },' +
 '  sec: {' +
 '    small:   { Style: "1", Thickness: "1", InnerEcc: "0", OuterEcc: "0", InnerBorder: "60", OuterBorder: "100" },' + // legacy
 '    big:     { Style: "1", Thickness: "1", InnerEcc: "0", OuterEcc: "0", InnerBorder: "60", OuterBorder: "100" },' + // legacy
-'    minimal: { Style: "0", Thickness: "0", InnerThickness: "1", InnerEcc: "100", OuterEcc: "100", InnerBorder: "73", OuterBorder: "100" },' +
-'    braun:   { Style: "2", Thickness: "1", InnerThickness: "1", InnerEcc: "100", OuterEcc: "100", InnerBorder: "73", OuterBorder: "100" },' +
-'    swiss:   { Style: "2", Thickness: "1", InnerThickness: "1", InnerEcc: "70", OuterEcc: "75", InnerBorder: "75", OuterBorder: "80" },' +
-'    classy:  { Style: "2", Thickness: "1", InnerThickness: "1", InnerEcc: "0", OuterEcc: "0", InnerBorder: "73", OuterBorder: "80" }' +
 '  }' +
 '};' +
+// The popup presets (minimal/braun/swiss/classy) are derived from that same
+// lookup rather than restated here, so retuning a preset in presets-lookups.js
+// retunes its popup button too. Ring geometry only -- Translucent/Color are
+// deliberately left out, so tapping one of these buttons keeps whatever
+// translucency/color the popup already had, same as before.
+'var MARKER_POPUP_PRESET_STYLE_IDS = { minimal: "0", braun: "1", swiss: "2", classy: "9" };' +
+'var MARKER_POPUP_PRESET_GEOMETRY = ["Style", "Thickness", "InnerThickness", "InnerEcc", "OuterEcc", "InnerBorder", "OuterBorder"];' +
+'Object.keys(MARKER_POPUP_PRESET_STYLE_IDS).forEach(function (name) {' +
+'  var fields = MARKER_STYLE_PRESET_FIELDS[MARKER_POPUP_PRESET_STYLE_IDS[name]];' +
+'  ["hour", "sec"].forEach(function (kind) {' +
+'    var geometry = {};' +
+'    MARKER_POPUP_PRESET_GEOMETRY.forEach(function (f) { geometry[f] = fields[kind][f]; });' +
+'    MARKER_PRESETS[kind][name] = geometry;' +
+'  });' +
+'});' +
+// Picking a built-in Indices style (Minimal/Braun/Swiss/Classy) copies its
+// hour + second ring values into the same customHour*/customSec* hidden
+// inputs the Custom style edits -- the picker itself keeps showing the
+// preset (bigAnalogMarkerStyle is untouched), but the watch is sent those
+// values as an ordinary Custom marker (see bigAnalogMarkerStyleCode() in
+// settings-codecs.js), and switching to Custom afterward starts from them.
+// Returns whether styleVal was one of those presets. Runs from
+// onMarkerStyleChange(), i.e. on every pick, on page load, and after an
+// imported/recalled style -- so while a preset is selected the custom
+// fields always equal it (the Custom editors aren't reachable then).
+'function applyMarkerStylePresetToCustom(styleVal) {' +
+'  var fields = MARKER_STYLE_PRESET_FIELDS[styleVal];' +
+'  if (!fields) return false;' +
+'  ["hour", "sec"].forEach(function (kind) {' +
+'    var hp = cmHiddenPrefix(kind);' +
+'    CM_FIELDS.forEach(function (f) {' +
+'      var hidden = document.getElementById(hp + f);' +
+'      if (hidden && fields[kind][f] !== undefined) hidden.value = fields[kind][f];' +
+'    });' +
+'  });' +
+'  return true;' +
+'}' +
 // A rough approximation of the 3 built-in procedural styles, translated
 // into border-reach percentages (see marker_reach_px() in
 // marker_layer.c) now that a mark's length comes directly from its
@@ -3664,10 +3704,14 @@ require('./config/config-preview') +
 '}' +
 
 // ---- marker style picker popup -----------------------------------------
-// Unlike hands, markers keep a real on-watch "which style" field
-// (bigAnalogMarkerStyle, still 0-9 -- see eclipse_data.h) -- this
+// Unlike hands, markers keep a real "which style" field
+// (bigAnalogMarkerStyle, still 0-9 here and in storage) -- this
 // popup is just a friendlier picker for that same hidden <select>,
-// not a replacement for it. MARKER_BITMAP_STYLES covers the 5
+// not a replacement for it. The watch itself is only ever sent 3-8
+// though: the 4 ring presets (0/1/2/9) are materialized into the
+// Custom marker fields and sent as 8 -- see
+// applyMarkerStylePresetToCustom() above and bigAnalogMarkerStyleCode()
+// in settings-codecs.js. MARKER_BITMAP_STYLES covers the 5
 // existing bitmap styles (their own thumbnails already exist as
 // MARKER_PREVIEW_IMAGES, generated from the actual watch resource
 // PNGs -- see generate-marker-previews.js); MARKER_PRESET_STYLES
