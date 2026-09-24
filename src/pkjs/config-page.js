@@ -479,11 +479,19 @@ directWebfontStyle() +
 '  .font-picker-size-m { background: #fef3c7; color: #8a6410; }' +
 '  .font-picker-size-l { background: #ffedd5; color: #a45116; }' +
 '  .font-picker-size-xl { background: #fee2e2; color: #a33a3a; }' +
-// Size label + gray category tags share one wrapping row under the
-// font's name. Gray comes from the theme's own border/muted-text
-// variables so it stays gray (and readable) in dark mode too.
-'  .font-picker-tags { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }' +
-'  .font-picker-tag { display: inline-flex; align-items: center; justify-content: center; padding: 2px 7px; border-radius: 999px; font-size: 9px; line-height: 1.2; font-weight: 700; letter-spacing: 0.45px; white-space: nowrap; text-transform: uppercase; background: var(--border-lighter); color: var(--text-muted); }' +
+// Size label + [font height number | gray category tags] share ONE
+// non-wrapping row under the font's name: whatever doesn't fit inside
+// the button is simply clipped at its edge (overflow: hidden, with
+// align-self: stretch + min-width: 0 so the row is capped at the
+// button's own width instead of growing to its content). The tags are
+// 30% smaller than the size label (9px * 0.7 = 6.3px, padding/spacing/
+// gap scaled the same). Gray comes from the theme's own border/muted-
+// text variables so it stays gray (and readable) in dark mode too.
+'  .font-picker-tags { display: flex; flex-wrap: nowrap; align-items: center; gap: 3px; align-self: stretch; min-width: 0; overflow: hidden; }' +
+'  .font-picker-tags > * { flex: 0 0 auto; }' +
+'  .font-picker-height { font-size: 10px; line-height: 1.2; font-weight: 300; font-stretch: condensed; letter-spacing: 0.32px; color: var(--text-faint); }' +
+'  .font-picker-tags-divider { width: 1px; height: 8px; background: var(--border); }' +
+'  .font-picker-tag { display: inline-flex; align-items: center; justify-content: center; padding: 1.4px 4.9px; border-radius: 999px; font-size: 6.3px; line-height: 1.2; font-weight: 400; font-stretch: condensed; letter-spacing: 0.32px; white-space: nowrap; text-transform: uppercase; background: var(--border-lighter); color: var(--text-muted); }' +
 // Real on-watch renderings (see FONT_PREVIEW_IMAGES's own comment)
 // rather than styled text, for the fonts that have one. Unlike
 // .bitmap-marker-img/.hand-style-icon-preview img just below (which
@@ -2588,19 +2596,23 @@ fontManagerSource +
 'function fontSizeCategoryClass(category) {' +
 '  return category === "XS" || category === "S" || category === "M" || category === "L" || category === "XL" ? category.toLowerCase() : "";' +
 '}' +
-// Gray tag pills for a font's picker button: one per entry in its own
-// `categories`, labelled from FONT_CATEGORIES (so 'pebbleos' reads
-// "PebbleOS", not the raw id). Ids with no FONT_CATEGORIES entry
-// (the Big Digital styles' 'bigDigital') and size ids are skipped --
-// size is already shown by the size label next to them.
+// Tag group for a font's picker button: the font's `height` as a plain
+// gray number, a thin divider, then one gray tag pill per entry in its
+// own `categories`, labelled from FONT_CATEGORIES (so 'pebbleos' reads
+// "PebbleOS", not the raw id). Ids with no FONT_CATEGORIES entry (the
+// Big Digital styles' 'bigDigital') and size ids are skipped -- size is
+// already shown by the size label next to it -- and a font left with no
+// tags at all (the Big Digital styles) gets no number/divider either.
 'function fontTagsHtml(f) {' +
-'  var html = "";' +
+'  var tags = "";' +
 '  (f.categories || []).forEach(function (c) {' +
 '    var def = fontCategoryDef(c);' +
 '    if (!def || def.sizeCategory) return;' +
-'    html += \'<span class="font-picker-tag">\' + esc(def.label) + "</span>";' +
+'    tags += \'<span class="font-picker-tag">\' + esc(def.label) + "</span>";' +
 '  });' +
-'  return html;' +
+'  if (!tags) return "";' +
+'  var h = Math.round(Number(f.height));' +
+'  return (isFinite(h) ? \'<span class="font-picker-tags-divider"></span><span class="font-picker-height">\' + h + \'</span><span class="font-picker-tags-divider"></span>\' : "") + tags;' +
 '}' +
 'function renderFontPickerGrid() {' +
 '  var cfg = FONT_PICKER_ROLES[currentFontPickerRole];' +
