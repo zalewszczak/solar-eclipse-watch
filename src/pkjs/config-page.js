@@ -479,6 +479,11 @@ directWebfontStyle() +
 '  .font-picker-size-m { background: #fef3c7; color: #8a6410; }' +
 '  .font-picker-size-l { background: #ffedd5; color: #a45116; }' +
 '  .font-picker-size-xl { background: #fee2e2; color: #a33a3a; }' +
+// Size label + gray category tags share one wrapping row under the
+// font's name. Gray comes from the theme's own border/muted-text
+// variables so it stays gray (and readable) in dark mode too.
+'  .font-picker-tags { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }' +
+'  .font-picker-tag { display: inline-flex; align-items: center; justify-content: center; padding: 2px 7px; border-radius: 999px; font-size: 9px; line-height: 1.2; font-weight: 700; letter-spacing: 0.45px; white-space: nowrap; text-transform: uppercase; background: var(--border-lighter); color: var(--text-muted); }' +
 // Real on-watch renderings (see FONT_PREVIEW_IMAGES's own comment)
 // rather than styled text, for the fonts that have one. Unlike
 // .bitmap-marker-img/.hand-style-icon-preview img just below (which
@@ -2375,14 +2380,27 @@ fontManagerSource +
 // A font matches the current filter set if EITHER "All" is active
 // (every font matches, no exceptions -- narrowing only ever happens
 // via the "Show incompatible fonts" checkbox at that point, per the
-// request) OR it carries every one of the currently-active category
-// ids in its own `categories` array (AND, not OR -- selecting more
-// categories narrows the results further, same as any other
-// multi-facet filter).
+// request) OR it satisfies every one of the currently-active
+// category ids (AND, not OR -- selecting more categories narrows the
+// results further, same as any other multi-facet filter). The size
+// filters (Tiny/Small/Medium/Large -- the FONT_CATEGORIES entries
+// carrying a `sizeCategory`) are satisfied by the font's own
+// `sizeCategory` field rather than by its `categories` array; every
+// other id is satisfied by being in that array.
+'function fontCategoryDef(id) {' +
+'  for (var i = 0; i < FONT_CATEGORIES.length; i++) {' +
+'    if (FONT_CATEGORIES[i].id === id) return FONT_CATEGORIES[i];' +
+'  }' +
+'  return null;' +
+'}' +
 'function fontMatchesCategoryFilters(f) {' +
 '  if (fontPickerActiveCategories.indexOf("all") !== -1) return true;' +
 '  var cats = f.categories || [];' +
-'  return fontPickerActiveCategories.every(function (c) { return cats.indexOf(c) !== -1; });' +
+'  return fontPickerActiveCategories.every(function (c) {' +
+'    var def = fontCategoryDef(c);' +
+'    if (def && def.sizeCategory) return f.sizeCategory === def.sizeCategory;' +
+'    return cats.indexOf(c) !== -1;' +
+'  });' +
 '}' +
 
 'function renderFontCategoryRow() {' +
@@ -2570,6 +2588,20 @@ fontManagerSource +
 'function fontSizeCategoryClass(category) {' +
 '  return category === "XS" || category === "S" || category === "M" || category === "L" || category === "XL" ? category.toLowerCase() : "";' +
 '}' +
+// Gray tag pills for a font's picker button: one per entry in its own
+// `categories`, labelled from FONT_CATEGORIES (so 'pebbleos' reads
+// "PebbleOS", not the raw id). Ids with no FONT_CATEGORIES entry
+// (the Big Digital styles' 'bigDigital') and size ids are skipped --
+// size is already shown by the size label next to them.
+'function fontTagsHtml(f) {' +
+'  var html = "";' +
+'  (f.categories || []).forEach(function (c) {' +
+'    var def = fontCategoryDef(c);' +
+'    if (!def || def.sizeCategory) return;' +
+'    html += \'<span class="font-picker-tag">\' + esc(def.label) + "</span>";' +
+'  });' +
+'  return html;' +
+'}' +
 'function renderFontPickerGrid() {' +
 '  var cfg = FONT_PICKER_ROLES[currentFontPickerRole];' +
 '  if (!cfg) return;' +
@@ -2605,9 +2637,10 @@ fontManagerSource +
 '    var sizeCategory = f.sizeCategory || "";' +
 '    var sizeCategoryLabel = fontSizeCategoryLabel(sizeCategory);' +
 '    var sizeCategoryClass = fontSizeCategoryClass(sizeCategory);' +
+'    var tagsHtml = (sizeCategoryLabel ? \'<span class="font-picker-size font-picker-size-\' + sizeCategoryClass + \'">\' + sizeCategoryLabel + "</span>" : "") + fontTagsHtml(f);' +
 '    html += \'<button type="button" class="font-picker-btn\' + (f.id === currentId ? " selected" : "") + \'" onclick="chooseFontOption(\' + f.id + \')">\' +' +
 '      \'<span class="font-picker-preview" style="\' + previewStyle + \'">\' + fontPreviewInnerHtml(f.id, currentFontPickerRole, previewText) + "</span>" +' +
-'      \'<span class="font-picker-name"><span>\' + esc(f.label) + \'</span>\' + (sizeCategoryLabel ? \'<span class="font-picker-size font-picker-size-\' + sizeCategoryClass + \'">\' + sizeCategoryLabel + "</span>" : "") + "</span></button>";' +
+'      \'<span class="font-picker-name"><span>\' + esc(f.label) + \'</span>\' + (tagsHtml ? \'<span class="font-picker-tags">\' + tagsHtml + "</span>" : "") + "</span></button>";' +
 '  });' +
 '  document.getElementById("fontPickerGrid").innerHTML = html;' +
 '  document.getElementById("fontPickerEmptyMsg").style.display = html ? "none" : "block";' +
