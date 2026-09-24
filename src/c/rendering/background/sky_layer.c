@@ -4,7 +4,7 @@
 #include "../../graphics/subpixel.h"
 #include "../render_math.h"
 
-#define SKY_GROUND_H 18
+#define SKY_GROUND_H 48 // Need space for weather effects to be visible
 
 uint8_t sky_layer_interp_cloud_pct(const EclipseData *d, time_t t) {
   if (d->sky_sample_count == 0) return 0;
@@ -130,8 +130,8 @@ void sky_layer_colors_for_altitude(int16_t alt_decideg, SkyRgb *top_out, SkyRgb 
 // Digital top layout only: same "where does the cloud deck's graying
 int16_t sky_layer_compute_cloud_band_y_virtual(int16_t virtual_top_y, int16_t virtual_total_h, uint8_t cloud_altitude_pct) {
   (void)virtual_top_y;
-  int16_t half_h = virtual_total_h / 2;
-  int16_t lower_top = half_h;
+  int16_t third_h = virtual_total_h / 3;
+  int16_t lower_top = third_h;
   int16_t lower_bottom = virtual_total_h - SKY_GROUND_H - 10;
   if (lower_bottom < lower_top) lower_bottom = lower_top;
   return lower_bottom - (((int32_t)(lower_bottom - lower_top) * cloud_altitude_pct) / 100);

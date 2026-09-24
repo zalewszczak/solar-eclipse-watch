@@ -1,6 +1,6 @@
 #include "./render_math.h"
 
-#define RENDER_GROUND_H 18
+#define RENDER_GROUND_H 48 // Need space for weather effects to be visible
 
 uint8_t render_math_lerp8(uint8_t a, uint8_t b, int32_t num, int32_t den) {
   if (den == 0) return a;
@@ -41,8 +41,8 @@ uint16_t render_math_isqrt32(int32_t v) {
 }
 
 int16_t render_math_cloud_band_y(GRect bounds, uint8_t cloud_altitude_pct) {
-  int16_t half_h = bounds.size.h / 2;
-  int16_t lower_top = bounds.origin.y + half_h;
+  int16_t third_h = bounds.size.h / 3;
+  int16_t lower_top = bounds.origin.y + third_h;
   int16_t lower_bottom = bounds.origin.y + bounds.size.h - RENDER_GROUND_H;
   return lower_bottom - (((int32_t)(lower_bottom - lower_top) * cloud_altitude_pct) / 100);
 }
