@@ -265,7 +265,6 @@ var serviceStatusRowsHtml = configDebug.serviceStatusRowsHtml;
 var rawMessageLogButtonsHtml = configDebug.rawMessageLogButtonsHtml;
 
 var FAQ_ITEMS = [
-  ['Search bar in FAQ doesnt work, how am I supposed to find help?', 'I\'m aware. Im confused as to why won\'t it work. I hope you got time to go through this manually for now. Hopefully I\'ll get this fixed in 1.3.'],
   ['What is Eclipz?', 'Eclipz is a play on word Eclipse and my favourite letter, initally suffix \'z\' indicated watchfaces that were animated and so was this one supposed to be, but I ended running out of memory. Once I get the memory situation under control I\'ll add some animations to fulfill the namesake.'],
   ['Why does the Sun and Moon appear close to each other where they aren\'t in reality?', 'Celestial bodies positions are calculated on your phone, then cast to match roughly 360 degree projection of the sky within watchface square background. Think of it as Mercator projection of the world and Africa size situation, I hope UN won\'t have to force changes to the sun and moon project here. In the Planet Seek animation mode it shifts to show current 90 degrees that are ahead of you based on watches compass readout. Note: Calculations of the azimuths tend to be a bit skewed for objects that are close to horizon - this is intentional due to lack of precision and computation limitations that I haven\'t solved yet.'],
   ['I select a setting and nothing happens on my watch, is it broken?', 'Have you pressed "Save" button on the bottom? The way settings work on peebble require you to send that configuration to the watch by confriming it - backing out or pressing back icon on top will just discard that without ever applying it to watch.'],
@@ -2071,6 +2070,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 'var MARKER_PRESET_IMAGES = ' + JSON.stringify(MARKER_PRESET_IMAGES) + ';' +
 'var HAND_STYLE_DIAGRAM_IMAGES = ' + JSON.stringify(HAND_STYLE_DIAGRAM_IMAGES) + ';' +
 'var HAND_STYLE_ICON_IMAGES = ' + JSON.stringify(HAND_STYLE_ICON_IMAGES) + ';' +
+'var FAQ_ITEMS = ' + JSON.stringify(FAQ_ITEMS) + ';' +
 'var WEATHER_ICON_STYLE_PREVIEWS = ' + JSON.stringify(WEATHER_ICON_STYLE_PREVIEWS) + ';' +
 // Matches weather_icon_style\'s own <option> list exactly.
 'var WEATHER_ICON_STYLE_NAMES = ["Simple", "Hollow", "Full color"];' +
@@ -3269,13 +3269,13 @@ require('./config/config-preview') +
 
 // ---- collapsible sections + slider step buttons ------------------------
 'function toggleFaqItem(index) {' +
-'  var item = document.querySelector(\'.faq-item[data-faq-index="\' + index + \'"]\');' +
+'  var item = document.querySelectorAll(".faq-item")[index];' +
 '  if (!item) return;' +
 '  item.classList.toggle("open");' +
 '}' +
 'function filterFaq(rawQuery) {' +
-'  var query = String(rawQuery || \"\").trim().toLowerCase();' +
-'  var items = document.querySelectorAll(\".faq-item\");' +
+'  var query = String(rawQuery || "").trim().toLowerCase();' +
+'  var items = document.querySelectorAll(".faq-item");' +
 '  var questionMatches = [];' +
 '  var answerMatches = [];' +
 '  for (var i = 0; i < FAQ_ITEMS.length; i++) {' +
@@ -3288,11 +3288,11 @@ require('./config/config-preview') +
 '  var visible = {};' +
 '  for (var j = 0; j < matches.length; j++) visible[matches[j]] = true;' +
 '  for (var k = 0; k < items.length; k++) {' +
-'    var idx = parseInt(items[k].getAttribute(\"data-faq-index\"), 10);' +
-'    items[k].style.display = visible[idx] ? \"\" : \"none\";' +
+'    var idx = parseInt(items[k].getAttribute("data-faq-index"), 10);' +
+'    items[k].style.display = visible[idx] ? "" : "none";' +
 '  }' +
-'  var empty = document.getElementById(\"faqEmpty\");' +
-'  if (empty) empty.style.display = matches.length ? \"none\" : \"block\";' +
+'  var empty = document.getElementById("faqEmpty");' +
+'  if (empty) empty.style.display = matches.length ? "none" : "block";' +
 '}' +
 // FAQ is static content; keep its section summary intentionally short.
 'function refreshFaqSubheader() {' +
