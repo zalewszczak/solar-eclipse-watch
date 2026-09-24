@@ -1905,11 +1905,6 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '        <button type="button" class="slider-step-btn" onclick="stepSlider(\'flightsRangeKm\', 10)">+</button>' +
 '        </div>' +
 '      </div>' +
-'      <label for="flightsClientId">OpenSky API client ID (optional)</label>' +
-'      <input type="text" id="flightsClientId" autocomplete="off" placeholder="leave blank for anonymous access" value="' + esc(current.flightsClientId || '') + '">' +
-'      <label for="flightsClientSecret">OpenSky API client secret</label>' +
-'      <input type="password" id="flightsClientSecret" autocomplete="off" placeholder="required when client ID is set" value="' + esc(current.flightsClientSecret || '') + '">' +
-'      <div class="help">Create an API client in your OpenSky account. If both fields are filled, Eclipz uses OAuth2; otherwise it uses anonymous access. The OAuth token is kept only in memory.</div>' +
 '    </div>' +
 
 '    </div>' +

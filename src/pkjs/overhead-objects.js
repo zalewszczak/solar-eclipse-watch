@@ -30,7 +30,7 @@ var MAX_LABEL_CHARS = 5;
 /**
  * @param {number} lat
  * @param {number} lon
- * @param {{showIss: boolean, showFlights: boolean, flightsRadiusKm: number, flightsClientId: string, flightsClientSecret: string}} opts
+ * @param {{showIss: boolean, showFlights: boolean, flightsRadiusKm: number}} opts
  * @param {function(Array<{az:number, alt:number, label:string}>)} cb  never errors -- a source
  *   that fails just contributes nothing, same as the rest of this app's optional data.
  */
@@ -65,7 +65,7 @@ function buildOverheadObjectList(lat, lon, opts, cb) {
 
   if (opts.showFlights) {
     pending++;
-    flights.getNearbyFlights(lat, lon, opts.flightsRadiusKm, opts.flightsClientId, opts.flightsClientSecret, function (err, list) {
+    flights.getNearbyFlights(lat, lon, opts.flightsRadiusKm, function (err, list) {
       servicelog.recordAttempt('flights', err);
       if (err) {
         hadError = true;
