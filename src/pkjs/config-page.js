@@ -636,20 +636,59 @@ directWebfontStyle() +
 '  @keyframes donate-modal-in { from { transform: translateY(28px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }' +
 '  .donate-modal-box::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 92px; pointer-events: none; border-radius: 12px 12px 0 0; background: linear-gradient(135deg, rgba(18,22,34,.98), rgba(31,31,46,.96)); opacity: .98; }' +
 '  .donate-header { position: relative; overflow: hidden; margin: -16px -16px 13px; padding: 10px 16px 13px; border-bottom: 1px solid var(--border-light); background: linear-gradient(180deg, #171a28 0%, #242333 100%); }' +
+'  .donate-eclipse-scene { position: relative; z-index: 1; height: 45px; margin: -2px 0 0; overflow: hidden; }' +
+'  .donate-eclipse-scene .donate-eclipse { position: absolute; left: 50%; top: 0; transform: translateX(-50%); }' +
 '  .donate-header-content { position: relative; z-index: 2; text-align: center; }' +
 '  .donate-header-title { font-size: 19px; font-weight: 800; letter-spacing: .3px; color: #fff; text-shadow: 0 1px 0 rgba(0,0,0,.35); }' +
 '  .donate-header-subtitle { margin-top: 3px; font-size: 11px; color: rgba(255,255,255,.72); }' +
 '  .donate-sparkle { display: inline-block; margin: 0 4px; animation: donate-sparkle 1.8s ease-in-out infinite; }' +
 '  @keyframes donate-sparkle { 0%,100% { transform: scale(.8) rotate(0deg); opacity: .45; } 50% { transform: scale(1.2) rotate(45deg); opacity: 1; } }' +
+'  .donate-header { transition: box-shadow 700ms ease; background: linear-gradient(180deg, var(--donate-sky-top, #b9e5f4) 0%, var(--donate-sky-bottom, #e9f4df) 100%); }' +
+'  .donate-sky { position: absolute; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }' +
+'  .donate-star { position: absolute; width: 2px; height: 2px; border-radius: 50%; background: #fff8d8; box-shadow: 0 0 3px 1px rgba(255,244,196,.45); opacity: 0; animation: donate-star-appear 14s ease-in-out infinite; }' +
+'  .donate-star.twinkle { animation-name: donate-star-twinkle; }' +
+'  .donate-star.s1 { left: 8%; top: 18%; animation-delay: -1.1s; }' +
+'  .donate-star.s2 { left: 16%; top: 66%; width: 1px; height: 1px; animation-delay: -4.7s; }' +
+'  .donate-star.s3 { left: 25%; top: 28%; animation-delay: -7.3s; }' +
+'  .donate-star.s4 { left: 34%; top: 72%; width: 1px; height: 1px; animation-delay: -2.6s; }' +
+'  .donate-star.s5 { left: 43%; top: 14%; animation-delay: -5.9s; }' +
+'  .donate-star.s6 { left: 53%; top: 78%; width: 1px; height: 1px; animation-delay: -9.2s; }' +
+'  .donate-star.s7 { left: 62%; top: 23%; animation-delay: -3.4s; }' +
+'  .donate-star.s8 { left: 71%; top: 68%; width: 1px; height: 1px; animation-delay: -8.1s; }' +
+'  .donate-star.s9 { left: 81%; top: 16%; animation-delay: -10.4s; }' +
+'  .donate-star.s10 { left: 91%; top: 54%; width: 1px; height: 1px; animation-delay: -6.5s; }' +
+'  .donate-star.s11 { left: 11%; top: 43%; width: 1px; height: 1px; animation-delay: -11.2s; }' +
+'  .donate-star.s12 { left: 20%; top: 87%; animation-delay: -3.9s; }' +
+'  .donate-star.s13 { left: 30%; top: 51%; width: 1px; height: 1px; animation-delay: -12.3s; }' +
+'  .donate-star.s14 { left: 39%; top: 36%; animation-delay: -6.9s; }' +
+'  .donate-star.s15 { left: 69%; top: 42%; width: 1px; height: 1px; animation-delay: -1.8s; }' +
+'  .donate-star.s16 { left: 77%; top: 83%; animation-delay: -9.8s; }' +
+'  .donate-star.s17 { left: 87%; top: 31%; width: 1px; height: 1px; animation-delay: -4.2s; }' +
+'  .donate-star.s18 { left: 96%; top: 76%; animation-delay: -7.7s; }' +
+'  .donate-star.s19 { left: 47%; top: 48%; width: 1px; height: 1px; animation-delay: -10.9s; }' +
+'  .donate-star.s20 { left: 57%; top: 34%; width: 2px; height: 2px; animation-delay: -5.1s; }' +
+'  .donate-star.s5, .donate-star.s14 { box-shadow: 0 0 4px 1px rgba(255,248,210,.65); }' +
+'  .donate-meteor { position: absolute; width: 28px; height: 1px; border-radius: 50%; transform-origin: right center; background: linear-gradient(90deg, rgba(255,249,214,0), rgba(255,249,214,.9)); box-shadow: 0 0 4px rgba(255,240,190,.55); opacity: 0; }' +
+'  .donate-meteor.m1 { top: 17%; left: 2%; animation: donate-perseid-1 14s linear infinite; animation-delay: -3.2s; }' +
+'  .donate-meteor.m2 { top: 31%; left: 54%; width: 23px; animation: donate-perseid-2 14s linear infinite; animation-delay: -7.1s; }' +
+'  .donate-meteor.m3 { top: 69%; left: 72%; width: 19px; animation: donate-perseid-3 14s linear infinite; animation-delay: -10.6s; }' +
+'  .donate-meteor.m4 { top: 55%; left: 18%; width: 17px; animation: donate-perseid-4 14s linear infinite; animation-delay: -12.7s; }' +
 '  .donate-eclipse { position: relative; z-index: 1; width: 122px; height: 42px; margin: 0 auto 3px; overflow: hidden; }' +
-'  .donate-sun { position: absolute; width: 34px; height: 34px;  left: 50%; top: 50%; border-radius: 50%; background: #fff4bd; box-shadow: 0 0 10px 2px rgba(255,223,130,.85), 0 0 22px 5px rgba(255,195,90,.28); animation: donate-sun-eclipse 14s ease-in-out infinite; }' +
-'  .donate-moon { position: absolute; width: 35px; height: 35px; left: 50%; top: 50%; border-radius: 50%; background: #090b12; box-shadow: 0 0 5px rgba(0,0,0,.8); animation: donate-moon-eclipse 14s ease-in-out infinite; }' +
+'  .donate-sun { position: absolute; width: 34px; height: 34px; left: 50%; top: 50%; border-radius: 50%; background: #fff4bd; box-shadow: 0 0 10px 2px rgba(255,223,130,.85), 0 0 22px 5px rgba(255,195,90,.28); animation: donate-sun-eclipse 14s ease-in-out infinite; }' +
 '  .donate-corona { position: absolute; width: 35px; height: 35px; left: 50%; top: 50%; border-radius: 50%; border: 2px solid rgba(255,236,174,.18); box-shadow: 0 0 12px 3px rgba(255,222,145,.18), inset 0 0 9px rgba(255,240,185,.12); opacity: 0; animation: donate-corona 14s ease-in-out infinite; }' +
 '  .donate-bead { position: absolute; width: 5px; height: 5px; border-radius: 50%; background: #fff9d5; box-shadow: 0 0 5px 2px rgba(255,224,130,.9); opacity: 0; }' +
 '  .donate-bead.b1 { left: calc(50% - 18px); top: calc(50%); animation: donate-bead-1 14s ease-in-out infinite; }' +
 '  .donate-bead.b2 { left: calc(50% - 18px); top: calc(50%); width: 4px; height: 4px; animation: donate-bead-2 14s ease-in-out infinite; }' +
+'  /* The sky is driven by JS color interpolation rather than animating whole gradients. Browsers can discretely switch between gradient declarations; interpolating the two RGB stops directly keeps the eclipse transition continuous. */' +
+'  @keyframes donate-star-appear { 0%, 32% { opacity: 0; } 40%, 64% { opacity: .72; } 72%, 100% { opacity: 0; } }' +
+'  @keyframes donate-star-twinkle { 0%, 32% { opacity: 0; transform: scale(.6); } 40%, 48% { opacity: .45; transform: scale(.8); } 51% { opacity: 1; transform: scale(1.65); } 54%, 64% { opacity: .35; transform: scale(.75); } 72%, 100% { opacity: 0; transform: scale(.6); } }' +
+'  @keyframes donate-perseid-1 { 0%, 39% { opacity: 0; transform: translate(-30px, -3px) rotate(21.5deg); } 42% { opacity: .95; } 47%, 100% { opacity: 0; transform: translate(135px, 62px) rotate(21.5deg); } }' +
+'  @keyframes donate-perseid-2 { 0%, 45% { opacity: 0; transform: translate(22px, -8px) rotate(145.6deg); } 48% { opacity: .8; } 53%, 100% { opacity: 0; transform: translate(-70px, 55px) rotate(145.6deg); } }' +
+'  @keyframes donate-perseid-3 { 0%, 55% { opacity: 0; transform: translate(28px, -12px) rotate(-162.1deg); } 58% { opacity: .9; } 63%, 100% { opacity: 0; transform: translate(-65px, -42px) rotate(-162.1deg); } }' +
+'  @keyframes donate-perseid-4 { 0%, 47% { opacity: 0; transform: translate(-8px, -35px) rotate(27.6deg); } 50% { opacity: .7; } 55%, 100% { opacity: 0; transform: translate(78px, 10px) rotate(27.6deg); } }' +
 '  @keyframes donate-sun-eclipse { 0%, 18% { transform: translate(-150%, -50%); opacity: 1; } 40%, 62% { transform: translate(-50%, -50%); opacity: .9; } 84%, 100% { transform: translate(-150%, -50%); opacity: 1; } }' +
 '  @keyframes donate-moon-eclipse { 0%, 18% { transform: translate(50%, -50%); } 40%, 62% { transform: translate(-50%, -50%); } 84%, 100% { transform: translate(50%, -50%); } }' +
+'  @keyframes donate-moon-sky { 0%, 30% { background: #d4e9df; box-shadow: 0 0 0 rgba(0,0,0,0); } 36% { background: #8d9b9a; box-shadow: 0 0 1px rgba(0,0,0,.18); } 42% { background: #42474e; box-shadow: 0 0 3px rgba(0,0,0,.45); } 46%, 58% { background: #090b12; box-shadow: 0 0 5px rgba(0,0,0,.8); } 64% { background: #42474e; box-shadow: 0 0 3px rgba(0,0,0,.45); } 70% { background: #8d9b9a; box-shadow: 0 0 1px rgba(0,0,0,.18); } 76%, 100% { background: #d4e9df; box-shadow: 0 0 0 rgba(0,0,0,0); } }' +
 '  @keyframes donate-corona { 0%, 34% { opacity: 0; transform: translate(-50%, -50%) scale(.75); } 43%, 58% { opacity: 1; transform: translate(-50%, -50%) scale(1); } 70%, 100% { opacity: 0; transform: translate(-50%, -50%) scale(.8); } }' +
 '  @keyframes donate-bead-1 { 0%, 36% { opacity: 0; transform: scale(.2); } 37%, 38% { opacity: 1; transform: scale(1.35); } 42%, 100% { opacity: 0; transform: scale(.2); } }' +
 '  @keyframes donate-bead-2 { 0%, 58% { opacity: 0; transform: scale(.2); } 59%, 64% { opacity: .95; transform: scale(1.2); } 66%, 100% { opacity: 0; transform: scale(.2); } }' +
@@ -1131,7 +1170,16 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '<div class="modal-overlay" id="donateModal">' +
 '  <div class="modal-box donate-modal-box">' +
 '    <div class="donate-header">' +
-'      <div class="donate-eclipse" aria-hidden="true"><div class="donate-corona"></div><div class="donate-sun"></div><div class="donate-moon"></div><span class="donate-bead b1"></span><span class="donate-bead b2"></span><span class="donate-bead b3"></span></div>' +
+'      <div class="donate-eclipse-scene" aria-hidden="true">' +
+'        <div class="donate-sky">' +
+'          <span class="donate-star s1"></span><span class="donate-star s2"></span><span class="donate-star s3"></span><span class="donate-star s4"></span><span class="donate-star s5 twinkle"></span>' +
+'          <span class="donate-star s6"></span><span class="donate-star s7"></span><span class="donate-star s8"></span><span class="donate-star s9"></span><span class="donate-star s10"></span>' +
+'          <span class="donate-star s11"></span><span class="donate-star s12"></span><span class="donate-star s13"></span><span class="donate-star s14 twinkle"></span><span class="donate-star s15"></span>' +
+'          <span class="donate-star s16"></span><span class="donate-star s17"></span><span class="donate-star s18"></span><span class="donate-star s19"></span><span class="donate-star s20"></span>' +
+'          <span class="donate-meteor m1"></span><span class="donate-meteor m2"></span><span class="donate-meteor m3"></span><span class="donate-meteor m4"></span>' +
+'        </div>' +
+'        <div class="donate-eclipse"><div class="donate-corona"></div><div class="donate-sun"></div><div class="donate-moon"></div><span class="donate-bead b1"></span><span class="donate-bead b2"></span><span class="donate-bead b3"></span></div>' +
+'      </div>' +
 '      <div class="donate-header-content"><div class="donate-header-title"><span class="donate-sparkle">✦</span>Support Eclipz<span class="donate-sparkle">✦</span></div><div class="donate-header-subtitle">Keep the eclipse magic going</div></div>' +
 '    </div>' +
 '    <div class="donate-content">' +
@@ -4695,11 +4743,62 @@ require('./config/config-preview') +
 'function goBack() {' +
 '  document.location = getQueryParam("return_to", "pebblejs://close#");' +
 '}' +
+'var donateSkyRaf = 0;' +
+'var donateSkyStart = 0;' +
+'var DONATE_SKY_PERIOD_MS = 14000;' +
+'var DONATE_SKY_STOPS = [' +
+'  { p: 0.00, top: [185,229,244], bottom: [233,244,223] },' +
+'  { p: 0.30, top: [159,200,216], bottom: [209,220,203] },' +
+'  { p: 0.36, top: [102,117,132], bottom: [139,139,130] },' +
+'  { p: 0.42, top: [48,53,65], bottom: [68,67,74] },' +
+'  { p: 0.46, top: [23,26,40], bottom: [36,35,51] },' +
+'  { p: 0.58, top: [23,26,40], bottom: [36,35,51] },' +
+'  { p: 0.64, top: [48,53,65], bottom: [68,67,74] },' +
+'  { p: 0.70, top: [102,117,132], bottom: [139,139,130] },' +
+'  { p: 0.76, top: [159,200,216], bottom: [209,220,203] },' +
+'  { p: 1.00, top: [185,229,244], bottom: [233,244,223] }' +
+'];' +
+'function donateSkyEase(t) {' +
+'  t = Math.max(0, Math.min(1, t));' +
+'  return t * t * (3 - 2 * t);' +
+'}' +
+'function donateSkyColor(a, b, t) {' +
+'  t = donateSkyEase(t);' +
+'  return [Math.round(a[0] + (b[0] - a[0]) * t), Math.round(a[1] + (b[1] - a[1]) * t), Math.round(a[2] + (b[2] - a[2]) * t)];' +
+'}' +
+'function donateSkyCss(c) { return "rgb(" + c[0] + ", " + c[1] + ", " + c[2] + ")"; }' +
+'function donateSkyFrame(ts) {' +
+'  var header = document.querySelector("#donateModal .donate-header");' +
+'  if (!header || document.getElementById("donateModal").className.indexOf("open") < 0) { donateSkyRaf = 0; return; }' +
+'  if (!donateSkyStart) donateSkyStart = ts;' +
+'  var phase = ((ts - donateSkyStart) % DONATE_SKY_PERIOD_MS) / DONATE_SKY_PERIOD_MS;' +
+'  var a = DONATE_SKY_STOPS[0], b = DONATE_SKY_STOPS[DONATE_SKY_STOPS.length - 1];' +
+'  for (var i = 0; i < DONATE_SKY_STOPS.length - 1; i++) {' +
+'    if (phase >= DONATE_SKY_STOPS[i].p && phase <= DONATE_SKY_STOPS[i + 1].p) { a = DONATE_SKY_STOPS[i]; b = DONATE_SKY_STOPS[i + 1]; break; }' +
+'  }' +
+'  var span = b.p - a.p || 1;' +
+'  var local = (phase - a.p) / span;' +
+'  header.style.setProperty("--donate-sky-top", donateSkyCss(donateSkyColor(a.top, b.top, local)));' +
+'  header.style.setProperty("--donate-sky-bottom", donateSkyCss(donateSkyColor(a.bottom, b.bottom, local)));' +
+'  donateSkyRaf = window.requestAnimationFrame(donateSkyFrame);' +
+'}' +
+'function startDonateSkyAnimation() {' +
+'  if (donateSkyRaf) window.cancelAnimationFrame(donateSkyRaf);' +
+'  donateSkyStart = 0;' +
+'  donateSkyRaf = window.requestAnimationFrame(donateSkyFrame);' +
+'}' +
+'function stopDonateSkyAnimation() {' +
+'  if (donateSkyRaf) window.cancelAnimationFrame(donateSkyRaf);' +
+'  donateSkyRaf = 0;' +
+'  donateSkyStart = 0;' +
+'}' +
 'function openDonateModal() {' +
 '  document.getElementById("donateModal").className = "modal-overlay open";' +
+'  startDonateSkyAnimation();' +
 '}' +
 'function closeDonateModal() {' +
 '  document.getElementById("donateModal").className = "modal-overlay";' +
+'  stopDonateSkyAnimation();' +
 '}' +
 // The bar's own height varies by device (font scaling, safe-area
 // insets) and is capped at 25vh by CSS, so this measures it after
