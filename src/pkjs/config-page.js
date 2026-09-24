@@ -264,6 +264,50 @@ var configDebug = require('./config/config-debug');
 var serviceStatusRowsHtml = configDebug.serviceStatusRowsHtml;
 var rawMessageLogButtonsHtml = configDebug.rawMessageLogButtonsHtml;
 
+var FAQ_ITEMS = [
+  ['What is Eclipz?', 'Eclipz is a highly configurable astronomical watchface for Pebble Time 2. It combines a customizable clock with live weather, location-based astronomy and a visual representation of the sky.'],
+  ['Why does the Sun and Moon appear above or behind the clock?', 'The upper part of the watchface is the sky. The Sun and Moon are positioned according to their calculated position for your location. During an eclipse, the Moon can move across the Sun rather than simply behaving like a decorative icon.'],
+  ['What are all those little pieces of information around the clock?', 'They are Features. Each available slot can be assigned a different piece of information such as temperature, battery, weekday, wind direction or Moon phase. Available positions depend on the selected layout.'],
+  ['Why can\'t I select a particular feature in one of the positions?', 'Some layouts and fonts do not have enough room for every feature. Eclipz disables incompatible positions and options so information does not overlap the clock.'],
+  ['What is the difference between the clock layouts?', 'Digital Bar and Digital Top are compact digital layouts. Big Digital uses very large digits. Big Analog uses configurable hands and markers. Grid View arranges information in a 4×4-style character grid.'],
+  ['Why does my font not show in the Grid picker?', 'Grid requires fonts with a compatible grid layout. By default the picker shows compatible fonts; Show incompatible fonts lets you browse the other entries too.'],
+  ['What does the Sky Style setting do?', 'Weather combines the sky with current weather conditions and effects. Clear uses a simpler day/night sky. Space provides a darker space-oriented background and can show major stars.'],
+  ['Why does the sky not always look the same?', 'The sky can reflect the time of day, night mode, weather and selected Sky Style. The astronomy layer also uses your location to calculate the position of the Sun and Moon.'],
+  ['What does the eclipse information mean?', 'Eclipz calculates the eclipse for your selected location and represents its progression through the relevant phases. You can also enable vibration when the eclipse reaches its next phase.'],
+  ['Do I need to enter my location?', 'You can use phone GPS automatically, search for a place manually, or enter latitude and longitude. Location affects eclipse calculations, Sun/Moon positioning, astronomy, sunrise/sunset and weather.'],
+  ['Why is the weather sometimes unavailable?', 'Cloud cover comes from Open-Meteo and does not require an API key. Eclipz can optionally combine that information with OpenWeatherMap if you provide your own API key. Weather data is fetched periodically rather than continuously.'],
+  ['What does the refresh interval mean?', 'It sets the minimum time between automatic data updates. A shorter interval provides fresher information but can require more phone/network activity. A significant location change can trigger an earlier update.'],
+  ['What happens when I shake the watch?', 'Depending on your selected shake animation, shaking can trigger temporary animations or information displays. If Flights is enabled, shaking can also request nearby aircraft from OpenSky Network.'],
+  ['Why did the aircraft not update?', 'Flight information is fetched on demand and is subject to OpenSky service limits. Eclipz keeps track of service errors and rate limiting rather than silently treating a failed request as valid data.'],
+  ['What does Show ISS do?', 'It calculates the International Space Station position and can show it when relevant to the current sky view. The separate Next ISS pass feature can also be placed into a feature slot.'],
+  ['What is the Aurora Kp feature?', 'It shows geomagnetic activity as an indication of aurora potential. The optional aurora visualization can add an estimated aurora effect when conditions and darkness make it relevant. It is not a guarantee that an aurora is visible.'],
+  ['Why are there stars in Space mode but not necessarily in the normal sky?', 'The normal sky is intended to remain useful as a clock background. Space mode provides the more explicit star-field presentation and has a separate option for showing major stars.'],
+  ['What are the three icon styles?', 'Simple, Hollow and Full Color change how feature and weather icons are drawn. They do not change the underlying information.'],
+  ['Can I have different colors at night?', 'Yes. Enable different nighttime colors and configure a separate accent, background and main text palette. This lets you create a deliberately darker nighttime appearance.'],
+  ['What are Style Presets?', 'Style Presets save the visual design of the watchface, including layout, colors, fonts, feature arrangement, hands, markers and related appearance settings. You can save several designs or export one as JSON.'],
+  ['What are Example Styles?', 'Example Styles are ready-made designs supplied with Eclipz. They are a quick way to discover different combinations without configuring every option yourself.'],
+  ['What are the hourly vibrations?', 'Eclipz can provide periodic vibration reminders. You can configure the vibration type, interval, start and end time, active weekdays and whether Quiet Time should be overridden.'],
+  ['Why is an option disabled?', 'Usually because another setting makes it incompatible. For example, some large clock fonts cannot accommodate seconds or side features. Eclipz disables combinations that would render poorly on the watch.'],
+  ['Can I customize the analog hands?', 'Yes. Big Analog includes predefined hand styles and a Custom option for editing the hour, minute and second hands, center circle and shadow style.'],
+  ['Can I customize the analog markers?', 'Yes. Choose a predefined marker design or select Custom to edit the hour indices, second indices and numerals.'],
+  ['What does semi-transparent mean?', 'For supported Big Digital digits and analog markers, semi-transparency lets some of the underlying sky or background remain visible through the graphic.'],
+  ['Why does the watch sometimes show information underneath the analog hands?', 'Draw features beneath hands places feature text below the analog hands instead of over them, producing a more integrated instrument-like appearance.'],
+  ['Can I change the units?', 'Yes. Weather settings include separate choices for temperature, wind speed, air quality and altitude units.'],
+  ['Is my custom font installed on the watch?', 'No. Import font for preview is for the settings page only. It lets you see how a font would look while designing your face; it does not install the font on the Pebble or change the watch resources.'],
+  ['Why does the settings page show a live preview?', 'Eclipz has many interacting visual settings. The live preview lets you experiment with layouts, colors, fonts and feature combinations before sending the configuration to the watch.']
+];
+
+function faqItemsHtml() {
+  return FAQ_ITEMS.map(function (item, index) {
+    return '<div class="faq-item" data-faq-index="' + index + '">' +
+      '<button type="button" class="faq-question" onclick="toggleFaqItem(' + index + ')">' +
+        '<span>' + esc(item[0]) + '</span><span class="faq-chevron">&#9656;</span>' +
+      '</button>' +
+      '<div class="faq-answer"><p>' + esc(item[1]) + '</p></div>' +
+    '</div>';
+  }).join('');
+}
+
 function buildConfigHtml(current) {
   // autoLocChecked through initialNightColors all moved to
   // config/config-state.js (configuration architecture extraction, JS8
@@ -404,6 +448,18 @@ directWebfontStyle() +
 '  .field-label-row > label { margin: 0; }' +
 '  .field-label-row > .secondary-btn { width: auto; flex: 1 1 auto; margin-top: 0; }' +
 '  .help-btn { flex: 0 0 auto; width: 20px; height: 20px; border-radius: 50%; border: 1px solid var(--border); background: var(--btn-bg); color: var(--text-faint); font-size: 12px; font-weight: 700; line-height: 18px; text-align: center; padding: 0; cursor: pointer; -webkit-appearance: none; }' +
+'  .faq-search-wrap { position: relative; margin: 0 0 12px; }' +
+'  .faq-search { width: 100%; box-sizing: border-box; padding: 10px 12px 10px 34px; border: 1px solid var(--border); border-radius: 8px; background: var(--btn-bg); color: var(--text-strong); font-size: 13px; }' +
+'  .faq-search-icon { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: var(--text-faint); pointer-events: none; font-size: 15px; }' +
+'  .faq-item { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--btn-bg); margin-bottom: 7px; }' +
+'  .faq-question { width: 100%; display: flex; align-items: center; gap: 8px; border: 0; background: transparent; color: var(--text-strong); text-align: left; padding: 10px 11px; font-size: 13px; font-weight: 650; cursor: pointer; }' +
+'  .faq-question:hover { background: var(--border-light); }' +
+'  .faq-question .faq-chevron { margin-left: auto; color: var(--text-faint); transition: transform .16s ease; flex: 0 0 auto; }' +
+'  .faq-item.open .faq-chevron { transform: rotate(90deg); }' +
+'  .faq-answer { display: none; padding: 0 11px 11px; color: var(--text-faint); font-size: 12px; line-height: 1.45; border-top: 1px solid var(--border-light); }' +
+'  .faq-item.open .faq-answer { display: block; }' +
+'  .faq-answer p { margin: 9px 0 0; }' +
+'  .faq-empty { display: none; padding: 12px 4px; color: var(--text-faint); font-size: 12px; text-align: center; }' +
 '  .checkbox-row .help-btn, .radio-row .help-btn { margin-left: auto; }' +
 // The 4 section-level intro blurbs (Example styles/Features/My Style
 // Presets/Weather -- the ones with no specific toggle of their own to
@@ -1927,6 +1983,19 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  </fieldset>' +
 
 '  <fieldset>' +
+    sectionLegendHtml('faq', 'FAQ') +
+'    <div class="section-body" id="section-faq" style="display:none;">' +
+'    <div class="subsection"></div>' +
+'    <div class="faq-search-wrap">' +
+'      <span class="faq-search-icon">&#128269;</span>' +
+'      <input type="search" id="faqSearch" class="faq-search" placeholder="Search questions..." autocomplete="off" oninput="filterFaq(this.value)">' +
+'    </div>' +
+'    <div id="faqList">' + faqItemsHtml() + '</div>' +
+'    <div id="faqEmpty" class="faq-empty">No matching FAQ entries.</div>' +
+'    </div>' +
+'  </fieldset>' +
+
+'  <fieldset>' +
     sectionLegendHtml('testing', 'Debug') +
 '    <div class="section-body" id="section-testing" style="display:none;">' +
 '    <div class="subsection"></div>' +
@@ -3182,6 +3251,37 @@ require('./config/config-preview') +
 '}' +
 
 // ---- collapsible sections + slider step buttons ------------------------
+'function toggleFaqItem(index) {' +
+'  var item = document.querySelector(\'.faq-item[data-faq-index="\' + index + \'"]\');' +
+'  if (!item) return;' +
+'  item.classList.toggle("open");' +
+'}' +
+'function filterFaq(rawQuery) {' +
+'  var query = String(rawQuery || \"\").trim().toLowerCase();' +
+'  var items = document.querySelectorAll(\".faq-item\");' +
+'  var questionMatches = [];' +
+'  var answerMatches = [];' +
+'  for (var i = 0; i < FAQ_ITEMS.length; i++) {' +
+'    var q = FAQ_ITEMS[i][0].toLowerCase();' +
+'    var a = FAQ_ITEMS[i][1].toLowerCase();' +
+'    if (!query || q.indexOf(query) !== -1) questionMatches.push(i);' +
+'    else if (a.indexOf(query) !== -1) answerMatches.push(i);' +
+'  }' +
+'  var matches = query ? (questionMatches.length ? questionMatches : answerMatches) : questionMatches;' +
+'  var visible = {};' +
+'  for (var j = 0; j < matches.length; j++) visible[matches[j]] = true;' +
+'  for (var k = 0; k < items.length; k++) {' +
+'    var idx = parseInt(items[k].getAttribute(\"data-faq-index\"), 10);' +
+'    items[k].style.display = visible[idx] ? \"\" : \"none\";' +
+'  }' +
+'  var empty = document.getElementById(\"faqEmpty\");' +
+'  if (empty) empty.style.display = matches.length ? \"none\" : \"block\";' +
+'}' +
+// FAQ is static content; keep its section summary intentionally short.
+'function refreshFaqSubheader() {' +
+'  try { setSubheaderText("faq", FAQ_ITEMS.length + " answers about Eclipz and its settings"); } catch (e) {}' +
+'}' +
+
 'function toggleSection(id) {' +
 '  var body = document.getElementById("section-" + id);' +
 '  var chev = document.getElementById("chev-" + id);' +
@@ -5274,6 +5374,7 @@ require('./config/config-runtime') +
 '  try { setSubheaderText("location", computeLocationSubheader()); } catch (e) {}' +
 '  try { setSubheaderText("updates", computeUpdatesSubheader()); } catch (e) {}' +
 '  try { setSubheaderText("other", computeOtherSubheader()); } catch (e) {}' +
+'  try { refreshFaqSubheader(); } catch (e) {}' +
 '  try { setSubheaderText("testing", computeDebugSubheader()); } catch (e) {}' +
 '}' +
 // A single delegated hook per event type instead of threading
