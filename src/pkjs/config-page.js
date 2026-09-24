@@ -331,7 +331,16 @@ directWebfontStyle() +
 '    :root { --page-bg: #1c1c1e; --card-bg: #2c2c2e; --text: #f2f2f2; --text-strong: #e5e5e5; --text-muted: #aaa; --text-faint: #999; --text-faint2: #bbb; --text-disabled: #777; --border: #48484a; --border-light: #3a3a3c; --border-lighter: #545456; --btn-bg: #3a3a3c; }' +
 '  }' +
 '  body { font-family: -apple-system, Helvetica, Arial, sans-serif; margin: 0; padding: 16px 20px 90px; background: var(--page-bg); color: var(--text); }' +
-'  html, body { touch-action: manipulation; }' + // belt-and-suspenders alongside the viewport meta tag --
+'  html, body { touch-action: manipulation; }' +
+'  /* Full-screen startup loader */' +
+'  #startupLoader { position: fixed; inset: 0; z-index: 99999; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; background: var(--page-bg); color: var(--text); opacity: 1; transition: opacity 360ms ease; }' +
+'  #startupLoader.hidden { opacity: 0; pointer-events: none; }' +
+'  #startupLoaderTitle { font-size: 22px; font-weight: 700; letter-spacing: .2px; }' +
+'  #startupLoaderSubtitle { font-size: 13px; color: var(--text-muted); }' +
+'  #startupProgressTrack { width: min(280px, 72vw); height: 8px; overflow: hidden; border-radius: 999px; background: var(--border-light); box-shadow: inset 0 1px 2px rgba(0,0,0,.08); }' +
+'  #startupProgressBar { width: 0%; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #d98b9b, #e8b46a, #9ac6b0); transition: width 260ms ease-out; }' +
+'  #startupProgressPercent { min-width: 3em; text-align: center; font-size: 12px; color: var(--text-faint); font-variant-numeric: tabular-nums; }' +
+ // belt-and-suspenders alongside the viewport meta tag --
                                                     // some in-app webviews still allow double-tap-to-zoom
                                                     // on individual elements unless this is set too, and a
                                                     // double-tap on a fast-repeating button (the settings
@@ -1009,6 +1018,13 @@ directWebfontStyle() +
 '  #slotPickerDiagram.top-bar-mode .slot-digital-bottom { bottom: auto; top: 2px; }' +
 '</style></head>' +
 '<body>' +
+
+'<div id="startupLoader" aria-live="polite">' +
+'  <div id="startupLoaderTitle">Loading Eclipz</div>' +
+'  <div id="startupLoaderSubtitle">Preparing the watchface preview…</div>' +
+'  <div id="startupProgressTrack"><div id="startupProgressBar"></div></div>' +
+'  <div id="startupProgressPercent">0%</div>' +
+'</div>' +
 
 '<div id="topBar">' +
 '  <div class="top-bar-left">' +
@@ -2644,7 +2660,6 @@ fontManagerSource +
 '    var sizeCategory = f.sizeCategory || "";' +
 '    var sizeCategoryLabel = fontSizeCategoryLabel(sizeCategory);' +
 '    var sizeCategoryClass = fontSizeCategoryClass(sizeCategory);' +
-'    var tagsHtml = (sizeCategoryLabel ? \'<span class="font-picker-size font-picker-size-\' + sizeCategoryClass + \'">\' + sizeCategoryLabel + "</span>" : "") + fontTagsHtml(f);' +
 '    html += \'<button type="button" class="font-picker-btn\' + (f.id === currentId ? " selected" : "") + \'" onclick="chooseFontOption(\' + f.id + \')">\' +' +
 '      \'<span class="font-picker-preview" style="\' + previewStyle + \'">\' + fontPreviewInnerHtml(f.id, currentFontPickerRole, previewText) + "</span>" +' +
 '      \'<span class="font-picker-name"><span>\' + esc(f.label) + \'</span>\' + (tagsHtml ? \'<span class="font-picker-tags">\' + tagsHtml + "</span>" : "") + "</span></button>";' +
@@ -5274,19 +5289,61 @@ require('./config/config-runtime') +
 
 'updateColorRoleButtons("day");' +
 'updateColorRoleButtons("night");' +
+'  (function () {' +
+'    var loader = document.getElementById("startupLoader");' +
+'    var bar = document.getElementById("startupProgressBar");' +
+'    var percent = document.getElementById("startupProgressPercent");' +
+'    var subtitle = document.getElementById("startupLoaderSubtitle");' +
+'    var progress = 0;' +
+'    function setStartupProgress(value, text) {' +
+'      progress = Math.max(progress, Math.min(100, value));' +
+'      if (bar) bar.style.width = progress + "%";' +
+'      if (percent) percent.textContent = Math.round(progress) + "%";' +
+'      if (subtitle && text) subtitle.textContent = text;' +
+'    }' +
+'    window.__eclipzStartupProgress = setStartupProgress;' +
+'    setStartupProgress(12, "Building the settings page…");' +
+'    requestAnimationFrame(function () { setStartupProgress(28, "Building the settings page…"); });' +
+'  })();' +
 'onBottomStyleChange();' +
 'onMarkerStyleChange();' +
 'updateHourlyVibeVisibility();' +
+'if (window.__eclipzStartupProgress) window.__eclipzStartupProgress(42, "Preparing controls…");' +
 'updateHandStyleButtonLabel();' +
 'refreshAllFontTriggerLabels();' +
 'updateFontImportStatus();' +
 'refreshEditButtonLabels();' +
 'renderHandStyleGrid();' +
 'renderMarkerStyleGrid();' +
+'if (window.__eclipzStartupProgress) window.__eclipzStartupProgress(62, "Preparing previews…");' +
 'renderCategoryButtons();' +
 'updateWeatherIconStyleVisibility();' +
 'adjustTopBarSpacing();' +
-'if (document.fonts && document.fonts.ready) { document.fonts.ready.then(updatePreview); }' +
+'if (window.__eclipzStartupProgress) window.__eclipzStartupProgress(78, "Finishing layout…");' +
+'if (document.fonts && document.fonts.ready) {' +
+'  document.fonts.ready.then(function () {' +
+'    updatePreview();' +
+'    if (window.__eclipzStartupProgress) window.__eclipzStartupProgress(94, "Finalizing preview…");' +
+'    setTimeout(function () {' +
+'      if (window.__eclipzStartupProgress) window.__eclipzStartupProgress(100, "Ready");' +
+'      var loader = document.getElementById("startupLoader");' +
+'      if (loader) {' +
+'        loader.classList.add("hidden");' +
+'        setTimeout(function () { loader.style.display = "none"; }, 380);' +
+'      }' +
+'    }, 180);' +
+'  });' +
+'} else {' +
+'  if (window.__eclipzStartupProgress) window.__eclipzStartupProgress(94, "Finalizing preview…");' +
+'  setTimeout(function () {' +
+'    if (window.__eclipzStartupProgress) window.__eclipzStartupProgress(100, "Ready");' +
+'    var loader = document.getElementById("startupLoader");' +
+'    if (loader) {' +
+'      loader.classList.add("hidden");' +
+'      setTimeout(function () { loader.style.display = "none"; }, 380);' +
+'    }' +
+'  }, 180);' +
+'}' +
 'updateSchemeActiveHighlight();' +
 'refreshAllSectionSubheaders();' +
 // One-shot only -- if manual location is already on and coordinates
