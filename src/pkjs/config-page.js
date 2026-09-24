@@ -2746,6 +2746,7 @@ fontManagerSource +
 '    var sizeCategory = f.sizeCategory || "";' +
 '    var sizeCategoryLabel = fontSizeCategoryLabel(sizeCategory);' +
 '    var sizeCategoryClass = fontSizeCategoryClass(sizeCategory);' +
+'    var tagsHtml = (sizeCategoryLabel ? \'<span class="font-picker-size font-picker-size-\' + sizeCategoryClass + \'">\' + sizeCategoryLabel + "</span>" : "") + fontTagsHtml(f);' +
 '    html += \'<button type="button" class="font-picker-btn\' + (f.id === currentId ? " selected" : "") + \'" onclick="chooseFontOption(\' + f.id + \')">\' +' +
 '      \'<span class="font-picker-preview" style="\' + previewStyle + \'">\' + fontPreviewInnerHtml(f.id, currentFontPickerRole, previewText) + "</span>" +' +
 '      \'<span class="font-picker-name"><span>\' + esc(f.label) + \'</span>\' + (tagsHtml ? \'<span class="font-picker-tags">\' + tagsHtml + "</span>" : "") + "</span></button>";' +
