@@ -255,6 +255,9 @@ var handEditorModalHtml = configHands.handEditorModalHtml;
 // architecture extraction, JS8 fourth slice).
 var configPresets = require('./config/config-presets');
 var presetSlotHtml = configPresets.presetSlotHtml;
+// Scheduled My styles popup (CSS, modal markup, client script) -- see the
+// module's own header.
+var configPresetSchedule = require('./config/config-preset-schedule');
 
 // serviceStatusRowsHtml/rawMessageLogButtonsHtml moved to
 // config/config-debug.js (configuration architecture extraction, JS8
@@ -409,10 +412,11 @@ directWebfontStyle() +
 '  .radio-row input { width: auto; }' +
 '  .secondary-btn { width: 100%; padding: 12px; font-size: 14px; font-weight: 600; color: var(--text-strong); background: var(--border-light); border: 1px solid var(--border); border-radius: 8px; margin-top: 12px; }' +
 '  .preset-slot-row { display: flex; gap: 6px; align-items: stretch; margin-top: 8px; }' +
-'  .preset-apply-btn { flex: 1; box-sizing: border-box; padding: 12px; font-size: 14px; font-weight: 600; color: var(--text-strong); background: var(--btn-bg); border: 1px solid var(--border); border-radius: 8px; text-align: left; }' +
+'  .preset-apply-btn { flex: 1; box-sizing: border-box; padding: 12px; font-size: 14px; font-weight: 600; color: var(--text-strong); background: var(--btn-bg); border: 1px solid var(--border); border-radius: 8px; text-align: left; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }' +
 '  .preset-apply-btn:disabled { opacity: 0.45; }' +
 '  .preset-icon-btn { width: 44px; flex-shrink: 0; font-size: 18px; background: var(--btn-bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text-strong); }' +
 '  .preset-name-input { flex: 1; box-sizing: border-box; }' +
+configPresetSchedule.css +
 '  .example-style-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 8px; }' +
 '  .example-style-btn { position: relative; aspect-ratio: 200 / 228; box-sizing: border-box; border-radius: 8px; border: 1px solid var(--border); background: var(--btn-bg); overflow: hidden; padding: 0; }' +
 '  .example-style-btn:disabled { opacity: 0.4; }' +
@@ -1132,6 +1136,9 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    <button type="button" class="modal-cancel-btn" onclick="closeConfirmModal()">Cancel</button>' +
 '  </div>' +
 '</div>' +
+
+// Per-slot schedule popup (clock button on each My Style row).
+configPresetSchedule.modalHtml +
 
 // Shared by every service's (i) button in the Updates section -- one
 // modal, repopulated per tap by openServiceLog() from that service's
@@ -3909,6 +3916,7 @@ require('./config/config-preview') +
 '    imageEl.value = capturePreviewImage();' +
 '    if (btn) btn.disabled = false;' +
 '    if (deleteBtn) deleteBtn.disabled = false;' +
+'    refreshScheduleButton(n);' +
 '  }, (hadPreset && savedImg && currentImg) ? { images: { left: savedImg, right: currentImg } } : null);' +
 '}' +
 'function deletePresetSlot(n) {' +
@@ -3926,6 +3934,9 @@ require('./config/config-preview') +
 '    nameEl.value = "Preset " + n;' +
 '    if (btn) { btn.textContent = "Preset " + n; btn.disabled = true; }' +
 '    if (deleteBtn) deleteBtn.disabled = true;' +
+// A schedule belongs to the style in the slot, so it goes with it.
+'    document.getElementById("presetSlot" + n + "Schedule").value = "";' +
+'    refreshScheduleButton(n);' +
 '  }, { images: savedImg ? { left: savedImg } : null, danger: true, confirmLabel: "Delete" });' +
 '}' +
 'function startRenamePresetSlot(n) {' +
@@ -3950,6 +3961,7 @@ require('./config/config-preview') +
 '  input.style.display = "none";' +
 '  btn.style.display = "";' +
 '}' +
+configPresetSchedule.clientJs(current.scheduleKnownIds) +
 'function onAuroraEnabledChange() {' +
 '  var enabled = document.getElementById("auroraEnabled").checked;' +
 '  var astro = findCategory("astro");' +

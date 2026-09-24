@@ -129,6 +129,7 @@ static const SimpleFieldMapping SIMPLE_FIELD_MAP[] = {
   { MK_HOURLY_VIBE_END_MIN, F_U16, offsetof(EclipseData, hourly_vibe_end_min) },
   { MK_HOURLY_VIBE_DAYS_MASK, F_U8, offsetof(EclipseData, hourly_vibe_days_mask) },
   { MK_HOURLY_VIBE_OVERRIDE_QUIET, F_BOOL, offsetof(EclipseData, hourly_vibe_override_quiet) },
+  { MK_NEXT_STYLE_CHECK, F_TIME, offsetof(EclipseData, next_style_check) },
   // Settings that also raise a presentation change flag.
   { MK_CLOCK_FONT, F_U8 | FL_FONT, offsetof(EclipseData, clock_font) },
   { MK_SHOW_SECONDS, F_BOOL | FL_HANDS, offsetof(EclipseData, show_seconds) },

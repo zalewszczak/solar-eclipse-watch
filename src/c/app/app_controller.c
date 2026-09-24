@@ -41,6 +41,11 @@ static void time_service_tick_handler(struct tm *tick_time, TimeUnits units_chan
 
   battery_saver_controller_update();
 
+  // Scheduled "My styles": the watch is the only clock that is reliably
+  // running, so it is the one that wakes PKJS when a style is due. Runs
+  // before the deep-sleep skip below so it is evaluated every minute.
+  comms_maybe_request_scheduled_style(&s_data);
+
   // Deep sleep uses MINUTE_UNIT; process only five-minute boundaries.
   bool deep_sleep_skip = (battery_saver_phase() == BATTERY_SAVER_DEEP_SLEEP) && (tick_time->tm_min % 5 != 0);
   if (!deep_sleep_skip) {

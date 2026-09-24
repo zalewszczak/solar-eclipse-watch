@@ -117,7 +117,8 @@ var KEY_TYPE_MAP = (function () {
     'CUSTOM_HOUR_INNER_THICKNESS', 'CUSTOM_SEC_INNER_THICKNESS',
     'HOURLY_VIBE_MODE', 'HOURLY_VIBE_INTERVAL_MIN', 'HOURLY_VIBE_PATTERN',
     'HOURLY_VIBE_START_MIN', 'HOURLY_VIBE_END_MIN', 'HOURLY_VIBE_DAYS_MASK',
-    'HOURLY_VIBE_OVERRIDE_QUIET'
+    'HOURLY_VIBE_OVERRIDE_QUIET',
+    'NEXT_STYLE_CHECK'
   ]);
 
   return map;
@@ -455,16 +456,51 @@ var startBatterySaverHourlyCheck = refreshManager.startBatterySaverHourlyCheck;
 var overheadObjects = require('./overhead-objects');
 var overheadObjectsBytes = messageEncoder.overheadObjectsBytes;
 
+// ---- scheduled My styles ------------------------------------------------
+//
+// See scheduled-style.js for the whole design. Short version: the watch
+// asks (REQUEST_SCHEDULED_STYLE) once NEXT_STYLE_CHECK has passed; this
+// applies whatever is due and pushes the result.
+var scheduledStyle = require('./scheduled-style');
+var messageQueue = require('./comms/message-queue');
+
+// Applies any due scheduled style and, if one was applied, pushes the new
+// settings (plus the fresh NEXT_STYLE_CHECK they carry) to the watch.
+function serveScheduledStyle() {
+  var r = scheduledStyle.applyDue(Date.now());
+  if (r.applied) {
+    console.log('eclipse-watch: scheduled style applied from My style slot ' + r.slot);
+    sendFlatDict({});
+    // Same follow-up a manual settings save does: only refetches if the
+    // regular refresh interval has actually elapsed.
+    refreshAndSend(false, false);
+  }
+  return r.applied;
+}
+
 // ---- Pebble lifecycle --------------------------------------------------
 
 Pebble.addEventListener('ready', function () {
   console.log('eclipse-watch: PKJS ready, capabilities OK, starting first refresh');
+  // Catch up on anything that came due while PKJS was not running (phone
+  // off, watch on another app). Done first so the refresh below already
+  // sends the applied style.
+  serveScheduledStyle();
   refreshAndSend(false, false);
   scheduleRefresh();
   startBatterySaverHourlyCheck();
 });
 
 Pebble.addEventListener('appmessage', function (e) {
+  // The watch's own clock says a scheduled style is due (or overdue -- it
+  // repeats once a minute until it receives a new NEXT_STYLE_CHECK). If
+  // nothing is actually due here (clock skew, already served), reply with
+  // just the fresh next time so the watch stops or re-aims its retries.
+  if (e && e.payload && e.payload.REQUEST_SCHEDULED_STYLE) {
+    if (!serveScheduledStyle()) {
+      messageQueue.enqueueFlatDict({ 'NEXT_STYLE_CHECK': scheduledStyle.nextCheckSeconds(Date.now()) });
+    }
+  }
   if (e && e.payload && e.payload.REQUEST_UPDATE) {
     // The watch sends this both on every app launch/relaunch and on
     // a deliberate select-button press -- we can't tell which, so
@@ -750,7 +786,14 @@ Pebble.addEventListener('showConfiguration', function () {
     presetSlot5Image: getSetting('CONFIG_PRESET_5_IMAGE', ''),
     presetSlot6Name: getSetting('CONFIG_PRESET_6_NAME', ''),
     presetSlot6Json: getSetting('CONFIG_PRESET_6_JSON', ''),
-    presetSlot6Image: getSetting('CONFIG_PRESET_6_IMAGE', '')
+    presetSlot6Image: getSetting('CONFIG_PRESET_6_IMAGE', ''),
+    presetSlot1Schedule: getSetting('CONFIG_PRESET_1_SCHEDULE', ''),
+    presetSlot2Schedule: getSetting('CONFIG_PRESET_2_SCHEDULE', ''),
+    presetSlot3Schedule: getSetting('CONFIG_PRESET_3_SCHEDULE', ''),
+    presetSlot4Schedule: getSetting('CONFIG_PRESET_4_SCHEDULE', ''),
+    presetSlot5Schedule: getSetting('CONFIG_PRESET_5_SCHEDULE', ''),
+    presetSlot6Schedule: getSetting('CONFIG_PRESET_6_SCHEDULE', ''),
+    scheduleKnownIds: scheduledStyle.knownIds()
   });
   // Classic no-server config page: the whole thing is a data: URI, no
   // hosting required. The page reads a `return_to` query param that
@@ -1015,6 +1058,14 @@ Pebble.addEventListener('webviewclosed', function (e) {
   setSetting('CONFIG_PRESET_6_NAME', settings.CONFIG_PRESET_6_NAME || '');
   setSetting('CONFIG_PRESET_6_JSON', settings.CONFIG_PRESET_6_JSON || '');
   setSetting('CONFIG_PRESET_6_IMAGE', settings.CONFIG_PRESET_6_IMAGE || '');
+  // Scheduled My styles. A changed schedule re-arms itself from now; an
+  // unchanged one is left alone (see persistSlotSchedule()).
+  (function () {
+    var nowMs = Date.now();
+    for (var n = 1; n <= scheduledStyle.SLOT_COUNT; n++) {
+      scheduledStyle.persistSlotSchedule(n, settings['CONFIG_PRESET_' + n + '_SCHEDULE'], nowMs);
+    }
+  })();
   setSetting('CONFIG_DRAW_DEBUG', settings.CONFIG_DRAW_DEBUG ? 'true' : 'false');
   setSetting('CONFIG_HOURLY_VIBE_MODE', settings.CONFIG_HOURLY_VIBE_MODE || '0');
   setSetting('CONFIG_HOURLY_VIBE_INTERVAL_MIN', settings.CONFIG_HOURLY_VIBE_INTERVAL_MIN || '30');

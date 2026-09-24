@@ -42,6 +42,26 @@ void comms_maybe_request_flights(EclipseData *data) {
   }
 }
 
+// Minimum gap between REQUEST_SCHEDULED_STYLE sends. The tick handler can run
+// every second, and an unanswered request (phone busy, PKJS not started yet)
+// should be retried, but not hammered.
+#define STYLE_REQUEST_RETRY_S 60
+
+void comms_maybe_request_scheduled_style(const EclipseData *data) {
+  static time_t s_last_request = 0;
+  if (!data || data->next_style_check == 0) return;
+  time_t now = time(NULL);
+  if (now < data->next_style_check) return;
+  if (s_last_request != 0 && now >= s_last_request &&
+      (now - s_last_request) < STYLE_REQUEST_RETRY_S) return;
+  if (!connection_service_peek_pebble_app_connection()) return;
+
+  DictionaryIterator *iter;
+  if (app_message_outbox_begin(&iter) != APP_MSG_OK) return;
+  dict_write_uint8(iter, MESSAGE_KEY_MESSAGE_TYPE + MK_REQUEST_SCHEDULED_STYLE, 1);
+  if (app_message_outbox_send() == APP_MSG_OK) s_last_request = now;
+}
+
 static void request_update(void) {
   DictionaryIterator *iter;
   if (app_message_outbox_begin(&iter) != APP_MSG_OK) return;

@@ -108,6 +108,42 @@ to, keyed by their HTML element `id` (`bottomStyle`, `customBg`,
 into the matching field and re-runs the page's normal change
 handlers, the same as if you'd clicked through every control by hand.
 
+### Scheduled My styles
+
+Each My Style slot has a clock button (next to save / rename / delete)
+that opens a schedule popup: an **Enable schedule** checkbox, weekday
+buttons (all selected by default) and an **Apply at** time. While a
+schedule is on, the slot's clock icon is burgundy. The schedule is
+stored per slot as `CONFIG_PRESET_<n>_SCHEDULE`
+(`{"enabled":true,"days":127,"time":"08:00"}`, days bit 0 = Sunday).
+
+PKJS only runs while the watchface does and cannot wake itself, so the
+**watch's clock** is what triggers a scheduled style:
+
+1. Every settings push carries `NEXT_STYLE_CHECK`: the epoch second of
+   the next schedule occurrence that has not been served yet (0 = none).
+   The watch keeps it in `EclipseData.next_style_check` (persisted).
+2. The tick handler calls `comms_maybe_request_scheduled_style()`. Once
+   that time has passed and the phone is connected, it sends
+   `REQUEST_SCHEDULED_STYLE` (retrying at most once a minute). That
+   message is what starts/wakes PKJS.
+3. PKJS (`src/pkjs/scheduled-style.js`) applies the most recent due
+   style to the stored settings, pushes the normal settings update, and
+   the new `NEXT_STYLE_CHECK` in it ends the retries.
+
+Things that follow from this: a schedule saved at 09:30 for 08:00 first
+fires tomorrow (occurrences before saving never fire); occurrences
+missed while the phone was off or the watch was on another app are
+caught up when the watch asks again or PKJS starts (only the most recent
+one is applied); a manual style change is never reverted by an already
+served occurrence; two slots at the same minute -> the higher slot wins.
+
+Applying a style from PKJS uses a table of element id -> `CONFIG_*` key
+in `scheduled-style.js` (mirroring `save()`'s payload). After adding or
+renaming a style setting run `node scripts/check-scheduled-style-map.js`;
+if a saved style contains an element id the table does not know, the
+schedule popup shows a "Developer note" listing it.
+
 ### Adding a new Example style
 
 Example styles are meant to be authored by you (the developer), not

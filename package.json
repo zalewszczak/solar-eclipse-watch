@@ -168,7 +168,9 @@
       "REQUEST_FLIGHTS",
       "OVERHEAD_OBJECTS",
       "OVERHEAD_OBJECT_COUNT",
-      "OVERHEAD_OBJECTS_COMPUTED_AT"
+      "OVERHEAD_OBJECTS_COMPUTED_AT",
+      "NEXT_STYLE_CHECK",
+      "REQUEST_SCHEDULED_STYLE"
     ],
     "resources": {
       "media": [

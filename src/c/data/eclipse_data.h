@@ -312,5 +312,11 @@ typedef struct {
 
   bool hourly_vibe_override_quiet; // vibrate during Quiet Time when true.
 
+  // Scheduled "My styles": epoch second at which the phone wants to be asked
+  // to apply a scheduled style (0 = nothing scheduled). The phone computes
+  // it and sends it with every settings push; the watch only has to notice
+  // when the time has come and nudge PKJS, which may not be running.
+  time_t next_style_check;
+
   bool draw_debug;
 } EclipseData;

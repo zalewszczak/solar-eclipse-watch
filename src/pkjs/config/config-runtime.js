@@ -264,6 +264,12 @@ module.exports =
 '    CONFIG_PRESET_6_NAME: document.getElementById("presetSlot6Name").value,' +
 '    CONFIG_PRESET_6_JSON: document.getElementById("presetSlot6Json").value,' +
 '    CONFIG_PRESET_6_IMAGE: document.getElementById("presetSlot6Image").value,' +
+'    CONFIG_PRESET_1_SCHEDULE: document.getElementById("presetSlot1Schedule").value,' +
+'    CONFIG_PRESET_2_SCHEDULE: document.getElementById("presetSlot2Schedule").value,' +
+'    CONFIG_PRESET_3_SCHEDULE: document.getElementById("presetSlot3Schedule").value,' +
+'    CONFIG_PRESET_4_SCHEDULE: document.getElementById("presetSlot4Schedule").value,' +
+'    CONFIG_PRESET_5_SCHEDULE: document.getElementById("presetSlot5Schedule").value,' +
+'    CONFIG_PRESET_6_SCHEDULE: document.getElementById("presetSlot6Schedule").value,' +
 '    CONFIG_DRAW_DEBUG: document.getElementById("drawDebug").checked,' +
 '    CONFIG_HOURLY_VIBE_MODE: document.getElementById("hourlyVibeMode").value,' +
 '    CONFIG_HOURLY_VIBE_INTERVAL_MIN: document.getElementById("hourlyVibeIntervalMin").value,' +
