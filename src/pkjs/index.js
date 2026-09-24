@@ -562,7 +562,7 @@ Pebble.addEventListener('showConfiguration', function () {
     labelStyle: getSetting('CONFIG_LABEL_STYLE', '0'),
     shadowTranslucent: getSetting('CONFIG_SHADOW_TRANSLUCENT', 'true'),
     shadowAngle: getSetting('CONFIG_SHADOW_ANGLE', '120'),
-    bigAnalogMarkerStyle: getSetting('CONFIG_BIG_ANALOG_MARKER_STYLE', '0'),
+    bigAnalogMarkerStyle: getSetting('CONFIG_BIG_ANALOG_MARKER_STYLE', '10'),
     bitmapMarkerTransparent: getSetting('CONFIG_BITMAP_MARKER_TRANSPARENT', 'false') === 'true',
     // Browser-side only -- the watch never needs this. By the time
     // corner_content[] reaches it, the settings page has already
@@ -861,7 +861,7 @@ Pebble.addEventListener('webviewclosed', function (e) {
   setSetting('CONFIG_LABEL_STYLE', settings.CONFIG_LABEL_STYLE || '0');
   setSetting('CONFIG_SHADOW_TRANSLUCENT', settings.CONFIG_SHADOW_TRANSLUCENT || 'true');
   setSetting('CONFIG_SHADOW_ANGLE', settings.CONFIG_SHADOW_ANGLE || '120');
-  setSetting('CONFIG_BIG_ANALOG_MARKER_STYLE', settings.CONFIG_BIG_ANALOG_MARKER_STYLE || '0');
+  setSetting('CONFIG_BIG_ANALOG_MARKER_STYLE', settings.CONFIG_BIG_ANALOG_MARKER_STYLE || '10');
   setSetting('CONFIG_BITMAP_MARKER_TRANSPARENT', settings.CONFIG_BITMAP_MARKER_TRANSPARENT ? 'true' : 'false');
   setSetting('CONFIG_BITMAP_CORNER_OVERRIDE', settings.CONFIG_BITMAP_CORNER_OVERRIDE ? 'true' : 'false');
   setSetting('CONFIG_DRAW_FEATURES_BENEATH_HANDS', settings.CONFIG_DRAW_FEATURES_BENEATH_HANDS ? 'true' : 'false');

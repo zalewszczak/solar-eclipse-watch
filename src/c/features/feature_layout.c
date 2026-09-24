@@ -38,11 +38,12 @@ void feature_layout_recompute(FeaturesState *state) {
   bool is_grid = d->bottom_style == BOTTOM_STYLE_GRID;
   bool is_digital_top = feature_layout_is_digital_top_layout(d->bottom_style);
   uint8_t marker_style = d->big_analog_marker_style;
-  bool is_bitmap_style = is_analog && marker_style >= 3 && marker_style != 8 && marker_style != 9;
+  bool marker_is_bitmap = marker_style >= 3 && marker_style <= 7;
 
-  // Which of the 12 slots actually apply for the current marker/
-
-  // Inner-empty-area margins: procedural presets (0/1/2) and "none" (9)
+  // Inner-empty-area margins: fixed per bitmap style (3-7); every other
+  // style (the custom hour/second rings, which is also what the phone
+  // sends for the Minimal/Braun/Swiss/Classy/None presets) is computed
+  // from those rings + marker text below.
   typedef struct { int8_t top, bottom, left, right; } EdgeMargins;
   static const EdgeMargins BITMAP_STYLE_MARGINS[5] = {
     { 34, 30, 40, 35 }, // 3: Modern
@@ -52,10 +53,10 @@ void feature_layout_recompute(FeaturesState *state) {
     { 44, 40, 30, 20 }, // 7: Fancy
   };
   int16_t dyn_upper_offset = 24, dyn_bottom_shift = 20, dyn_left_inset = 0, dyn_right_inset = 0;
-  if (is_bitmap_style && marker_style >= 3 && marker_style <= 7) {
+  if (is_analog && marker_is_bitmap) {
     const EdgeMargins *m = &BITMAP_STYLE_MARGINS[marker_style - 3];
     dyn_upper_offset = m->top; dyn_bottom_shift = m->bottom; dyn_left_inset = m->left; dyn_right_inset = m->right;
-  } else if (marker_style == 8) {
+  } else if (!marker_is_bitmap) {
     GRect screen = GRect(0, 0, 200, 228);
     GPoint center = GPoint(screen.size.w / 2, screen.size.h / 2);
     uint8_t pct = d->custom_hour_marker.thickness != 0 ? d->custom_hour_marker.inner_border_pct : 100;
@@ -92,21 +93,6 @@ void feature_layout_recompute(FeaturesState *state) {
     bottom_pt.y -= h_offset;
     left_pt.x += h_offset;
     int16_t margin = 2;
-    if (top_pt.y + margin > dyn_upper_offset) dyn_upper_offset = top_pt.y + margin;
-    if (screen.size.h - bottom_pt.y + margin > dyn_bottom_shift) dyn_bottom_shift = screen.size.h - bottom_pt.y + margin;
-    int16_t left_reach = left_pt.x + margin, right_reach = screen.size.w - right_pt.x + margin;
-    if (left_reach > dyn_left_inset) dyn_left_inset = left_reach;
-    if (right_reach > dyn_right_inset) dyn_right_inset = right_reach;
-  } else if (marker_style <= 2 || marker_style == 9) {
-    uint8_t pct, ecc;
-    marker_layer_inner_reach(marker_style, &pct, &ecc);
-    GRect screen = GRect(0, 0, 200, 228);
-    GPoint center = GPoint(screen.size.w / 2, screen.size.h / 2);
-    GPoint top_pt = marker_layer_point_on_ring(center, screen, 0, pct, ecc);
-    GPoint right_pt = marker_layer_point_on_ring(center, screen, TRIG_MAX_ANGLE / 4, pct, ecc);
-    GPoint bottom_pt = marker_layer_point_on_ring(center, screen, TRIG_MAX_ANGLE / 2, pct, ecc);
-    GPoint left_pt = marker_layer_point_on_ring(center, screen, (TRIG_MAX_ANGLE * 3) / 4, pct, ecc);
-    int16_t margin = 4;
     if (top_pt.y + margin > dyn_upper_offset) dyn_upper_offset = top_pt.y + margin;
     if (screen.size.h - bottom_pt.y + margin > dyn_bottom_shift) dyn_bottom_shift = screen.size.h - bottom_pt.y + margin;
     int16_t left_reach = left_pt.x + margin, right_reach = screen.size.w - right_pt.x + margin;

@@ -203,16 +203,6 @@ static void draw_marker_ring(GContext *ctx, GPoint center, GRect screen, const M
   }
 }
 
-void marker_layer_inner_reach(uint8_t marker_style, uint8_t *out_pct, uint8_t *out_eccentricity) {
-  *out_pct = 65;
-  *out_eccentricity = 0;
-}
-
-// Marker text's own font is resolved via font_lookup_resolve()
-
-// Converts 1-59 (our only actual range: hour labels 1-12, second labels
-
-// Draws whichever marker style is active (procedural preset, custom, or
 void marker_layer_init(MarkerLayerState *state) {
   state->bitmap = NULL;
   state->bitmap_style = 255;
@@ -227,12 +217,17 @@ void marker_layer_deinit(MarkerLayerState *state) {
   font_lookup_release(&state->text_font_slot);
 }
 
+// Draws the active marker style: one of the bitmap styles (3-7), or --
+// for anything else -- the custom hour/second rings plus marker text.
+// The phone resolves the Minimal/Braun/Swiss/Classy/None presets into
+// those custom ring + text values before sending, so this never has to
+// know about them.
 void marker_layer_draw(GContext *ctx, MarkerLayerState *state, GPoint center, GRect screen,
                               const EclipseData *d, GColor main_color, GColor accent_color, GColor bg_color,
                               bool anim_active, int32_t anim_progress_1000, bool draw_debug) {
   uint8_t marker_style = d->big_analog_marker_style;
 
-  bool is_bitmap_style = marker_style >= 3 && marker_style != 8;
+  bool is_bitmap_style = marker_style >= 3 && marker_style <= 7;
 
   marker_bitmap_ensure(&state->bitmap, &state->bitmap_style, &state->bitmap_tinted,
                          &state->bitmap_tint_color, &state->bitmap_tint_transparent, marker_style);
@@ -244,15 +239,12 @@ void marker_layer_draw(GContext *ctx, MarkerLayerState *state, GPoint center, GR
     return;
   }
 
-  const MarkerRingConfig *hour_cfg, *second_cfg;
-  MarkerRingConfig hour_preset, second_preset;
-  uint8_t hour_inner_thickness, second_inner_thickness;
-  hour_cfg = &d->custom_hour_marker;
-  second_cfg = &d->custom_second_marker;
-  hour_inner_thickness = d->custom_hour_marker_inner_thickness;
-  second_inner_thickness = d->custom_second_marker_inner_thickness;
+  const MarkerRingConfig *hour_cfg = &d->custom_hour_marker;
+  const MarkerRingConfig *second_cfg = &d->custom_second_marker;
+  uint8_t hour_inner_thickness = d->custom_hour_marker_inner_thickness;
+  uint8_t second_inner_thickness = d->custom_second_marker_inner_thickness;
 
-// Second ring first so the hour ring's marks draw on top at shared
+  // Second ring first so the hour ring's marks draw on top at shared
   draw_marker_ring(ctx, center, screen, second_cfg, 60, 5, main_color, accent_color, bg_color, false, 0, second_inner_thickness);
   draw_marker_ring(ctx, center, screen, hour_cfg, 12, 0, main_color, accent_color, bg_color, anim_active, anim_progress_1000, hour_inner_thickness);
 

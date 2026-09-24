@@ -23,7 +23,7 @@ static uint32_t marker_bitmap_resource_id(uint8_t style) {
 
 void marker_bitmap_ensure(GBitmap **bitmap, uint8_t *bitmap_style, bool *bitmap_tinted,
                           GColor *tint_color, bool *tint_transparent, uint8_t style) {
-  if (style < 3) {
+  if (style < 3 || style > 7) { // not a bitmap style (custom rings draw instead)
     if (*bitmap) {
       gbitmap_destroy(*bitmap);
       *bitmap = NULL;

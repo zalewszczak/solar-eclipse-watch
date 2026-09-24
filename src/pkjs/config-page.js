@@ -225,7 +225,7 @@ var handEditorModalHtml = configHands.handEditorModalHtml;
  * @param {object} current  current settings, as plain values:
  *   { autoLoc, lat, lon, owmKey, updateMins,
  *     clockFont, showSeconds, bottomStyle: 'digital'|'analog' (a persisted 'biganalog' from before this app version is treated as 'analog'),
- *     bigAnalogMarkerStyle: '0'-'9' (0/1/2/9=Minimal/Braun/Swiss/Classy ring presets, which copy their values into customHour.../customSec... and reach the watch as 8; 3-7=bitmap styles; 8=custom -- see customHour.../customSec.../markerText... below), upperMiddleLine1Content/upperMiddleLine2Content: '0'-'12', upperMiddleLine1Color/upperMiddleLine2Color: '0'-'3',
+ *     bigAnalogMarkerStyle: '0'-'10' (0/1/2/9/10=None/Braun/Swiss/Classy/Minimal presets, which copy their ring + numerals values into customHour.../customSec.../markerText... and reach the watch as 8; 3-7=bitmap styles; 8=custom -- see customHour.../customSec.../markerText... below), upperMiddleLine1Content/upperMiddleLine2Content: '0'-'12', upperMiddleLine1Color/upperMiddleLine2Color: '0'-'3',
  *     colorScheme: '0'-'9'|'custom', customBg, customText, customAccent (packed byte strings),
  *     nightEnabled, nightScheme, nightCustomBg, nightCustomText, nightCustomAccent,
  *     showSunTime, showIss, showMajorStars, sunMoonSize: '25'|'50'|'75'|'100', shakeLabelSeconds, vibrateOnPhaseChange,
@@ -1021,7 +1021,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    <div class="modal-scroll-body">' +
 '      <div class="style-picker-grid" id="markerStyleGrid"></div>' +
 '      <button type="button" class="style-picker-custom-btn" onclick="chooseMarkerStyleCustom()">Custom</button>' +
-'      <button type="button" class="style-picker-custom-btn style-picker-none-btn" onclick="chooseMarkerStyle(\'9\')">None</button>' +
+'      <button type="button" class="style-picker-custom-btn style-picker-none-btn" onclick="chooseMarkerStyle(\'0\')">None</button>' +
 '    </div>' +
 '  </div>' +
 '</div>' +
@@ -1280,8 +1280,9 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      <div class="field-label-row"><label>Hour/seconds indices style</label><button type="button" class="help-btn" onclick="toggleHelp(\'help-indicesStyle\')">?</button></div>' +
 '      <button type="button" class="marker-edit-btn" id="markerStyleTriggerBtn" style="margin-top:8px;" onclick="openMarkerStyleModal()">Indices style: <span id="markerStyleTriggerLabel"></span> &rsaquo;</button>' +
 '      <select id="bigAnalogMarkerStyle" style="display:none;" onchange="onMarkerStyleChange()">' +
+'        <option value="10"' + (current.bigAnalogMarkerStyle === '10' || !current.bigAnalogMarkerStyle ? ' selected' : '') + '>Minimal (thin hour indices only)</option>' +
 '        <option value="9"' + (current.bigAnalogMarkerStyle === '9' ? ' selected' : '') + '>Classy</option>' +
-'        <option value="0"' + (current.bigAnalogMarkerStyle === '0' || !current.bigAnalogMarkerStyle ? ' selected' : '') + '>Minimal (thin hour indices only)</option>' +
+'        <option value="0"' + (current.bigAnalogMarkerStyle === '0' ? ' selected' : '') + '>None</option>' +
 '        <option value="1"' + (current.bigAnalogMarkerStyle === '1' ? ' selected' : '') + '>Braun</option>' +
 '        <option value="2"' + (current.bigAnalogMarkerStyle === '2' ? ' selected' : '') + '>Swiss</option>' +
 '        <option value="3"' + (current.bigAnalogMarkerStyle === '3' ? ' selected' : '') + '>Modern</option>' +
@@ -2888,7 +2889,7 @@ require('./config/config-preview') +
 // because their center layouts are handled separately below.
 '    digitalBottomRow: !isAnalog && !isTopCenterOnly };' +
 '  if (isAnalog) {' +
-'    if (markerStyle < 3 || markerStyle === 8 || markerStyle === 9) {' +
+'    if (markerStyle < 3 || markerStyle > 7) {' +
 '      avail.upper = avail.bottom = avail.left = avail.right = true;' +
 '    } else if (markerStyle === 3 || markerStyle === 4 || markerStyle === 6) {' +
 '      avail.upper = avail.bottom = true; avail.left = avail.right = override; avail.cornersGrayed = !override;' +
@@ -3254,10 +3255,10 @@ require('./config/config-preview') +
 'function cmHiddenPrefix(kind) { return kind === "hour" ? "customHour" : "customSec"; }' +
 'function cmPopupPrefix(kind) { return kind === "hour" ? "cmHour" : "cmSec"; }' +
 // Serialized straight from presets-lookups.js's MARKER_STYLE_PRESET_FIELDS (bigAnalogMarkerStyle
-// "0"/"1"/"2"/"9" -> hour/sec ring field values) -- the one place the
-// Minimal/Braun/Swiss/Classy numbers live. Used by BOTH the Indices style
-// picker (applyMarkerStylePresetToCustom() below) and the hour/second
-// editor popups' own preset buttons (MARKER_PRESETS below).
+// "0"/"1"/"2"/"9"/"10" -> hour/sec ring + numerals field values) -- the one
+// place the None/Braun/Swiss/Classy/Minimal numbers live. Used by BOTH the
+// Indices style picker (applyMarkerStylePresetToCustom() below) and the
+// hour/second editor popups' own preset buttons (MARKER_PRESETS below).
 'var MARKER_STYLE_PRESET_FIELDS = ' + JSON.stringify(MARKER_STYLE_PRESET_FIELDS) + ';' +
 'var MARKER_PRESETS = {' +
 '  hour: {' +
@@ -3274,7 +3275,7 @@ require('./config/config-preview') +
 // retunes its popup button too. Ring geometry only -- Translucent/Color are
 // deliberately left out, so tapping one of these buttons keeps whatever
 // translucency/color the popup already had, same as before.
-'var MARKER_POPUP_PRESET_STYLE_IDS = { minimal: "0", braun: "1", swiss: "2", classy: "9" };' +
+'var MARKER_POPUP_PRESET_STYLE_IDS = { minimal: "10", braun: "1", swiss: "2", classy: "9" };' +
 'var MARKER_POPUP_PRESET_GEOMETRY = ["Style", "Thickness", "InnerThickness", "InnerEcc", "OuterEcc", "InnerBorder", "OuterBorder"];' +
 'Object.keys(MARKER_POPUP_PRESET_STYLE_IDS).forEach(function (name) {' +
 '  var fields = MARKER_STYLE_PRESET_FIELDS[MARKER_POPUP_PRESET_STYLE_IDS[name]];' +
@@ -3284,12 +3285,13 @@ require('./config/config-preview') +
 '    MARKER_PRESETS[kind][name] = geometry;' +
 '  });' +
 '});' +
-// Picking a built-in Indices style (Minimal/Braun/Swiss/Classy) copies its
-// hour + second ring values into the same customHour*/customSec* hidden
-// inputs the Custom style edits -- the picker itself keeps showing the
-// preset (bigAnalogMarkerStyle is untouched), but the watch is sent those
-// values as an ordinary Custom marker (see bigAnalogMarkerStyleCode() in
-// settings-codecs.js), and switching to Custom afterward starts from them.
+// Picking a built-in Indices style (None/Braun/Swiss/Classy/Minimal) copies
+// its hour ring, second ring AND numerals values into the same
+// customHour*/customSec*/markerText* inputs the Custom style edits -- the
+// picker itself keeps showing the preset (bigAnalogMarkerStyle is
+// untouched), but the watch is sent those values as an ordinary Custom
+// marker (see bigAnalogMarkerStyleCode() in settings-codecs.js), and
+// switching to Custom afterward starts from them.
 // Returns whether styleVal was one of those presets. Runs from
 // onMarkerStyleChange(), i.e. on every pick, on page load, and after an
 // imported/recalled style -- so while a preset is selected the custom
@@ -3304,7 +3306,33 @@ require('./config/config-preview') +
 '      if (hidden && fields[kind][f] !== undefined) hidden.value = fields[kind][f];' +
 '    });' +
 '  });' +
+'  applyMarkerTextPresetFields(fields.text);' +
 '  return true;' +
+'}' +
+// The numerals half of the above. The mark-selection masks are a hidden
+// input plus 12 toggle buttons each, so setMarkMask() keeps both in step.
+// Font goes in before Roman since a font that can't do Roman numerals
+// unchecks/disables the box (onMarkerTextFontChange()).
+'function setMarkMask(kind, mask) {' +
+'  document.getElementById(kind === "hour" ? "markerTextHourMask" : "markerTextSecMask").value = String(mask);' +
+'  var m = parseInt(mask, 10) || 0;' +
+'  for (var i = 0; i < 12; i++) {' +
+'    var btn = document.getElementById("markBtn-" + kind + "-" + i);' +
+'    if (btn) btn.className = "mark-btn" + ((m & (1 << i)) ? " active" : "");' +
+'  }' +
+'}' +
+'function applyMarkerTextPresetFields(t) {' +
+'  if (!t) return;' +
+'  document.getElementById("markerTextFont").value = t.Font;' +
+'  document.getElementById("markerTextRoman").checked = t.Roman === "true";' +
+'  document.getElementById("markerTextOffset").value = t.Offset;' +
+'  document.getElementById("markerTextOffsetVal").textContent = t.Offset + "px";' +
+'  setMarkMask("hour", t.HourMask);' +
+'  setMarkMask("sec", t.SecMask);' +
+'  selectModeButton("markerTextTargetGroup", "markerTextTarget", t.Target);' +
+'  onMarkerTextFontChange();' +
+'  onMarkerTextTargetChange();' +
+'  refreshAllFontTriggerLabels();' +
 '}' +
 // A rough approximation of the 3 built-in procedural styles, translated
 // into border-reach percentages (see marker_reach_px() in
@@ -3686,7 +3714,7 @@ require('./config/config-preview') +
 // Same idea for Indices style -- the thumbnail is whichever bitmap or
 // procedural-preset picture MARKER_STYLE_TITLES/updateMarkerStyleButtonLabel()
 // already resolve bigAnalogMarkerStyle\'s current value to, blank for
-// Custom (8) and None (9) alike (neither has one static picture to
+// Custom (8) and None (0) alike (neither has one static picture to
 // show -- Custom is user-defined per-ring geometry, None draws
 // nothing at all).
 'function refreshIndicesSubsectionPreview() {' +
@@ -3700,22 +3728,24 @@ require('./config/config-preview') +
 '  }' +
 '  setPreviewThumbnail("subsecpreview-indices", img ? (\'<img class="\' + (isBitmap ? "bitmap-marker-img" : "") + \'" src="\' + img + \'" alt="">\') : "");' +
 '  var title = MARKER_STYLE_TITLES.hasOwnProperty(val) ? MARKER_STYLE_TITLES[val] : "Custom";' +
-'  setSubsubheaderText("indices", title + " indices");' +
+'  setSubsubheaderText("indices", val === "0" ? "No indices" : title + " indices");' +
 '}' +
 
 // ---- marker style picker popup -----------------------------------------
 // Unlike hands, markers keep a real "which style" field
-// (bigAnalogMarkerStyle, still 0-9 here and in storage) -- this
+// (bigAnalogMarkerStyle, 0-10 here and in storage) -- this
 // popup is just a friendlier picker for that same hidden <select>,
 // not a replacement for it. The watch itself is only ever sent 3-8
-// though: the 4 ring presets (0/1/2/9) are materialized into the
-// Custom marker fields and sent as 8 -- see
+// though: the 5 presets (0 None, 1 Braun, 2 Swiss, 9 Classy, 10
+// Minimal) are materialized into the Custom marker + numerals fields
+// and sent as 8 -- see
 // applyMarkerStylePresetToCustom() above and bigAnalogMarkerStyleCode()
 // in settings-codecs.js. MARKER_BITMAP_STYLES covers the 5
 // existing bitmap styles (their own thumbnails already exist as
 // MARKER_PREVIEW_IMAGES, generated from the actual watch resource
 // PNGs -- see generate-marker-previews.js); MARKER_PRESET_STYLES
-// covers the 4 procedural ring styles, thumbnails from
+// covers the 4 ring-preset tiles (None is its own button below the
+// grid, since it has no picture), thumbnails from
 // MARKER_PRESET_IMAGES (generate-infographics.js).
 'var MARKER_BITMAP_STYLES = [' +
 '  { value: "3", title: "Modern" },' +
@@ -3726,7 +3756,7 @@ require('./config/config-preview') +
 '];' +
 'var MARKER_PRESET_STYLES = [' +
 '  { value: "9", title: "Classy", image: "classy" },' +
-'  { value: "0", title: "Minimal", image: "minimal" },' +
+'  { value: "10", title: "Minimal", image: "minimal" },' +
 '  { value: "1", title: "Braun", image: "braun" },' +
 '  { value: "2", title: "Swiss", image: "swiss" }' +
 '];' +
@@ -3734,7 +3764,7 @@ require('./config/config-preview') +
 // MARKER_PRESET_STYLES entry\'s own title, plus "8" (Custom, the only
 // value neither array carries since it has no picker button of its
 // own -- see chooseMarkerStyleCustom()).
-'var MARKER_STYLE_TITLES = { "8": "Custom" };' +
+'var MARKER_STYLE_TITLES = { "0": "None", "8": "Custom" };' +
 'MARKER_BITMAP_STYLES.concat(MARKER_PRESET_STYLES).forEach(function (s) { MARKER_STYLE_TITLES[s.value] = s.title; });' +
 'function updateMarkerStyleButtonLabel() {' +
 '  var span = document.getElementById("markerStyleTriggerLabel");' +

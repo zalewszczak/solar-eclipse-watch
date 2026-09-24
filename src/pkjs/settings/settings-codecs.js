@@ -157,13 +157,14 @@ function shadowTranslucentCode() { return getSetting('CONFIG_SHADOW_TRANSLUCENT'
 // made no sense.
 function shadowAngleCode() { return clampInt(getSetting('CONFIG_SHADOW_ANGLE', '120'), 0, 359, 120); }
 
-// The 4 built-in ring presets (bigAnalogMarkerStyle 0 Minimal, 1 Braun,
-// 2 Swiss, 9 Classy -- see MARKER_STYLE_PRESET_FIELDS in
-// presets-lookups.js) don't exist on the watch any more: it only knows
-// the bitmap styles (3-7) and Custom (8). While one of those presets is
-// the selected style, this sends 8 and every customHour*/customSec*
-// codec below reports the preset's own values in place of whatever is
-// stored, so the watch simply receives an ordinary custom marker. The
+// The built-in marker presets (bigAnalogMarkerStyle 0 None, 1 Braun,
+// 2 Swiss, 9 Classy, 10 Minimal -- see MARKER_STYLE_PRESET_FIELDS in
+// presets-lookups.js) don't exist on the watch: it only knows the
+// bitmap styles (3-7) and Custom (8). While one of those presets is
+// the selected style, this sends 8 and every customHour*/customSec*/
+// markerText* codec below reports the preset's own values (numerals
+// included) in place of whatever is stored, so the watch simply
+// receives an ordinary custom marker. The
 // stored choice itself is untouched, so the settings menu keeps showing
 // the preset. Normally the stored custom fields already equal the preset
 // (the settings page copies them in on selection -- see
@@ -171,9 +172,10 @@ function shadowAngleCode() { return clampInt(getSetting('CONFIG_SHADOW_ANGLE', '
 // well covers settings saved before that existed and a refresh that
 // lands before the settings page has ever been reopened.
 var MARKER_STYLE_CUSTOM = 8;
+var MARKER_STYLE_DEFAULT = 10; // Minimal -- also what a missing/garbled stored value falls back to
 function storedMarkerStyleId() {
-  var id = parseInt(getSetting('CONFIG_BIG_ANALOG_MARKER_STYLE', '0'), 10);
-  if (isNaN(id) || id < 0 || id > 9) id = 0;
+  var id = parseInt(getSetting('CONFIG_BIG_ANALOG_MARKER_STYLE', String(MARKER_STYLE_DEFAULT)), 10);
+  if (isNaN(id) || id < 0 || id > 10) id = MARKER_STYLE_DEFAULT;
   return id;
 }
 function activeMarkerPresetFields() {
@@ -209,18 +211,26 @@ function clampInt(v, lo, hi, fallback) {
   if (n > hi) return hi;
   return n;
 }
-// CONFIG_CUSTOM_HOUR_INNER_BORDER -> ['hour', 'InnerBorder'] etc. -- each
-// stored custom-marker key paired with the same ring/field name
+// CONFIG_CUSTOM_HOUR_INNER_BORDER -> ['hour', 'InnerBorder'],
+// CONFIG_MARKER_TEXT_TARGET -> ['text', 'Target'] etc. -- each stored
+// custom-marker/numerals key paired with the same group/field name
 // presets-lookups.js's MARKER_STYLE_PRESET_FIELDS uses.
-var CUSTOM_MARKER_KEY_FIELDS = {};
+var CUSTOM_MARKER_KEY_FIELDS = {
+  CONFIG_MARKER_TEXT_TARGET: ['text', 'Target'],
+  CONFIG_MARKER_TEXT_FONT: ['text', 'Font'],
+  CONFIG_MARKER_TEXT_OFFSET: ['text', 'Offset'],
+  CONFIG_MARKER_TEXT_HOUR_MASK: ['text', 'HourMask'],
+  CONFIG_MARKER_TEXT_SEC_MASK: ['text', 'SecMask'],
+  CONFIG_MARKER_TEXT_ROMAN: ['text', 'Roman']
+};
 ['hour', 'sec'].forEach(function (kind) {
   ['Style', 'Thickness', 'InnerThickness', 'InnerEcc', 'OuterEcc', 'InnerBorder', 'OuterBorder', 'Translucent', 'Color'].forEach(function (field) {
     var key = 'CONFIG_CUSTOM_' + (kind === 'hour' ? 'HOUR' : 'SEC') + '_' + field.replace(/([a-z])([A-Z])/g, '$1_$2').toUpperCase();
     CUSTOM_MARKER_KEY_FIELDS[key] = [kind, field];
   });
 });
-// getSetting() for one of those keys, except that while a ring preset is
-// the selected marker style the preset's own value wins (see the comment
+// getSetting() for one of those keys, except that while a marker preset
+// is the selected style the preset's own value wins (see the comment
 // above bigAnalogMarkerStyleCode()).
 function customMarkerSetting(key, fallback) {
   var preset = activeMarkerPresetFields();
@@ -262,15 +272,12 @@ function customSecOuterBorderCode() {
 }
 function customSecTranslucentCode() { return customMarkerSetting('CONFIG_CUSTOM_SEC_TRANSLUCENT', 'false') === 'true' ? 1 : 0; }
 function customSecColorCode() { return clampInt(customMarkerSetting('CONFIG_CUSTOM_SEC_COLOR', '0'), 0, 2, 0); }
-// Numerals (marker text) are a Custom-only feature -- forced off while a
-// ring preset is selected, without touching the stored choice, so it's
-// still there when the user switches back to Custom.
-function markerTextTargetCode() { return activeMarkerPresetFields() ? 0 : clampInt(getSetting('CONFIG_MARKER_TEXT_TARGET', '0'), 0, 2, 0); }
-function markerTextFontCode() { return clampInt(getSetting('CONFIG_MARKER_TEXT_FONT', '0'), 0, FONT_MAX_CONTENT_ID, 0); }
-function markerTextOffsetCode() { return clampInt(getSetting('CONFIG_MARKER_TEXT_OFFSET', '0'), -50, 50, 0); }
-function markerTextHourMaskCode() { return clampInt(getSetting('CONFIG_MARKER_TEXT_HOUR_MASK', '4095'), 0, 4095, 4095); }
-function markerTextSecMaskCode() { return clampInt(getSetting('CONFIG_MARKER_TEXT_SEC_MASK', '4095'), 0, 4095, 4095); }
-function markerTextRomanCode() { return getSetting('CONFIG_MARKER_TEXT_ROMAN', 'false') === 'true' ? 1 : 0; }
+function markerTextTargetCode() { return clampInt(customMarkerSetting('CONFIG_MARKER_TEXT_TARGET', '0'), 0, 2, 0); }
+function markerTextFontCode() { return clampInt(customMarkerSetting('CONFIG_MARKER_TEXT_FONT', '0'), 0, FONT_MAX_CONTENT_ID, 0); }
+function markerTextOffsetCode() { return clampInt(customMarkerSetting('CONFIG_MARKER_TEXT_OFFSET', '0'), -50, 50, 0); }
+function markerTextHourMaskCode() { return clampInt(customMarkerSetting('CONFIG_MARKER_TEXT_HOUR_MASK', '4095'), 0, 4095, 4095); }
+function markerTextSecMaskCode() { return clampInt(customMarkerSetting('CONFIG_MARKER_TEXT_SEC_MASK', '4095'), 0, 4095, 4095); }
+function markerTextRomanCode() { return customMarkerSetting('CONFIG_MARKER_TEXT_ROMAN', 'false') === 'true' ? 1 : 0; }
 
 // Hour/minute/second hand system -- see HandConfig in hand_layer.h for
 // what each field means. Style 0-2 are the original dot/triangle/square;
@@ -384,9 +391,9 @@ function dualContextSetting(baseKey, fallback) {
 // couple of bitmap styles, the corner-override toggle); Digital's
 // depends only on which side(s) are currently active.
 function analogEdgeAvailability() {
-  var markerStyle = parseInt(getSetting('CONFIG_BIG_ANALOG_MARKER_STYLE', '0'), 10);
+  var markerStyle = storedMarkerStyleId();
   var override = getSetting('CONFIG_BITMAP_CORNER_OVERRIDE', 'false') === 'true';
-  if (markerStyle < 3 || markerStyle === 5 || markerStyle === 8 || markerStyle === 9) {
+  if (markerStyle < 3 || markerStyle === 5 || markerStyle >= 8) { // ring-based styles (0-2, 8-10) and Tally leave every edge free
     return { upper: true, bottom: true, left: true, right: true };
   }
   if (markerStyle === 7) {
