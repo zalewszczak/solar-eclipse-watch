@@ -665,31 +665,31 @@
           "file": "fonts/RADIOLAND.ttf"
         },
         {
-          "characterRegex": "[:0-9A-ZXVI]",
+          "characterRegex": "[:0-9A-Z]",
           "type": "font",
           "name": "DSDIGIT_FONT_48",
           "file": "fonts/DS-DIGIT.TTF"
         },
         {
-          "characterRegex": "[:0-9A-ZXVI]",
+          "characterRegex": "[:0-9A-Z]",
           "type": "font",
           "name": "DSDIGIB_FONT_48",
           "file": "fonts/DS-DIGIB.TTF"
         },
         {
-          "characterRegex": "[:0-9A-ZXVI]",
+          "characterRegex": "[:0-9A-Z]",
           "type": "font",
           "name": "LCDSOLID_FONT_48",
           "file": "fonts/LCD_Solid.ttf"
         },
         {
-          "characterRegex": "[:0-9A-ZXVI]",
+          "characterRegex": "[:0-9A-Z]",
           "type": "font",
           "name": "REBELREDUX_FONT_48",
           "file": "fonts/RebelRedux.ttf"
         },
         {
-          "characterRegex": "[:0-9A-ZXVI]",
+          "characterRegex": "[:0-9A-Z]",
           "type": "font",
           "name": "NUNITO_FONT_48",
           "file": "fonts/Nunito-Bold.ttf"
@@ -700,43 +700,43 @@
           "file": "fonts/Nunito-Bold.ttf"
         },
         {
-          "characterRegex": "[:0-9A-ZXVI]",
+          "characterRegex": "[:0-9A-Z]",
           "type": "font",
           "name": "BITCOUNTGRID_FONT_48",
           "file": "fonts/BitcountGridDouble-Light.ttf"
         },
         {
-          "characterRegex": "[:0-9A-ZXVI]",
+          "characterRegex": "[:0-9A-Z]",
           "type": "font",
           "name": "ZCOOL_FONT_48",
           "file": "fonts/ZCOOLKuaiLe-Regular.ttf"
         },
         {
-          "characterRegex": "[:0-9A-ZXVI]",
+          "characterRegex": "[:0-9A-Z]",
           "type": "font",
           "name": "RAJDHANI_FONT_48",
           "file": "fonts/Rajdhani-Medium.ttf"
         },
         {
-          "characterRegex": "[:0-9A-ZXVI]",
+          "characterRegex": "[:0-9A-Z]",
           "type": "font",
           "name": "BARLOW_FONT_52",
           "file": "fonts/BarlowCondensed-SemiBoldItalic.ttf"
         },
         {
-          "characterRegex": "[:0-9A-ZXVI]",
+          "characterRegex": "[:0-9A-Z]",
           "type": "font",
           "name": "OPENRUNDE_FONT_48",
           "file": "fonts/OpenRunde-Regular.otf"
         },
         {
-          "characterRegex": "[:0-9A-ZXVI]",
+          "characterRegex": "[:0-9A-Z]",
           "type": "font",
           "name": "MAJORMONO_FONT_48",
           "file": "fonts/MajorMonoDisplay-Regular.ttf"
         },
         {
-          "characterRegex": "[:0-9A-ZXVI]",
+          "characterRegex": "[:0-9A-Z]",
           "type": "font",
           "name": "JURABOLD_FONT_48",
           "file": "fonts/Jura-Bold.ttf"
@@ -748,37 +748,37 @@
           "file": "images/icon.png"
         },
         {
-          "characterRegex": "[:0-9A-ZXVI]",
+          "characterRegex": "[:0-9A-Z]",
           "type": "font",
           "name": "ALAGARD_FONT_48",
           "file": "fonts/alagard.ttf"
         },
         {
-          "characterRegex": "[:0-9A-ZXVI]",
+          "characterRegex": "[:0-9A-Z]",
           "type": "font",
           "name": "AMITA_FONT_48",
           "file": "fonts/Amita-Bold.ttf"
         },
         {
-          "characterRegex": "[:0-9A-ZXVI]",
+          "characterRegex": "[:0-9A-Z]",
           "type": "font",
           "name": "AVERIA_FONT_48",
           "file": "fonts/AveriaSerifLibre-BoldItalic.ttf"
         },
         {
-          "characterRegex": "[:0-9A-ZXVI]",
+          "characterRegex": "[:0-9A-Z]",
           "type": "font",
           "name": "BAGEL_FONT_48",
           "file": "fonts/BagelFatOne-Regular.ttf"
         },
         {
-          "characterRegex": "[:0-9A-ZXVI]",
+          "characterRegex": "[:0-9A-Z]",
           "type": "font",
           "name": "BEBAS_FONT_48",
           "file": "fonts/BebasNeueBold.otf"
         },
         {
-          "characterRegex": "[:0-9A-ZXVI]",
+          "characterRegex": "[:0-9A-Z]",
           "type": "font",
           "name": "BRICOLAGE_FONT_54",
           "file": "fonts/BricolageGrotesque.ttf"
@@ -796,25 +796,25 @@
           "file": "fonts/DIGITALDREAM.ttf"
         },
         {
-          "characterRegex": "[:0-9A-ZXVI]",
+          "characterRegex": "[:0-9A-Z]",
           "type": "font",
           "name": "EMBLEMA_FONT_48",
           "file": "fonts/EmblemaOne-Regular.ttf"
         },
         {
-          "characterRegex": "[:0-9A-ZXVI]",
+          "characterRegex": "[:0-9A-Z]",
           "type": "font",
           "name": "FRAUNCES_FONT_48",
           "file": "fonts/Fraunces.ttf"
         },
         {
-          "characterRegex": "[:0-9A-ZXVI]",
+          "characterRegex": "[:0-9A-Z]",
           "type": "font",
           "name": "KOMIKAHB_FONT_48",
           "file": "fonts/KOMIKAHB.ttf"
         },
         {
-          "characterRegex": "[:0-9A-ZXVI]",
+          "characterRegex": "[:0-9A-Z]",
           "type": "font",
           "name": "MICHROMA_FONT_48",
           "file": "fonts/Michroma-Regular.ttf"
@@ -826,43 +826,43 @@
           "file": "fonts/Minecrafter.ttf"
         },
         {
-          "characterRegex": "[:0-9A-ZXVI]",
+          "characterRegex": "[:0-9A-Z]",
           "type": "font",
           "name": "NATIONALPARK_FONT_48",
           "file": "fonts/NationalPark-VariableFont_wght.ttf"
         },
         {
-          "characterRegex": "[:0-9A-ZXVI]",
+          "characterRegex": "[:0-9A-Z]",
           "type": "font",
           "name": "SFPIXELATE_FONT_48",
           "file": "fonts/SFPixelate.ttf"
         },
         {
-          "characterRegex": "[:0-9A-ZXVI]",
+          "characterRegex": "[:0-9A-Z]",
           "type": "font",
           "name": "SILKSCREEN_FONT_48",
           "file": "fonts/Silkscreen-Regular.ttf"
         },
         {
-          "characterRegex": "[:0-9A-ZXVI]",
+          "characterRegex": "[:0-9A-Z]",
           "type": "font",
           "name": "STACKSANSHEADLINE_FONT_48",
           "file": "fonts/StackSansHeadline.ttf"
         },
         {
-          "characterRegex": "[:0-9A-ZXVI]",
+          "characterRegex": "[:0-9A-Z]",
           "type": "font",
           "name": "UNBOUNDED_FONT_48",
           "file": "fonts/Unbounded-Medium.ttf"
         },
         {
-          "characterRegex": "[:0-9A-ZXVI]",
+          "characterRegex": "[:0-9A-Z]",
           "type": "font",
           "name": "WALLPOET_FONT_48",
           "file": "fonts/Wallpoet-Regular.ttf"
         },
         {
-          "characterRegex": "[:0-9A-ZXVI]",
+          "characterRegex": "[:0-9A-Z]",
           "type": "font",
           "name": "ZALANDOSANS_FONT_48",
           "file": "fonts/ZalandoSansExpanded-Medium.ttf"

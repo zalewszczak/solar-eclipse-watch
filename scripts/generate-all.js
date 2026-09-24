@@ -39,6 +39,7 @@ var STEPS = [
   { label: 'generate-weather-icon-previews.js', command: 'node scripts/generate-weather-icon-previews.js' },
   { label: 'generate-marker-previews.js', command: 'node scripts/generate-marker-previews.js' },
   { label: 'generate-infographics.js', command: 'node scripts/generate-infographics.js' },
+  { label: 'generate-preset-previews.js', command: 'node scripts/generate-preset-previews.js' },
   { label: 'generate-example-style-previews.js', command: 'node scripts/generate-example-style-previews.js' }
 ];
 

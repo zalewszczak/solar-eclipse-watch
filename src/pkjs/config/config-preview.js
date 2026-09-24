@@ -313,17 +313,16 @@ module.exports =
 '  var scale = w / 200;' +
 '  var margins = { top: 44 * scale, bottom: 40 * scale, left: 30 * scale, right: 30 * scale };' +
 '  var markerStyle = parseInt(document.getElementById("bigAnalogMarkerStyle").value, 10);' +
-'  var isBitmapStyle = markerStyle >= 3 && markerStyle !== 8 && markerStyle !== 9;' +
+'  var isBitmapStyle = markerStyle >= 3 && markerStyle <= 7;' +
 '  if (isBitmapStyle) return margins;' + // BITMAP_STYLE_MARGINS's 5 entries are all identical to the defaults above -- nothing to differ
 '  var pct, ecc;' +
-'  if (markerStyle === 8) {' +
-'    var hourCfg = readCustomMarkerConfig("hour");' +
-'    pct = hourCfg.innerBorderPct; ecc = hourCfg.innerEccentricity;' +
-'  } else if (markerStyle <= 2) {' +
-'    var hour = MARKER_STYLE_HOUR_PRESETS[markerStyle], sec = MARKER_STYLE_SECOND_PRESETS[markerStyle];' +
-'    if (sec.thickness === 0 || hour.innerBorderPct <= sec.innerBorderPct) { pct = hour.innerBorderPct; ecc = hour.innerEccentricity; }' +
-'    else { pct = sec.innerBorderPct; ecc = sec.innerEccentricity; }' +
-'  } else { pct = 100; ecc = 0; }' + // 9 ("none") or anything unrecognized -- background_marker_inner_reach()'s own "fully retracted" fallback
+// Every non-bitmap style (Custom AND the Minimal/Braun/Swiss/Classy
+// presets) reads the customHour* fields here: picking a preset copies
+// its values into them (applyMarkerStylePresetToCustom() in
+// config-page.js), and the watch is sent style 8 for all of them, so
+// this matches what the watch lays out.
+'  var hourCfg = readCustomMarkerConfig("hour");' +
+'  pct = hourCfg.innerBorderPct; ecc = hourCfg.innerEccentricity;' +
 '  var cx = w / 2, cy = h / 2;' +
 '  var topPt = pointOnRing(cx, cy, w, h, 0, pct, ecc);' +
 '  var rightPt = pointOnRing(cx, cy, w, h, Math.PI / 2, pct, ecc);' +
@@ -873,19 +872,11 @@ module.exports =
 '    drawRingMark(ctx, inner, outer, angle, innerHalfThick, outerHalfThick, cfg.style, color, cfg.translucent);' +
 '  }' +
 '}' +
-// Matches MARKER_STYLE_HOUR_PRESETS/MARKER_STYLE_SECOND_PRESETS in
-// background_layer.c exactly (style/thickness/eccentricity/border by
-// index 0=minimal, 1=small, 2=big) -- used for bigAnalogMarkerStyle 0-2.
-'var MARKER_STYLE_HOUR_PRESETS = [' +
-'  { style: 1, thickness: 1, innerEccentricity: 0, outerEccentricity: 0, innerBorderPct: 65, outerBorderPct: 85, translucent: false, color: 0 },' +
-'  { style: 1, thickness: 1, innerEccentricity: 0, outerEccentricity: 0, innerBorderPct: 60, outerBorderPct: 85, translucent: false, color: 0 },' +
-'  { style: 2, thickness: 5, innerEccentricity: 0, outerEccentricity: 0, innerBorderPct: 60, outerBorderPct: 85, translucent: false, color: 0 }' +
-'];' +
-'var MARKER_STYLE_SECOND_PRESETS = [' +
-'  { style: 1, thickness: 0, innerEccentricity: 0, outerEccentricity: 0, innerBorderPct: 65, outerBorderPct: 85, translucent: false, color: 0 },' +
-'  { style: 1, thickness: 1, innerEccentricity: 0, outerEccentricity: 0, innerBorderPct: 65, outerBorderPct: 85, translucent: false, color: 0 },' +
-'  { style: 1, thickness: 1, innerEccentricity: 0, outerEccentricity: 0, innerBorderPct: 65, outerBorderPct: 85, translucent: false, color: 0 }' +
-'];' +
+// The Minimal/Braun/Swiss/Classy ring values themselves live in
+// presets-lookups.js (MARKER_STYLE_HOUR_PRESETS/MARKER_STYLE_SECOND_PRESETS)
+// -- picking one copies them into the customHour*/customSec* fields
+// (applyMarkerStylePresetToCustom() in config-page.js), so everything
+// below just reads those fields, preset or not.
 // Reads the customHour*/customSec* hidden fields into a cfg object in
 // drawMarkerRing()\'s own shape, same field-per-field mapping
 // customMarkerHiddenInputsHtml() writes them with.
@@ -904,8 +895,8 @@ module.exports =
 '    color: parseInt(v("Color"), 10) || 0' +
 '  };' +
 '}' +
-// Direct port of draw_text_markers() -- only ever called for the
-// custom marker style (bigAnalogMarkerStyle 8), same as on the watch.
+// Direct port of draw_text_markers() -- called for every ring-based
+// marker style (Custom and the presets alike), same as on the watch.
 // hourCfg/secCfg are whichever MarkerRingConfig-shaped objects the
 // caller is currently using for those two rings (preset or custom),
 // since text markers piggyback on that ring\'s own innerBorderPct/
@@ -947,18 +938,16 @@ module.exports =
 '  var cx = w / 2, cy = h / 2;' +
 '  var scale = w / 200;' + // every hand/shadow dimension below is a real on-watch px value (200x228 screen) -- see readHandConfig()'s own comment
 '  var markerStyle = parseInt(document.getElementById("bigAnalogMarkerStyle").value, 10);' +
-
-'  if (markerStyle <= 2) {' +
-'    var idx = markerStyle;' +
-'    drawMarkerRing(ctx, cx, cy, w, h, MARKER_STYLE_SECOND_PRESETS[idx], 60, 5, colors);' +
-'    drawMarkerRing(ctx, cx, cy, w, h, MARKER_STYLE_HOUR_PRESETS[idx], 12, 0, colors);' +
-'  } else if (markerStyle === 8) {' +
+// Every non-bitmap style (3-7 are the bitmap ones) -- Custom (8) and the
+// None/Braun/Swiss/Classy/Minimal presets (0/1/2/9/10) alike -- draws from
+// the customHour*/customSec*/markerText* fields: picking a preset copies
+// its rings AND numerals values in (see applyMarkerStylePresetToCustom()),
+// and the watch is sent those same values as a Custom marker.
+'  if (markerStyle < 3 || markerStyle > 7) {' +
 '    var secCfg = readCustomMarkerConfig("sec"), hourCfg = readCustomMarkerConfig("hour");' +
 '    drawMarkerRing(ctx, cx, cy, w, h, secCfg, 60, 5, colors);' +
 '    drawMarkerRing(ctx, cx, cy, w, h, hourCfg, 12, 0, colors);' +
 '    drawTextMarkers(ctx, cx, cy, w, h, colors);' +
-'  } else if (markerStyle === 9) {' +
-'    /* none -- no marker ring, no placeholder text either */' +
 '  } else if (!markerImageDrawn) {' +
 '    ctx.font = "10px sans-serif";' +
 '    ctx.fillStyle = colors.text;' +
@@ -1190,7 +1179,7 @@ module.exports =
 '    drawCelestialPreview(ctx, 0, 0, w, h, skyMode, phase, colors, now);' +
 '    var markerStyleVal = document.getElementById("bigAnalogMarkerStyle").value;' +
 '    var markerStyleInt = parseInt(markerStyleVal, 10);' +
-'    var markerImageDrawn = (markerStyleInt >= 3 && markerStyleInt !== 8 && markerStyleInt !== 9) && drawTintedMarkerBitmap(ctx, markerStyleVal, w, h, colors.text);' +
+'    var markerImageDrawn = (markerStyleInt >= 3 && markerStyleInt <= 7) && drawTintedMarkerBitmap(ctx, markerStyleVal, w, h, colors.text);' +
 '    drawBigAnalogPreview(ctx, colors, now, showSeconds, w, h, markerImageDrawn);' +
 '    drawCornersAndEdges(ctx, w, h, colors, h);' +
 '  } else if (styleVal === "digitalTop") {' +

@@ -83,49 +83,6 @@ if (fs.existsSync(SOURCE_DIR)) {
     (found.sort(function (a, b) { return Number(a) - Number(b); }).join(', ') || '(none)'));
 })();
 
-// ---- marker preset pictures: marker_preset_<name>.png -> "<name>" -------
-// Covers only the 4 procedural presets (none/minimal/small/big) --
-// the 5 bitmap marker styles keep using generate-marker-previews.js's
-// own output (marker-preview-images.js), unchanged.
-(function () {
-  var OUTPUT_FILE = path.join(__dirname, '..', 'src', 'pkjs', 'data', 'generated', 'marker-preset-images.js');
-  var PREFIX = 'marker_preset_';
-  var KNOWN_NAMES = ['none', 'minimal', 'small', 'big'];
-  var entries = {};
-  var found = [];
-  var totalBytes = 0;
-
-  allFiles.forEach(function (file) {
-    if (file.slice(0, PREFIX.length) !== PREFIX) return;
-    var name = file.slice(PREFIX.length, -4); // strip prefix and ".png"
-    if (KNOWN_NAMES.indexOf(name) === -1) return;
-    var buf = readPng(file);
-    totalBytes += buf.length;
-    entries[name] = 'data:image/png;base64,' + buf.toString('base64');
-    found.push(name);
-  });
-
-  var missing = KNOWN_NAMES.filter(function (n) { return found.indexOf(n) === -1; });
-
-  var lines = [];
-  lines.push('// GENERATED FILE -- do not edit by hand.');
-  lines.push('// Produced by scripts/generate-infographics.js from');
-  lines.push('// resources/infographics/marker_preset_<name>.png. Re-run that script after');
-  lines.push('// adding or changing any marker-preset picture, before `pebble build`.');
-  lines.push('module.exports = ' + JSON.stringify(entries, null, 2) + ';');
-  lines.push('');
-  if (!fs.existsSync(path.dirname(OUTPUT_FILE))) fs.mkdirSync(path.dirname(OUTPUT_FILE), { recursive: true });
-  fs.writeFileSync(OUTPUT_FILE, lines.join('\n'));
-
-  console.log('generate-infographics: wrote ' + OUTPUT_FILE);
-  console.log('generate-infographics: embedded ' + found.length + ' marker-preset picture(s) from ' + SOURCE_DIR +
-    ' (' + totalBytes + ' raw bytes before base64): ' + (found.join(', ') || '(none)'));
-  if (missing.length) {
-    console.log('generate-infographics: no ' + missing.map(function (n) { return PREFIX + n + '.png'; }).join(', ') +
-      ' found. Those marker preset buttons will simply show no picture in settings until that resource PNG exists.');
-  }
-})();
-
 // ---- hand shape explainer diagrams: <style name>.png -> "<style id>" ----
 // The full-width diagram shown at the top of the hand editor popup
 // (handEditorModalHtml in config-page.js), swapped based on the

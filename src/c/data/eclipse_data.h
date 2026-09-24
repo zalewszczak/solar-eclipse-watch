@@ -158,7 +158,11 @@ typedef struct {
   uint8_t center_circle_radius; // 0 disables the center circle.
   uint8_t center_circle_color; // 0=main, 1=accent, 2=background.
 
-  uint8_t big_analog_marker_style; // bitmap/procedural analog marker style.
+  // 3-7 = bitmap marker styles; anything else draws custom_hour_marker/
+  // custom_second_marker + marker_text below. (The phone only ever sends
+  // 8: the settings page's Minimal/Braun/Swiss/Classy/None presets are
+  // resolved into those ring + text values before they get here.)
+  uint8_t big_analog_marker_style;
 
   bool bitmap_marker_transparent; // use transparent bitmap marker background; also
                                    // drives Big Digital's own digit-bitmap transparency

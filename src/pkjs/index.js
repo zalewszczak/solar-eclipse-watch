@@ -542,9 +542,7 @@ Pebble.addEventListener('appmessage', function (e) {
       var opts = {
         showIss: getSetting('CONFIG_SHOW_ISS', 'false') === 'true',
         showFlights: getSetting('CONFIG_SHOW_FLIGHTS', 'false') === 'true',
-        flightsRadiusKm: parseInt(getSetting('CONFIG_FLIGHTS_RANGE_KM', '50'), 10) || 50,
-        flightsClientId: getSetting('CONFIG_FLIGHTS_CLIENT_ID', ''),
-    flightsClientSecret: getSetting('CONFIG_FLIGHTS_CLIENT_SECRET', '')
+        flightsRadiusKm: parseInt(getSetting('CONFIG_FLIGHTS_RANGE_KM', '50'), 10) || 50
       };
       overheadObjects.buildOverheadObjectList(lat, lon, opts, function (objects, hadError) {
         sendFlatDict({
@@ -598,7 +596,7 @@ Pebble.addEventListener('showConfiguration', function () {
     labelStyle: getSetting('CONFIG_LABEL_STYLE', '0'),
     shadowTranslucent: getSetting('CONFIG_SHADOW_TRANSLUCENT', 'true'),
     shadowAngle: getSetting('CONFIG_SHADOW_ANGLE', '120'),
-    bigAnalogMarkerStyle: getSetting('CONFIG_BIG_ANALOG_MARKER_STYLE', '0'),
+    bigAnalogMarkerStyle: getSetting('CONFIG_BIG_ANALOG_MARKER_STYLE', '10'),
     bitmapMarkerTransparent: getSetting('CONFIG_BITMAP_MARKER_TRANSPARENT', 'false') === 'true',
     // Browser-side only -- the watch never needs this. By the time
     // corner_content[] reaches it, the settings page has already
@@ -727,8 +725,6 @@ Pebble.addEventListener('showConfiguration', function () {
     showIss: getSetting('CONFIG_SHOW_ISS', 'false') === 'true',
     showFlights: getSetting('CONFIG_SHOW_FLIGHTS', 'false') === 'true',
     flightsRangeKm: getSetting('CONFIG_FLIGHTS_RANGE_KM', '50'),
-    flightsClientId: getSetting('CONFIG_FLIGHTS_CLIENT_ID', ''),
-    flightsClientSecret: getSetting('CONFIG_FLIGHTS_CLIENT_SECRET', ''),
     showMajorStars: getSetting('CONFIG_SHOW_MAJOR_STARS', 'true') === 'true',
     auroraEnabled: getSetting('CONFIG_AURORA_ENABLED', 'false') === 'true',
     vibrateOnPhaseChange: getSetting('CONFIG_VIBRATE_ON_PHASE_CHANGE', 'false') === 'true',
@@ -904,7 +900,7 @@ Pebble.addEventListener('webviewclosed', function (e) {
   setSetting('CONFIG_LABEL_STYLE', settings.CONFIG_LABEL_STYLE || '0');
   setSetting('CONFIG_SHADOW_TRANSLUCENT', settings.CONFIG_SHADOW_TRANSLUCENT || 'true');
   setSetting('CONFIG_SHADOW_ANGLE', settings.CONFIG_SHADOW_ANGLE || '120');
-  setSetting('CONFIG_BIG_ANALOG_MARKER_STYLE', settings.CONFIG_BIG_ANALOG_MARKER_STYLE || '0');
+  setSetting('CONFIG_BIG_ANALOG_MARKER_STYLE', settings.CONFIG_BIG_ANALOG_MARKER_STYLE || '10');
   setSetting('CONFIG_BITMAP_MARKER_TRANSPARENT', settings.CONFIG_BITMAP_MARKER_TRANSPARENT ? 'true' : 'false');
   setSetting('CONFIG_BITMAP_CORNER_OVERRIDE', settings.CONFIG_BITMAP_CORNER_OVERRIDE ? 'true' : 'false');
   setSetting('CONFIG_DRAW_FEATURES_BENEATH_HANDS', settings.CONFIG_DRAW_FEATURES_BENEATH_HANDS ? 'true' : 'false');
@@ -1025,8 +1021,6 @@ Pebble.addEventListener('webviewclosed', function (e) {
   setSetting('CONFIG_SHOW_ISS', settings.CONFIG_SHOW_ISS ? 'true' : 'false');
   setSetting('CONFIG_SHOW_FLIGHTS', settings.CONFIG_SHOW_FLIGHTS ? 'true' : 'false');
   setSetting('CONFIG_FLIGHTS_RANGE_KM', settings.CONFIG_FLIGHTS_RANGE_KM || '50');
-  setSetting('CONFIG_FLIGHTS_CLIENT_ID', settings.CONFIG_FLIGHTS_CLIENT_ID || '');
-  setSetting('CONFIG_FLIGHTS_CLIENT_SECRET', settings.CONFIG_FLIGHTS_CLIENT_SECRET || '');
   setSetting('CONFIG_SHOW_MAJOR_STARS', settings.CONFIG_SHOW_MAJOR_STARS === false ? 'false' : 'true');
   setSetting('CONFIG_AURORA_ENABLED', settings.CONFIG_AURORA_ENABLED ? 'true' : 'false');
   setSetting('CONFIG_VIBRATE_ON_PHASE_CHANGE', settings.CONFIG_VIBRATE_ON_PHASE_CHANGE ? 'true' : 'false');

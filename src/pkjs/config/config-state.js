@@ -148,12 +148,12 @@ function deriveConfigState(current) {
   // drives the rendered page -- but kept in sync anyway since this
   // comment already promises it matches, and a future reader/caller
   // shouldn't inherit a silently-stale copy.)
-  var markerStyleNum = parseInt(current.bigAnalogMarkerStyle || '0', 10);
-  var isBitmapMarkerStyle = markerStyleNum >= 3 && markerStyleNum !== 8 && markerStyleNum !== 9;
+  var markerStyleNum = parseInt(current.bigAnalogMarkerStyle || '10', 10);
+  var isBitmapMarkerStyle = markerStyleNum >= 3 && markerStyleNum <= 7; // everything else is ring-based (0 None, 1/2/9/10 presets, 8 Custom)
   var bitmapCornerOverride = !!current.bitmapCornerOverride;
   var edgeAvail = { upper: false, bottom: false, left: false, right: false, cornersGrayed: false };
   if (isAnalog) {
-    if (markerStyleNum < 3 || markerStyleNum === 8 || markerStyleNum === 9) {
+    if (!isBitmapMarkerStyle) {
       edgeAvail = { upper: true, bottom: true, left: true, right: true, cornersGrayed: false };
     } else if (markerStyleNum === 3 || markerStyleNum === 4 || markerStyleNum === 6) {
       edgeAvail = { upper: true, bottom: true, left: bitmapCornerOverride, right: bitmapCornerOverride, cornersGrayed: !bitmapCornerOverride };

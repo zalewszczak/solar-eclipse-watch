@@ -40,6 +40,7 @@ var COLOR_SCHEMES = PRESETS_LOOKUPS.COLOR_SCHEMES;
 var CORNER_COLOR_MODE_LABELS = PRESETS_LOOKUPS.CORNER_COLOR_MODE_LABELS;
 var CORNER_CATEGORIES = PRESETS_LOOKUPS.CORNER_CATEGORIES;
 var HAND_PRESETS = PRESETS_LOOKUPS.HAND_PRESETS;
+var MARKER_STYLE_PRESET_FIELDS = PRESETS_LOOKUPS.MARKER_STYLE_PRESET_FIELDS;
 
 // The 7 corner/edge base field names that mean something different in
 // Analog vs Digital (bar/top) -- an analog edge line vs. a digital
@@ -224,7 +225,7 @@ var handEditorModalHtml = configHands.handEditorModalHtml;
  * @param {object} current  current settings, as plain values:
  *   { autoLoc, lat, lon, owmKey, updateMins,
  *     clockFont, showSeconds, bottomStyle: 'digital'|'analog' (a persisted 'biganalog' from before this app version is treated as 'analog'),
- *     bigAnalogMarkerStyle: '0'-'8' (8=custom -- see customHour.../customSec.../markerText... below), upperMiddleLine1Content/upperMiddleLine2Content: '0'-'12', upperMiddleLine1Color/upperMiddleLine2Color: '0'-'3',
+ *     bigAnalogMarkerStyle: '0'-'10' (0/1/2/9/10=None/Braun/Swiss/Classy/Minimal presets, which copy their ring + numerals values into customHour.../customSec.../markerText... and reach the watch as 8; 3-7=bitmap styles; 8=custom -- see customHour.../customSec.../markerText... below), upperMiddleLine1Content/upperMiddleLine2Content: '0'-'12', upperMiddleLine1Color/upperMiddleLine2Color: '0'-'3',
  *     colorScheme: '0'-'9'|'custom', customBg, customText, customAccent (packed byte strings),
  *     nightEnabled, nightScheme, nightCustomBg, nightCustomText, nightCustomAccent,
  *     showSunTime, showIss, showMajorStars, sunMoonSize: '25'|'50'|'75'|'100', shakeLabelSeconds, vibrateOnPhaseChange,
@@ -265,6 +266,19 @@ var configPresetSchedule = require('./config/config-preset-schedule');
 var configDebug = require('./config/config-debug');
 var serviceStatusRowsHtml = configDebug.serviceStatusRowsHtml;
 var rawMessageLogButtonsHtml = configDebug.rawMessageLogButtonsHtml;
+
+var FAQ_ITEMS = PRESETS_LOOKUPS.FAQ_ITEMS;
+
+function faqItemsHtml() {
+  return FAQ_ITEMS.map(function (item, index) {
+    return '<div class="faq-item" data-faq-index="' + index + '">' +
+      '<button type="button" class="faq-question" onclick="toggleFaqItem(' + index + ')">' +
+        '<span>' + esc(item[0]) + '</span><span class="faq-chevron">&#9656;</span>' +
+      '</button>' +
+      '<div class="faq-answer"><p>' + esc(item[1]) + '</p></div>' +
+    '</div>';
+  }).join('');
+}
 
 function buildConfigHtml(current) {
   // autoLocChecked through initialNightColors all moved to
@@ -333,7 +347,16 @@ directWebfontStyle() +
 '    :root { --page-bg: #1c1c1e; --card-bg: #2c2c2e; --text: #f2f2f2; --text-strong: #e5e5e5; --text-muted: #aaa; --text-faint: #999; --text-faint2: #bbb; --text-disabled: #777; --border: #48484a; --border-light: #3a3a3c; --border-lighter: #545456; --btn-bg: #3a3a3c; }' +
 '  }' +
 '  body { font-family: -apple-system, Helvetica, Arial, sans-serif; margin: 0; padding: 16px 20px 90px; background: var(--page-bg); color: var(--text); }' +
-'  html, body { touch-action: manipulation; }' + // belt-and-suspenders alongside the viewport meta tag --
+'  html, body { touch-action: manipulation; }' +
+'  /* Full-screen startup loader */' +
+'  #startupLoader { position: fixed; inset: 0; z-index: 99999; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; background: var(--page-bg); color: var(--text); opacity: 1; transition: opacity 360ms ease; }' +
+'  #startupLoader.hidden { opacity: 0; pointer-events: none; }' +
+'  #startupLoaderTitle { font-size: 22px; font-weight: 700; letter-spacing: .2px; }' +
+'  #startupLoaderSubtitle { font-size: 13px; color: var(--text-muted); }' +
+'  #startupProgressTrack { width: min(280px, 72vw); height: 8px; overflow: hidden; border-radius: 999px; background: var(--border-light); box-shadow: inset 0 1px 2px rgba(0,0,0,.08); }' +
+'  #startupProgressBar { width: 0%; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #d98b9b, #e8b46a, #9ac6b0); transition: width 260ms ease-out; }' +
+'  #startupProgressPercent { min-width: 3em; text-align: center; font-size: 12px; color: var(--text-faint); font-variant-numeric: tabular-nums; }' +
+ // belt-and-suspenders alongside the viewport meta tag --
                                                     // some in-app webviews still allow double-tap-to-zoom
                                                     // on individual elements unless this is set too, and a
                                                     // double-tap on a fast-repeating button (the settings
@@ -397,6 +420,18 @@ directWebfontStyle() +
 '  .field-label-row > label { margin: 0; }' +
 '  .field-label-row > .secondary-btn { width: auto; flex: 1 1 auto; margin-top: 0; }' +
 '  .help-btn { flex: 0 0 auto; width: 20px; height: 20px; border-radius: 50%; border: 1px solid var(--border); background: var(--btn-bg); color: var(--text-faint); font-size: 12px; font-weight: 700; line-height: 18px; text-align: center; padding: 0; cursor: pointer; -webkit-appearance: none; }' +
+'  .faq-search-wrap { position: relative; margin: 0 0 12px; }' +
+'  .faq-search { width: 100%; box-sizing: border-box; padding: 10px 12px 10px 34px; border: 1px solid var(--border); border-radius: 8px; background: var(--btn-bg); color: var(--text-strong); font-size: 13px; }' +
+'  .faq-search-icon { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: var(--text-faint); pointer-events: none; font-size: 15px; }' +
+'  .faq-item { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--btn-bg); margin-bottom: 7px; }' +
+'  .faq-question { width: 100%; display: flex; align-items: center; gap: 8px; border: 0; background: transparent; color: var(--text-strong); text-align: left; padding: 10px 11px; font-size: 13px; font-weight: 650; cursor: pointer; }' +
+'  .faq-question:hover { background: var(--border-light); }' +
+'  .faq-question .faq-chevron { margin-left: auto; color: var(--text-faint); transition: transform .16s ease; flex: 0 0 auto; }' +
+'  .faq-item.open .faq-chevron { transform: rotate(90deg); }' +
+'  .faq-answer { display: none; padding: 0 11px 11px; color: var(--text-faint); font-size: 12px; line-height: 1.45; border-top: 1px solid var(--border-light); }' +
+'  .faq-item.open .faq-answer { display: block; }' +
+'  .faq-answer p { margin: 9px 0 0; }' +
+'  .faq-empty { display: none; padding: 12px 4px; color: var(--text-faint); font-size: 12px; text-align: center; }' +
 '  .checkbox-row .help-btn, .radio-row .help-btn { margin-left: auto; }' +
 // The 4 section-level intro blurbs (Example styles/Features/My Style
 // Presets/Weather -- the ones with no specific toggle of their own to
@@ -482,6 +517,19 @@ configPresetSchedule.css +
 '  .font-picker-size-m { background: #fef3c7; color: #8a6410; }' +
 '  .font-picker-size-l { background: #ffedd5; color: #a45116; }' +
 '  .font-picker-size-xl { background: #fee2e2; color: #a33a3a; }' +
+// Size label + [font height number | gray category tags] share ONE
+// non-wrapping row under the font's name: whatever doesn't fit inside
+// the button is simply clipped at its edge (overflow: hidden, with
+// align-self: stretch + min-width: 0 so the row is capped at the
+// button's own width instead of growing to its content). The tags are
+// 30% smaller than the size label (9px * 0.7 = 6.3px, padding/spacing/
+// gap scaled the same). Gray comes from the theme's own border/muted-
+// text variables so it stays gray (and readable) in dark mode too.
+'  .font-picker-tags { display: flex; flex-wrap: nowrap; align-items: center; gap: 3px; align-self: stretch; min-width: 0; overflow: hidden; }' +
+'  .font-picker-tags > * { flex: 0 0 auto; }' +
+'  .font-picker-height { font-size: 10px; line-height: 1.2; font-weight: 300; font-stretch: condensed; letter-spacing: 0.32px; color: var(--text-faint); }' +
+'  .font-picker-tags-divider { width: 1px; height: 8px; background: var(--border); }' +
+'  .font-picker-tag { display: inline-flex; align-items: center; justify-content: center; padding: 1.4px 4.9px; border-radius: 999px; font-size: 6.3px; line-height: 1.2; font-weight: 400; font-stretch: condensed; letter-spacing: 0.32px; white-space: nowrap; text-transform: uppercase; background: var(--border-lighter); color: var(--text-muted); }' +
 // Real on-watch renderings (see FONT_PREVIEW_IMAGES's own comment)
 // rather than styled text, for the fonts that have one. Unlike
 // .bitmap-marker-img/.hand-style-icon-preview img just below (which
@@ -599,7 +647,7 @@ configPresetSchedule.css +
 '  @keyframes donateGradientShift { 0% { background-position: 0% 50%; } 25% { background-position: 50% 100%; } 50% { background-position: 100% 50%; } 75% { background-position: 50% 0%; } 100% { background-position: 0% 50%; } }' +
 '  .donate-btn:active { filter: brightness(0.94); }' +
 '  .top-bar-title { font-size: 15px; font-weight: 700; margin-top: 6px; color: var(--text); white-space: nowrap; }' +
-'  .top-bar-desc { font-size: 10px; line-height: 1.3; color: var(--text-muted); margin-top: 3px; }' +
+'  .top-bar-desc { font-size: 7px; line-height: 1.3; color: var(--text-muted); margin-top: 3px; }' +
 '  .top-bar-preview { flex: 0 1 33%; display: flex; justify-content: center; align-items: center; min-width: 0; height: 100%; max-height: calc(25vh - 20px); padding: 1%; box-sizing: border-box; }' +
 '  #previewCanvas { height: 50%; max-height: 50%; width: auto; max-width: 98%; border-radius: 4px; }' +
 '  .subsection { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border-light); }' +
@@ -631,10 +679,71 @@ configPresetSchedule.css +
 '  .service-name { flex: 1 1 auto; font-size: 13px; color: var(--text); }' +
 '  .service-info-btn { width: 20px; height: 20px; border-radius: 50%; border: 1px solid var(--border); background: var(--btn-bg); color: var(--text-faint2); font-size: 12px; font-style: italic; font-weight: 700; line-height: 18px; text-align: center; padding: 0; flex: 0 0 auto; }' +
 '  .service-log-line { font-family: monospace; font-size: 11px; white-space: pre-wrap; word-break: break-word; padding: 3px 0; border-bottom: 1px solid var(--border-light); color: var(--text); }' +
-'  .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: none; align-items: flex-end; justify-content: center; z-index: 100; }' +
+'  .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: none; align-items: flex-end; justify-content: center; z-index: 100; overflow: hidden; }' +
 '  .modal-overlay.open { display: flex; }' +
 '  .modal-box { background: var(--card-bg); border-radius: 12px 12px 0 0; padding: 16px; width: 100%; max-width: 400px; max-height: 80vh; box-sizing: border-box; display: flex; flex-direction: column; overflow: hidden; }' +
 '  .modal-title { font-weight: 600; font-size: 15px; margin-bottom: 10px; text-align: center; color: var(--text); flex: 0 0 auto; }' +
+'  .donate-modal-box { position: relative; animation: donate-modal-in 480ms cubic-bezier(.2,.85,.25,1) both; }' +
+'  @keyframes donate-modal-in { from { transform: translateY(28px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }' +
+'  .donate-modal-box::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 92px; pointer-events: none; border-radius: 12px 12px 0 0; background: linear-gradient(135deg, rgba(18,22,34,.98), rgba(31,31,46,.96)); opacity: .98; }' +
+'  .donate-header { position: relative; overflow: hidden; margin: -16px -16px 13px; padding: 10px 16px 13px; border-bottom: 1px solid var(--border-light); background: linear-gradient(180deg, #171a28 0%, #242333 100%); }' +
+'  .donate-eclipse-scene { position: relative; z-index: 1; height: 45px; margin: -2px 0 0; overflow: hidden; }' +
+'  .donate-eclipse-scene .donate-eclipse { position: absolute; left: 50%; top: 0; transform: translateX(-50%); }' +
+'  .donate-header-content { position: relative; z-index: 2; text-align: center; }' +
+'  .donate-header-title { font-size: 19px; font-weight: 800; letter-spacing: .3px; color: #fff; text-shadow: 0 1px 0 rgba(0,0,0,.35); }' +
+'  .donate-header-subtitle { margin-top: 3px; font-size: 11px; color: rgba(255,255,255,.72); }' +
+'  .donate-sparkle { display: inline-block; margin: 0 4px; animation: donate-sparkle 1.8s ease-in-out infinite; }' +
+'  @keyframes donate-sparkle { 0%,100% { transform: scale(.8) rotate(0deg); opacity: .45; } 50% { transform: scale(1.2) rotate(45deg); opacity: 1; } }' +
+'  .donate-header { transition: box-shadow 700ms ease; background: linear-gradient(180deg, var(--donate-sky-top, #b9e5f4) 0%, var(--donate-sky-bottom, #e9f4df) 100%); }' +
+'  .donate-sky { position: absolute; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }' +
+'  .donate-star { position: absolute; width: 2px; height: 2px; border-radius: 50%; background: #fff8d8; box-shadow: 0 0 3px 1px rgba(255,244,196,.45); opacity: 0; animation: donate-star-appear 14s ease-in-out infinite; }' +
+'  .donate-star.twinkle { animation-name: donate-star-twinkle; }' +
+'  .donate-star.s1 { left: 8%; top: 18%; animation-delay: -1.1s; }' +
+'  .donate-star.s2 { left: 16%; top: 66%; width: 1px; height: 1px; animation-delay: -4.7s; }' +
+'  .donate-star.s3 { left: 25%; top: 28%; animation-delay: -7.3s; }' +
+'  .donate-star.s4 { left: 34%; top: 72%; width: 1px; height: 1px; animation-delay: -2.6s; }' +
+'  .donate-star.s5 { left: 43%; top: 14%; animation-delay: -5.9s; }' +
+'  .donate-star.s6 { left: 53%; top: 78%; width: 1px; height: 1px; animation-delay: -9.2s; }' +
+'  .donate-star.s7 { left: 62%; top: 23%; animation-delay: -3.4s; }' +
+'  .donate-star.s8 { left: 71%; top: 68%; width: 1px; height: 1px; animation-delay: -8.1s; }' +
+'  .donate-star.s9 { left: 81%; top: 16%; animation-delay: -10.4s; }' +
+'  .donate-star.s10 { left: 91%; top: 54%; width: 1px; height: 1px; animation-delay: -6.5s; }' +
+'  .donate-star.s11 { left: 11%; top: 43%; width: 1px; height: 1px; animation-delay: -11.2s; }' +
+'  .donate-star.s12 { left: 20%; top: 87%; animation-delay: -3.9s; }' +
+'  .donate-star.s13 { left: 30%; top: 51%; width: 1px; height: 1px; animation-delay: -12.3s; }' +
+'  .donate-star.s14 { left: 39%; top: 36%; animation-delay: -6.9s; }' +
+'  .donate-star.s15 { left: 69%; top: 42%; width: 1px; height: 1px; animation-delay: -1.8s; }' +
+'  .donate-star.s16 { left: 77%; top: 83%; animation-delay: -9.8s; }' +
+'  .donate-star.s17 { left: 87%; top: 31%; width: 1px; height: 1px; animation-delay: -4.2s; }' +
+'  .donate-star.s18 { left: 96%; top: 76%; animation-delay: -7.7s; }' +
+'  .donate-star.s19 { left: 47%; top: 48%; width: 1px; height: 1px; animation-delay: -10.9s; }' +
+'  .donate-star.s20 { left: 57%; top: 34%; width: 2px; height: 2px; animation-delay: -5.1s; }' +
+'  .donate-star.s5, .donate-star.s14 { box-shadow: 0 0 4px 1px rgba(255,248,210,.65); }' +
+'  .donate-meteor { position: absolute; width: 28px; height: 1px; border-radius: 50%; transform-origin: right center; background: linear-gradient(90deg, rgba(255,249,214,0), rgba(255,249,214,.9)); box-shadow: 0 0 4px rgba(255,240,190,.55); opacity: 0; }' +
+'  .donate-meteor.m1 { top: 17%; left: 2%; animation: donate-perseid-1 14s linear infinite; animation-delay: -3.2s; }' +
+'  .donate-meteor.m2 { top: 31%; left: 54%; width: 23px; animation: donate-perseid-2 14s linear infinite; animation-delay: -7.1s; }' +
+'  .donate-meteor.m3 { top: 69%; left: 72%; width: 19px; animation: donate-perseid-3 14s linear infinite; animation-delay: -10.6s; }' +
+'  .donate-meteor.m4 { top: 55%; left: 18%; width: 17px; animation: donate-perseid-4 14s linear infinite; animation-delay: -12.7s; }' +
+'  .donate-eclipse { position: relative; z-index: 1; width: 122px; height: 42px; margin: 0 auto 3px; overflow: hidden; }' +
+'  .donate-sun { position: absolute; width: 34px; height: 34px; left: 50%; top: 50%; border-radius: 50%; background: #fff4bd; box-shadow: 0 0 10px 2px rgba(255,223,130,.85), 0 0 22px 5px rgba(255,195,90,.28); animation: donate-sun-eclipse 14s ease-in-out infinite; }' +
+'  .donate-moon { position: absolute; width: 35px; height: 35px; left: 50%; top: 50%; border-radius: 50%; background: #d4e9df; box-shadow: 0 0 0 rgba(0,0,0,0); animation: donate-moon-eclipse 14s ease-in-out infinite, donate-moon-sky 14s ease-in-out infinite; }' +
+'  .donate-corona { position: absolute; width: 35px; height: 35px; left: 50%; top: 50%; border-radius: 50%; border: 2px solid rgba(255,236,174,.18); box-shadow: 0 0 12px 3px rgba(255,222,145,.18), inset 0 0 9px rgba(255,240,185,.12); opacity: 0; animation: donate-corona 14s ease-in-out infinite; }' +
+'  .donate-bead { position: absolute; width: 5px; height: 5px; border-radius: 50%; background: #fff9d5; box-shadow: 0 0 5px 2px rgba(255,224,130,.9); opacity: 0; }' +
+'  .donate-bead.b1 { left: calc(50% - 18px); top: calc(50%); animation: donate-bead-1 14s ease-in-out infinite; }' +
+'  .donate-bead.b2 { left: calc(50% - 18px); top: calc(50%); width: 4px; height: 4px; animation: donate-bead-2 14s ease-in-out infinite; }' +
+'  /* The sky is driven by JS color interpolation rather than animating whole gradients. Browsers can discretely switch between gradient declarations; interpolating the two RGB stops directly keeps the eclipse transition continuous. */' +
+'  @keyframes donate-star-appear { 0%, 32% { opacity: 0; } 40%, 64% { opacity: .72; } 72%, 100% { opacity: 0; } }' +
+'  @keyframes donate-star-twinkle { 0%, 32% { opacity: 0; transform: scale(.6); } 40%, 48% { opacity: .45; transform: scale(.8); } 51% { opacity: 1; transform: scale(1.65); } 54%, 64% { opacity: .35; transform: scale(.75); } 72%, 100% { opacity: 0; transform: scale(.6); } }' +
+'  @keyframes donate-perseid-1 { 0%, 39% { opacity: 0; transform: translate(-30px, -3px) rotate(21.5deg); } 42% { opacity: .95; } 47%, 100% { opacity: 0; transform: translate(135px, 62px) rotate(21.5deg); } }' +
+'  @keyframes donate-perseid-2 { 0%, 45% { opacity: 0; transform: translate(22px, -8px) rotate(145.6deg); } 48% { opacity: .8; } 53%, 100% { opacity: 0; transform: translate(-70px, 55px) rotate(145.6deg); } }' +
+'  @keyframes donate-perseid-3 { 0%, 55% { opacity: 0; transform: translate(28px, -12px) rotate(-162.1deg); } 58% { opacity: .9; } 63%, 100% { opacity: 0; transform: translate(-65px, -42px) rotate(-162.1deg); } }' +
+'  @keyframes donate-perseid-4 { 0%, 47% { opacity: 0; transform: translate(-8px, -35px) rotate(27.6deg); } 50% { opacity: .7; } 55%, 100% { opacity: 0; transform: translate(78px, 10px) rotate(27.6deg); } }' +
+'  @keyframes donate-sun-eclipse { 0%, 18% { transform: translate(-150%, -50%); opacity: 1; } 40%, 62% { transform: translate(-50%, -50%); opacity: .9; } 84%, 100% { transform: translate(-150%, -50%); opacity: 1; } }' +
+'  @keyframes donate-moon-eclipse { 0%, 18% { transform: translate(50%, -50%); } 40%, 62% { transform: translate(-50%, -50%); } 84%, 100% { transform: translate(50%, -50%); } }' +
+'  @keyframes donate-moon-sky { 0%, 30% { background: #d4e9df; box-shadow: 0 0 0 rgba(0,0,0,0); } 36% { background: #8d9b9a; box-shadow: 0 0 1px rgba(0,0,0,.18); } 42% { background: #42474e; box-shadow: 0 0 3px rgba(0,0,0,.45); } 46%, 58% { background: #090b12; box-shadow: 0 0 5px rgba(0,0,0,.8); } 64% { background: #42474e; box-shadow: 0 0 3px rgba(0,0,0,.45); } 70% { background: #8d9b9a; box-shadow: 0 0 1px rgba(0,0,0,.18); } 76%, 100% { background: #d4e9df; box-shadow: 0 0 0 rgba(0,0,0,0); } }' +
+'  @keyframes donate-corona { 0%, 34% { opacity: 0; transform: translate(-50%, -50%) scale(.75); } 43%, 58% { opacity: 1; transform: translate(-50%, -50%) scale(1); } 70%, 100% { opacity: 0; transform: translate(-50%, -50%) scale(.8); } }' +
+'  @keyframes donate-bead-1 { 0%, 36% { opacity: 0; transform: scale(.2); } 37%, 38% { opacity: 1; transform: scale(1.35); } 42%, 100% { opacity: 0; transform: scale(.2); } }' +
+'  @keyframes donate-bead-2 { 0%, 58% { opacity: 0; transform: scale(.2); } 59%, 64% { opacity: .95; transform: scale(1.2); } 66%, 100% { opacity: 0; transform: scale(.2); } }' +
 '  .hand-editor-diagram { width: 100%; height: auto; display: block; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 10px; flex: 0 0 auto; }' +
 '  .hand-editor-diagram:not([src]), .hand-editor-diagram[src=""] { display: none; }' +
 '  .modal-scroll-body { overflow-y: auto; flex: 1 1 auto; min-height: 0; }' +
@@ -644,6 +753,22 @@ configPresetSchedule.css +
 '  .hex-swatch.hollow { border: none; background: transparent !important; pointer-events: none; }' +
 '  .hex-swatch.selected { border: 2px solid #ff9200; }' +
 '  .modal-cancel-btn { width: 100%; padding: 12px; font-size: 14px; font-weight: 600; color: var(--text-strong); background: var(--border-light); border: none; border-radius: 8px; margin-top: 12px; }' +
+'  .donate-modal-box { max-height: 90vh; }' +
+'  .donate-content { overflow-y: auto; flex: 1 1 auto; min-height: 0; position: relative; z-index: 1; }' +
+'  .donate-intro { text-align: center; color: var(--text-muted); font-size: 12px; line-height: 1.45; margin: 0 4px 12px; animation: donate-content-in 500ms 120ms both; }' +
+'  @keyframes donate-content-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }' +
+'  .donate-method { position: relative; isolation: isolate; border: 2px solid transparent; border-radius: 11px; padding: 12px; margin-top: 10px; background: linear-gradient(var(--card-bg), var(--card-bg)) padding-box, conic-gradient(from 0deg, #ffd6e7, #ffe7b8, #e1f7c9, #ccecff, #ddd0ff, #ffd6e7) border-box; background-size: 100% 100%, 200% 200%; animation: donate-rainbow 5s linear infinite, donate-card-in 550ms both; box-shadow: 0 2px 8px rgba(0,0,0,.06); }' +
+'  .donate-method:nth-child(2) { animation-delay: 370ms; }' +
+'  .donate-method:nth-child(3) { animation-delay: 670ms; }' +
+'  .donate-method:nth-child(4) { animation-delay: 970ms; }' +
+'  @keyframes donate-rainbow { to { background-position: 100% 100%, 0% 50%; } }' +
+'  @keyframes donate-card-in { from { opacity: 0; transform: translateY(12px) scale(.985); } to { opacity: 1; transform: translateY(0) scale(1); } }' +
+'  .donate-method-title { font-size: 13px; font-weight: 800; color: var(--text-strong); margin-bottom: 5px; }' +
+'  .donate-method-note { font-size: 11px; line-height: 1.35; color: var(--text-muted); margin-bottom: 9px; }' +
+'  .donate-paypal { text-align: center; padding: 4px 0 2px; }' +
+'  .donate-paypal input[type=image] { max-width: 100%; height: auto; }' +
+'  .donate-address { display: block; padding: 8px 9px; border-radius: 6px; background: var(--card-bg); border: 1px solid var(--border-light); color: var(--text); font-family: monospace; font-size: 11px; line-height: 1.35; word-break: break-all; user-select: text; -webkit-user-select: text; }' +
+'  .donate-footnote { text-align: center; color: var(--text-faint); font-size: 11px; line-height: 1.4; margin: 12px 6px 2px; }' +
 '  .modal-confirm-btn { width: 100%; padding: 12px; font-size: 14px; font-weight: 600; color: #fff; background: #ff9200; border: none; border-radius: 8px; margin-top: 8px; }' +
 '  .modal-confirm-btn:active { background: #e08300; }' +
 // Delete's own red variant of .modal-confirm-btn, for the delete-preset
@@ -923,6 +1048,13 @@ configPresetSchedule.css +
 '</style></head>' +
 '<body>' +
 
+'<div id="startupLoader" aria-live="polite">' +
+'  <div id="startupLoaderTitle">Loading Eclipz</div>' +
+'  <div id="startupLoaderSubtitle">Preparing the watchface preview…</div>' +
+'  <div id="startupProgressTrack"><div id="startupProgressBar"></div></div>' +
+'  <div id="startupProgressPercent">0%</div>' +
+'</div>' +
+
 '<div id="topBar">' +
 '  <div class="top-bar-left">' +
 '    <div class="top-bar-actions">' +
@@ -930,7 +1062,7 @@ configPresetSchedule.css +
 '      <button type="button" class="donate-btn" onclick="openDonateModal()">&#9825; Donate</button>' +
 '    </div>' +
 '    <div class="top-bar-title">Eclipz Watchface Preview</div>' +
-'    <div class="top-bar-desc">This preview is not perfect - it does not reflect watch screen 1:1 and has couple bugs that either I did not see or I couldnt fix easily. Im trying my best, thank you for understanding -Ł</div>' +
+'    <div class="top-bar-desc">Look, this preview—it’s very good, believe me, but it’s not 100% perfect yet. Nobody knows watch screens better than me, and right now, it’s not reflecting 1:1. We have a couple of tiny bugs, very small bugs, highly overrated bugs that are hard to fix, frankly. But I’m working on it hard, harder than anyone else, total dedication! Many people are saying it’s already the best preview they’ve ever seen. Thank you for your attention to this matter!</div>' +
 '  </div>' +
 '  <div class="top-bar-preview">' +
 '    <canvas id="previewCanvas" width="176" height="201"></canvas>' +
@@ -987,7 +1119,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '    <div class="modal-scroll-body">' +
 '      <div class="style-picker-grid" id="markerStyleGrid"></div>' +
 '      <button type="button" class="style-picker-custom-btn" onclick="chooseMarkerStyleCustom()">Custom</button>' +
-'      <button type="button" class="style-picker-custom-btn style-picker-none-btn" onclick="chooseMarkerStyle(\'9\')">None</button>' +
+'      <button type="button" class="style-picker-custom-btn style-picker-none-btn" onclick="chooseMarkerStyle(\'0\')">None</button>' +
 '    </div>' +
 '  </div>' +
 '</div>' +
@@ -1095,26 +1227,46 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '</div>' +
 
 '<div class="modal-overlay" id="donateModal">' +
-'  <div class="modal-box">' +
-'    <div class="modal-title">Support this project</div>' +
-'   <div class="help" style="text-align:center; margin-top:10px;">Donate via paypal with button below:<br>Amounts below ~1USD gets eaten by fees, just FYI</div>' +
-'   <div class="help" style="text-align:center; margin-top:10px;">   </div>' +
-' <center>' +
-' <form action="https://www.paypal.com/cgi-bin/webscr" method="post" target="_top">' +
-'  <input type="hidden" name="cmd" value="_s-xclick">' +
-'  <input type="hidden" name="hosted_button_id" value="D3C427GK2PGE8">' +
-'  <input type="image" src="https://www.paypalobjects.com/en_US/i/btn/btn_donate_LG.gif" border="0" name="submit" alt="PayPal - The safer, easier way to pay online!">' +
-'  <img alt="" border="0" src="https://www.paypalobjects.com/pl_PL/i/scr/pixel.gif" width="1" height="1">' +
-'  </form>' +
-'    <div class="help" style="text-align:center; margin-top:10px;">Donate bitcoin by sending BTC to this address:</div>' +
-'     1DAvDGQCXJtL2SHPz47QUjaSXBXLSXwThJ' +
-'   <div class="help" style="text-align:center; margin-top:10px;">   </div>' +
-'    <div class="help" style="text-align:center; margin-top:10px;">Donate coins via Coinbase to this email:</div>' +
-'     zalewszczak@gmail.com' +
-'   <div class="help" style="text-align:center; margin-top:10px;">   </div>' +
-'    <div class="help" style="text-align:center; margin-top:10px;">All donations will be spent wisely on beer and Pebble Round 2<br>(whichever target gets hit first)</div>' +
-'    <div class="help" style="text-align:center; margin-top:10px;"></div>' +
-'  </center>' +
+'  <div class="modal-box donate-modal-box">' +
+'    <div class="donate-header">' +
+'      <div class="donate-eclipse-scene" aria-hidden="true">' +
+'        <div class="donate-sky">' +
+'          <span class="donate-star s1"></span><span class="donate-star s2"></span><span class="donate-star s3"></span><span class="donate-star s4"></span><span class="donate-star s5 twinkle"></span>' +
+'          <span class="donate-star s6"></span><span class="donate-star s7"></span><span class="donate-star s8"></span><span class="donate-star s9"></span><span class="donate-star s10"></span>' +
+'          <span class="donate-star s11"></span><span class="donate-star s12"></span><span class="donate-star s13"></span><span class="donate-star s14 twinkle"></span><span class="donate-star s15"></span>' +
+'          <span class="donate-star s16"></span><span class="donate-star s17"></span><span class="donate-star s18"></span><span class="donate-star s19"></span><span class="donate-star s20"></span>' +
+'          <span class="donate-meteor m1"></span><span class="donate-meteor m2"></span><span class="donate-meteor m3"></span><span class="donate-meteor m4"></span>' +
+'        </div>' +
+'        <div class="donate-eclipse"><div class="donate-corona"></div><div class="donate-sun"></div><div class="donate-moon"></div><span class="donate-bead b1"></span><span class="donate-bead b2"></span><span class="donate-bead b3"></span></div>' +
+'      </div>' +
+'      <div class="donate-header-content"><div class="donate-header-title"><span class="donate-sparkle">✦</span>Support Eclipz<span class="donate-sparkle">✦</span></div><div class="donate-header-subtitle">Keep the eclipse magic going</div></div>' +
+'    </div>' +
+'    <div class="donate-content">' +
+'      <div class="donate-intro">Eclipz is a little passion project born out of need to track the rare eclipse event that spiraled out of control and ended up being this monster of configuration options and astronomy/sky fanatic dream. If you enjoy using it and would like to help keep the project going, a small donation is very much appreciated. Thank you! ♥</div>' +
+'      <div class="donate-method">' +
+'        <div class="donate-method-title">PayPal</div>' +
+'        <div class="donate-method-note">The easiest option. FYI: payments below ~1USD are swallowed by transaction fees and I recieve nothing. ¯\_(ツ)_/¯</div>' +
+'        <div class="donate-paypal">' +
+'          <form action="https://www.paypal.com/cgi-bin/webscr" method="post" target="_top">' +
+'            <input type="hidden" name="cmd" value="_s-xclick">' +
+'            <input type="hidden" name="hosted_button_id" value="D3C427GK2PGE8">' +
+'            <input type="image" src="https://www.paypalobjects.com/en_US/i/btn/btn_donate_LG.gif" border="0" name="submit" alt="Donate with PayPal">' +
+'            <img alt="" border="0" src="https://www.paypalobjects.com/pl_PL/i/scr/pixel.gif" width="1" height="1">' +
+'          </form>' +
+'        </div>' +
+'      </div>' +
+'      <div class="donate-method">' +
+'        <div class="donate-method-title">Bitcoin</div>' +
+'        <div class="donate-method-note">If you prefer crypto, you can send BTC directly to this address:</div>' +
+'        <div class="donate-address">1DAvDGQCXJtL2SHPz47QUjaSXBXLSXwThJ</div>' +
+'      </div>' +
+'      <div class="donate-method">' +
+'        <div class="donate-method-title">Coinbase</div>' +
+'        <div class="donate-method-note">You can also send supported coins through Coinbase to:</div>' +
+'        <div class="donate-address">zalewszczak@gmail.com</div>' +
+'      </div>' +
+'      <div class="donate-footnote">Every contribution goes back into the project — with a little help for beer or Pebble Round 2 (whichever goal gets hit first). Cheers! 🍻</div>' +
+'    </div>' +
 '    <button type="button" class="modal-cancel-btn" onclick="closeDonateModal()">Close</button>' +
 '  </div>' +
 '</div>' +
@@ -1238,10 +1390,11 @@ configPresetSchedule.modalHtml +
 '      <div class="field-label-row"><label>Hour/seconds indices style</label><button type="button" class="help-btn" onclick="toggleHelp(\'help-indicesStyle\')">?</button></div>' +
 '      <button type="button" class="marker-edit-btn" id="markerStyleTriggerBtn" style="margin-top:8px;" onclick="openMarkerStyleModal()">Indices style: <span id="markerStyleTriggerLabel"></span> &rsaquo;</button>' +
 '      <select id="bigAnalogMarkerStyle" style="display:none;" onchange="onMarkerStyleChange()">' +
-'        <option value="9"' + (current.bigAnalogMarkerStyle === '9' ? ' selected' : '') + '>None</option>' +
-'        <option value="0"' + (current.bigAnalogMarkerStyle === '0' || !current.bigAnalogMarkerStyle ? ' selected' : '') + '>Minimal (thin hour indices only)</option>' +
-'        <option value="1"' + (current.bigAnalogMarkerStyle === '1' ? ' selected' : '') + '>Small markers (hour + second)</option>' +
-'        <option value="2"' + (current.bigAnalogMarkerStyle === '2' ? ' selected' : '') + '>Big markers (thick hour, thin second)</option>' +
+'        <option value="10"' + (current.bigAnalogMarkerStyle === '10' || !current.bigAnalogMarkerStyle ? ' selected' : '') + '>Minimal (thin hour indices only)</option>' +
+'        <option value="9"' + (current.bigAnalogMarkerStyle === '9' ? ' selected' : '') + '>Classy</option>' +
+'        <option value="0"' + (current.bigAnalogMarkerStyle === '0' ? ' selected' : '') + '>None</option>' +
+'        <option value="1"' + (current.bigAnalogMarkerStyle === '1' ? ' selected' : '') + '>Braun</option>' +
+'        <option value="2"' + (current.bigAnalogMarkerStyle === '2' ? ' selected' : '') + '>Swiss</option>' +
 '        <option value="3"' + (current.bigAnalogMarkerStyle === '3' ? ' selected' : '') + '>Modern</option>' +
 '        <option value="4"' + (current.bigAnalogMarkerStyle === '4' ? ' selected' : '') + '>Shadow</option>' +
 '        <option value="5"' + (current.bigAnalogMarkerStyle === '5' ? ' selected' : '') + '>Tally</option>' +
@@ -1800,13 +1953,21 @@ configPresetSchedule.modalHtml +
 '        <button type="button" class="slider-step-btn" onclick="stepSlider(\'flightsRangeKm\', 10)">+</button>' +
 '        </div>' +
 '      </div>' +
-'      <label for="flightsClientId">OpenSky API client ID (optional)</label>' +
-'      <input type="text" id="flightsClientId" autocomplete="off" placeholder="leave blank for anonymous access" value="' + esc(current.flightsClientId || '') + '">' +
-'      <label for="flightsClientSecret">OpenSky API client secret</label>' +
-'      <input type="password" id="flightsClientSecret" autocomplete="off" placeholder="required when client ID is set" value="' + esc(current.flightsClientSecret || '') + '">' +
-'      <div class="help">Create an API client in your OpenSky account. If both fields are filled, Eclipz uses OAuth2; otherwise it uses anonymous access. The OAuth token is kept only in memory.</div>' +
 '    </div>' +
 
+'    </div>' +
+'  </fieldset>' +
+
+'  <fieldset>' +
+    sectionLegendHtml('faq', 'FAQ') +
+'    <div class="section-body" id="section-faq" style="display:none;">' +
+'    <div class="subsection"></div>' +
+'    <div class="faq-search-wrap">' +
+'      <span class="faq-search-icon">&#128269;</span>' +
+'      <input type="search" id="faqSearch" class="faq-search" placeholder="Search questions..." autocomplete="off" oninput="filterFaq(this.value)">' +
+'    </div>' +
+'    <div id="faqList">' + faqItemsHtml() + '</div>' +
+'    <div id="faqEmpty" class="faq-empty">No matching FAQ entries.</div>' +
 '    </div>' +
 '  </fieldset>' +
 
@@ -1869,6 +2030,7 @@ configPresetSchedule.modalHtml +
 'var MARKER_PRESET_IMAGES = ' + JSON.stringify(MARKER_PRESET_IMAGES) + ';' +
 'var HAND_STYLE_DIAGRAM_IMAGES = ' + JSON.stringify(HAND_STYLE_DIAGRAM_IMAGES) + ';' +
 'var HAND_STYLE_ICON_IMAGES = ' + JSON.stringify(HAND_STYLE_ICON_IMAGES) + ';' +
+'var FAQ_ITEMS = ' + JSON.stringify(FAQ_ITEMS) + ';' +
 'var WEATHER_ICON_STYLE_PREVIEWS = ' + JSON.stringify(WEATHER_ICON_STYLE_PREVIEWS) + ';' +
 // Matches weather_icon_style\'s own <option> list exactly.
 'var WEATHER_ICON_STYLE_NAMES = ["Simple", "Hollow", "Full color"];' +
@@ -2283,14 +2445,27 @@ fontManagerSource +
 // A font matches the current filter set if EITHER "All" is active
 // (every font matches, no exceptions -- narrowing only ever happens
 // via the "Show incompatible fonts" checkbox at that point, per the
-// request) OR it carries every one of the currently-active category
-// ids in its own `categories` array (AND, not OR -- selecting more
-// categories narrows the results further, same as any other
-// multi-facet filter).
+// request) OR it satisfies every one of the currently-active
+// category ids (AND, not OR -- selecting more categories narrows the
+// results further, same as any other multi-facet filter). The size
+// filters (Tiny/Small/Medium/Large -- the FONT_CATEGORIES entries
+// carrying a `sizeCategory`) are satisfied by the font's own
+// `sizeCategory` field rather than by its `categories` array; every
+// other id is satisfied by being in that array.
+'function fontCategoryDef(id) {' +
+'  for (var i = 0; i < FONT_CATEGORIES.length; i++) {' +
+'    if (FONT_CATEGORIES[i].id === id) return FONT_CATEGORIES[i];' +
+'  }' +
+'  return null;' +
+'}' +
 'function fontMatchesCategoryFilters(f) {' +
 '  if (fontPickerActiveCategories.indexOf("all") !== -1) return true;' +
 '  var cats = f.categories || [];' +
-'  return fontPickerActiveCategories.every(function (c) { return cats.indexOf(c) !== -1; });' +
+'  return fontPickerActiveCategories.every(function (c) {' +
+'    var def = fontCategoryDef(c);' +
+'    if (def && def.sizeCategory) return f.sizeCategory === def.sizeCategory;' +
+'    return cats.indexOf(c) !== -1;' +
+'  });' +
 '}' +
 
 'function renderFontCategoryRow() {' +
@@ -2478,6 +2653,24 @@ fontManagerSource +
 'function fontSizeCategoryClass(category) {' +
 '  return category === "XS" || category === "S" || category === "M" || category === "L" || category === "XL" ? category.toLowerCase() : "";' +
 '}' +
+// Tag group for a font's picker button: the font's `height` as a plain
+// gray number, a thin divider, then one gray tag pill per entry in its
+// own `categories`, labelled from FONT_CATEGORIES (so 'pebbleos' reads
+// "PebbleOS", not the raw id). Ids with no FONT_CATEGORIES entry (the
+// Big Digital styles' 'bigDigital') and size ids are skipped -- size is
+// already shown by the size label next to it -- and a font left with no
+// tags at all (the Big Digital styles) gets no number/divider either.
+'function fontTagsHtml(f) {' +
+'  var tags = "";' +
+'  (f.categories || []).forEach(function (c) {' +
+'    var def = fontCategoryDef(c);' +
+'    if (!def || def.sizeCategory) return;' +
+'    tags += \'<span class="font-picker-tag">\' + esc(def.label) + "</span>";' +
+'  });' +
+'  if (!tags) return "";' +
+'  var h = Math.round(Number(f.height));' +
+'  return (isFinite(h) ? \'<span class="font-picker-tags-divider"></span><span class="font-picker-height">\' + h + \'</span><span class="font-picker-tags-divider"></span>\' : "") + tags;' +
+'}' +
 'function renderFontPickerGrid() {' +
 '  var cfg = FONT_PICKER_ROLES[currentFontPickerRole];' +
 '  if (!cfg) return;' +
@@ -2513,9 +2706,10 @@ fontManagerSource +
 '    var sizeCategory = f.sizeCategory || "";' +
 '    var sizeCategoryLabel = fontSizeCategoryLabel(sizeCategory);' +
 '    var sizeCategoryClass = fontSizeCategoryClass(sizeCategory);' +
+'    var tagsHtml = (sizeCategoryLabel ? \'<span class="font-picker-size font-picker-size-\' + sizeCategoryClass + \'">\' + sizeCategoryLabel + "</span>" : "") + fontTagsHtml(f);' +
 '    html += \'<button type="button" class="font-picker-btn\' + (f.id === currentId ? " selected" : "") + \'" onclick="chooseFontOption(\' + f.id + \')">\' +' +
 '      \'<span class="font-picker-preview" style="\' + previewStyle + \'">\' + fontPreviewInnerHtml(f.id, currentFontPickerRole, previewText) + "</span>" +' +
-'      \'<span class="font-picker-name"><span>\' + esc(f.label) + \'</span>\' + (sizeCategoryLabel ? \'<span class="font-picker-size font-picker-size-\' + sizeCategoryClass + \'">\' + sizeCategoryLabel + "</span>" : "") + "</span></button>";' +
+'      \'<span class="font-picker-name"><span>\' + esc(f.label) + \'</span>\' + (tagsHtml ? \'<span class="font-picker-tags">\' + tagsHtml + "</span>" : "") + "</span></button>";' +
 '  });' +
 '  document.getElementById("fontPickerGrid").innerHTML = html;' +
 '  document.getElementById("fontPickerEmptyMsg").style.display = html ? "none" : "block";' +
@@ -2846,7 +3040,7 @@ require('./config/config-preview') +
 // because their center layouts are handled separately below.
 '    digitalBottomRow: !isAnalog && !isTopCenterOnly };' +
 '  if (isAnalog) {' +
-'    if (markerStyle < 3 || markerStyle === 8 || markerStyle === 9) {' +
+'    if (markerStyle < 3 || markerStyle > 7) {' +
 '      avail.upper = avail.bottom = avail.left = avail.right = true;' +
 '    } else if (markerStyle === 3 || markerStyle === 4 || markerStyle === 6) {' +
 '      avail.upper = avail.bottom = true; avail.left = avail.right = override; avail.cornersGrayed = !override;' +
@@ -3035,6 +3229,37 @@ require('./config/config-preview') +
 '}' +
 
 // ---- collapsible sections + slider step buttons ------------------------
+'function toggleFaqItem(index) {' +
+'  var item = document.querySelectorAll(".faq-item")[index];' +
+'  if (!item) return;' +
+'  item.classList.toggle("open");' +
+'}' +
+'function filterFaq(rawQuery) {' +
+'  var query = String(rawQuery || "").trim().toLowerCase();' +
+'  var items = document.querySelectorAll(".faq-item");' +
+'  var questionMatches = [];' +
+'  var answerMatches = [];' +
+'  for (var i = 0; i < FAQ_ITEMS.length; i++) {' +
+'    var q = FAQ_ITEMS[i][0].toLowerCase();' +
+'    var a = FAQ_ITEMS[i][1].toLowerCase();' +
+'    if (!query || q.indexOf(query) !== -1) questionMatches.push(i);' +
+'    else if (a.indexOf(query) !== -1) answerMatches.push(i);' +
+'  }' +
+'  var matches = query ? (questionMatches.length ? questionMatches : answerMatches) : questionMatches;' +
+'  var visible = {};' +
+'  for (var j = 0; j < matches.length; j++) visible[matches[j]] = true;' +
+'  for (var k = 0; k < items.length; k++) {' +
+'    var idx = parseInt(items[k].getAttribute("data-faq-index"), 10);' +
+'    items[k].style.display = visible[idx] ? "" : "none";' +
+'  }' +
+'  var empty = document.getElementById("faqEmpty");' +
+'  if (empty) empty.style.display = matches.length ? "none" : "block";' +
+'}' +
+// FAQ is static content; keep its section summary intentionally short.
+'function refreshFaqSubheader() {' +
+'  try { setSubheaderText("faq", FAQ_ITEMS.length + " answers about Eclipz and its settings"); } catch (e) {}' +
+'}' +
+
 'function toggleSection(id) {' +
 '  var body = document.getElementById("section-" + id);' +
 '  var chev = document.getElementById("chev-" + id);' +
@@ -3154,6 +3379,10 @@ require('./config/config-preview') +
 '}' +
 'function onMarkerStyleChange() {' +
 '  var val = document.getElementById("bigAnalogMarkerStyle").value;' +
+// Materialize a built-in preset into the custom marker fields first, so the
+// preview, the Custom editors and the saved settings all see its values.
+'  applyMarkerStylePresetToCustom(val);' +
+'  refreshEditButtonLabels();' +
 '  document.getElementById("customMarkerSection").style.display = (val === "8") ? "" : "none";' +
 '  var isBitmap = (val === "3" || val === "4" || val === "5" || val === "6" || val === "7");' +
 '  document.getElementById("bitmapMarkerTransparentRow").style.display = isBitmap ? "" : "none";' +
@@ -3207,18 +3436,86 @@ require('./config/config-preview') +
 'var CM_CHECKBOX_FIELDS = ["Translucent"];' +
 'function cmHiddenPrefix(kind) { return kind === "hour" ? "customHour" : "customSec"; }' +
 'function cmPopupPrefix(kind) { return kind === "hour" ? "cmHour" : "cmSec"; }' +
+// Serialized straight from presets-lookups.js's MARKER_STYLE_PRESET_FIELDS (bigAnalogMarkerStyle
+// "0"/"1"/"2"/"9"/"10" -> hour/sec ring + numerals field values) -- the one
+// place the None/Braun/Swiss/Classy/Minimal numbers live. Used by BOTH the
+// Indices style picker (applyMarkerStylePresetToCustom() below) and the
+// hour/second editor popups' own preset buttons (MARKER_PRESETS below).
+'var MARKER_STYLE_PRESET_FIELDS = ' + JSON.stringify(MARKER_STYLE_PRESET_FIELDS) + ';' +
 'var MARKER_PRESETS = {' +
 '  hour: {' +
-'    minimal: { Style: "1", Thickness: "1", InnerEcc: "0", OuterEcc: "0", InnerBorder: "20", OuterBorder: "100" },' +
-'    small:   { Style: "1", Thickness: "1", InnerEcc: "0", OuterEcc: "0", InnerBorder: "0", OuterBorder: "100" },' +
-'    big:     { Style: "2", Thickness: "3", InnerEcc: "0", OuterEcc: "0", InnerBorder: "0", OuterBorder: "100" }' +
+'    small:   { Style: "1", Thickness: "1", InnerEcc: "0", OuterEcc: "0", InnerBorder: "0", OuterBorder: "100" },' + // legacy
+'    big:     { Style: "2", Thickness: "3", InnerEcc: "0", OuterEcc: "0", InnerBorder: "0", OuterBorder: "100" },' + // legacy
 '  },' +
 '  sec: {' +
-'    minimal: { Style: "0", Thickness: "1", InnerEcc: "0", OuterEcc: "0", InnerBorder: "85", OuterBorder: "100" },' +
-'    small:   { Style: "1", Thickness: "1", InnerEcc: "0", OuterEcc: "0", InnerBorder: "60", OuterBorder: "100" },' +
-'    big:     { Style: "1", Thickness: "1", InnerEcc: "0", OuterEcc: "0", InnerBorder: "60", OuterBorder: "100" }' +
+'    small:   { Style: "1", Thickness: "1", InnerEcc: "0", OuterEcc: "0", InnerBorder: "60", OuterBorder: "100" },' + // legacy
+'    big:     { Style: "1", Thickness: "1", InnerEcc: "0", OuterEcc: "0", InnerBorder: "60", OuterBorder: "100" },' + // legacy
 '  }' +
 '};' +
+// The popup presets (minimal/braun/swiss/classy) are derived from that same
+// lookup rather than restated here, so retuning a preset in presets-lookups.js
+// retunes its popup button too. Ring geometry only -- Translucent/Color are
+// deliberately left out, so tapping one of these buttons keeps whatever
+// translucency/color the popup already had, same as before.
+'var MARKER_POPUP_PRESET_STYLE_IDS = { minimal: "10", braun: "1", swiss: "2", classy: "9" };' +
+'var MARKER_POPUP_PRESET_GEOMETRY = ["Style", "Thickness", "InnerThickness", "InnerEcc", "OuterEcc", "InnerBorder", "OuterBorder"];' +
+'Object.keys(MARKER_POPUP_PRESET_STYLE_IDS).forEach(function (name) {' +
+'  var fields = MARKER_STYLE_PRESET_FIELDS[MARKER_POPUP_PRESET_STYLE_IDS[name]];' +
+'  ["hour", "sec"].forEach(function (kind) {' +
+'    var geometry = {};' +
+'    MARKER_POPUP_PRESET_GEOMETRY.forEach(function (f) { geometry[f] = fields[kind][f]; });' +
+'    MARKER_PRESETS[kind][name] = geometry;' +
+'  });' +
+'});' +
+// Picking a built-in Indices style (None/Braun/Swiss/Classy/Minimal) copies
+// its hour ring, second ring AND numerals values into the same
+// customHour*/customSec*/markerText* inputs the Custom style edits -- the
+// picker itself keeps showing the preset (bigAnalogMarkerStyle is
+// untouched), but the watch is sent those values as an ordinary Custom
+// marker (see bigAnalogMarkerStyleCode() in settings-codecs.js), and
+// switching to Custom afterward starts from them.
+// Returns whether styleVal was one of those presets. Runs from
+// onMarkerStyleChange(), i.e. on every pick, on page load, and after an
+// imported/recalled style -- so while a preset is selected the custom
+// fields always equal it (the Custom editors aren't reachable then).
+'function applyMarkerStylePresetToCustom(styleVal) {' +
+'  var fields = MARKER_STYLE_PRESET_FIELDS[styleVal];' +
+'  if (!fields) return false;' +
+'  ["hour", "sec"].forEach(function (kind) {' +
+'    var hp = cmHiddenPrefix(kind);' +
+'    CM_FIELDS.forEach(function (f) {' +
+'      var hidden = document.getElementById(hp + f);' +
+'      if (hidden && fields[kind][f] !== undefined) hidden.value = fields[kind][f];' +
+'    });' +
+'  });' +
+'  applyMarkerTextPresetFields(fields.text);' +
+'  return true;' +
+'}' +
+// The numerals half of the above. The mark-selection masks are a hidden
+// input plus 12 toggle buttons each, so setMarkMask() keeps both in step.
+// Font goes in before Roman since a font that can't do Roman numerals
+// unchecks/disables the box (onMarkerTextFontChange()).
+'function setMarkMask(kind, mask) {' +
+'  document.getElementById(kind === "hour" ? "markerTextHourMask" : "markerTextSecMask").value = String(mask);' +
+'  var m = parseInt(mask, 10) || 0;' +
+'  for (var i = 0; i < 12; i++) {' +
+'    var btn = document.getElementById("markBtn-" + kind + "-" + i);' +
+'    if (btn) btn.className = "mark-btn" + ((m & (1 << i)) ? " active" : "");' +
+'  }' +
+'}' +
+'function applyMarkerTextPresetFields(t) {' +
+'  if (!t) return;' +
+'  document.getElementById("markerTextFont").value = t.Font;' +
+'  document.getElementById("markerTextRoman").checked = t.Roman === "true";' +
+'  document.getElementById("markerTextOffset").value = t.Offset;' +
+'  document.getElementById("markerTextOffsetVal").textContent = t.Offset + "px";' +
+'  setMarkMask("hour", t.HourMask);' +
+'  setMarkMask("sec", t.SecMask);' +
+'  selectModeButton("markerTextTargetGroup", "markerTextTarget", t.Target);' +
+'  onMarkerTextFontChange();' +
+'  onMarkerTextTargetChange();' +
+'  refreshAllFontTriggerLabels();' +
+'}' +
 // A rough approximation of the 3 built-in procedural styles, translated
 // into border-reach percentages (see marker_reach_px() in
 // marker_layer.c) now that a mark's length comes directly from its
@@ -3599,7 +3896,7 @@ require('./config/config-preview') +
 // Same idea for Indices style -- the thumbnail is whichever bitmap or
 // procedural-preset picture MARKER_STYLE_TITLES/updateMarkerStyleButtonLabel()
 // already resolve bigAnalogMarkerStyle\'s current value to, blank for
-// Custom (8) and None (9) alike (neither has one static picture to
+// Custom (8) and None (0) alike (neither has one static picture to
 // show -- Custom is user-defined per-ring geometry, None draws
 // nothing at all).
 'function refreshIndicesSubsectionPreview() {' +
@@ -3613,18 +3910,24 @@ require('./config/config-preview') +
 '  }' +
 '  setPreviewThumbnail("subsecpreview-indices", img ? (\'<img class="\' + (isBitmap ? "bitmap-marker-img" : "") + \'" src="\' + img + \'" alt="">\') : "");' +
 '  var title = MARKER_STYLE_TITLES.hasOwnProperty(val) ? MARKER_STYLE_TITLES[val] : "Custom";' +
-'  setSubsubheaderText("indices", title + " indices");' +
+'  setSubsubheaderText("indices", val === "0" ? "No indices" : title + " indices");' +
 '}' +
 
 // ---- marker style picker popup -----------------------------------------
-// Unlike hands, markers keep a real on-watch "which style" field
-// (bigAnalogMarkerStyle, still 0-9 -- see eclipse_data.h) -- this
+// Unlike hands, markers keep a real "which style" field
+// (bigAnalogMarkerStyle, 0-10 here and in storage) -- this
 // popup is just a friendlier picker for that same hidden <select>,
-// not a replacement for it. MARKER_BITMAP_STYLES covers the 5
+// not a replacement for it. The watch itself is only ever sent 3-8
+// though: the 5 presets (0 None, 1 Braun, 2 Swiss, 9 Classy, 10
+// Minimal) are materialized into the Custom marker + numerals fields
+// and sent as 8 -- see
+// applyMarkerStylePresetToCustom() above and bigAnalogMarkerStyleCode()
+// in settings-codecs.js. MARKER_BITMAP_STYLES covers the 5
 // existing bitmap styles (their own thumbnails already exist as
 // MARKER_PREVIEW_IMAGES, generated from the actual watch resource
 // PNGs -- see generate-marker-previews.js); MARKER_PRESET_STYLES
-// covers the 4 procedural ring styles, thumbnails from
+// covers the 4 ring-preset tiles (None is its own button below the
+// grid, since it has no picture), thumbnails from
 // MARKER_PRESET_IMAGES (generate-infographics.js).
 'var MARKER_BITMAP_STYLES = [' +
 '  { value: "3", title: "Modern" },' +
@@ -3634,16 +3937,16 @@ require('./config/config-preview') +
 '  { value: "7", title: "Fancy" }' +
 '];' +
 'var MARKER_PRESET_STYLES = [' +
-'  { value: "9", title: "None", image: "none" },' +
-'  { value: "0", title: "Minimal", image: "minimal" },' +
-'  { value: "1", title: "Small", image: "small" },' +
-'  { value: "2", title: "Big", image: "big" }' +
+'  { value: "9", title: "Classy", image: "classy" },' +
+'  { value: "10", title: "Minimal", image: "minimal" },' +
+'  { value: "1", title: "Braun", image: "braun" },' +
+'  { value: "2", title: "Swiss", image: "swiss" }' +
 '];' +
 // Trigger-button label lookup -- every MARKER_BITMAP_STYLES/
 // MARKER_PRESET_STYLES entry\'s own title, plus "8" (Custom, the only
 // value neither array carries since it has no picker button of its
 // own -- see chooseMarkerStyleCustom()).
-'var MARKER_STYLE_TITLES = { "8": "Custom" };' +
+'var MARKER_STYLE_TITLES = { "0": "None", "8": "Custom" };' +
 'MARKER_BITMAP_STYLES.concat(MARKER_PRESET_STYLES).forEach(function (s) { MARKER_STYLE_TITLES[s.value] = s.title; });' +
 'function updateMarkerStyleButtonLabel() {' +
 '  var span = document.getElementById("markerStyleTriggerLabel");' +
@@ -4579,11 +4882,62 @@ configPresetSchedule.clientJs(current.scheduleKnownIds) +
 'function goBack() {' +
 '  document.location = getQueryParam("return_to", "pebblejs://close#");' +
 '}' +
+'var donateSkyRaf = 0;' +
+'var donateSkyStart = 0;' +
+'var DONATE_SKY_PERIOD_MS = 14000;' +
+'var DONATE_SKY_STOPS = [' +
+'  { p: 0.00, top: [185,229,244], bottom: [233,244,223] },' +
+'  { p: 0.30, top: [159,200,216], bottom: [209,220,203] },' +
+'  { p: 0.36, top: [102,117,132], bottom: [139,139,130] },' +
+'  { p: 0.42, top: [48,53,65], bottom: [68,67,74] },' +
+'  { p: 0.46, top: [23,26,40], bottom: [36,35,51] },' +
+'  { p: 0.58, top: [23,26,40], bottom: [36,35,51] },' +
+'  { p: 0.64, top: [48,53,65], bottom: [68,67,74] },' +
+'  { p: 0.70, top: [102,117,132], bottom: [139,139,130] },' +
+'  { p: 0.76, top: [159,200,216], bottom: [209,220,203] },' +
+'  { p: 1.00, top: [185,229,244], bottom: [233,244,223] }' +
+'];' +
+'function donateSkyEase(t) {' +
+'  t = Math.max(0, Math.min(1, t));' +
+'  return t * t * (3 - 2 * t);' +
+'}' +
+'function donateSkyColor(a, b, t) {' +
+'  t = donateSkyEase(t);' +
+'  return [Math.round(a[0] + (b[0] - a[0]) * t), Math.round(a[1] + (b[1] - a[1]) * t), Math.round(a[2] + (b[2] - a[2]) * t)];' +
+'}' +
+'function donateSkyCss(c) { return "rgb(" + c[0] + ", " + c[1] + ", " + c[2] + ")"; }' +
+'function donateSkyFrame(ts) {' +
+'  var header = document.querySelector("#donateModal .donate-header");' +
+'  if (!header || document.getElementById("donateModal").className.indexOf("open") < 0) { donateSkyRaf = 0; return; }' +
+'  if (!donateSkyStart) donateSkyStart = ts;' +
+'  var phase = ((ts - donateSkyStart) % DONATE_SKY_PERIOD_MS) / DONATE_SKY_PERIOD_MS;' +
+'  var a = DONATE_SKY_STOPS[0], b = DONATE_SKY_STOPS[DONATE_SKY_STOPS.length - 1];' +
+'  for (var i = 0; i < DONATE_SKY_STOPS.length - 1; i++) {' +
+'    if (phase >= DONATE_SKY_STOPS[i].p && phase <= DONATE_SKY_STOPS[i + 1].p) { a = DONATE_SKY_STOPS[i]; b = DONATE_SKY_STOPS[i + 1]; break; }' +
+'  }' +
+'  var span = b.p - a.p || 1;' +
+'  var local = (phase - a.p) / span;' +
+'  header.style.setProperty("--donate-sky-top", donateSkyCss(donateSkyColor(a.top, b.top, local)));' +
+'  header.style.setProperty("--donate-sky-bottom", donateSkyCss(donateSkyColor(a.bottom, b.bottom, local)));' +
+'  donateSkyRaf = window.requestAnimationFrame(donateSkyFrame);' +
+'}' +
+'function startDonateSkyAnimation() {' +
+'  if (donateSkyRaf) window.cancelAnimationFrame(donateSkyRaf);' +
+'  donateSkyStart = 0;' +
+'  donateSkyRaf = window.requestAnimationFrame(donateSkyFrame);' +
+'}' +
+'function stopDonateSkyAnimation() {' +
+'  if (donateSkyRaf) window.cancelAnimationFrame(donateSkyRaf);' +
+'  donateSkyRaf = 0;' +
+'  donateSkyStart = 0;' +
+'}' +
 'function openDonateModal() {' +
 '  document.getElementById("donateModal").className = "modal-overlay open";' +
+'  startDonateSkyAnimation();' +
 '}' +
 'function closeDonateModal() {' +
 '  document.getElementById("donateModal").className = "modal-overlay";' +
+'  stopDonateSkyAnimation();' +
 '}' +
 // The bar's own height varies by device (font scaling, safe-area
 // insets) and is capped at 25vh by CSS, so this measures it after
@@ -5003,6 +5357,7 @@ require('./config/config-runtime') +
 '  try { setSubheaderText("location", computeLocationSubheader()); } catch (e) {}' +
 '  try { setSubheaderText("updates", computeUpdatesSubheader()); } catch (e) {}' +
 '  try { setSubheaderText("other", computeOtherSubheader()); } catch (e) {}' +
+'  try { refreshFaqSubheader(); } catch (e) {}' +
 '  try { setSubheaderText("testing", computeDebugSubheader()); } catch (e) {}' +
 '}' +
 // A single delegated hook per event type instead of threading
@@ -5018,19 +5373,61 @@ require('./config/config-runtime') +
 
 'updateColorRoleButtons("day");' +
 'updateColorRoleButtons("night");' +
+'  (function () {' +
+'    var loader = document.getElementById("startupLoader");' +
+'    var bar = document.getElementById("startupProgressBar");' +
+'    var percent = document.getElementById("startupProgressPercent");' +
+'    var subtitle = document.getElementById("startupLoaderSubtitle");' +
+'    var progress = 0;' +
+'    function setStartupProgress(value, text) {' +
+'      progress = Math.max(progress, Math.min(100, value));' +
+'      if (bar) bar.style.width = progress + "%";' +
+'      if (percent) percent.textContent = Math.round(progress) + "%";' +
+'      if (subtitle && text) subtitle.textContent = text;' +
+'    }' +
+'    window.__eclipzStartupProgress = setStartupProgress;' +
+'    setStartupProgress(12, "Building the settings page…");' +
+'    requestAnimationFrame(function () { setStartupProgress(28, "Building the settings page…"); });' +
+'  })();' +
 'onBottomStyleChange();' +
 'onMarkerStyleChange();' +
 'updateHourlyVibeVisibility();' +
+'if (window.__eclipzStartupProgress) window.__eclipzStartupProgress(42, "Preparing controls…");' +
 'updateHandStyleButtonLabel();' +
 'refreshAllFontTriggerLabels();' +
 'updateFontImportStatus();' +
 'refreshEditButtonLabels();' +
 'renderHandStyleGrid();' +
 'renderMarkerStyleGrid();' +
+'if (window.__eclipzStartupProgress) window.__eclipzStartupProgress(62, "Preparing previews…");' +
 'renderCategoryButtons();' +
 'updateWeatherIconStyleVisibility();' +
 'adjustTopBarSpacing();' +
-'if (document.fonts && document.fonts.ready) { document.fonts.ready.then(updatePreview); }' +
+'if (window.__eclipzStartupProgress) window.__eclipzStartupProgress(78, "Finishing layout…");' +
+'if (document.fonts && document.fonts.ready) {' +
+'  document.fonts.ready.then(function () {' +
+'    updatePreview();' +
+'    if (window.__eclipzStartupProgress) window.__eclipzStartupProgress(94, "Finalizing preview…");' +
+'    setTimeout(function () {' +
+'      if (window.__eclipzStartupProgress) window.__eclipzStartupProgress(100, "Ready");' +
+'      var loader = document.getElementById("startupLoader");' +
+'      if (loader) {' +
+'        loader.classList.add("hidden");' +
+'        setTimeout(function () { loader.style.display = "none"; }, 380);' +
+'      }' +
+'    }, 180);' +
+'  });' +
+'} else {' +
+'  if (window.__eclipzStartupProgress) window.__eclipzStartupProgress(94, "Finalizing preview…");' +
+'  setTimeout(function () {' +
+'    if (window.__eclipzStartupProgress) window.__eclipzStartupProgress(100, "Ready");' +
+'    var loader = document.getElementById("startupLoader");' +
+'    if (loader) {' +
+'      loader.classList.add("hidden");' +
+'      setTimeout(function () { loader.style.display = "none"; }, 380);' +
+'    }' +
+'  }, 180);' +
+'}' +
 'updateSchemeActiveHighlight();' +
 'refreshAllSectionSubheaders();' +
 // One-shot only -- if manual location is already on and coordinates
