@@ -596,7 +596,7 @@ directWebfontStyle() +
 '  @keyframes donateGradientShift { 0% { background-position: 0% 50%; } 25% { background-position: 50% 100%; } 50% { background-position: 100% 50%; } 75% { background-position: 50% 0%; } 100% { background-position: 0% 50%; } }' +
 '  .donate-btn:active { filter: brightness(0.94); }' +
 '  .top-bar-title { font-size: 15px; font-weight: 700; margin-top: 6px; color: var(--text); white-space: nowrap; }' +
-'  .top-bar-desc { font-size: 10px; line-height: 1.3; color: var(--text-muted); margin-top: 3px; }' +
+'  .top-bar-desc { font-size: 7px; line-height: 1.3; color: var(--text-muted); margin-top: 3px; }' +
 '  .top-bar-preview { flex: 0 1 33%; display: flex; justify-content: center; align-items: center; min-width: 0; height: 100%; max-height: calc(25vh - 20px); padding: 1%; box-sizing: border-box; }' +
 '  #previewCanvas { height: 50%; max-height: 50%; width: auto; max-width: 98%; border-radius: 4px; }' +
 '  .subsection { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border-light); }' +
@@ -1004,7 +1004,7 @@ directWebfontStyle() +
 '      <button type="button" class="donate-btn" onclick="openDonateModal()">&#9825; Donate</button>' +
 '    </div>' +
 '    <div class="top-bar-title">Eclipz Watchface Preview</div>' +
-'    <div class="top-bar-desc">This preview is not perfect - it does not reflect watch screen 1:1 and has couple bugs that either I did not see or I couldnt fix easily. Im trying my best, thank you for understanding -Ł</div>' +
+'    <div class="top-bar-desc">Look, this preview—it’s very good, believe me, but it’s not 100% perfect yet. Nobody knows watch screens better than me, and right now, it’s not reflecting 1:1. We have a couple of tiny bugs, very small bugs, highly overrated bugs that are hard to fix, frankly. But I’m working on it hard, harder than anyone else, total dedication! Many people are saying it’s already the best preview they’ve ever seen. Thank you for your attention to this matter!</div>' +
 '  </div>' +
 '  <div class="top-bar-preview">' +
 '    <canvas id="previewCanvas" width="176" height="201"></canvas>' +
@@ -1187,7 +1187,7 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      <div class="donate-intro">Eclipz is a little passion project born out of need to track the rare eclipse event that spiraled out of control and ended up being this monster of configuration options and astronomy/sky fanatic dream. If you enjoy using it and would like to help keep the project going, a small donation is very much appreciated. Thank you! ♥</div>' +
 '      <div class="donate-method">' +
 '        <div class="donate-method-title">PayPal</div>' +
-'        <div class="donate-method-note">The easiest option. Very small payments can be reduced by processing fees, so anything above about $1 helps a little more.</div>' +
+'        <div class="donate-method-note">The easiest option. FYI: payments below ~1USD are swallowed by transaction fees and I recieve nothing. ¯\_(ツ)_/¯</div>' +
 '        <div class="donate-paypal">' +
 '          <form action="https://www.paypal.com/cgi-bin/webscr" method="post" target="_top">' +
 '            <input type="hidden" name="cmd" value="_s-xclick">' +
