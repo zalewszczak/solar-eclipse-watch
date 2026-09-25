@@ -1,8 +1,101 @@
 # Eclipz
-
-A Pebble Time 2 (emery platform) solar eclipse watchface, written in C
-(watch app) and JavaScript (PebbleKit JS + a self-contained settings
-page).
+**Eclipz is a solar-eclipse watchface that turns your Pebble Time 2 into a tiny astronomical instrument.**
+At its heart is a highly configurable clock, but around it Eclipz builds a living view of the sky: the Sun and Moon move according to your location, eclipses are calculated for you, the background changes with the time of day and weather, and astronomical events can appear directly on the watch.
+Choose between Digital Bar, Digital Top, Big Digital, Big Analog and Grid layouts, then make the face your own with a large collection of fonts, colors, analog hands, markers and information slots.
+Fill those slots with whatever matters to you — weather, temperature, UV, air quality, wind, pressure, altitude, compass, battery, Bluetooth, steps, sleep, sunrise/sunset, Moon phase, ISS passes, planets, aurora information and much more.
+The settings page provides a live preview and lets you save complete designs as reusable presets. You can also configure automatic or manual location, weather units, update frequency, nighttime colors, animations, hourly vibrations and optional nearby-flight information.
+And when an eclipse is happening, Eclipz changes character: the Sun and Moon follow the calculated eclipse geometry, phases can trigger vibrations, and the sky becomes the backdrop for one of nature's most spectacular events.
+A clock, weather station and miniature sky monitor — designed to be rearranged until it feels like yours.
+## Feature list
+##### Clock layouts
+ | Digital | Big digital | Analog | Grid |
+| --- | --- |
+|  ![Digital watchface example](/screenshots/digitaltop.PNG) |   ![Big Digital example](/screenshots/bigdigital.PNG) |
+|  |  |
+##### Clock appearance
+* Large selection (65+) of digital and PebbleOS-inspired fonts
+* Optional seconds display
+* 12/24-hour time formats
+* Customizable date and weekday displays
+* Optional week number
+* Custom analog hour, minute and second hands
+* Multiple analog index/marker styles, including custom markers
+* Semi-transparent Big Digital digits and analog markers
+##### Features and information
+* Fully configurable feature slots around the watch face
+* Date, weekday, month, week number and time components
+* Battery, Bluetooth and Quiet Time status
+* Heart rate, steps, step-goal percentage and sleep information
+* Current, high, low and feels-like temperature
+* Weather conditions and weather icons
+* Rain chance, humidity, wind speed and direction
+* Weather forecast (+X hours/days)
+* Visibility and cloud cover
+* Timezones
+* UV index
+* Air quality and dew point
+* Atmospheric pressure and pressure trend
+* Altitude and compass
+* Moon phase
+* Sunrise and sunset
+* Upcoming planetary rise
+* Next ISS pass
+* Aurora Kp index
+##### Sky & astronomy
+* Dynamic Sun and Moon
+* Solar eclipse calculations for the selected location
+* Eclipse phases and countdowns
+* Optional vibration on eclipse phase changes
+* Day/night sky rendering
+* Meteor shower indication (Perseids)
+* Optional aurora display
+* Optional ISS display
+* Astronomy-based visual effects and background animation
+##### Weather
+* Automatic weather data
+* Cloud cover from Open-Meteo with no API key required
+* Optional OpenWeatherMap integration
+* Configurable temperature, wind, air-quality and altitude units
+* Configurable weather refresh interval
+##### Location
+* Automatic phone GPS location
+* Manual location search
+* Manual latitude/longitude
+Interactions & updates
+* Shake-triggered animations and temporary information
+* Preserve battery option for watchface to suspend activity when not used
+* Configurable shake animation duration
+* Optional nearby-flight display
+* Nearby aircraft fetched from OpenSky Network when requested
+* Configurable flight search radius
+* Cached flight data and rate-limit handling
+* Automatic data refresh with configurable interval
+* Battery-saving update mode
+* Manual "refresh now" option
+##### Colors & styles
+* Separate daytime and nighttime color schemes
+* Main, accent and background colors can be customized
+* Ready-made color presets
+* Multiple icon styles: Simple, Hollow and Full Color
+* Configurable text/icon outlines for contrast
+* Example style gallery
+* Up to six personal Style Presets
+* Export/import designs as JSON
+* Style Presets can include layout, fonts, colors, hands, markers and feature arrangement
+##### Vibrations
+* Hourly vibration reminders
+* Configurable vibration interval
+* Start/end time
+* Active weekdays
+* Optional Quiet Time override
+##### Settings & preview
+* Live watchface preview while configuring
+* Font previews
+* Hand and marker previews
+* Weather icon previews
+* Feature-slot preview
+* Custom font import for settings-page preview
+* Configuration options adapt to the selected layout and font
 
 ## Project layout
 
