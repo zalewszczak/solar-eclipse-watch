@@ -107,43 +107,58 @@ Interactions & updates
 ## Project layout
 
 ```
-src/c/          Watch app (C)
+src/c/          Watch app (C); src/c/generated/ holds generator output
+                 (message_key_index.h -- see "Message keys" below)
 src/pkjs/        Phone-side JS: astronomy/weather fetching, and the
-                 settings page itself
+                 settings page itself; src/pkjs/data/generated/ holds
+                 the settings page's own generator output (baked-in
+                 preview images -- see "Build-time scripts" below)
 resources/       Fonts and images declared in package.json
-scripts/         Build-time helper scripts (see below)
+scripts/         Build-time generator scripts (see below), plus a
+                 standalone dev-only tool in `scripts/js table editor/`
+                 (see its own readme.md -- not part of the build)
 ```
 
 ## Building
 
+Run the generator scripts before `pebble build` -- one of them
+(`generate-message-keys.js`) writes a header the C side won't compile
+without, and the rest bake preview images the settings page won't
+have without them (see "Build-time scripts" below for why):
+
 ```
+node scripts/generate-all.js
 pebble build
 pebble install --emulator emery
 ```
 
 ## Build-time scripts
 
-The settings page is one self-contained `data:` URI with no server
-behind it, so it can't load external image files when it's actually
-open on the phone -- anything it previews (fonts, hand shapes, marker
-art, weather icons, ...) has to already be embedded as base64 by the
-time the app is built. Each of the scripts below handles one such
-preview set; every one of them is safe to run even before you've
-added its own source PNGs (a missing source image just means that one
-preview shows no picture in settings -- not an error, and it never
-affects that feature working on the watch itself).
+`scripts/generate-all.js` runs nine generator scripts in one fixed
+order (`generate-message-keys.js` first; `generate_hand_style_icons.py`
+before `generate-hand-style-icons.js`, since the latter bakes the
+former's own PNG output; the rest don't depend on each other). Most of
+them exist because the settings page is one self-contained `data:` URI
+with no server behind it, so it can't load external image files when
+it's actually open on the phone -- anything it previews (fonts, hand
+shapes, marker art, weather icons, style presets, ...) has to already
+be embedded as base64 by the time the app is built. One
+(`generate-message-keys.js`) is a different kind of generator: it
+writes a plain C header the watch app itself needs to compile, not a
+settings-page preview -- see its own section below. Every script here
+is safe to run even before you've added its own source PNGs (a missing
+source image just means that one preview shows no picture in settings
+-- not an error, and it never affects that feature working on the
+watch itself).
 
-Run them all at once, in the one order that actually matters
-(`generate_hand_style_icons.py` has to run before
-`generate-hand-style-icons.js`, since the latter bakes the former's
-own output):
+Run them all at once, in that one fixed order:
 
 ```
 node scripts/generate-all.js
 ```
 
 This keeps going even if one script fails (e.g. a missing optional
-dependency like `pngjs` or Pillow -- see each script's own section
+dependency like `pngjs`, `sharp` or Pillow -- see each script's own section
 below) and prints a pass/fail summary at the end, so one broken
 generator never blocks the others from still updating. See "Running
 it automatically" further down for wiring this into your own build
@@ -151,16 +166,46 @@ step instead of remembering to run it by hand.
 
 Quick reference (details for each are in their own section below):
 
-| Script | Runtime | What it embeds |
+| Script | Runtime | What it produces |
 | --- | --- | --- |
 | `generate-all.js` | Node | Runs every script below, in order |
+| `generate-message-keys.js` | Node | `src/c/generated/message_key_index.h` -- required for the watch app to compile, not a preview |
 | `generate-marker-previews.js` | Node | Bitmap marker style artwork (Modern/Swiss/Tally/Bell/Brown) |
-| `generate-infographics.js` | Node | Hand-style picker pictures, marker-preset pictures, hand-editor explainer diagrams |
+| `generate-infographics.js` | Node | Hand-style picker pictures, hand-editor explainer diagrams |
+| `generate-preset-previews.js` | Node + `sharp` | Procedural marker-preset pictures (none/minimal/small/big) |
 | `generate-example-style-previews.js` | Node | Example style gallery preview images |
 | `generate-font-previews.js` | Node | Real on-watch renderings for the font picker (Gothic/Bitham/LECO) |
 | `generate_hand_style_icons.py` | Python 3 + Pillow | Renders the 11 hand-style shape icons |
 | `generate-hand-style-icons.js` | Node | Bakes those 11 icons for the hand-style picker popup |
 | `generate-weather-icon-previews.js` | Node + `pngjs` | Weather icon style picker previews |
+
+## Message keys
+
+`src/c/generated/message_key_index.h` (the header the
+`SIMPLE_FIELD_MAP`/`BLOB_FIELD_MAP` tables in `comms_decoder.c`
+`#include`s) is generated, not hand-written. The Pebble SDK assigns each `MESSAGE_KEY_<n>` a real numeric value at
+*link* time, sequentially, in the order `package.json`'s
+`pebble.messageKeys` array lists them -- so those constants can't be
+referenced from a `static const` table initializer (they're extern
+variables, not compile-time constants). This script bakes each key's
+plain *array index* into `MK_<n>` `#define`s instead, which compile
+fine as integer literals; the field-mapping code adds
+`MESSAGE_KEY_MESSAGE_TYPE` back on at runtime to recover the real key.
+
+```
+node scripts/generate-message-keys.js
+```
+
+Unlike every other script on this page, this one has nothing to do
+with the settings page's own preview images -- it's a plain codegen
+step the **watch app** needs to even compile. Run it (or
+`generate-all.js`, which always runs it first) any time
+`messageKeys` changes in `package.json` -- an add, a remove, or a
+reorder -- before `pebble build`. The generated header is committed to
+the repo (easier to diff than regenerating on every clone), but it
+must be regenerated before building if `messageKeys` has moved since
+it was last written, or the field-mapping tables will read the wrong
+offsets.
 
 ## Style Presets: Example styles and custom presets
 
@@ -526,6 +571,39 @@ black shape, or it'll just draw on empty transparent canvas -- most
 styles just need an axial (x) position, but serpentine's own wavy
 centerline needs its actual curve position at that point too (see
 `serpentine_dot_point()`).
+
+## Marker preset previews
+
+The marker style picker popup also offers 4 **procedural** presets
+(none/minimal/small/big, drawn at runtime from plain shape parameters
+-- not to be confused with the 5 bitmap marker styles above, which are
+actual image resources) each with its own small preview picture,
+`resources/infographics/marker_preset_<name>.png` -> `src/pkjs/data/generated/marker-preset-images.js`:
+
+```
+npm install sharp --save-dev   # once
+node scripts/generate-preset-previews.js
+```
+
+Requires `sharp` (native image processing bindings) since, unlike the
+plain "read a PNG, base64 it" scripts above, this one also does real
+pixel work: it reads each `marker_preset_<name>.png` and makes any
+pure-black pixel transparent before embedding it, so the source art
+can be authored on a plain black canvas (no alpha channel to fuss
+with) and still show up correctly against the settings page's own
+background. `KNOWN_NAMES` in the script (`none`/`minimal`/`small`/
+`big`) is the fixed set of valid preset names -- a PNG whose filename
+doesn't match one of those four is ignored, and a name with no
+matching PNG yet just leaves that preset's button showing no preview
+picture (not an error, and it doesn't affect that preset working on
+the watch itself).
+
+Note this is a separate pipeline from `generate-infographics.js`
+above, even though `generate-infographics.js`'s own top-of-file
+comment still describes covering marker-preset pictures too -- that
+responsibility has since moved here; `generate-infographics.js`
+itself now only produces the hand-style picker pictures and hand-
+editor explainer diagrams.
 
 ## Weather icon style previews
 
