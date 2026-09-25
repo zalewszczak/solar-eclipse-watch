@@ -12,7 +12,7 @@ A clock, weather station and miniature sky monitor — designed to be rearranged
 | --- | --- | --- | --- | --- |
 | ![Digital bar watchface example](/screenshots/digitalbar.PNG) ![Digital bar watchface example 2](/screenshots/digitalbar2.PNG) | ![Digital top watchface example](/screenshots/digitaltop.PNG) ![Digital top watchface example 2](/screenshots/digitaltop2.png) | ![Analog example](/screenshots/analog.PNG) ![Analog example 2](/screenshots/analog2.PNG) | ![Big Digital example](/screenshots/bigdigital.PNG) ![Big Digital example 2](/screenshots/bigdigital2.PNG) | ![Grid example](/screenshots/grid4.PNG) ![Grid example 2](/screenshots/grid1.PNG) |
 ##### Clock appearance
->![Notification example](/screenshots/notificaitoncard2.PNG)
+>![Notification example](/screenshots/notificaitoncard2.PNG) ![Notification example 2](/screenshots/notificationcard3.PNG) 
 >*Clock and background shifting to stay visible on screen*
 * Large selection (65+) of digital and PebbleOS-inspired fonts
 * Optional seconds display
@@ -62,8 +62,8 @@ A clock, weather station and miniature sky monitor — designed to be rearranged
 * Configurable temperature, wind, air-quality and altitude units
 * Configurable weather refresh interval
 ##### Location
->![Flights example](/screenshots/flights.PNG)
->*Flights display with compass seek mode*
+>![Flights example](/screenshots/flights.PNG) ![Perseids example](/screenshots/perseids.PNG)
+>*Flights display with compass seek mode / Perseids being shown*
 * Automatic phone GPS location
 * Manual location search
 * Manual latitude/longitude
