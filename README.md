@@ -8,9 +8,9 @@ And when an eclipse is happening, Eclipz changes character: the Sun and Moon fol
 A clock, weather station and miniature sky monitor — designed to be rearranged until it feels like yours.
 ## Feature list
 ##### Clock layouts
-| Digital Bar | Digital Top | Big digital | Analog | Grid |
+| Digital Bar | Digital Top | Analog | Big digital | Grid |
 | --- | --- | --- | --- | --- |
-| ![Digital bar watchface example](/screenshots/digitalbar.PNG) | ![Digital top watchface example](/screenshots/digitaltop.PNG) | ![Big Digital example](/screenshots/bigdigital.PNG) | ![Analog example](/screenshots/analog.PNG) | ![Grid example](/screenshots/grid4.PNG) |
+| ![Digital bar watchface example](/screenshots/digitalbar.PNG) ![Digital bar watchface example 2](/screenshots/digitalbar2.PNG) | ![Digital top watchface example](/screenshots/digitaltop.PNG) ![Digital top watchface example 2](/screenshots/digitaltop2.PNG) | ![Analog example](/screenshots/analog.PNG) ![Analog example 2](/screenshots/analog2.PNG) | ![Big Digital example](/screenshots/bigdigital.PNG) ![Big Digital example 2](/screenshots/bigdigital2.PNG) | ![Grid example](/screenshots/grid4.PNG) ![Grid example 2](/screenshots/grid1.PNG) |
 ##### Clock appearance
 * Large selection (65+) of digital and PebbleOS-inspired fonts
 * Optional seconds display
@@ -57,6 +57,8 @@ A clock, weather station and miniature sky monitor — designed to be rearranged
 * Configurable temperature, wind, air-quality and altitude units
 * Configurable weather refresh interval
 ##### Location
+![Flights example](/screenshots/flights.PNG)
+Flights display with compass seek mode
 * Automatic phone GPS location
 * Manual location search
 * Manual latitude/longitude
@@ -88,6 +90,7 @@ Interactions & updates
 * Active weekdays
 * Optional Quiet Time override
 ##### Settings & preview
+![Settings example](/screenshots/settingspage.PNG | width=100)
 * Live watchface preview while configuring
 * Font previews
 * Hand and marker previews
