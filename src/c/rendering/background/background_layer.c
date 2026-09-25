@@ -140,7 +140,21 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
     need_full_draw = true;
   }
 
-  if (!need_full_draw && background_cache_blit(&state->cache, ctx, bounds)) {
+  // The cache is normally useful because the sky/celestial composition only
+  // needs to be rebuilt periodically.  During an animation, however, the
+  // celestial positions are time-dependent and must be recomputed on every
+  // frame.  Blitting the cached frame here used to make the screen redraw
+  // correctly while `state->celestial` remained frozen at the first animation
+  // frame.  Planet-seek in particular made this obvious with longer shake
+  // durations: labels continued to redraw, but the bodies stopped following
+  // their current positions.  The startup planet sweep has the same
+  // requirement.
+  bool animation_needs_fresh_celestial =
+      state->planet_seek_active ||
+      (state->bg_anim_active && d->bg_anim_mode == 1);
+
+  if (!need_full_draw && !animation_needs_fresh_celestial &&
+      background_cache_blit(&state->cache, ctx, bounds)) {
     if (state->planet_seek_active) {
       GColor bg, main_color, accent_color;
       eclipse_ui_get_active_color_scheme(d, now, &bg, &main_color, &accent_color);
