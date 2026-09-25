@@ -700,6 +700,36 @@ directWebfontStyle() +
 '  .about-source:active { text-decoration: underline; }' +
 '  .about-ok-btn { width: 100%; padding: 11px; font-size: 14px; font-weight: 700; color: var(--text-strong); background: var(--border-light); border: none; border-radius: 8px; margin-top: 8px; }' +
 '  .about-ok-btn:active { background: var(--border); }' +
+// Ten taps on the logo unlock a deliberately hidden retro terminal
+// treatment.  It is a CSS theme switch rather than a second rendering
+// implementation, so the rest of the settings page keeps behaving exactly
+// as before.  The two palettes below intentionally follow the browser's
+// own day/night preference.
+'  body.retro-easter-egg { --retro-bg: #edf3e6; --retro-card: #f8fbf4; --retro-text: #174c2d; --retro-strong: #083b20; --retro-muted: #3f7455; --retro-border: #6c9a7b; --retro-accent: #176b3d; --retro-shadow: rgba(23,107,61,.22); font-family: "Courier New", Courier, monospace; background: var(--retro-bg); color: var(--retro-text); }' +
+'  body.retro-easter-egg::after { content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 99998; background: repeating-linear-gradient(to bottom, rgba(23,107,61,.045) 0, rgba(23,107,61,.045) 1px, transparent 1px, transparent 4px); mix-blend-mode: multiply; opacity: .65; }' +
+'  body.retro-easter-egg #topBar, body.retro-easter-egg .save-bar { background: var(--retro-bg); box-shadow: 0 2px 0 var(--retro-border); }' +
+'  body.retro-easter-egg fieldset, body.retro-easter-egg .modal-box { background: var(--retro-card); border: 2px solid var(--retro-border); border-radius: 0; box-shadow: 4px 4px 0 var(--retro-shadow); }' +
+'  body.retro-easter-egg input[type=text], body.retro-easter-egg input[type=number], body.retro-easter-egg input[type=time], body.retro-easter-egg input[type=datetime-local], body.retro-easter-egg select { background: var(--retro-card); color: var(--retro-text); border-color: var(--retro-border); border-radius: 0; font-family: inherit; box-shadow: inset 2px 2px 0 rgba(23,107,61,.08); }' +
+'  body.retro-easter-egg button { border-radius: 0 !important; font-family: inherit; }' +
+'  body.retro-easter-egg .back-btn, body.retro-easter-egg .about-btn, body.retro-easter-egg .secondary-btn, body.retro-easter-egg .mode-btn, body.retro-easter-egg .color-role-btn, body.retro-easter-egg .service-info-btn { background: var(--retro-card); color: var(--retro-text); border-color: var(--retro-border); box-shadow: 2px 2px 0 var(--retro-shadow); }' +
+'  body.retro-easter-egg .donate-btn { background: var(--retro-accent); color: var(--retro-card); border: 2px solid var(--retro-strong); border-radius: 0; box-shadow: 2px 2px 0 var(--retro-strong); animation: none; }' +
+'  body.retro-easter-egg .top-bar-title, body.retro-easter-egg .section-title, body.retro-easter-egg label, body.retro-easter-egg .modal-title { letter-spacing: .04em; text-transform: uppercase; }' +
+'  body.retro-easter-egg .about-modal-box { border: 2px solid var(--retro-accent); box-shadow: 6px 6px 0 var(--retro-shadow); }' +
+'  body.retro-easter-egg .about-logo { image-rendering: pixelated; border-radius: 0; border: 2px solid var(--retro-accent); padding: 2px; background: var(--retro-card); cursor: pointer; }' +
+'  body.retro-easter-egg .about-title { color: var(--retro-strong); letter-spacing: .12em; text-transform: uppercase; }' +
+'  body.retro-easter-egg .about-subtitle, body.retro-easter-egg .about-description, body.retro-easter-egg .about-info-label { color: var(--retro-muted); }' +
+'  body.retro-easter-egg .about-info { background: var(--retro-bg); border-color: var(--retro-border); border-radius: 0; }' +
+'  body.retro-easter-egg .about-info-value { color: var(--retro-text); }' +
+'  body.retro-easter-egg .about-source { color: var(--retro-accent); font-weight: 700; }' +
+'  body.retro-easter-egg .about-ok-btn { background: var(--retro-accent); color: var(--retro-card); border: 2px solid var(--retro-strong); box-shadow: 2px 2px 0 var(--retro-strong); }' +
+'  @media (prefers-color-scheme: dark) {' +
+'    body.retro-easter-egg { --retro-bg: #07110b; --retro-card: #0d1b12; --retro-text: #76e69a; --retro-strong: #a1ffbd; --retro-muted: #54aa70; --retro-border: #286b42; --retro-accent: #43bd69; --retro-shadow: rgba(0,0,0,.7); }' +
+'    body.retro-easter-egg::after { background: repeating-linear-gradient(to bottom, rgba(118,230,154,.055) 0, rgba(118,230,154,.055) 1px, transparent 1px, transparent 4px); mix-blend-mode: screen; opacity: .7; }' +
+'  }' +
+'  @keyframes retro-easter-flicker { 0%, 100% { opacity: 1; } 47% { opacity: .96; } 48% { opacity: .78; } 49% { opacity: 1; } }' +
+'  @keyframes retro-easter-flash { 0% { filter: brightness(1); transform: scale(1); } 35% { filter: brightness(1.8); transform: scale(1.08); } 100% { filter: brightness(1); transform: scale(1); } }' +
+'  .about-logo.retro-easter-flash { animation: retro-easter-flash 420ms steps(3,end); }' +
+'  body.retro-easter-egg .about-modal-box { animation: retro-easter-flicker 3.8s steps(1,end) infinite, about-modal-in 360ms cubic-bezier(.18,.9,.25,1.15) both; }' +
 '  .modal-title { font-weight: 600; font-size: 15px; margin-bottom: 10px; text-align: center; color: var(--text); flex: 0 0 auto; }' +
 '  .donate-modal-box { position: relative; animation: donate-modal-in 480ms cubic-bezier(.2,.85,.25,1) both; }' +
 '  @keyframes donate-modal-in { from { transform: translateY(28px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }' +
@@ -1090,7 +1120,7 @@ directWebfontStyle() +
 
 '<div class="modal-overlay" id="aboutModal" onclick="if (event.target === this) closeAboutModal();">' +
 '  <div class="modal-box about-modal-box">' +
-'    <img class="about-logo" src="' + ABOUT_LOGO_DATA_URI + '" alt="Eclipz logo">' +
+'    <img class="about-logo" id="aboutEasterEggLogo" src="' + ABOUT_LOGO_DATA_URI + '" alt="Eclipz logo" onclick="tapAboutLogo()" title="Eclipz">' +
 '    <div class="about-title">Eclipz</div>' +
 '    <div class="about-subtitle">Solar eclipse watchface for Pebble</div>' +
 '    <div class="about-info">' +
@@ -5027,6 +5057,27 @@ require('./config/config-preview') +
 // layout rather than assuming a fixed value, and pushes the
 // scrollable content down by exactly that much so nothing starts out
 // hidden underneath it.
+'var aboutLogoTapCount = 0;' +
+'var aboutLogoTapResetTimer = 0;' +
+'function tapAboutLogo() {' +
+'  aboutLogoTapCount++;' +
+'  if (aboutLogoTapResetTimer) window.clearTimeout(aboutLogoTapResetTimer);' +
+'  if (aboutLogoTapCount >= 10) {' +
+'    aboutLogoTapCount = 0;' +
+'    document.body.classList.add("retro-easter-egg");' +
+'    var logo = document.getElementById("aboutEasterEggLogo");' +
+'    if (logo) {' +
+'      logo.classList.remove("retro-easter-flash");' +
+'      void logo.offsetWidth;' +
+'      logo.classList.add("retro-easter-flash");' +
+'    }' +
+'    return;' +
+'  }' +
+'  aboutLogoTapResetTimer = window.setTimeout(function() {' +
+'    aboutLogoTapCount = 0;' +
+'    aboutLogoTapResetTimer = 0;' +
+'  }, 2200);' +
+'}' +
 'function openAboutModal(button) {' +
 '  var modal = document.getElementById("aboutModal");' +
 '  var box = modal ? modal.querySelector(".about-modal-box") : null;' +
