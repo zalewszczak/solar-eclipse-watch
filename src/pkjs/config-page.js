@@ -263,6 +263,7 @@ var presetSlotHtml = configPresets.presetSlotHtml;
 var configDebug = require('./config/config-debug');
 var serviceStatusRowsHtml = configDebug.serviceStatusRowsHtml;
 var rawMessageLogButtonsHtml = configDebug.rawMessageLogButtonsHtml;
+var fakeWeatherPanelHtml = configDebug.fakeWeatherPanelHtml;
 
 var FAQ_ITEMS = PRESETS_LOOKUPS.FAQ_ITEMS;
 
@@ -2005,6 +2006,8 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '      <div class="help" id="help-debugOverrideEnabled" style="display:none;">Sends the edited test data instead of normal calculated data. Nothing is saved.</div>' +
 '    </div>' +
 
+      fakeWeatherPanelHtml(current) +
+
 '    <div class="subsection">' +
 '      <div class="field-label-row"><label>Full keyset (every current value)</label><button type="button" class="help-btn" onclick="toggleHelp(\'help-fullKeyset\')">?</button></div>' +
 '      <div class="help" id="help-fullKeyset" style="display:none;">Shows all available data fields and their current values. A manual send affects that send only.</div>' +
@@ -2131,6 +2134,60 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '  }' +
 '  var returnTo = getQueryParam("return_to", "pebblejs://close#");' +
 '  var payload = { CONFIG_SEND_FULL_KEYSET: true, CONFIG_FULL_KEYSET_DATA: text };' +
+'  document.location = returnTo + encodeURIComponent(JSON.stringify(payload));' +
+'}' +
+// 8-point compass label for the wind-direction slider's live readout
+// -- same +22/45 bucketing as the watch\'s own compass-arrow feature
+// slot (see case 35 in feature_value_weather.c) so the label shown
+// here always matches what the watch itself would display.
+'function compassLabelForDeg(deg) {' +
+'  var DIRS = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];' +
+'  var idx = Math.floor((Number(deg) + 22) / 45) % 8;' +
+'  if (idx < 0) idx += 8;' +
+'  return DIRS[idx];' +
+'}' +
+// Fake weather panel\'s own Send button (see fakeWeatherPanelHtml() in
+// config/config-debug.js for the sliders themselves) -- reads every
+// fakeWx* control, builds just the WEATHER-chunk (plus
+// CLOUD_ALTITUDE_PCT) fields as a flat dict, and closes the page
+// carrying it plus its own marker flag, same "separate parallel exit
+// from Save, nothing persisted" pattern as sendFullKeysetToWatch()
+// above -- see index.js\'s webviewclosed handler for the matching
+// CONFIG_SEND_FAKE_WEATHER branch, which enqueues this dict as-is and
+// returns before any of the normal setSetting()/save-flow code runs.
+// WEATHER_ERROR_CODE is always forced to 0 here (never exposed as a
+// slider) so a spoofed reading always reads as fresh/healthy rather
+// than risking a stale "ERR ###" left over from a real failed fetch;
+// WEATHER_LAST_UPDATE is stamped to right now for the same reason.
+'function buildFakeWeatherDict() {' +
+'  function iv(id) { return parseInt(document.getElementById(id).value, 10); }' +
+'  return {' +
+'    WEATHER_CONDITION: iv("fakeWxCondition"),' +
+'    CLOUD_COVER: iv("fakeWxCloudCover"),' +
+'    VIS_SCORE: iv("fakeWxVisScore"),' +
+'    CLOUD_ALTITUDE_PCT: iv("fakeWxCloudAltitude"),' +
+'    WEATHER_TEMP_C: iv("fakeWxTempC"),' +
+'    WEATHER_TEMP_HIGH_C: iv("fakeWxTempHighC"),' +
+'    WEATHER_TEMP_LOW_C: iv("fakeWxTempLowC"),' +
+'    UV_INDEX_X10: iv("fakeWxUvMax"),' +
+'    UV_INDEX_CURRENT_X10: iv("fakeWxUvCurrent"),' +
+'    RAIN_CHANCE_PCT: iv("fakeWxRainChance"),' +
+'    HUMIDITY_PCT: iv("fakeWxHumidity"),' +
+'    WIND_SPEED_KMH: iv("fakeWxWindSpeed"),' +
+'    WIND_DIR_DEG: iv("fakeWxWindDir"),' +
+'    DEW_POINT_C: iv("fakeWxDewPoint"),' +
+'    PRESSURE_HPA: iv("fakeWxPressure"),' +
+'    PRESSURE_TREND: iv("fakeWxPressureTrend"),' +
+'    AQI_US: iv("fakeWxAqiUs"),' +
+'    AQI_EU: iv("fakeWxAqiEu"),' +
+'    WEATHER_ERROR_CODE: 0,' +
+'    WEATHER_LAST_UPDATE: Math.floor(Date.now() / 1000)' +
+'  };' +
+'}' +
+'function sendFakeWeatherToWatch() {' +
+'  var dict = buildFakeWeatherDict();' +
+'  var returnTo = getQueryParam("return_to", "pebblejs://close#");' +
+'  var payload = { CONFIG_SEND_FAKE_WEATHER: true, CONFIG_FAKE_WEATHER_DATA: JSON.stringify(dict) };' +
 '  document.location = returnTo + encodeURIComponent(JSON.stringify(payload));' +
 '}' +
 // Boils a Nominatim `address` object (city/town/village/... + country)

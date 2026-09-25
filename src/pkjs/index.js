@@ -802,6 +802,29 @@ Pebble.addEventListener('webviewclosed', function (e) {
     return;
   }
 
+  // Debug-only fake weather send (see config-page.js's "Fake weather"
+  // panel and its own sendFakeWeatherToWatch()/buildFakeWeatherDict()):
+  // same shape as the CONFIG_SEND_FULL_KEYSET branch just above, just
+  // for the smaller WEATHER-chunk-only dict that panel builds instead
+  // of the full keyset -- enqueue it as-is and return before any of
+  // the normal setSetting()/save-flow code below runs, so nothing
+  // about a spoofed weather push is persisted and no other setting
+  // changes.
+  if (settings.CONFIG_SEND_FAKE_WEATHER) {
+    try {
+      var fakeWeather = JSON.parse(settings.CONFIG_FAKE_WEATHER_DATA);
+      if (fakeWeather && typeof fakeWeather === 'object') {
+        enqueueFlatDict(fakeWeather);
+        console.log('eclipse-watch: fake weather debug send queued');
+      } else {
+        console.log('eclipse-watch: fake weather debug send skipped -- not a JSON object');
+      }
+    } catch (err) {
+      console.log('eclipse-watch: fake weather debug send failed to parse: ' + err.message);
+    }
+    return;
+  }
+
   setSetting('CONFIG_AUTO_LOC', settings.CONFIG_AUTO_LOC ? 'true' : 'false');
   setSetting('CONFIG_LAT', settings.CONFIG_LAT || '');
   setSetting('CONFIG_LON', settings.CONFIG_LON || '');
