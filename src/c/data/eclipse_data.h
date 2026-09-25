@@ -123,7 +123,18 @@ typedef struct {
   uint8_t night_custom_text;
   uint8_t night_custom_accent;
 
-  // 1 = analog; other values select digital layouts.
+  // 0  Digital Bar, no side features
+  //  1  Analog / full-screen analog
+  //  2  Digital Bar, right-side feature
+  //  3  Digital Bar, left-side feature
+  //  4  Digital Bar, both left + right side features
+  //  5  Digital Top, no side features
+  //  6  Unused?
+  //  7  Digital Top, right-side feature
+  //  8  Digital Top, left-side feature
+  //  9  Digital Top, both left + right side features
+  //  10  Big Digital
+  //  11  Grid
   uint8_t bottom_style;
 
   uint8_t sun_moon_size_pct; // 25, 50, 75 or 100 percent.

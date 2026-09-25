@@ -209,6 +209,14 @@ void clock_display_reparent_countdown(Layer *parent) {
   if (!s_countdown_layer) return;
   layer_remove_from_parent(s_countdown_layer);
   layer_add_child(parent, s_countdown_layer);
+  int8_t y_offset = 0;
+  if (s_data->bottom_style >= 5 && s_data->bottom_style < 10) { // Digital top
+    y_offset = 70;
+  } else if (s_data->bottom_style <= 4) { // Digital bar / analog
+    y_offset = 25;
+  }
+  GRect frame = GRect(0, y_offset, layer_get_frame(s_countdown_layer).size.w, 20);
+  layer_set_frame(s_countdown_layer, frame);
 }
 
 void clock_display_apply_font(void) {
