@@ -9,9 +9,8 @@ A clock, weather station and miniature sky monitor — designed to be rearranged
 ## Feature list
 ##### Clock layouts
  | Digital | Big digital | Analog | Grid |
-| --- | --- |
-|  ![Digital watchface example](/screenshots/digitaltop.PNG) |   ![Big Digital example](/screenshots/bigdigital.PNG) |
-|  |  |
+| --- | --- | --- | --- |
+| ![Digital watchface example](/screenshots/digitaltop.PNG) | ![Big Digital example](/screenshots/bigdigital.PNG) |  |  |
 ##### Clock appearance
 * Large selection (65+) of digital and PebbleOS-inspired fonts
 * Optional seconds display
