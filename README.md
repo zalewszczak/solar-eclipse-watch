@@ -44,6 +44,8 @@ A clock, weather station and miniature sky monitor — designed to be rearranged
 * Next ISS pass
 * Aurora Kp index
 ##### Sky & astronomy
+>![Digital Bar Eclipse](/screenshots/eclipse_digital_bar.png)![Digital Top Eclipse](/screenshots/eclipse_digital_top.png)![Big Analog Eclipse](/screenshots/eclipse_big_analog.png)![Big Digital Eclipse](/screenshots/eclipse_big_digital.png)![Grid View Eclipse](/screenshots/eclipse_grid_view.png)
+>*Eclipse view adjusts to all layouts*
 * Dynamic Sun and Moon
 * Solar eclipse calculations for the selected location
 * Eclipse phases and countdowns
@@ -85,8 +87,7 @@ Interactions & updates
 * Example style gallery
 * Up to six personal Style Presets
 * Export/import designs as JSON
-* Style Presets can include layout, fonts, colors, hands, markers and feature arrangement
-##### Vibrations
+##### Hourly Vibrations
 * Hourly vibration reminders
 * Configurable vibration interval
 * Start/end time
