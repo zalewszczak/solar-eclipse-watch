@@ -94,12 +94,43 @@ static void compass_feature_handler(CompassHeadingData data) {
   }
 }
 
+// Pebble's CompassService supports one subscription callback per app. Both
+// Planet Seek and the visible Compass feature can be active after the same
+// shake, so keep a single shared subscription and fan the reading out to the
+// consumers that currently need it.
+static void shared_compass_handler(CompassHeadingData data) {
+  if (shake_anim_wants_planet_seek(s_data ? s_data->shake_anim_mode : 0) && s_shake_anim_active) {
+    planet_seek_compass_handler(data);
+  }
+  if (s_compass_feature_active) {
+    compass_feature_handler(data);
+  }
+}
+
+static bool compass_service_needed(void) {
+  return (s_shake_anim_active &&
+           shake_anim_wants_planet_seek(s_data ? s_data->shake_anim_mode : 0)) ||
+         s_compass_feature_active;
+}
+
+static void compass_service_ensure_subscribed(void) {
+  if (compass_service_needed()) {
+    compass_service_subscribe(shared_compass_handler);
+  }
+}
+
+static void compass_service_maybe_unsubscribe(void) {
+  if (!compass_service_needed()) {
+    compass_service_unsubscribe();
+  }
+}
+
 static void compass_feature_timer_callback(void *data) {
   s_compass_feature_elapsed_ms += COMPASS_FEATURE_FRAME_MS;
   if (s_compass_feature_elapsed_ms >= COMPASS_FEATURE_DURATION_MS) {
     s_compass_feature_active = false;
     s_compass_feature_timer = NULL;
-    compass_service_unsubscribe();
+    compass_service_maybe_unsubscribe();
   } else {
     s_compass_feature_timer = app_timer_register(COMPASS_FEATURE_FRAME_MS, compass_feature_timer_callback, NULL);
   }
@@ -112,7 +143,7 @@ static void maybe_start_compass_feature(void) {
   s_compass_feature_elapsed_ms = 0;
   if (s_compass_feature_timer) app_timer_cancel(s_compass_feature_timer);
   s_compass_feature_timer = app_timer_register(COMPASS_FEATURE_FRAME_MS, compass_feature_timer_callback, NULL);
-  compass_service_subscribe(compass_feature_handler);
+  compass_service_ensure_subscribed();
 }
 
 static void shake_anim_timer_callback(void *data) {
@@ -129,7 +160,7 @@ static void shake_anim_timer_callback(void *data) {
   if (!still_active) {
     s_shake_anim_active = false;
     s_shake_anim_timer = NULL;
-    if (planet_seek_wanted) compass_service_unsubscribe();
+    if (planet_seek_wanted) compass_service_maybe_unsubscribe();
   } else {
     s_shake_anim_timer = app_timer_register(SHAKE_ANIM_FRAME_MS, shake_anim_timer_callback, NULL);
   }
@@ -151,7 +182,7 @@ static void maybe_start_shake_animation(void) {
     if (s_data->show_flights || s_data->show_iss) comms_maybe_request_flights(s_data);
 
     s_planet_seek_heading_has_reading = false;
-    compass_service_subscribe(planet_seek_compass_handler);
+    compass_service_ensure_subscribed();
   }
 }
 
