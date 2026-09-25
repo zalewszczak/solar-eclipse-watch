@@ -25,7 +25,7 @@
  * what you see here is exactly what you'll get.
  */
 
-var APP_VERSION = "1.2-rc-candidate";
+var APP_VERSION = "1.3-rc-candidate";
 
 // servicelog require removed here -- serviceStatusRowsHtml() (its
 // only user in this file) moved to config/config-debug.js, which
