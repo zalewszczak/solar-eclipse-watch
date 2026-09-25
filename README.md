@@ -8,9 +8,9 @@ And when an eclipse is happening, Eclipz changes character: the Sun and Moon fol
 A clock, weather station and miniature sky monitor — designed to be rearranged until it feels like yours.
 ## Feature list
 ##### Clock layouts
- | Digital | Big digital | Analog | Grid |
-| --- | --- | --- | --- |
-| ![Digital watchface example](/screenshots/digitaltop.PNG) | ![Big Digital example](/screenshots/bigdigital.PNG) |  |  |
+| Digital Bar | Digital Top | Big digital | Analog | Grid |
+| --- | --- | --- | --- | --- |
+| ![Digital bar watchface example](/screenshots/digitalbar.PNG) | ![Digital top watchface example](/screenshots/digitaltop.PNG) | ![Big Digital example](/screenshots/bigdigital.PNG) | ![Analog example](/screenshots/analog.PNG) | ![Grid example](/screenshots/grid4.PNG) |
 ##### Clock appearance
 * Large selection (65+) of digital and PebbleOS-inspired fonts
 * Optional seconds display
