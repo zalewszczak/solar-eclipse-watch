@@ -17,7 +17,14 @@
     "moon",
     "phases",
     "health",
-    "steps"
+    "steps",
+    "flights",
+    "planes",
+    "aurora",
+    "sky",
+    "stars",
+    "sun",
+    "realistic"
   ],
   "private": true,
   "pebble": {
