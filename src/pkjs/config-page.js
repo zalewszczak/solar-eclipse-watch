@@ -25,6 +25,8 @@
  * what you see here is exactly what you'll get.
  */
 
+var APP_VERSION = "1.3-rc-candidate";
+
 // servicelog require removed here -- serviceStatusRowsHtml() (its
 // only user in this file) moved to config/config-debug.js, which
 // requires it directly now.
@@ -41,6 +43,18 @@ var CORNER_COLOR_MODE_LABELS = PRESETS_LOOKUPS.CORNER_COLOR_MODE_LABELS;
 var CORNER_CATEGORIES = PRESETS_LOOKUPS.CORNER_CATEGORIES;
 var HAND_PRESETS = PRESETS_LOOKUPS.HAND_PRESETS;
 var MARKER_STYLE_PRESET_FIELDS = PRESETS_LOOKUPS.MARKER_STYLE_PRESET_FIELDS;
+var ABOUT_LOGO_SVG = require('./data/generated/about-logo-svg');
+// Renders the traced Eclipz mark as an inline <svg fill="currentColor">
+// rather than an <img src="data:...">, so the mark's color comes from
+// CSS (`color`) -- see .about-btn-logo/.about-logo in the stylesheet
+// for the black-in-light/white-in-dark rule -- instead of being baked
+// into a fixed-color raster image. className/attrs are plain strings
+// spliced into the tag, matching how the rest of this file builds markup.
+function aboutLogoMarkup(className, attrs) {
+  return '<svg class="' + className + '" viewBox="' + ABOUT_LOGO_SVG.viewBox + '"' +
+    ' xmlns="http://www.w3.org/2000/svg"' + (attrs || '') + '>' +
+    '<path fill-rule="evenodd" d="' + ABOUT_LOGO_SVG.path + '"/></svg>';
+}
 
 // The 7 corner/edge base field names that mean something different in
 // Analog vs Digital (bar/top) -- an analog edge line vs. a digital
@@ -266,6 +280,7 @@ var configPresetSchedule = require('./config/config-preset-schedule');
 var configDebug = require('./config/config-debug');
 var serviceStatusRowsHtml = configDebug.serviceStatusRowsHtml;
 var rawMessageLogButtonsHtml = configDebug.rawMessageLogButtonsHtml;
+var fakeWeatherPanelHtml = configDebug.fakeWeatherPanelHtml;
 
 var FAQ_ITEMS = PRESETS_LOOKUPS.FAQ_ITEMS;
 
@@ -634,6 +649,10 @@ configPresetSchedule.css +
 '  .top-bar-actions { display: flex; gap: 6px; align-items: center; }' +
 '  .back-btn { padding: 6px 10px; font-size: 13px; font-weight: 600; color: var(--text-strong); background: var(--card-bg); border: 1px solid var(--border); border-radius: 6px; }' +
 '  .back-btn:active { background: var(--border-light); }' +
+'  .about-btn { width: 30px; height: 30px; padding: 3px; display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; border: 1px solid var(--border); border-radius: 6px; background: var(--card-bg); box-shadow: 0 1px 3px rgba(0,0,0,0.12); }' +
+'  .about-btn-logo { display: block; width: 22px; height: 22px; border-radius: 4px; fill: currentColor; color: #000; }' +
+'  @media (prefers-color-scheme: dark) { .about-btn-logo { color: #fff; } }' +
+'  .about-btn:active { background: var(--border-light); transform: scale(0.96); }' +
 // Soft, slow pastel cycle rather than the vivid orange pulse this used
 // to be -- 5 gentle hues (pink, peach, buttery yellow, mint, sky blue)
 // so it visibly moves through distinct colors rather than oscillating
@@ -682,6 +701,119 @@ configPresetSchedule.css +
 '  .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: none; align-items: flex-end; justify-content: center; z-index: 100; overflow: hidden; }' +
 '  .modal-overlay.open { display: flex; }' +
 '  .modal-box { background: var(--card-bg); border-radius: 12px 12px 0 0; padding: 16px; width: 100%; max-width: 400px; max-height: 80vh; box-sizing: border-box; display: flex; flex-direction: column; overflow: hidden; }' +
+'  #aboutModal { align-items: center; }' +
+'  .about-modal-box { width: calc(100% - 32px); max-width: 340px; max-height: 78vh; border-radius: 14px; padding: 18px; box-shadow: 0 14px 42px rgba(0,0,0,0.28); transform-origin: center center; animation: about-modal-in 360ms cubic-bezier(.18,.9,.25,1.15) both; }' +
+'  @keyframes about-modal-in { from { transform: translate(var(--about-dx, 0px), var(--about-dy, 0px)) scale(.08); opacity: 0; } 65% { transform: translate(0, 0) scale(1.025); opacity: 1; } to { transform: translate(0, 0) scale(1); opacity: 1; } }' +
+'  .about-logo { width: 62px; height: 62px; margin: 0 auto 10px; display: block; border-radius: 12px; cursor: pointer; transform-origin: 50% 50%; -webkit-tap-highlight-color: transparent; user-select: none; fill: currentColor; color: #000; }' +
+'  @media (prefers-color-scheme: dark) { .about-logo { color: #fff; } }' +
+'  .about-logo.logo-tap-effect { animation: about-logo-tap 560ms cubic-bezier(.18,.9,.25,1.2); }' +
+'  @keyframes about-logo-tap { 0% { transform: scale(1) rotate(0deg); filter: brightness(1); box-shadow: 0 0 0 0 rgba(255,255,255,0); } 18% { transform: scale(.88) rotate(-7deg); filter: brightness(1.35); box-shadow: 0 0 0 5px rgba(255,255,255,.16), 0 0 18px 4px rgba(255,205,92,.28); } 42% { transform: scale(1.14) rotate(5deg); filter: brightness(1.75); box-shadow: 0 0 0 10px rgba(255,255,255,.07), 0 0 28px 8px rgba(255,205,92,.20); } 68% { transform: scale(.97) rotate(-2deg); filter: brightness(1.12); box-shadow: 0 0 0 4px rgba(255,255,255,.08), 0 0 12px 2px rgba(255,205,92,.12); } 100% { transform: scale(1) rotate(0deg); filter: brightness(1); box-shadow: 0 0 0 0 rgba(255,255,255,0); } }' +
+'  .about-logo.logo-tap-effect::selection { background: transparent; }' +
+'  .about-title { text-align: center; font-size: 20px; line-height: 1.1; font-weight: 800; color: var(--text-strong); }' +
+'  .about-subtitle { margin-top: 4px; text-align: center; font-size: 12px; color: var(--text-muted); }' +
+'  .about-info { margin-top: 16px; padding: 11px 12px; border: 1px solid var(--border-light); border-radius: 9px; background: var(--page-bg); }' +
+'  .about-info-row { display: flex; gap: 10px; padding: 4px 0; font-size: 12px; line-height: 1.35; }' +
+'  .about-info-label { flex: 0 0 72px; font-weight: 700; color: var(--text-muted); }' +
+'  .about-info-value { min-width: 0; flex: 1 1 auto; color: var(--text); }' +
+'  .about-description { margin: 13px 2px 0; text-align: center; font-size: 11px; line-height: 1.45; color: var(--text-muted); }' +
+'  .about-source { display: block; margin: 15px 2px 0; text-align: center; font-size: 11px; line-height: 1.35; color: #3f6fa8; text-decoration: none; word-break: break-word; }' +
+'  .about-source:active { text-decoration: underline; }' +
+'  .about-ok-btn { width: 100%; padding: 11px; font-size: 14px; font-weight: 700; color: var(--text-strong); background: var(--border-light); border: none; border-radius: 8px; margin-top: 8px; }' +
+'  .about-ok-btn:active { background: var(--border); }' +
+// Ten taps on the logo unlock a deliberately hidden retro terminal
+// treatment.  It is a CSS theme switch rather than a second rendering
+// implementation, so the rest of the settings page keeps behaving exactly
+// as before.  The two palettes below intentionally follow the browser's
+// own day/night preference.
+'  body.retro-easter-egg { --retro-bg: #edf3e6; --retro-card: #f8fbf4; --retro-text: #174c2d; --retro-strong: #083b20; --retro-muted: #3f7455; --retro-border: #6c9a7b; --retro-accent: #176b3d; --retro-shadow: rgba(23,107,61,.22); font-family: "Courier New", Courier, monospace; background: var(--retro-bg); color: var(--retro-text); }' +
+'  body.retro-easter-egg::after { content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 99998; background: repeating-linear-gradient(to bottom, rgba(23,107,61,.045) 0, rgba(23,107,61,.045) 1px, transparent 1px, transparent 4px); mix-blend-mode: multiply; opacity: .65; }' +
+'  body.retro-easter-egg #topBar, body.retro-easter-egg .save-bar { background: var(--retro-bg); box-shadow: 0 2px 0 var(--retro-border); }' +
+'  body.retro-easter-egg fieldset, body.retro-easter-egg .modal-box { background: var(--retro-card); border: 2px solid var(--retro-border); border-radius: 0; box-shadow: 4px 4px 0 var(--retro-shadow); }' +
+'  body.retro-easter-egg input[type=text], body.retro-easter-egg input[type=number], body.retro-easter-egg input[type=time], body.retro-easter-egg input[type=datetime-local], body.retro-easter-egg select { background: var(--retro-card); color: var(--retro-text); border-color: var(--retro-border); border-radius: 0; font-family: inherit; box-shadow: inset 2px 2px 0 rgba(23,107,61,.08); }' +
+'  body.retro-easter-egg button { border-radius: 0 !important; font-family: inherit; }' +
+'  body.retro-easter-egg .back-btn, body.retro-easter-egg .about-btn, body.retro-easter-egg .secondary-btn, body.retro-easter-egg .mode-btn, body.retro-easter-egg .color-role-btn, body.retro-easter-egg .service-info-btn { background: var(--retro-card); color: var(--retro-text); border-color: var(--retro-border); box-shadow: 2px 2px 0 var(--retro-shadow); }' +
+'  body.retro-easter-egg .donate-btn { background: var(--retro-accent); color: var(--retro-card); border: 2px solid var(--retro-strong); border-radius: 0; box-shadow: 2px 2px 0 var(--retro-strong); animation: none; }' +
+'  body.retro-easter-egg .top-bar-title, body.retro-easter-egg .section-title, body.retro-easter-egg label, body.retro-easter-egg .modal-title { letter-spacing: .04em; text-transform: uppercase; }' +
+'  body.retro-easter-egg .about-modal-box { border: 2px solid var(--retro-accent); box-shadow: 6px 6px 0 var(--retro-shadow); }' +
+'  body.retro-easter-egg .about-logo { image-rendering: pixelated; border-radius: 0; border: 2px solid var(--retro-accent); padding: 2px; background: var(--retro-card); cursor: pointer; }' +
+'  body.retro-easter-egg .about-title { color: var(--retro-strong); letter-spacing: .12em; text-transform: uppercase; }' +
+'  body.retro-easter-egg .about-subtitle, body.retro-easter-egg .about-description, body.retro-easter-egg .about-info-label { color: var(--retro-muted); }' +
+'  body.retro-easter-egg .about-info { background: var(--retro-bg); border-color: var(--retro-border); border-radius: 0; }' +
+'  body.retro-easter-egg .about-info-value { color: var(--retro-text); }' +
+'  body.retro-easter-egg .about-source { color: var(--retro-accent); font-weight: 700; }' +
+'  body.retro-easter-egg .about-ok-btn { background: var(--retro-accent); color: var(--retro-card); border: 2px solid var(--retro-strong); box-shadow: 2px 2px 0 var(--retro-strong); }' +
+// Retro Windows-style controls: chunky beveled track, square thumb, and
+// classic raised/sunken checkbox states.  These intentionally replace the
+// normal rounded mobile controls only while the hidden retro theme is active.
+'  body.retro-easter-egg input[type=range] { height: 30px; }' +
+'  body.retro-easter-egg input[type=range]::-webkit-slider-runnable-track { height: 10px; border-radius: 0; background: var(--retro-card); border: 2px solid var(--retro-border); box-shadow: inset 2px 2px 0 rgba(23,107,61,.16), inset -2px -2px 0 rgba(255,255,255,.55); }' +
+'  body.retro-easter-egg input[type=range]::-webkit-slider-thumb { width: 22px; height: 26px; margin-top: -10px; border-radius: 0; background: var(--retro-card); border: 2px solid var(--retro-strong); box-shadow: inset 2px 2px 0 rgba(255,255,255,.7), inset -2px -2px 0 rgba(23,107,61,.28), 2px 2px 0 var(--retro-shadow); }' +
+'  body.retro-easter-egg input[type=range]::-moz-range-track { height: 10px; border-radius: 0; background: var(--retro-card); border: 2px solid var(--retro-border); box-shadow: inset 2px 2px 0 rgba(23,107,61,.16), inset -2px -2px 0 rgba(255,255,255,.55); }' +
+'  body.retro-easter-egg input[type=range]::-moz-range-thumb { width: 22px; height: 26px; border-radius: 0; background: var(--retro-card); border: 2px solid var(--retro-strong); box-shadow: inset 2px 2px 0 rgba(255,255,255,.7), inset -2px -2px 0 rgba(23,107,61,.28), 2px 2px 0 var(--retro-shadow); }' +
+'  body.retro-easter-egg input[type=checkbox] { width: 26px; height: 26px; border-radius: 0; background: var(--retro-card); border: 2px solid var(--retro-strong); box-shadow: inset 2px 2px 0 rgba(23,107,61,.28), inset -2px -2px 0 rgba(255,255,255,.72); }' +
+'  body.retro-easter-egg input[type=checkbox]:checked { background: var(--retro-card); border-color: var(--retro-strong); }' +
+'  body.retro-easter-egg input[type=checkbox]:checked::after { left: 6px; top: 3px; width: 7px; height: 13px; border-color: var(--retro-accent); border-width: 0 3px 3px 0; }' +
+'  body.retro-easter-egg input[type=checkbox][disabled] { background: var(--retro-bg); border-color: var(--retro-border); box-shadow: inset 2px 2px 0 rgba(23,107,61,.16); }' +
+// Second hidden theme: a CSS approximation of the Liquid Glass language
+// introduced with iOS 26 -- translucent, layered controls, soft blur,
+// rounded/concentric geometry, tint from the surrounding page, and bright
+// specular highlights.  The effect is deliberately implemented with CSS so
+// it remains self-contained in the injected settings page.
+'  body.liquid-glass-easter-egg { --glass-bg: rgba(246,248,252,.74); --glass-card: rgba(255,255,255,.48); --glass-card-strong: rgba(255,255,255,.68); --glass-text: #18202b; --glass-muted: rgba(42,50,63,.68); --glass-border: rgba(255,255,255,.72); --glass-shadow: rgba(25,34,49,.18); --glass-tint: rgba(111,133,255,.18); background: radial-gradient(circle at 12% 8%, rgba(117,167,255,.22), transparent 30%), radial-gradient(circle at 88% 22%, rgba(255,153,213,.18), transparent 27%), linear-gradient(145deg, #edf1f8, #f8f9fc 55%, #e9eef7); color: var(--glass-text); }' +
+'  body.liquid-glass-easter-egg::before { content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 99996; background: radial-gradient(circle at 30% 15%, rgba(255,255,255,.38), transparent 28%), radial-gradient(circle at 80% 72%, rgba(126,165,255,.14), transparent 30%); }' +
+'  body.liquid-glass-easter-egg::after { content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 99998; background: linear-gradient(120deg, rgba(255,255,255,.22), transparent 24%, transparent 74%, rgba(255,255,255,.16)); mix-blend-mode: screen; }' +
+'  body.liquid-glass-easter-egg #topBar, body.liquid-glass-easter-egg .save-bar { background: rgba(246,248,252,.55); border-bottom: 1px solid rgba(255,255,255,.78); box-shadow: 0 8px 28px rgba(40,54,80,.10); backdrop-filter: blur(24px) saturate(145%); -webkit-backdrop-filter: blur(24px) saturate(145%); }' +
+'  body.liquid-glass-easter-egg fieldset, body.liquid-glass-easter-egg .modal-box { background: linear-gradient(145deg, rgba(255,255,255,.62), rgba(245,248,255,.36)); border: 1px solid var(--glass-border); border-radius: 22px; box-shadow: 0 18px 48px var(--glass-shadow), inset 0 1px 0 rgba(255,255,255,.82); backdrop-filter: blur(24px) saturate(145%); -webkit-backdrop-filter: blur(24px) saturate(145%); }' +
+'  body.liquid-glass-easter-egg .card, body.liquid-glass-easter-egg .faq-item, body.liquid-glass-easter-egg .about-info { background: rgba(255,255,255,.34); border-color: rgba(255,255,255,.68); box-shadow: inset 0 1px 0 rgba(255,255,255,.72), 0 8px 24px rgba(42,55,80,.08); backdrop-filter: blur(18px) saturate(140%); -webkit-backdrop-filter: blur(18px) saturate(140%); }' +
+'  body.liquid-glass-easter-egg input[type=text], body.liquid-glass-easter-egg input[type=number], body.liquid-glass-easter-egg input[type=time], body.liquid-glass-easter-egg input[type=datetime-local], body.liquid-glass-easter-egg select, body.liquid-glass-easter-egg .faq-search { background: rgba(255,255,255,.44); color: var(--glass-text); border: 1px solid rgba(255,255,255,.8); border-radius: 15px; box-shadow: inset 0 1px 1px rgba(255,255,255,.78), 0 3px 12px rgba(34,47,73,.07); backdrop-filter: blur(14px) saturate(145%); -webkit-backdrop-filter: blur(14px) saturate(145%); }' +
+'  body.liquid-glass-easter-egg button { border-radius: 999px !important; border-color: rgba(255,255,255,.76); box-shadow: inset 0 1px 0 rgba(255,255,255,.8), 0 5px 14px rgba(38,52,78,.10); transition: transform .16s ease, box-shadow .16s ease, background .16s ease; }' +
+'  body.liquid-glass-easter-egg button:active { transform: scale(.97); box-shadow: inset 0 1px 2px rgba(35,45,65,.12), 0 2px 7px rgba(38,52,78,.10); }' +
+'  body.liquid-glass-easter-egg .back-btn, body.liquid-glass-easter-egg .about-btn, body.liquid-glass-easter-egg .secondary-btn, body.liquid-glass-easter-egg .mode-btn, body.liquid-glass-easter-egg .color-role-btn, body.liquid-glass-easter-egg .service-info-btn { background: rgba(255,255,255,.42); color: var(--glass-text); border: 1px solid rgba(255,255,255,.78); }' +
+'  body.liquid-glass-easter-egg .donate-btn { color: #2b2142; background: linear-gradient(135deg, rgba(255,205,231,.72), rgba(204,223,255,.70), rgba(218,250,232,.68)); border: 1px solid rgba(255,255,255,.86); box-shadow: inset 0 1px 0 rgba(255,255,255,.95), 0 7px 18px rgba(71,79,120,.13); animation: glass-shimmer 8s ease-in-out infinite; }' +
+'  body.liquid-glass-easter-egg .about-btn { background: rgba(255,255,255,.58); }' +
+'  body.liquid-glass-easter-egg .about-logo { border-radius: 18px; box-shadow: 0 10px 25px rgba(39,50,75,.15), inset 0 1px 0 rgba(255,255,255,.85); }' +
+'  body.liquid-glass-easter-egg .about-modal-box { background: linear-gradient(145deg, rgba(255,255,255,.70), rgba(244,248,255,.45)); border-radius: 28px; box-shadow: 0 28px 70px rgba(31,43,66,.22), inset 0 1px 0 rgba(255,255,255,.9); }' +
+'  body.liquid-glass-easter-egg .about-info { background: rgba(255,255,255,.30); border-radius: 17px; }' +
+'  body.liquid-glass-easter-egg .about-source { color: #4969d7; font-weight: 650; }' +
+'  body.liquid-glass-easter-egg .about-ok-btn { color: #26314c; background: linear-gradient(180deg, rgba(255,255,255,.76), rgba(225,233,249,.54)); border: 1px solid rgba(255,255,255,.9); }' +
+'  body.liquid-glass-easter-egg input[type=range] { height: 32px; }' +
+'  body.liquid-glass-easter-egg input[type=range]::-webkit-slider-runnable-track { height: 10px; border-radius: 999px; background: rgba(255,255,255,.42); border: 1px solid rgba(255,255,255,.72); box-shadow: inset 0 1px 3px rgba(52,65,90,.12), 0 2px 8px rgba(45,58,82,.07); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }' +
+'  body.liquid-glass-easter-egg input[type=range]::-webkit-slider-thumb { width: 25px; height: 25px; margin-top: -8px; border-radius: 50%; background: radial-gradient(circle at 32% 26%, rgba(255,255,255,.98), rgba(240,246,255,.72) 42%, rgba(184,205,255,.64)); border: 1px solid rgba(255,255,255,.92); box-shadow: inset 0 1px 2px rgba(255,255,255,.95), 0 4px 12px rgba(54,69,104,.20); }' +
+'  body.liquid-glass-easter-egg input[type=range]::-moz-range-track { height: 10px; border-radius: 999px; background: rgba(255,255,255,.42); border: 1px solid rgba(255,255,255,.72); box-shadow: inset 0 1px 3px rgba(52,65,90,.12), 0 2px 8px rgba(45,58,82,.07); }' +
+'  body.liquid-glass-easter-egg input[type=range]::-moz-range-thumb { width: 25px; height: 25px; border-radius: 50%; background: rgba(245,249,255,.84); border: 1px solid rgba(255,255,255,.92); box-shadow: inset 0 1px 2px rgba(255,255,255,.95), 0 4px 12px rgba(54,69,104,.20); }' +
+'  body.liquid-glass-easter-egg input[type=checkbox] { width: 28px; height: 28px; border-radius: 50%; background: rgba(255,255,255,.45); border: 1px solid rgba(255,255,255,.84); box-shadow: inset 0 1px 2px rgba(255,255,255,.9), 0 4px 10px rgba(54,69,104,.12); }' +
+'  body.liquid-glass-easter-egg input[type=checkbox]:checked { background: linear-gradient(145deg, rgba(114,150,255,.90), rgba(83,119,229,.72)); border-color: rgba(255,255,255,.92); box-shadow: inset 0 1px 2px rgba(255,255,255,.65), 0 4px 13px rgba(76,104,207,.24); }' +
+'  body.liquid-glass-easter-egg input[type=checkbox]:checked::after { left: 8px; top: 5px; width: 7px; height: 13px; border-color: #fff; border-width: 0 3px 3px 0; }' +
+'  body.liquid-glass-easter-egg input[type=checkbox][disabled] { opacity: .48; }' +
+'  @keyframes glass-shimmer { 0%, 100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }' +
+'  @media (prefers-reduced-motion: reduce) { body.liquid-glass-easter-egg button, body.liquid-glass-easter-egg .donate-btn { transition: none; animation: none; } }' +
+'  @media (prefers-color-scheme: dark) {' +
+'    body.retro-easter-egg { --retro-bg: #07110b; --retro-card: #0d1b12; --retro-text: #76e69a; --retro-strong: #a1ffbd; --retro-muted: #54aa70; --retro-border: #286b42; --retro-accent: #43bd69; --retro-shadow: rgba(0,0,0,.7); }' +
+'    body.retro-easter-egg::after { background: repeating-linear-gradient(to bottom, rgba(118,230,154,.055) 0, rgba(118,230,154,.055) 1px, transparent 1px, transparent 4px); mix-blend-mode: screen; opacity: .7; }' +
+'    body.liquid-glass-easter-egg { --glass-bg: rgba(25,29,38,.66); --glass-card: rgba(48,54,68,.48); --glass-card-strong: rgba(67,75,92,.60); --glass-text: #f2f5fb; --glass-muted: rgba(226,232,243,.68); --glass-border: rgba(255,255,255,.20); --glass-shadow: rgba(0,0,0,.38); --glass-tint: rgba(126,151,255,.22); background: radial-gradient(circle at 12% 8%, rgba(92,126,255,.20), transparent 30%), radial-gradient(circle at 88% 22%, rgba(255,111,198,.13), transparent 27%), linear-gradient(145deg, #171b24, #222733 55%, #151a24); }' +
+'    body.liquid-glass-easter-egg::before { background: radial-gradient(circle at 30% 15%, rgba(255,255,255,.08), transparent 28%), radial-gradient(circle at 80% 72%, rgba(90,132,255,.14), transparent 30%); }' +
+'    body.liquid-glass-easter-egg #topBar, body.liquid-glass-easter-egg .save-bar { background: rgba(23,27,36,.55); border-color: rgba(255,255,255,.16); }' +
+'    body.liquid-glass-easter-egg fieldset, body.liquid-glass-easter-egg .modal-box { background: linear-gradient(145deg, rgba(65,72,88,.58), rgba(31,36,47,.46)); border-color: rgba(255,255,255,.20); }' +
+'    body.liquid-glass-easter-egg input[type=text], body.liquid-glass-easter-egg input[type=number], body.liquid-glass-easter-egg input[type=time], body.liquid-glass-easter-egg input[type=datetime-local], body.liquid-glass-easter-egg select, body.liquid-glass-easter-egg .faq-search { background: rgba(52,59,73,.50); color: var(--glass-text); border-color: rgba(255,255,255,.20); }' +
+'    body.liquid-glass-easter-egg .back-btn, body.liquid-glass-easter-egg .about-btn, body.liquid-glass-easter-egg .secondary-btn, body.liquid-glass-easter-egg .mode-btn, body.liquid-glass-easter-egg .color-role-btn, body.liquid-glass-easter-egg .service-info-btn { background: rgba(255,255,255,.10); color: var(--glass-text); border-color: rgba(255,255,255,.20); }' +
+'    body.liquid-glass-easter-egg .donate-btn { color: #fff; background: linear-gradient(135deg, rgba(145,106,171,.55), rgba(84,116,181,.58), rgba(74,143,126,.48)); border-color: rgba(255,255,255,.25); }' +
+'    body.liquid-glass-easter-egg .about-modal-box { background: linear-gradient(145deg, rgba(67,75,92,.70), rgba(28,33,44,.54)); }' +
+'    body.liquid-glass-easter-egg .about-ok-btn { color: #f5f7fc; background: linear-gradient(180deg, rgba(93,103,126,.68), rgba(50,57,72,.58)); border-color: rgba(255,255,255,.22); }' +
+'    body.liquid-glass-easter-egg input[type=range]::-webkit-slider-runnable-track { background: rgba(255,255,255,.10); border-color: rgba(255,255,255,.20); box-shadow: inset 0 1px 3px rgba(0,0,0,.25), 0 2px 8px rgba(0,0,0,.16); }' +
+'    body.liquid-glass-easter-egg input[type=range]::-webkit-slider-thumb { background: radial-gradient(circle at 32% 26%, rgba(255,255,255,.92), rgba(177,194,224,.70) 45%, rgba(99,124,171,.66)); border-color: rgba(255,255,255,.34); }' +
+'    body.liquid-glass-easter-egg input[type=range]::-moz-range-track { background: rgba(255,255,255,.10); border-color: rgba(255,255,255,.20); }' +
+'    body.liquid-glass-easter-egg input[type=range]::-moz-range-thumb { background: rgba(177,194,224,.70); border-color: rgba(255,255,255,.34); }' +
+'    body.liquid-glass-easter-egg input[type=checkbox] { background: rgba(255,255,255,.10); border-color: rgba(255,255,255,.24); }' +
+'    body.liquid-glass-easter-egg input[type=checkbox]:checked { background: linear-gradient(145deg, rgba(113,143,236,.88), rgba(72,102,190,.72)); }' +
+'  }' +
+'  @keyframes retro-easter-flicker { 0%, 100% { opacity: 1; } 47% { opacity: .96; } 48% { opacity: .78; } 49% { opacity: 1; } }' +
+'  @keyframes retro-easter-flash { 0% { filter: brightness(1); transform: scale(1); } 35% { filter: brightness(1.8); transform: scale(1.08); } 100% { filter: brightness(1); transform: scale(1); } }' +
+'  .about-logo.retro-easter-flash { animation: retro-easter-flash 420ms steps(3,end); }' +
+'  body.retro-easter-egg .about-logo.logo-tap-effect { animation-name: about-logo-retro-tap; animation-duration: 520ms; animation-timing-function: steps(4,end); }' +
+'  @keyframes about-logo-retro-tap { 0% { transform: translate(0,0) scale(1); filter: brightness(1); box-shadow: 0 0 0 transparent; } 20% { transform: translate(-2px,1px) scale(1.05); filter: brightness(1.7); box-shadow: 3px 0 0 rgba(67,189,105,.45), -3px 0 0 rgba(67,189,105,.2); } 40% { transform: translate(3px,-1px) scale(.94); filter: brightness(1.9); box-shadow: -3px 0 0 rgba(67,189,105,.5), 3px 0 0 rgba(67,189,105,.18); } 60% { transform: translate(-1px,1px) scale(1.08); filter: brightness(1.35); box-shadow: 0 0 0 4px rgba(67,189,105,.18); } 100% { transform: translate(0,0) scale(1); filter: brightness(1); box-shadow: 0 0 0 transparent; } }' +
+'  body.liquid-glass-easter-egg .about-logo.logo-tap-effect { animation-name: about-logo-glass-tap; animation-duration: 650ms; }' +
+'  @keyframes about-logo-glass-tap { 0% { transform: scale(1); filter: brightness(1) saturate(1); box-shadow: 0 10px 25px rgba(39,50,75,.15), inset 0 1px 0 rgba(255,255,255,.85); } 35% { transform: scale(1.12); filter: brightness(1.28) saturate(1.25); box-shadow: 0 0 0 7px rgba(255,255,255,.18), 0 18px 36px rgba(88,112,196,.24), inset 0 1px 0 rgba(255,255,255,.98); } 70% { transform: scale(.97); filter: brightness(1.08) saturate(1.1); box-shadow: 0 0 0 14px rgba(255,255,255,.04), 0 12px 28px rgba(88,112,196,.18), inset 0 1px 0 rgba(255,255,255,.9); } 100% { transform: scale(1); filter: brightness(1) saturate(1); box-shadow: 0 10px 25px rgba(39,50,75,.15), inset 0 1px 0 rgba(255,255,255,.85); } }' +
+'  body.retro-easter-egg .about-modal-box { animation: retro-easter-flicker 3.8s steps(1,end) infinite, about-modal-in 360ms cubic-bezier(.18,.9,.25,1.15) both; }' +
 '  .modal-title { font-weight: 600; font-size: 15px; margin-bottom: 10px; text-align: center; color: var(--text); flex: 0 0 auto; }' +
 '  .donate-modal-box { position: relative; animation: donate-modal-in 480ms cubic-bezier(.2,.85,.25,1) both; }' +
 '  @keyframes donate-modal-in { from { transform: translateY(28px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }' +
@@ -1060,12 +1192,29 @@ configPresetSchedule.css +
 '    <div class="top-bar-actions">' +
 '      <button type="button" class="back-btn" onclick="goBack()">&lsaquo; Back</button>' +
 '      <button type="button" class="donate-btn" onclick="openDonateModal()">&#9825; Donate</button>' +
+'      <button type="button" class="about-btn" id="aboutButton" onclick="openAboutModal(this)" aria-label="About Eclipz" title="About Eclipz">' + aboutLogoMarkup('about-btn-logo', ' aria-hidden="true" focusable="false"') + '</button>' +
 '    </div>' +
 '    <div class="top-bar-title">Eclipz Watchface Preview</div>' +
 '    <div class="top-bar-desc">Look, this preview—it’s very good, believe me, but it’s not 100% perfect yet. Nobody knows watch screens better than me, and right now, it’s not reflecting 1:1. We have a couple of tiny bugs, very small bugs, highly overrated bugs that are hard to fix, frankly. But I’m working on it hard, harder than anyone else, total dedication! Many people are saying it’s already the best preview they’ve ever seen. Thank you for your attention to this matter!</div>' +
 '  </div>' +
 '  <div class="top-bar-preview">' +
 '    <canvas id="previewCanvas" width="176" height="201"></canvas>' +
+'  </div>' +
+'</div>' +
+
+'<div class="modal-overlay" id="aboutModal" onclick="if (event.target === this) closeAboutModal();">' +
+'  <div class="modal-box about-modal-box">' +
+'    ' + aboutLogoMarkup('about-logo', ' id="aboutEasterEggLogo" role="img" aria-label="Eclipz logo" onclick="tapAboutLogo()" title="Eclipz"') +
+'    <div class="about-title">Eclipz</div>' +
+'    <div class="about-subtitle">Solar eclipse watchface for Pebble</div>' +
+'    <div class="about-info">' +
+'      <div class="about-info-row"><div class="about-info-label">Version</div><div class="about-info-value">' + APP_VERSION + '</div></div>' +
+'      <div class="about-info-row"><div class="about-info-label">Creator</div><div class="about-info-value">Łukasz Zalewski</div></div>' +
+'      <div class="about-info-row"><div class="about-info-label">Platform</div><div class="about-info-value">Pebble Time 2 / Emery</div></div>' +
+'    </div>' +
+'    <div class="about-description">Find out more about the project on github, feel free to contribute as well.</div>' +
+'    <a class="about-source" href="https://github.com/zalewszczak/solar-eclipse-watch" target="_blank" rel="noopener noreferrer">Source code on GitHub</a>' +
+'    <button type="button" class="about-ok-btn" onclick="closeAboutModal()">OK</button>' +
 '  </div>' +
 '</div>' +
 
@@ -2012,6 +2161,8 @@ configPresetSchedule.modalHtml +
 '      <div class="help" id="help-debugOverrideEnabled" style="display:none;">Sends the edited test data instead of normal calculated data. Nothing is saved.</div>' +
 '    </div>' +
 
+      fakeWeatherPanelHtml(current) +
+
 '    <div class="subsection">' +
 '      <div class="field-label-row"><label>Full keyset (every current value)</label><button type="button" class="help-btn" onclick="toggleHelp(\'help-fullKeyset\')">?</button></div>' +
 '      <div class="help" id="help-fullKeyset" style="display:none;">Shows all available data fields and their current values. A manual send affects that send only.</div>' +
@@ -2138,6 +2289,60 @@ configPresetSchedule.modalHtml +
 '  }' +
 '  var returnTo = getQueryParam("return_to", "pebblejs://close#");' +
 '  var payload = { CONFIG_SEND_FULL_KEYSET: true, CONFIG_FULL_KEYSET_DATA: text };' +
+'  document.location = returnTo + encodeURIComponent(JSON.stringify(payload));' +
+'}' +
+// 8-point compass label for the wind-direction slider's live readout
+// -- same +22/45 bucketing as the watch\'s own compass-arrow feature
+// slot (see case 35 in feature_value_weather.c) so the label shown
+// here always matches what the watch itself would display.
+'function compassLabelForDeg(deg) {' +
+'  var DIRS = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];' +
+'  var idx = Math.floor((Number(deg) + 22) / 45) % 8;' +
+'  if (idx < 0) idx += 8;' +
+'  return DIRS[idx];' +
+'}' +
+// Fake weather panel\'s own Send button (see fakeWeatherPanelHtml() in
+// config/config-debug.js for the sliders themselves) -- reads every
+// fakeWx* control, builds just the WEATHER-chunk (plus
+// CLOUD_ALTITUDE_PCT) fields as a flat dict, and closes the page
+// carrying it plus its own marker flag, same "separate parallel exit
+// from Save, nothing persisted" pattern as sendFullKeysetToWatch()
+// above -- see index.js\'s webviewclosed handler for the matching
+// CONFIG_SEND_FAKE_WEATHER branch, which enqueues this dict as-is and
+// returns before any of the normal setSetting()/save-flow code runs.
+// WEATHER_ERROR_CODE is always forced to 0 here (never exposed as a
+// slider) so a spoofed reading always reads as fresh/healthy rather
+// than risking a stale "ERR ###" left over from a real failed fetch;
+// WEATHER_LAST_UPDATE is stamped to right now for the same reason.
+'function buildFakeWeatherDict() {' +
+'  function iv(id) { return parseInt(document.getElementById(id).value, 10); }' +
+'  return {' +
+'    WEATHER_CONDITION: iv("fakeWxCondition"),' +
+'    CLOUD_COVER: iv("fakeWxCloudCover"),' +
+'    VIS_SCORE: iv("fakeWxVisScore"),' +
+'    CLOUD_ALTITUDE_PCT: iv("fakeWxCloudAltitude"),' +
+'    WEATHER_TEMP_C: iv("fakeWxTempC"),' +
+'    WEATHER_TEMP_HIGH_C: iv("fakeWxTempHighC"),' +
+'    WEATHER_TEMP_LOW_C: iv("fakeWxTempLowC"),' +
+'    UV_INDEX_X10: iv("fakeWxUvMax"),' +
+'    UV_INDEX_CURRENT_X10: iv("fakeWxUvCurrent"),' +
+'    RAIN_CHANCE_PCT: iv("fakeWxRainChance"),' +
+'    HUMIDITY_PCT: iv("fakeWxHumidity"),' +
+'    WIND_SPEED_KMH: iv("fakeWxWindSpeed"),' +
+'    WIND_DIR_DEG: iv("fakeWxWindDir"),' +
+'    DEW_POINT_C: iv("fakeWxDewPoint"),' +
+'    PRESSURE_HPA: iv("fakeWxPressure"),' +
+'    PRESSURE_TREND: iv("fakeWxPressureTrend"),' +
+'    AQI_US: iv("fakeWxAqiUs"),' +
+'    AQI_EU: iv("fakeWxAqiEu"),' +
+'    WEATHER_ERROR_CODE: 0,' +
+'    WEATHER_LAST_UPDATE: Math.floor(Date.now() / 1000)' +
+'  };' +
+'}' +
+'function sendFakeWeatherToWatch() {' +
+'  var dict = buildFakeWeatherDict();' +
+'  var returnTo = getQueryParam("return_to", "pebblejs://close#");' +
+'  var payload = { CONFIG_SEND_FAKE_WEATHER: true, CONFIG_FAKE_WEATHER_DATA: JSON.stringify(dict) };' +
 '  document.location = returnTo + encodeURIComponent(JSON.stringify(payload));' +
 '}' +
 // Boils a Nominatim `address` object (city/town/village/... + country)
@@ -4944,6 +5149,64 @@ configPresetSchedule.clientJs(current.scheduleKnownIds) +
 // layout rather than assuming a fixed value, and pushes the
 // scrollable content down by exactly that much so nothing starts out
 // hidden underneath it.
+'var aboutLogoTapCount = 0;' +
+'var aboutLogoTapResetTimer = 0;' +
+'function tapAboutLogo() {' +
+'  var logo = document.getElementById("aboutEasterEggLogo");' +
+'  if (logo) {' +
+'    logo.classList.remove("logo-tap-effect");' +
+// offsetWidth is an HTMLElement-only property -- reading it on an
+// SVGElement (this used to be an <img>, now an inline <svg>) is
+// unreliable across webviews and doesn't dependably force the reflow
+// this needs between removing and re-adding the class, so the very
+// first tap plays fine (nothing to restart) but every tap after that
+// silently no-ops (the class never actually left the element from the
+// browser's point of view). getBoundingClientRect() forces the same
+// style/layout flush but is a plain Element method, defined the same
+// way for SVG and HTML elements, so the restart is reliable either way.
+'    void logo.getBoundingClientRect();' +
+'    logo.classList.add("logo-tap-effect");' +
+'  }' +
+'  aboutLogoTapCount++;' +
+'  if (aboutLogoTapResetTimer) window.clearTimeout(aboutLogoTapResetTimer);' +
+'  if (aboutLogoTapCount >= 10) {' +
+'    aboutLogoTapCount = 0;' +
+'    var body = document.body;' +
+'    if (body.classList.contains("retro-easter-egg")) {' +
+'      body.classList.remove("retro-easter-egg");' +
+'      body.classList.add("liquid-glass-easter-egg");' +
+'    } else if (body.classList.contains("liquid-glass-easter-egg")) {' +
+'      body.classList.remove("liquid-glass-easter-egg");' +
+'    } else {' +
+'      body.classList.add("retro-easter-egg");' +
+'    }' +
+'    var logo = document.getElementById("aboutEasterEggLogo");' +
+'    if (logo) {' +
+'      logo.classList.remove("retro-easter-flash");' +
+'      void logo.getBoundingClientRect();' +
+'      logo.classList.add("retro-easter-flash");' +
+'    }' +
+'    return;' +
+'  }' +
+'  aboutLogoTapResetTimer = window.setTimeout(function() {' +
+'    aboutLogoTapCount = 0;' +
+'    aboutLogoTapResetTimer = 0;' +
+'  }, 2200);' +
+'}' +
+'function openAboutModal(button) {' +
+'  var modal = document.getElementById("aboutModal");' +
+'  var box = modal ? modal.querySelector(".about-modal-box") : null;' +
+'  if (!modal || !box) return;' +
+'  var rect = button ? button.getBoundingClientRect() : null;' +
+'  var originX = rect ? rect.left + rect.width / 2 : window.innerWidth / 2;' +
+'  var originY = rect ? rect.top + rect.height / 2 : window.innerHeight / 2;' +
+'  box.style.setProperty("--about-dx", (originX - window.innerWidth / 2) + "px");' +
+'  box.style.setProperty("--about-dy", (originY - window.innerHeight / 2) + "px");' +
+'  modal.className = "modal-overlay open";' +
+'}' +
+'function closeAboutModal() {' +
+'  document.getElementById("aboutModal").className = "modal-overlay";' +
+'}' +
 'function adjustTopBarSpacing() {' +
 '  var bar = document.getElementById("topBar");' +
 '  if (!bar) return;' +
