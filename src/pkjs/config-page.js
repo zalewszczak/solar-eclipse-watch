@@ -25,6 +25,8 @@
  * what you see here is exactly what you'll get.
  */
 
+var APP_VERSION = "1.2-rc-candidate";
+
 // servicelog require removed here -- serviceStatusRowsHtml() (its
 // only user in this file) moved to config/config-debug.js, which
 // requires it directly now.
@@ -41,6 +43,7 @@ var CORNER_COLOR_MODE_LABELS = PRESETS_LOOKUPS.CORNER_COLOR_MODE_LABELS;
 var CORNER_CATEGORIES = PRESETS_LOOKUPS.CORNER_CATEGORIES;
 var HAND_PRESETS = PRESETS_LOOKUPS.HAND_PRESETS;
 var MARKER_STYLE_PRESET_FIELDS = PRESETS_LOOKUPS.MARKER_STYLE_PRESET_FIELDS;
+var ABOUT_LOGO_DATA_URI = require('./data/generated/about-logo');
 
 // The 7 corner/edge base field names that mean something different in
 // Analog vs Digital (bar/top) -- an analog edge line vs. a digital
@@ -631,6 +634,9 @@ directWebfontStyle() +
 '  .top-bar-actions { display: flex; gap: 6px; align-items: center; }' +
 '  .back-btn { padding: 6px 10px; font-size: 13px; font-weight: 600; color: var(--text-strong); background: var(--card-bg); border: 1px solid var(--border); border-radius: 6px; }' +
 '  .back-btn:active { background: var(--border-light); }' +
+'  .about-btn { width: 30px; height: 30px; padding: 3px; display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; border: 1px solid var(--border); border-radius: 6px; background: var(--card-bg); box-shadow: 0 1px 3px rgba(0,0,0,0.12); }' +
+'  .about-btn img { display: block; width: 22px; height: 22px; object-fit: contain; border-radius: 4px; }' +
+'  .about-btn:active { background: var(--border-light); transform: scale(0.96); }' +
 // Soft, slow pastel cycle rather than the vivid orange pulse this used
 // to be -- 5 gentle hues (pink, peach, buttery yellow, mint, sky blue)
 // so it visibly moves through distinct colors rather than oscillating
@@ -679,6 +685,21 @@ directWebfontStyle() +
 '  .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: none; align-items: flex-end; justify-content: center; z-index: 100; overflow: hidden; }' +
 '  .modal-overlay.open { display: flex; }' +
 '  .modal-box { background: var(--card-bg); border-radius: 12px 12px 0 0; padding: 16px; width: 100%; max-width: 400px; max-height: 80vh; box-sizing: border-box; display: flex; flex-direction: column; overflow: hidden; }' +
+'  #aboutModal { align-items: center; }' +
+'  .about-modal-box { width: calc(100% - 32px); max-width: 340px; max-height: 78vh; border-radius: 14px; padding: 18px; box-shadow: 0 14px 42px rgba(0,0,0,0.28); transform-origin: center center; animation: about-modal-in 360ms cubic-bezier(.18,.9,.25,1.15) both; }' +
+'  @keyframes about-modal-in { from { transform: translate(var(--about-dx, 0px), var(--about-dy, 0px)) scale(.08); opacity: 0; } 65% { transform: translate(0, 0) scale(1.025); opacity: 1; } to { transform: translate(0, 0) scale(1); opacity: 1; } }' +
+'  .about-logo { width: 62px; height: 62px; margin: 0 auto 10px; display: block; object-fit: contain; border-radius: 12px; }' +
+'  .about-title { text-align: center; font-size: 20px; line-height: 1.1; font-weight: 800; color: var(--text-strong); }' +
+'  .about-subtitle { margin-top: 4px; text-align: center; font-size: 12px; color: var(--text-muted); }' +
+'  .about-info { margin-top: 16px; padding: 11px 12px; border: 1px solid var(--border-light); border-radius: 9px; background: var(--page-bg); }' +
+'  .about-info-row { display: flex; gap: 10px; padding: 4px 0; font-size: 12px; line-height: 1.35; }' +
+'  .about-info-label { flex: 0 0 72px; font-weight: 700; color: var(--text-muted); }' +
+'  .about-info-value { min-width: 0; flex: 1 1 auto; color: var(--text); }' +
+'  .about-description { margin: 13px 2px 0; text-align: center; font-size: 11px; line-height: 1.45; color: var(--text-muted); }' +
+'  .about-source { display: block; margin: 15px 2px 0; text-align: center; font-size: 11px; line-height: 1.35; color: #3f6fa8; text-decoration: none; word-break: break-word; }' +
+'  .about-source:active { text-decoration: underline; }' +
+'  .about-ok-btn { width: 100%; padding: 11px; font-size: 14px; font-weight: 700; color: var(--text-strong); background: var(--border-light); border: none; border-radius: 8px; margin-top: 8px; }' +
+'  .about-ok-btn:active { background: var(--border); }' +
 '  .modal-title { font-weight: 600; font-size: 15px; margin-bottom: 10px; text-align: center; color: var(--text); flex: 0 0 auto; }' +
 '  .donate-modal-box { position: relative; animation: donate-modal-in 480ms cubic-bezier(.2,.85,.25,1) both; }' +
 '  @keyframes donate-modal-in { from { transform: translateY(28px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }' +
@@ -1057,12 +1078,29 @@ directWebfontStyle() +
 '    <div class="top-bar-actions">' +
 '      <button type="button" class="back-btn" onclick="goBack()">&lsaquo; Back</button>' +
 '      <button type="button" class="donate-btn" onclick="openDonateModal()">&#9825; Donate</button>' +
+'      <button type="button" class="about-btn" id="aboutButton" onclick="openAboutModal(this)" aria-label="About Eclipz" title="About Eclipz"><img src="' + ABOUT_LOGO_DATA_URI + '" alt=""></button>' +
 '    </div>' +
 '    <div class="top-bar-title">Eclipz Watchface Preview</div>' +
 '    <div class="top-bar-desc">Look, this preview—it’s very good, believe me, but it’s not 100% perfect yet. Nobody knows watch screens better than me, and right now, it’s not reflecting 1:1. We have a couple of tiny bugs, very small bugs, highly overrated bugs that are hard to fix, frankly. But I’m working on it hard, harder than anyone else, total dedication! Many people are saying it’s already the best preview they’ve ever seen. Thank you for your attention to this matter!</div>' +
 '  </div>' +
 '  <div class="top-bar-preview">' +
 '    <canvas id="previewCanvas" width="176" height="201"></canvas>' +
+'  </div>' +
+'</div>' +
+
+'<div class="modal-overlay" id="aboutModal" onclick="if (event.target === this) closeAboutModal();">' +
+'  <div class="modal-box about-modal-box">' +
+'    <img class="about-logo" src="' + ABOUT_LOGO_DATA_URI + '" alt="Eclipz logo">' +
+'    <div class="about-title">Eclipz</div>' +
+'    <div class="about-subtitle">Solar eclipse watchface for Pebble</div>' +
+'    <div class="about-info">' +
+'      <div class="about-info-row"><div class="about-info-label">Version</div><div class="about-info-value">' + APP_VERSION + '</div></div>' +
+'      <div class="about-info-row"><div class="about-info-label">Creator</div><div class="about-info-value">Łukasz Zalewski</div></div>' +
+'      <div class="about-info-row"><div class="about-info-label">Platform</div><div class="about-info-value">Pebble Time 2 / Emery</div></div>' +
+'    </div>' +
+'    <div class="about-description">Find out more about the project on github, feel free to contribute as well.</div>' +
+'    <a class="about-source" href="https://github.com/zalewszczak/solar-eclipse-watch" target="_blank" rel="noopener noreferrer">Source code on GitHub</a>' +
+'    <button type="button" class="about-ok-btn" onclick="closeAboutModal()">OK</button>' +
 '  </div>' +
 '</div>' +
 
@@ -4989,6 +5027,20 @@ require('./config/config-preview') +
 // layout rather than assuming a fixed value, and pushes the
 // scrollable content down by exactly that much so nothing starts out
 // hidden underneath it.
+'function openAboutModal(button) {' +
+'  var modal = document.getElementById("aboutModal");' +
+'  var box = modal ? modal.querySelector(".about-modal-box") : null;' +
+'  if (!modal || !box) return;' +
+'  var rect = button ? button.getBoundingClientRect() : null;' +
+'  var originX = rect ? rect.left + rect.width / 2 : window.innerWidth / 2;' +
+'  var originY = rect ? rect.top + rect.height / 2 : window.innerHeight / 2;' +
+'  box.style.setProperty("--about-dx", (originX - window.innerWidth / 2) + "px");' +
+'  box.style.setProperty("--about-dy", (originY - window.innerHeight / 2) + "px");' +
+'  modal.className = "modal-overlay open";' +
+'}' +
+'function closeAboutModal() {' +
+'  document.getElementById("aboutModal").className = "modal-overlay";' +
+'}' +
 'function adjustTopBarSpacing() {' +
 '  var bar = document.getElementById("topBar");' +
 '  if (!bar) return;' +
