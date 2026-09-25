@@ -90,7 +90,7 @@ Interactions & updates
 * Active weekdays
 * Optional Quiet Time override
 ##### Settings & preview
-![Settings example](/screenshots/settingspage.PNG | width=100)
+<img src="/screenshots/settingspage.PNG" width="48">
 * Live watchface preview while configuring
 * Font previews
 * Hand and marker previews
