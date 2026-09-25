@@ -34,6 +34,7 @@ static int32_t s_compass_heading_velocity_fp = 0;
 static bool s_compass_heading_has_reading = false;
 static bool s_input_planet_seek_compass_low_accuracy = true;
 
+static int32_t compass_heading_to_degrees(CompassHeadingData data) {
   CompassHeading clockwise = TRIG_MAX_ANGLE - data.true_heading;
   int32_t heading = (int32_t)(((int64_t)clockwise * 360) / TRIG_MAX_ANGLE) % 360;
   if (heading < 0) heading += 360;
