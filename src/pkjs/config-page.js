@@ -688,7 +688,10 @@ directWebfontStyle() +
 '  #aboutModal { align-items: center; }' +
 '  .about-modal-box { width: calc(100% - 32px); max-width: 340px; max-height: 78vh; border-radius: 14px; padding: 18px; box-shadow: 0 14px 42px rgba(0,0,0,0.28); transform-origin: center center; animation: about-modal-in 360ms cubic-bezier(.18,.9,.25,1.15) both; }' +
 '  @keyframes about-modal-in { from { transform: translate(var(--about-dx, 0px), var(--about-dy, 0px)) scale(.08); opacity: 0; } 65% { transform: translate(0, 0) scale(1.025); opacity: 1; } to { transform: translate(0, 0) scale(1); opacity: 1; } }' +
-'  .about-logo { width: 62px; height: 62px; margin: 0 auto 10px; display: block; object-fit: contain; border-radius: 12px; }' +
+'  .about-logo { width: 62px; height: 62px; margin: 0 auto 10px; display: block; object-fit: contain; border-radius: 12px; cursor: pointer; transform-origin: 50% 50%; -webkit-tap-highlight-color: transparent; user-select: none; }' +
+'  .about-logo.logo-tap-effect { animation: about-logo-tap 560ms cubic-bezier(.18,.9,.25,1.2); }' +
+'  @keyframes about-logo-tap { 0% { transform: scale(1) rotate(0deg); filter: brightness(1); box-shadow: 0 0 0 0 rgba(255,255,255,0); } 18% { transform: scale(.88) rotate(-7deg); filter: brightness(1.35); box-shadow: 0 0 0 5px rgba(255,255,255,.16), 0 0 18px 4px rgba(255,205,92,.28); } 42% { transform: scale(1.14) rotate(5deg); filter: brightness(1.75); box-shadow: 0 0 0 10px rgba(255,255,255,.07), 0 0 28px 8px rgba(255,205,92,.20); } 68% { transform: scale(.97) rotate(-2deg); filter: brightness(1.12); box-shadow: 0 0 0 4px rgba(255,255,255,.08), 0 0 12px 2px rgba(255,205,92,.12); } 100% { transform: scale(1) rotate(0deg); filter: brightness(1); box-shadow: 0 0 0 0 rgba(255,255,255,0); } }' +
+'  .about-logo.logo-tap-effect::selection { background: transparent; }' +
 '  .about-title { text-align: center; font-size: 20px; line-height: 1.1; font-weight: 800; color: var(--text-strong); }' +
 '  .about-subtitle { margin-top: 4px; text-align: center; font-size: 12px; color: var(--text-muted); }' +
 '  .about-info { margin-top: 16px; padding: 11px 12px; border: 1px solid var(--border-light); border-radius: 9px; background: var(--page-bg); }' +
@@ -789,6 +792,10 @@ directWebfontStyle() +
 '  @keyframes retro-easter-flicker { 0%, 100% { opacity: 1; } 47% { opacity: .96; } 48% { opacity: .78; } 49% { opacity: 1; } }' +
 '  @keyframes retro-easter-flash { 0% { filter: brightness(1); transform: scale(1); } 35% { filter: brightness(1.8); transform: scale(1.08); } 100% { filter: brightness(1); transform: scale(1); } }' +
 '  .about-logo.retro-easter-flash { animation: retro-easter-flash 420ms steps(3,end); }' +
+'  body.retro-easter-egg .about-logo.logo-tap-effect { animation-name: about-logo-retro-tap; animation-duration: 520ms; animation-timing-function: steps(4,end); }' +
+'  @keyframes about-logo-retro-tap { 0% { transform: translate(0,0) scale(1); filter: brightness(1); box-shadow: 0 0 0 transparent; } 20% { transform: translate(-2px,1px) scale(1.05); filter: brightness(1.7); box-shadow: 3px 0 0 rgba(67,189,105,.45), -3px 0 0 rgba(67,189,105,.2); } 40% { transform: translate(3px,-1px) scale(.94); filter: brightness(1.9); box-shadow: -3px 0 0 rgba(67,189,105,.5), 3px 0 0 rgba(67,189,105,.18); } 60% { transform: translate(-1px,1px) scale(1.08); filter: brightness(1.35); box-shadow: 0 0 0 4px rgba(67,189,105,.18); } 100% { transform: translate(0,0) scale(1); filter: brightness(1); box-shadow: 0 0 0 transparent; } }' +
+'  body.liquid-glass-easter-egg .about-logo.logo-tap-effect { animation-name: about-logo-glass-tap; animation-duration: 650ms; }' +
+'  @keyframes about-logo-glass-tap { 0% { transform: scale(1); filter: brightness(1) saturate(1); box-shadow: 0 10px 25px rgba(39,50,75,.15), inset 0 1px 0 rgba(255,255,255,.85); } 35% { transform: scale(1.12); filter: brightness(1.28) saturate(1.25); box-shadow: 0 0 0 7px rgba(255,255,255,.18), 0 18px 36px rgba(88,112,196,.24), inset 0 1px 0 rgba(255,255,255,.98); } 70% { transform: scale(.97); filter: brightness(1.08) saturate(1.1); box-shadow: 0 0 0 14px rgba(255,255,255,.04), 0 12px 28px rgba(88,112,196,.18), inset 0 1px 0 rgba(255,255,255,.9); } 100% { transform: scale(1); filter: brightness(1) saturate(1); box-shadow: 0 10px 25px rgba(39,50,75,.15), inset 0 1px 0 rgba(255,255,255,.85); } }' +
 '  body.retro-easter-egg .about-modal-box { animation: retro-easter-flicker 3.8s steps(1,end) infinite, about-modal-in 360ms cubic-bezier(.18,.9,.25,1.15) both; }' +
 '  .modal-title { font-weight: 600; font-size: 15px; margin-bottom: 10px; text-align: center; color: var(--text); flex: 0 0 auto; }' +
 '  .donate-modal-box { position: relative; animation: donate-modal-in 480ms cubic-bezier(.2,.85,.25,1) both; }' +
@@ -5120,6 +5127,12 @@ require('./config/config-preview') +
 'var aboutLogoTapCount = 0;' +
 'var aboutLogoTapResetTimer = 0;' +
 'function tapAboutLogo() {' +
+'  var logo = document.getElementById("aboutEasterEggLogo");' +
+'  if (logo) {' +
+'    logo.classList.remove("logo-tap-effect");' +
+'    void logo.offsetWidth;' +
+'    logo.classList.add("logo-tap-effect");' +
+'  }' +
 '  aboutLogoTapCount++;' +
 '  if (aboutLogoTapResetTimer) window.clearTimeout(aboutLogoTapResetTimer);' +
 '  if (aboutLogoTapCount >= 10) {' +
