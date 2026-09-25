@@ -138,7 +138,7 @@ function altitudeUnitCode() {
 function shakeLabelSecondsCode() {
   var secs = parseInt(getSetting('CONFIG_SHAKE_LABEL_SECONDS', '3'), 10);
   if (isNaN(secs) || secs < 1) secs = 1;
-  if (secs > 10) secs = 10;
+  if (secs > 30) secs = 30;
   return secs;
 }
 // 0=Boxed (default), 1=Outlined, 2=Soft -- see draw_label() in
