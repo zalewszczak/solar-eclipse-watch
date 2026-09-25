@@ -43,7 +43,18 @@ var CORNER_COLOR_MODE_LABELS = PRESETS_LOOKUPS.CORNER_COLOR_MODE_LABELS;
 var CORNER_CATEGORIES = PRESETS_LOOKUPS.CORNER_CATEGORIES;
 var HAND_PRESETS = PRESETS_LOOKUPS.HAND_PRESETS;
 var MARKER_STYLE_PRESET_FIELDS = PRESETS_LOOKUPS.MARKER_STYLE_PRESET_FIELDS;
-var ABOUT_LOGO_DATA_URI = require('./data/generated/about-logo');
+var ABOUT_LOGO_SVG = require('./data/generated/about-logo-svg');
+// Renders the traced Eclipz mark as an inline <svg fill="currentColor">
+// rather than an <img src="data:...">, so the mark's color comes from
+// CSS (`color`) -- see .about-btn-logo/.about-logo in the stylesheet
+// for the black-in-light/white-in-dark rule -- instead of being baked
+// into a fixed-color raster image. className/attrs are plain strings
+// spliced into the tag, matching how the rest of this file builds markup.
+function aboutLogoMarkup(className, attrs) {
+  return '<svg class="' + className + '" viewBox="' + ABOUT_LOGO_SVG.viewBox + '"' +
+    ' xmlns="http://www.w3.org/2000/svg"' + (attrs || '') + '>' +
+    '<path fill-rule="evenodd" d="' + ABOUT_LOGO_SVG.path + '"/></svg>';
+}
 
 // The 7 corner/edge base field names that mean something different in
 // Analog vs Digital (bar/top) -- an analog edge line vs. a digital
@@ -635,7 +646,8 @@ directWebfontStyle() +
 '  .back-btn { padding: 6px 10px; font-size: 13px; font-weight: 600; color: var(--text-strong); background: var(--card-bg); border: 1px solid var(--border); border-radius: 6px; }' +
 '  .back-btn:active { background: var(--border-light); }' +
 '  .about-btn { width: 30px; height: 30px; padding: 3px; display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; border: 1px solid var(--border); border-radius: 6px; background: var(--card-bg); box-shadow: 0 1px 3px rgba(0,0,0,0.12); }' +
-'  .about-btn img { display: block; width: 22px; height: 22px; object-fit: contain; border-radius: 4px; }' +
+'  .about-btn-logo { display: block; width: 22px; height: 22px; border-radius: 4px; fill: currentColor; color: #000; }' +
+'  @media (prefers-color-scheme: dark) { .about-btn-logo { color: #fff; } }' +
 '  .about-btn:active { background: var(--border-light); transform: scale(0.96); }' +
 // Soft, slow pastel cycle rather than the vivid orange pulse this used
 // to be -- 5 gentle hues (pink, peach, buttery yellow, mint, sky blue)
@@ -688,7 +700,8 @@ directWebfontStyle() +
 '  #aboutModal { align-items: center; }' +
 '  .about-modal-box { width: calc(100% - 32px); max-width: 340px; max-height: 78vh; border-radius: 14px; padding: 18px; box-shadow: 0 14px 42px rgba(0,0,0,0.28); transform-origin: center center; animation: about-modal-in 360ms cubic-bezier(.18,.9,.25,1.15) both; }' +
 '  @keyframes about-modal-in { from { transform: translate(var(--about-dx, 0px), var(--about-dy, 0px)) scale(.08); opacity: 0; } 65% { transform: translate(0, 0) scale(1.025); opacity: 1; } to { transform: translate(0, 0) scale(1); opacity: 1; } }' +
-'  .about-logo { width: 62px; height: 62px; margin: 0 auto 10px; display: block; object-fit: contain; border-radius: 12px; cursor: pointer; transform-origin: 50% 50%; -webkit-tap-highlight-color: transparent; user-select: none; }' +
+'  .about-logo { width: 62px; height: 62px; margin: 0 auto 10px; display: block; border-radius: 12px; cursor: pointer; transform-origin: 50% 50%; -webkit-tap-highlight-color: transparent; user-select: none; fill: currentColor; color: #000; }' +
+'  @media (prefers-color-scheme: dark) { .about-logo { color: #fff; } }' +
 '  .about-logo.logo-tap-effect { animation: about-logo-tap 560ms cubic-bezier(.18,.9,.25,1.2); }' +
 '  @keyframes about-logo-tap { 0% { transform: scale(1) rotate(0deg); filter: brightness(1); box-shadow: 0 0 0 0 rgba(255,255,255,0); } 18% { transform: scale(.88) rotate(-7deg); filter: brightness(1.35); box-shadow: 0 0 0 5px rgba(255,255,255,.16), 0 0 18px 4px rgba(255,205,92,.28); } 42% { transform: scale(1.14) rotate(5deg); filter: brightness(1.75); box-shadow: 0 0 0 10px rgba(255,255,255,.07), 0 0 28px 8px rgba(255,205,92,.20); } 68% { transform: scale(.97) rotate(-2deg); filter: brightness(1.12); box-shadow: 0 0 0 4px rgba(255,255,255,.08), 0 0 12px 2px rgba(255,205,92,.12); } 100% { transform: scale(1) rotate(0deg); filter: brightness(1); box-shadow: 0 0 0 0 rgba(255,255,255,0); } }' +
 '  .about-logo.logo-tap-effect::selection { background: transparent; }' +
@@ -1175,7 +1188,7 @@ directWebfontStyle() +
 '    <div class="top-bar-actions">' +
 '      <button type="button" class="back-btn" onclick="goBack()">&lsaquo; Back</button>' +
 '      <button type="button" class="donate-btn" onclick="openDonateModal()">&#9825; Donate</button>' +
-'      <button type="button" class="about-btn" id="aboutButton" onclick="openAboutModal(this)" aria-label="About Eclipz" title="About Eclipz"><img src="' + ABOUT_LOGO_DATA_URI + '" alt=""></button>' +
+'      <button type="button" class="about-btn" id="aboutButton" onclick="openAboutModal(this)" aria-label="About Eclipz" title="About Eclipz">' + aboutLogoMarkup('about-btn-logo', ' aria-hidden="true" focusable="false"') + '</button>' +
 '    </div>' +
 '    <div class="top-bar-title">Eclipz Watchface Preview</div>' +
 '    <div class="top-bar-desc">Look, this preview—it’s very good, believe me, but it’s not 100% perfect yet. Nobody knows watch screens better than me, and right now, it’s not reflecting 1:1. We have a couple of tiny bugs, very small bugs, highly overrated bugs that are hard to fix, frankly. But I’m working on it hard, harder than anyone else, total dedication! Many people are saying it’s already the best preview they’ve ever seen. Thank you for your attention to this matter!</div>' +
@@ -1187,7 +1200,7 @@ directWebfontStyle() +
 
 '<div class="modal-overlay" id="aboutModal" onclick="if (event.target === this) closeAboutModal();">' +
 '  <div class="modal-box about-modal-box">' +
-'    <img class="about-logo" id="aboutEasterEggLogo" src="' + ABOUT_LOGO_DATA_URI + '" alt="Eclipz logo" onclick="tapAboutLogo()" title="Eclipz">' +
+'    ' + aboutLogoMarkup('about-logo', ' id="aboutEasterEggLogo" role="img" aria-label="Eclipz logo" onclick="tapAboutLogo()" title="Eclipz"') +
 '    <div class="about-title">Eclipz</div>' +
 '    <div class="about-subtitle">Solar eclipse watchface for Pebble</div>' +
 '    <div class="about-info">' +
@@ -5130,7 +5143,16 @@ require('./config/config-preview') +
 '  var logo = document.getElementById("aboutEasterEggLogo");' +
 '  if (logo) {' +
 '    logo.classList.remove("logo-tap-effect");' +
-'    void logo.offsetWidth;' +
+// offsetWidth is an HTMLElement-only property -- reading it on an
+// SVGElement (this used to be an <img>, now an inline <svg>) is
+// unreliable across webviews and doesn't dependably force the reflow
+// this needs between removing and re-adding the class, so the very
+// first tap plays fine (nothing to restart) but every tap after that
+// silently no-ops (the class never actually left the element from the
+// browser's point of view). getBoundingClientRect() forces the same
+// style/layout flush but is a plain Element method, defined the same
+// way for SVG and HTML elements, so the restart is reliable either way.
+'    void logo.getBoundingClientRect();' +
 '    logo.classList.add("logo-tap-effect");' +
 '  }' +
 '  aboutLogoTapCount++;' +
@@ -5149,7 +5171,7 @@ require('./config/config-preview') +
 '    var logo = document.getElementById("aboutEasterEggLogo");' +
 '    if (logo) {' +
 '      logo.classList.remove("retro-easter-flash");' +
-'      void logo.offsetWidth;' +
+'      void logo.getBoundingClientRect();' +
 '      logo.classList.add("retro-easter-flash");' +
 '    }' +
 '    return;' +
