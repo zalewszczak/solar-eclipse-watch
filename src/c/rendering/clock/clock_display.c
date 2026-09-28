@@ -7,6 +7,8 @@
 #include "../../data/eclipse_ui.h"
 #include "../../timing/hourly_vibration.h"
 
+#define W_OFFSET_BUFFER 10
+
 static EclipseData *s_data;
 static Layer *s_panel_layer;
 static Layer *s_countdown_layer;
@@ -84,7 +86,7 @@ static void draw_digital_clock_panel(Layer *layer, GContext *ctx) {
   // the two layouts read as a literal vertical flip of one another
   // rather than each being independently tuned.
   int16_t clock_y =  (is_top ? 44 : 24) - font_h / 2;
-  GRect clock_rect = GRect(bounds.origin.x + clock_x, bounds.origin.y + clock_y, clock_w, font_h);
+  GRect clock_rect = GRect(bounds.origin.x - W_OFFSET_BUFFER + clock_x, bounds.origin.y + clock_y, clock_w + 2 * W_OFFSET_BUFFER, font_h);
   GTextAlignment alignment = GTextAlignmentCenter;
 
   // Reduce spacing if the shifted clock would clip.
