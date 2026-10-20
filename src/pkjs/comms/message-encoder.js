@@ -16,6 +16,7 @@
 var settings = require('../settings/settings');
 var getSetting = settings.getSetting;
 var settingsCodecs = require('../settings/settings-codecs');
+var scheduledStyle = require('../scheduled-style');
 var clampFontId = settingsCodecs.clampFontId;
 var clockFontCode = settingsCodecs.clockFontCode;
 var tempUnitCode = settingsCodecs.tempUnitCode;
@@ -459,6 +460,9 @@ function populateSettingsFields(dict) {
   dict['HOURLY_VIBE_DAYS_MASK'] = hourlyVibeDaysMaskCode();
   dict['HOURLY_VIBE_OVERRIDE_QUIET'] = hourlyVibeOverrideQuietCode();
   dict['DRAW_DEBUG'] = drawDebugCode();
+  // Scheduled My styles: when the watch should next ask PKJS to serve one
+  // (0 = none). Always sent so the watch's copy can never go stale.
+  dict['NEXT_STYLE_CHECK'] = scheduledStyle.nextCheckSeconds(Date.now());
 }
 
 // For the settings page's own debug "full keyset" window (see

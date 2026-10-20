@@ -29,3 +29,11 @@ bool comms_send_battery_saver_phase(uint8_t phase);
 // Sets data->overhead_objects_loading so the caller can show a "loading"
 // status until comms_decoder_apply() clears it on the reply.
 void comms_maybe_request_flights(EclipseData *data);
+
+// Scheduled "My styles". If data->next_style_check has passed, sends
+// REQUEST_SCHEDULED_STYLE so the phone (re)starts PKJS and serves the style.
+// Cheap enough to call from every tick: it returns immediately when nothing
+// is due, when the phone is not connected, or when a request went out less
+// than a minute ago. The phone's reply carries a new next_style_check, which
+// is what stops the retries.
+void comms_maybe_request_scheduled_style(const EclipseData *data);
