@@ -209,7 +209,13 @@ void marker_layer_init(MarkerLayerState *state) {
   state->bitmap_tinted = false;
   state->bitmap_tint_color = GColorClear;
   state->bitmap_tint_transparent = false;
+  state->draw_origin = GPoint(0, 0);
   state->text_font_slot = FONT_SLOT_EMPTY;
+}
+
+void marker_layer_release_resources(MarkerLayerState *state) {
+  marker_bitmap_release(&state->bitmap, &state->bitmap_style, &state->bitmap_tinted);
+  font_lookup_release(&state->text_font_slot);
 }
 
 void marker_layer_deinit(MarkerLayerState *state) {
@@ -231,6 +237,17 @@ void marker_layer_draw(GContext *ctx, MarkerLayerState *state, GPoint center, GR
 
   marker_bitmap_ensure(&state->bitmap, &state->bitmap_style, &state->bitmap_tinted,
                          &state->bitmap_tint_color, &state->bitmap_tint_transparent, marker_style);
+
+  if (is_bitmap_style && d->bitmap_marker_invert) {
+    // A previously tinted bitmap lost its anti-aliasing alpha: reload it.
+    if (state->bitmap_tinted) {
+      marker_bitmap_release(&state->bitmap, &state->bitmap_style, &state->bitmap_tinted);
+      marker_bitmap_ensure(&state->bitmap, &state->bitmap_style, &state->bitmap_tinted,
+                           &state->bitmap_tint_color, &state->bitmap_tint_transparent, marker_style);
+    }
+    marker_bitmap_draw_inverted(ctx, state->bitmap, screen, state->draw_origin, d->bitmap_marker_transparent);
+    return;
+  }
 
   if (is_bitmap_style) {
     marker_bitmap_tint(state->bitmap, &state->bitmap_tinted, &state->bitmap_tint_color,

@@ -198,6 +198,14 @@ static void hands_controller_update_proc(Layer *layer, GContext *ctx) {
   HandConfig min_cfg = s_data->hand_minute;
   HandConfig sec_cfg = s_data->hand_second;
 
+  // "Semi-transparent hands on shake": all hands are drawn translucent during
+  // the shake window (input.c runs it for shake_label_seconds).
+  if (s_data->shake_hands_translucent && input_shake_translucent_active()) {
+    hour_cfg.translucent = true;
+    min_cfg.translucent = true;
+    sec_cfg.translucent = true;
+  }
+
   // Hourly-vibration flash: for the flash's whole duration, one of
   // the hour/minute hands (see hourly_vibration.h's own comment on
   // which) swaps main/background color for one second out of every
@@ -209,10 +217,13 @@ static void hands_controller_update_proc(Layer *layer, GContext *ctx) {
   GColor hour_main = flash_hour ? bg : main_color, hour_bg = flash_hour ? main_color : bg;
   GColor min_main = flash_min ? bg : main_color, min_bg = flash_min ? main_color : bg;
 
-  hand_layer_draw(ctx, center, hour_angle, &hour_cfg, hour_main, accent_color, hour_bg, s_data->shadow_translucent, s_data->shadow_angle_deg, hour_length_scale_1000);
-  hand_layer_draw(ctx, center, min_angle, &min_cfg, min_main, accent_color, min_bg, s_data->shadow_translucent, s_data->shadow_angle_deg, min_length_scale_1000);
+  // Features with a thick outline get thicker hand outlines too.
+  const bool thick_outline = s_data->outline_style == 2;
+
+  hand_layer_draw(ctx, center, hour_angle, &hour_cfg, hour_main, accent_color, hour_bg, s_data->shadow_translucent, s_data->shadow_angle_deg, hour_length_scale_1000, thick_outline);
+  hand_layer_draw(ctx, center, min_angle, &min_cfg, min_main, accent_color, min_bg, s_data->shadow_translucent, s_data->shadow_angle_deg, min_length_scale_1000, thick_outline);
   if (s_data->show_seconds) {
-    hand_layer_draw(ctx, center, sec_angle, &sec_cfg, main_color, accent_color, bg, s_data->shadow_translucent, s_data->shadow_angle_deg, sec_length_scale_1000);
+    hand_layer_draw(ctx, center, sec_angle, &sec_cfg, main_color, accent_color, bg, s_data->shadow_translucent, s_data->shadow_angle_deg, sec_length_scale_1000, thick_outline);
   }
 
   hand_layer_draw_center_circle(ctx, center, s_data->center_circle_radius, s_data->center_circle_color,

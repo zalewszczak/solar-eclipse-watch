@@ -98,6 +98,25 @@ var FIELD_MAP = {
   handSecHollowThickness: ['CONFIG_HAND_SEC_HOLLOW_THICKNESS', 's'],
   bigAnalogMarkerStyle: ['CONFIG_BIG_ANALOG_MARKER_STYLE', 's'],
   bitmapMarkerTransparent: ['CONFIG_BITMAP_MARKER_TRANSPARENT', 'b'],
+  upperMiddleLine1Shake: ['CONFIG_UPPER_MIDDLE_LINE1_SHAKE', 's'],
+  upperMiddleLine2Shake: ['CONFIG_UPPER_MIDDLE_LINE2_SHAKE', 's'],
+  bottomMiddleLine1Shake: ['CONFIG_BOTTOM_MIDDLE_LINE1_SHAKE', 's'],
+  bottomMiddleLine2Shake: ['CONFIG_BOTTOM_MIDDLE_LINE2_SHAKE', 's'],
+  middleLeftLine1Shake: ['CONFIG_MIDDLE_LEFT_LINE1_SHAKE', 's'],
+  middleLeftLine2Shake: ['CONFIG_MIDDLE_LEFT_LINE2_SHAKE', 's'],
+  middleRightLine1Shake: ['CONFIG_MIDDLE_RIGHT_LINE1_SHAKE', 's'],
+  middleRightLine2Shake: ['CONFIG_MIDDLE_RIGHT_LINE2_SHAKE', 's'],
+  cornerTLShake: ['CONFIG_CORNER_TL_SHAKE', 's'],
+  cornerTRShake: ['CONFIG_CORNER_TR_SHAKE', 's'],
+  cornerBLShake: ['CONFIG_CORNER_BL_SHAKE', 's'],
+  cornerBRShake: ['CONFIG_CORNER_BR_SHAKE', 's'],
+  bottomMiddleLine2CustomPrims: ['CONFIG_BOTTOM_MIDDLE_LINE2_CUSTOM_PRIMS', 's'],
+  cornerTLCustomPrims: ['CONFIG_CORNER_TL_CUSTOM_PRIMS', 's'],
+  cornerTRCustomPrims: ['CONFIG_CORNER_TR_CUSTOM_PRIMS', 's'],
+  cornerBLCustomPrims: ['CONFIG_CORNER_BL_CUSTOM_PRIMS', 's'],
+  cornerBRCustomPrims: ['CONFIG_CORNER_BR_CUSTOM_PRIMS', 's'],
+  bitmapMarkerInvert: ['CONFIG_BITMAP_MARKER_INVERT', 'b'],
+  shakeHandsTranslucent: ['CONFIG_SHAKE_HANDS_TRANSLUCENT', 'b'],
   customHourStyle: ['CONFIG_CUSTOM_HOUR_STYLE', 's'],
   customHourThickness: ['CONFIG_CUSTOM_HOUR_THICKNESS', 's'],
   customHourInnerThickness: ['CONFIG_CUSTOM_HOUR_INNER_THICKNESS', 's'],
@@ -165,12 +184,19 @@ var DUAL_MAP = {
   middleRightLine1Content: ['CONFIG_MIDDLE_RIGHT_LINE1_CONTENT_ANALOG', 'CONFIG_MIDDLE_RIGHT_LINE1_CONTENT_DIGITAL'],
   middleRightLine1Color: ['CONFIG_MIDDLE_RIGHT_LINE1_COLOR_ANALOG', 'CONFIG_MIDDLE_RIGHT_LINE1_COLOR_DIGITAL'],
   middleRightLine2Content: ['CONFIG_MIDDLE_RIGHT_LINE2_CONTENT_ANALOG', 'CONFIG_MIDDLE_RIGHT_LINE2_CONTENT_DIGITAL'],
-  middleRightLine2Color: ['CONFIG_MIDDLE_RIGHT_LINE2_COLOR_ANALOG', 'CONFIG_MIDDLE_RIGHT_LINE2_COLOR_DIGITAL']
+  middleRightLine2Color: ['CONFIG_MIDDLE_RIGHT_LINE2_COLOR_ANALOG', 'CONFIG_MIDDLE_RIGHT_LINE2_COLOR_DIGITAL'],
+  upperMiddleLine1CustomPrims: ['CONFIG_UPPER_MIDDLE_LINE1_CUSTOM_PRIMS_ANALOG', 'CONFIG_UPPER_MIDDLE_LINE1_CUSTOM_PRIMS_DIGITAL'],
+  upperMiddleLine2CustomPrims: ['CONFIG_UPPER_MIDDLE_LINE2_CUSTOM_PRIMS_ANALOG', 'CONFIG_UPPER_MIDDLE_LINE2_CUSTOM_PRIMS_DIGITAL'],
+  bottomMiddleLine1CustomPrims: ['CONFIG_BOTTOM_MIDDLE_LINE1_CUSTOM_PRIMS_ANALOG', 'CONFIG_BOTTOM_MIDDLE_LINE1_CUSTOM_PRIMS_DIGITAL'],
+  middleLeftLine1CustomPrims: ['CONFIG_MIDDLE_LEFT_LINE1_CUSTOM_PRIMS_ANALOG', 'CONFIG_MIDDLE_LEFT_LINE1_CUSTOM_PRIMS_DIGITAL'],
+  middleLeftLine2CustomPrims: ['CONFIG_MIDDLE_LEFT_LINE2_CUSTOM_PRIMS_ANALOG', 'CONFIG_MIDDLE_LEFT_LINE2_CUSTOM_PRIMS_DIGITAL'],
+  middleRightLine1CustomPrims: ['CONFIG_MIDDLE_RIGHT_LINE1_CUSTOM_PRIMS_ANALOG', 'CONFIG_MIDDLE_RIGHT_LINE1_CUSTOM_PRIMS_DIGITAL'],
+  middleRightLine2CustomPrims: ['CONFIG_MIDDLE_RIGHT_LINE2_CUSTOM_PRIMS_ANALOG', 'CONFIG_MIDDLE_RIGHT_LINE2_CUSTOM_PRIMS_DIGITAL']
 };
 
 // Elements in the preset scope that are UI state only, or that are handled
 // explicitly in applyPreset() below instead of through the tables.
-var UI_ONLY_IDS = ['showAllColorPresets', 'bigDigitalTransparent'];
+var UI_ONLY_IDS = ['showAllColorPresets', 'bigDigitalTransparent', '__pluginSlots'];
 var SPECIAL_IDS = ['bottomStyleValue'];
 
 function knownIds() {
@@ -217,7 +243,19 @@ function applyPreset(preset) {
   for (id in preset) {
     if (!preset.hasOwnProperty(id)) continue;
     var v = preset[id];
-    if (v === null || v === undefined || v === '') continue;
+    if (id === '__pluginSlots') {
+      // The plugin data sources behind the plugin features' slot numbers. index.js
+      // re-subscribes afterwards (serveScheduledStyle).
+      if (Object.prototype.toString.call(v) === '[object Array]') {
+        var slots = [];
+        for (var si = 0; si < 12; si++) slots.push(typeof v[si] === 'string' ? v[si] : '');
+        setSetting('CONFIG_PLUGIN_SLOTS', JSON.stringify(slots));
+        written++;
+      }
+      continue;
+    }
+    // An empty user-built sequence is meaningful (it switches the slot back to its prebuilt feature).
+    if (v === null || v === undefined || (v === '' && !/CustomPrims$/.test(id))) continue;
     var f = FIELD_MAP[id];
     if (f) {
       setSetting(f[0], toStored(f[1], v));

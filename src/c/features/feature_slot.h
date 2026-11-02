@@ -2,31 +2,19 @@
 
 #include <pebble.h>
 #include "../data/eclipse_data.h"
+#include "./primitives/primitive_storage.h"
 
 // Shared feature-row geometry used by both layout and rendering.
 #define CORNER_ROW_H 24
 
-// Internal feature-layer data model shared by the value and layout/drawing
+// Internal primitive-only feature-layer data model shared by layout and drawing
 
 #define FEATURES_MAX_SLOTS 12
-#define MAX_RENDER_SEGMENTS 8
 #define CORNER_BOX_W 68
-
-typedef struct {
-  bool is_icon;
-  uint8_t icon_kind;
-  int16_t icon_extra;
-  bool icon_flag;
-  char text[20];
-  GColor color;
-  GColor color2;
-  int16_t x_offset;
-  int16_t width;
-} RenderSegment;
 
 typedef struct FeatureSlot {
   bool active;
-  uint8_t content;
+  bool shake_only;
   uint8_t color_mode;
 
   bool is_top;
@@ -41,14 +29,15 @@ typedef struct FeatureSlot {
   bool allow_outline;
   bool needs_second_refresh;
 
+  // Digital layouts: the slot sits in its own box (the clock area) rather than
+  // in a CORNER_BOX_W wide column.
   bool custom_box;
   int16_t box_x;
   int16_t box_w;
 
   bool draw_pill;
   GColor pill_bg;
-  int16_t segment_count;
-  RenderSegment segments[MAX_RENDER_SEGMENTS];
+  PrimitiveFeature primitives;
 } FeatureSlot;
 
 typedef struct {

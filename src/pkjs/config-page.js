@@ -125,6 +125,9 @@ var HAND_STYLE_ICON_IMAGES = require('./data/generated/hand-style-icon-images');
 // value, nearest-neighbor upscaled to stay crisp -- see
 // scripts/generate-weather-icon-previews.js for how these get made.
 var WEATHER_ICON_STYLE_PREVIEWS = require('./data/generated/weather-icon-style-previews');
+// Real icon art for the live preview's feature slots (see scripts/generate-preview-icons.js).
+var PREVIEW_ICON_IMAGES = require('./data/generated/preview-icon-images');
+var PREVIEW_ICON_TOKENS = require('./config/preview-icons').PREVIEW_ICON_TOKENS;
 
 // "Example styles" grid (first section on the settings page) -- each
 // numbered slot pairs a screenshot (resources/example-styles/<n>.png,
@@ -199,6 +202,39 @@ var configFeatures = require('./config/config-features');
 var CORNER_CONTENT_OPTIONS = configFeatures.CORNER_CONTENT_OPTIONS;
 var cornerContentOptionsHtml = configFeatures.cornerContentOptionsHtml;
 
+// Primitive-strip preview (Feature Primitive Refactor Phase 9) -- see
+// config/primitive-decompose.js's own header for what this can and can't
+// do yet. Phase 10: the full per-content chip table is precomputed here,
+// once, straight from primitiveChipsForContent() (which itself derives
+// from the real transport sequences -- see that function's own header) --
+// not just the two-entry ATOMIC_DECOMPOSITIONS fallback table Phase 9 sent
+// down before every other content id had a transport sequence to derive
+// from. Computed from PRESETS_LOOKUPS' own unfiltered CORNER_CATEGORIES
+// (decomposition is a fixed property of a content id, not something that
+// depends on the aurora-enabled/etc. per-request filtering
+// cornerCategoriesForClient applies), so it's the same for every request
+// and only needs computing once at module load.
+var primitiveDecomposeModule = require('./config/primitive-decompose');
+var primitiveContentDecompositions = {};
+PRESETS_LOOKUPS.CORNER_CATEGORIES.forEach(function (cat) {
+  cat.items.forEach(function (it) {
+    primitiveContentDecompositions[it.id] = primitiveDecomposeModule.primitiveChipsForContent(it.id);
+  });
+});
+// Phase 9 composer: the palette of resolver-covered primitives a person
+// can actually build a custom sequence from, and the raw numeric
+// transport table (so "start from this content" can seed the composer --
+// see PRIMITIVE_TRANSPORT_SEQUENCES in the generated script below).
+var primitivePalette = primitiveDecomposeModule.PRIMITIVE_PALETTE;
+var primitiveTransportSequences = primitiveDecomposeModule.PRIMITIVE_TRANSPORT_SEQUENCES;
+var primitiveTransportAux = primitiveDecomposeModule.PRIMITIVE_TRANSPORT_AUX;
+var primitiveTimezoneZones = primitiveDecomposeModule.TIMEZONE_ZONES;
+var primitiveForecastSlots = primitiveDecomposeModule.FORECAST_SLOTS;
+var primitivePreviewText = primitiveDecomposeModule.PRIMITIVE_PREVIEW_TEXT;
+var primitiveIds = require('./config/primitive-ids-generated');
+// Client-side composer code (real function declarations, spliced in below).
+var composerClientSource = require('./config/config-composer');
+
 // Whether a font renders Roman numerals correctly now lives on
 // FONT_LOOKUP itself (each entry's own `romanOk` field) -- see its
 // comment in presets-lookups.js. The Roman numerals checkbox in the
@@ -228,6 +264,7 @@ var schemeColorOptionsHtml = require('./config/config-colors').schemeColorOption
 // handHiddenInputsHtml/HAND_COPY_SOURCE/HAND_COPY_SOURCE_LABEL/
 // handEditorModalHtml all moved to config/config-hands.js
 // (configuration architecture extraction, JS8 fifth slice).
+var configPlugins = require('./config/config-plugins');
 var configHands = require('./config/config-hands');
 var handHiddenInputsHtml = configHands.handHiddenInputsHtml;
 var HAND_COPY_SOURCE = configHands.HAND_COPY_SOURCE;
@@ -923,6 +960,39 @@ configPresetSchedule.css +
 '  .example-style-modal-img { max-width: min(50%, 3cm); width: auto; height: auto; margin: 0 auto; border-radius: 8px; display: block; }' +
 '  .example-style-modal-title { font-weight: 700; font-size: 16px; margin-top: 10px; text-align: center; color: var(--text-strong); }' +
 '  .mode-btn-group { display: flex; width: 100%; margin-top: 6px; border-radius: 6px; overflow: hidden; border: 1px solid var(--border); box-sizing: border-box; }' +
+// Primitive-strip preview (Feature Primitive Refactor Phase 9) -- a row of
+// small chips under the Content dropdown showing what that content
+// actually decomposes into on the watch (see primitiveChipsForContent()
+// below). Read-only for now (no drag/append/remove -- see
+// config/primitive-decompose.js's header for why), so styled as a plain
+// inline preview, not as interactive buttons: no hover/active states,
+// smaller and quieter than .mode-btn/.category-btn.
+'  .primitive-strip { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }' +
+'  .primitive-chip { display: inline-block; padding: 3px 8px; font-size: 11px; font-weight: 600; border-radius: 10px; line-height: 1.4; }' +
+'  .primitive-chip-value { background: var(--btn-bg); color: var(--text-strong); border: 1px solid var(--border); }' +
+'  .primitive-chip-label { background: #ff9200; color: #fff; }' +
+'  .primitive-chip-icon { background: var(--btn-bg); color: var(--text-faint); border: 1px dashed var(--border); font-style: italic; }' +
+'  .primitive-chip-space, .primitive-chip-slash { background: none; color: var(--text-faint); padding: 3px 2px; font-weight: 700; }' +
+'  #slotEditModal .modal-box { overflow: hidden; height: 90vh; max-height: 90vh; }' +
+'  #slotEditPrimitives { display: none !important; }' +
+'  .slot-edit-scroll { flex: 1 1 auto !important; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; padding-bottom: 8px; }' +
+'  .slot-edit-footer { flex: 0 0 auto; padding-top: 10px; border-top: 1px solid var(--border-light); background: var(--card-bg); }' +
+// The box is a column flexbox; without this the overflow-hidden button group (min-height 0) is squashed to ~2px when the content is tall (custom builder open).
+'  #slotEditModal .modal-box > * { flex-shrink: 0; }' +
+// The live preview stays pinned to the top of the popup while the rest scrolls.
+'  .slot-preview { flex: 0 0 auto; background: var(--card-bg); margin: 0 -16px 8px; padding: 0 16px 8px; border-bottom: 1px solid var(--border-light); }' +
+'  .slot-preview-canvas { display: block; width: 100%; height: 64px; border-radius: 10px; border: 1px solid var(--border); }' +
+'  .slot-preview-info { display: flex; gap: 12px; align-items: center; margin-top: 6px; font-size: 11px; color: var(--text-faint); }' +
+'  .slot-preview-swatch { display: inline-block; width: 12px; height: 12px; border-radius: 3px; border: 1px solid var(--border); vertical-align: -2px; margin-right: 4px; }' +
+'  .composer-row { display: flex; gap: 6px; margin-top: 8px; align-items: center; flex-wrap: wrap; }' +
+'  .composer-btn { padding: 8px 14px; font-size: 14px; font-weight: 600; color: var(--text-strong); background: var(--btn-bg); border: 1px solid var(--border); border-radius: 8px; }' +
+'  .composer-btn:active { background: var(--border-light); }' +
+'  .composer-btn:disabled { opacity: 0.4; }' +
+'  .composer-btn-grow { flex: 1; }' +
+'  .composer-chip { padding: 5px 9px; font-size: 12px; font-weight: 600; color: var(--text-strong); background: var(--btn-bg); border: 1px solid var(--border); border-radius: 10px; cursor: grab; }' +
+'  .composer-chip.selected { background: #ff9200; color: #fff; border-color: #ff9200; box-shadow: inset 0 2px 4px rgba(0,0,0,0.35); }' +
+'  .composer-error { color: #d00; font-size: 13px; font-weight: 600; margin-top: 6px; }' +
+'  .composer-count { font-size: 12px; color: var(--text-faint); margin-left: auto; }' +
 // 9 icon-only, roughly-square buttons for the slot editor's category
 // picker (replacing what used to be a plain <select>). A fixed 44px
 // button size (>= this page's other buttons -- .slider-step-btn is
@@ -1050,6 +1120,9 @@ configPresetSchedule.css +
 '  .slot-btn { position: absolute; min-width: 54px; padding: 5px 8px; font-size: 11px; font-weight: 700; color: #222; background: rgba(255,255,255,0.85); border: 1px solid rgba(0,0,0,0.2); border-radius: 6px; text-align: center; }' +
 '  .slot-btn:active { background: #fff; }' +
 '  .slot-btn.slot-off { color: #777; font-weight: 400; }' +
+'  .slot-btn.slot-shake { border: 2px dashed #e07a00; padding: 4px 7px; }' +
+'  .slot-legend { margin: 8px 2px 0; font-size: 12px; line-height: 1.4; color: var(--text-muted); }' +
+'  .slot-legend .slot-legend-sample { display: inline-block; padding: 0 5px; border: 2px dashed #e07a00; border-radius: 5px; font-weight: 700; color: var(--text); }' +
 '  .slot-btn.slot-na { color: #aaa; background: rgba(230,230,230,0.7); font-style: italic; pointer-events: none; }' +
 '  .slot-corner-tl { left: 6px; top: 6px; }' +
 '  .slot-corner-tr { right: 6px; top: 6px; }' +
@@ -1190,7 +1263,7 @@ configPresetSchedule.css +
 '<div id="topBar">' +
 '  <div class="top-bar-left">' +
 '    <div class="top-bar-actions">' +
-'      <button type="button" class="back-btn" onclick="goBack()">&lsaquo; Back</button>' +
+(current.liveMode ? '' : '      <button type="button" class="back-btn" onclick="goBack()">&lsaquo; Back</button>') +
 '      <button type="button" class="donate-btn" onclick="openDonateModal()">&#9825; Donate</button>' +
 '      <button type="button" class="about-btn" id="aboutButton" onclick="openAboutModal(this)" aria-label="About Eclipz" title="About Eclipz">' + aboutLogoMarkup('about-btn-logo', ' aria-hidden="true" focusable="false"') + '</button>' +
 '    </div>' +
@@ -1220,22 +1293,78 @@ configPresetSchedule.css +
 
 '<div class="modal-overlay" id="slotEditModal" onclick="if (event.target === this) closeSlotEditor();">' +
 '  <div class="modal-box">' +
-'    <div class="modal-title" id="slotEditTitle">Edit slot</div>' +
+'    <div class="modal-title" id="slotEditTitle" style="display:none;">Edit slot</div>' +
+'    <div class="slot-preview" id="slotEditPreviewWrap">' +
+'      <canvas id="slotEditPreviewCanvas" class="slot-preview-canvas"></canvas>' +
+'    </div>' +
+'    <div class="slot-edit-scroll" id="slotEditScroll">' +
+'    <div class="mode-btn-group" id="slotEditKindGroup" style="margin-top:2px;">' +
+'      <button type="button" class="mode-btn" onclick="slotEditSetKind(false)">PREDEFINED</button>' +
+'      <button type="button" class="mode-btn" onclick="slotEditSetKind(true)">CUSTOM</button>' +
+'    </div>' +
+'    <input type="checkbox" id="slotEditCustomPrimsToggle" style="display:none;">' +
+'    <div id="slotEditPrebuiltBlock">' +
 '    <label>Category</label>' +
 '    <div class="category-btn-group" id="slotEditCategoryGroup"></div>' +
 '    <input type="hidden" id="slotEditCategory">' +
 '    <label for="slotEditContent" style="margin-top:10px;">Content</label>' +
 '    <select id="slotEditContent" onchange="onSlotEditContentChange()">' + cornerContentOptionsHtml(0) + '</select>' +
+'    <div class="primitive-strip" id="slotEditPrimitives" style="display:none !important;"></div>' +
 '    <div class="help" id="slotEditCategoryHelp" style="display:none;">Shows the time-zone option used for the selected location. Daylight saving rules may vary by location.</div>' +
-'    <div class="mode-btn-group" id="slotEditColorGroup" style="margin-top:10px;">' +
+'    </div>' +
+'    <div id="slotEditCustomPrimsSection" style="display:none;">' +
+'      <div id="slotEditCustomPrimsBody" style="display:none;">' +
+'        <div class="primitive-strip" id="composerStrip"></div>' +
+'        <div class="help" id="composerEmpty" style="display:none;">Nothing here yet. Use the palette below.</div>' +
+'        <div class="composer-row">' +
+'          <button type="button" class="composer-btn composer-btn-grow" id="composerLeft" onclick="composerMove(-1)">&larr;</button>' +
+'          <button type="button" class="composer-btn composer-btn-grow" id="composerDelete" onclick="composerDelete()">Delete</button>' +
+'          <button type="button" class="composer-btn composer-btn-grow" id="composerRight" onclick="composerMove(1)">&rarr;</button>' +
+'          <span class="composer-count" id="composerCount"></span>' +
+'        </div>' +
+'        <div class="composer-row" id="composerSelZoneRow" style="display:none;">' +
+'          <label style="margin:0; flex:1 1 100%;" id="composerSelZoneLabel">Zone for selected</label>' +
+'          <select id="composerSelZone" onchange="composerOnSelZoneChange()" style="flex:1 1 100%;"></select>' +
+'        </div>' +
+'        <div class="composer-row" id="composerSelTextRow" style="display:none;">' +
+'          <label style="margin:0; flex:1 1 100%;">Text for selected</label>' +
+'          <input type="text" id="composerSelText" maxlength="15" oninput="composerOnSelTextInput()" style="flex:1 1 100%;">' +
+'        </div>' +
+'        <label style="margin-top:12px;">Add from palette</label>' +
+'        <div class="composer-row" style="margin-top:4px;">' +
+'          <select id="composerAddGroup" onchange="composerOnAddGroupChange()" style="flex:1;"></select>' +
+'          <select id="composerAddItem" onchange="composerUpdateAddZoneVisibility()" style="flex:2;"></select>' +
+'        </div>' +
+'        <div class="composer-row" id="composerAddZoneRow" style="display:none;">' +
+'          <label style="margin:0; flex:1 1 100%;" id="composerAddZoneLabel">Zone</label>' +
+'          <select id="composerAddZone" style="flex:1 1 100%;"></select>' +
+'        </div>' +
+'        <div class="composer-row" id="composerAddTextRow" style="display:none;">' +
+'          <label style="margin:0; flex:1 1 100%;">Text</label>' +
+'          <input type="text" id="composerAddText" maxlength="15" placeholder="e.g. H, L, UV (15 characters max)" style="flex:1 1 100%;">' +
+'        </div>' +
+'        <div class="composer-row">' +
+'          <button type="button" class="composer-btn composer-btn-grow" onclick="composerAddFromPalette()">Add element</button>' +
+'        </div>' +
+'        <div class="composer-error" id="composerError" style="display:none;"></div>' +
+'      </div>' +
+'    </div>' +
+'    <div class="mode-btn-group" id="slotEditColorGroup" style="margin-top:14px;">' +
 '      <button type="button" class="mode-btn" onclick="slotEditorSelectColor(0)">MONO</button>' +
 '      <button type="button" class="mode-btn" onclick="slotEditorSelectColor(1)">ACC</button>' +
 '      <button type="button" class="mode-btn" onclick="slotEditorSelectColor(2)">PILL</button>' +
 '      <button type="button" class="mode-btn" onclick="slotEditorSelectColor(3)">COLOR</button>' +
 '    </div>' +
 '    <div class="help"><b>MONO</b> = your main color, <b>ACC</b> = accent color, <b>PILL</b> = solid background-color capsule behind main-color content, <b>COLOR</b> = dynamic (changes with the value shown).</div>' +
-'    <button type="button" onclick="saveSlotEditor()" style="width:100%; box-sizing:border-box; padding:14px; font-size:16px; font-weight:600; color:#fff; background:#ff9200; border:none; border-radius:8px; margin-top:14px;">OK</button>' +
-'    <button type="button" class="modal-cancel-btn" onclick="closeSlotEditor()">Cancel</button>' +
+'    <div class="checkbox-row" style="margin-top:12px;">' +
+'      <input type="checkbox" id="slotEditShake">' +
+'      <label for="slotEditShake" style="margin:0;">Show only when the watch is shaken</label>' +
+'    </div>' +
+'    </div>' +
+'    <div class="slot-edit-footer">' +
+'      <button type="button" onclick="saveSlotEditor()" style="width:100%; box-sizing:border-box; padding:14px; font-size:16px; font-weight:600; color:#fff; background:#ff9200; border:none; border-radius:8px;">OK</button>' +
+'      <button type="button" class="modal-cancel-btn" onclick="closeSlotEditor()" style="margin-top:8px;">Cancel</button>' +
+'    </div>' +
 '  </div>' +
 '</div>' +
 
@@ -1555,6 +1684,10 @@ configPresetSchedule.modalHtml +
 '        <input type="checkbox" id="bitmapMarkerTransparent" ' + (current.bitmapMarkerTransparent ? 'checked' : '') + ' onchange="onBitmapMarkerTransparentChange()">' +
 '        <label for="bitmapMarkerTransparent" style="margin:0;">Semi transparent markers (see the sky through them)</label>' +
 '      </div>' +
+'      <div class="checkbox-row" id="bitmapMarkerInvertRow" style="margin-top:8px;' + (isBitmapMarkerStyle ? '' : ' display:none;') + '">' +
+'        <input type="checkbox" id="bitmapMarkerInvert" ' + (current.bitmapMarkerInvert ? 'checked' : '') + ' onchange="updatePreview()">' +
+'        <label for="bitmapMarkerInvert" style="margin:0;">Inverted blend (markers turn black or white for contrast with the background)</label>' +
+'      </div>' +
 '      <div class="help" id="help-indicesStyle" style="display:none;">Choose the hour/second markers around the analog face. Custom lets you edit them.</div>' +
 
 '      <div id="customMarkerSection" style="' + (current.bigAnalogMarkerStyle === '8' ? '' : 'display:none;') + '">' +
@@ -1631,6 +1764,7 @@ configPresetSchedule.modalHtml +
 '      <button type="button" class="slot-btn slot-digital-right3" id="slotBtn-digitalRight3" onclick="openSlotEditor(\'digitalRight3\')"></button>' +
 '      <button type="button" class="slot-btn slot-digital-bottom" id="slotBtn-digitalBottom" onclick="openSlotEditor(\'digitalBottom\')"></button>' +
 '    </div>' +
+'    <div class="slot-legend" id="slotShakeLegend" style="display:none;"><span class="slot-legend-sample">&nbsp;&nbsp;&nbsp;</span> Features with an orange dashed border are hidden until you shake the watch.</div>' +
 
 '    <div class="checkbox-row" id="bitmapCornerOverrideRow" style="margin-top:12px;' + ((isBitmapMarkerStyle && markerStyleNum !== 5) ? '' : ' display:none;') + '">' +
 '      <input type="checkbox" id="bitmapCornerOverride" ' + (current.bitmapCornerOverride ? 'checked' : '') + ' onchange="onBitmapCornerOverrideChange()">' +
@@ -1679,28 +1813,52 @@ configPresetSchedule.modalHtml +
 '    <div style="display:none;" id="slotDataStore">' +
 '      <select id="cornerTL">' + cornerContentOptionsHtml(current.cornerTL, current.auroraEnabled) + '</select>' +
 '      <input type="hidden" id="cornerTLColor" value="' + esc(current.cornerTLColor || '0') + '">' +
+'      <input type="hidden" id="cornerTLCustomPrims" value="' + esc(current.cornerTLCustomPrims || '') + '">' +
+'      <input type="hidden" id="cornerTLShake" value="' + (current.cornerTLShake === '1' ? '1' : '0') + '">' +
 '      <select id="cornerTR">' + cornerContentOptionsHtml(current.cornerTR, current.auroraEnabled) + '</select>' +
 '      <input type="hidden" id="cornerTRColor" value="' + esc(current.cornerTRColor || '0') + '">' +
+'      <input type="hidden" id="cornerTRCustomPrims" value="' + esc(current.cornerTRCustomPrims || '') + '">' +
+'      <input type="hidden" id="cornerTRShake" value="' + (current.cornerTRShake === '1' ? '1' : '0') + '">' +
 '      <select id="cornerBL">' + cornerContentOptionsHtml(current.cornerBL, current.auroraEnabled) + '</select>' +
 '      <input type="hidden" id="cornerBLColor" value="' + esc(current.cornerBLColor || '0') + '">' +
+'      <input type="hidden" id="cornerBLCustomPrims" value="' + esc(current.cornerBLCustomPrims || '') + '">' +
+'      <input type="hidden" id="cornerBLShake" value="' + (current.cornerBLShake === '1' ? '1' : '0') + '">' +
 '      <select id="cornerBR">' + cornerContentOptionsHtml(current.cornerBR, current.auroraEnabled) + '</select>' +
 '      <input type="hidden" id="cornerBRColor" value="' + esc(current.cornerBRColor || '0') + '">' +
+'      <input type="hidden" id="cornerBRCustomPrims" value="' + esc(current.cornerBRCustomPrims || '') + '">' +
+'      <input type="hidden" id="cornerBRShake" value="' + (current.cornerBRShake === '1' ? '1' : '0') + '">' +
 '      <select id="upperMiddleLine1Content">' + cornerContentOptionsHtml(isAnalog ? current.upperMiddleLine1ContentAnalog : current.upperMiddleLine1ContentDigital, current.auroraEnabled) + '</select>' +
 '      <input type="hidden" id="upperMiddleLine1Color" value="' + esc((isAnalog ? current.upperMiddleLine1ColorAnalog : current.upperMiddleLine1ColorDigital) || '0') + '">' +
+'      <input type="hidden" id="upperMiddleLine1CustomPrims" value="' + esc((isAnalog ? current.upperMiddleLine1CustomPrimsAnalog : current.upperMiddleLine1CustomPrimsDigital) || '') + '">' +
+'      <input type="hidden" id="upperMiddleLine1Shake" value="' + (current.upperMiddleLine1Shake === '1' ? '1' : '0') + '">' +
 '      <select id="upperMiddleLine2Content">' + cornerContentOptionsHtml(isAnalog ? current.upperMiddleLine2ContentAnalog : current.upperMiddleLine2ContentDigital, current.auroraEnabled) + '</select>' +
 '      <input type="hidden" id="upperMiddleLine2Color" value="' + esc((isAnalog ? current.upperMiddleLine2ColorAnalog : current.upperMiddleLine2ColorDigital) || '0') + '">' +
+'      <input type="hidden" id="upperMiddleLine2CustomPrims" value="' + esc((isAnalog ? current.upperMiddleLine2CustomPrimsAnalog : current.upperMiddleLine2CustomPrimsDigital) || '') + '">' +
+'      <input type="hidden" id="upperMiddleLine2Shake" value="' + (current.upperMiddleLine2Shake === '1' ? '1' : '0') + '">' +
 '      <select id="bottomMiddleLine1Content">' + cornerContentOptionsHtml(isAnalog ? current.bottomMiddleLine1ContentAnalog : current.bottomMiddleLine1ContentDigital, current.auroraEnabled) + '</select>' +
 '      <input type="hidden" id="bottomMiddleLine1Color" value="' + esc((isAnalog ? current.bottomMiddleLine1ColorAnalog : current.bottomMiddleLine1ColorDigital) || '0') + '">' +
+'      <input type="hidden" id="bottomMiddleLine1CustomPrims" value="' + esc((isAnalog ? current.bottomMiddleLine1CustomPrimsAnalog : current.bottomMiddleLine1CustomPrimsDigital) || '') + '">' +
+'      <input type="hidden" id="bottomMiddleLine1Shake" value="' + (current.bottomMiddleLine1Shake === '1' ? '1' : '0') + '">' +
 '      <select id="bottomMiddleLine2Content">' + cornerContentOptionsHtml(current.bottomMiddleLine2Content, current.auroraEnabled) + '</select>' +
 '      <input type="hidden" id="bottomMiddleLine2Color" value="' + esc(current.bottomMiddleLine2Color || '0') + '">' +
+'      <input type="hidden" id="bottomMiddleLine2CustomPrims" value="' + esc(current.bottomMiddleLine2CustomPrims || '') + '">' +
+'      <input type="hidden" id="bottomMiddleLine2Shake" value="' + (current.bottomMiddleLine2Shake === '1' ? '1' : '0') + '">' +
 '      <select id="middleLeftLine1Content">' + cornerContentOptionsHtml(isAnalog ? current.middleLeftLine1ContentAnalog : current.middleLeftLine1ContentDigital, current.auroraEnabled) + '</select>' +
 '      <input type="hidden" id="middleLeftLine1Color" value="' + esc((isAnalog ? current.middleLeftLine1ColorAnalog : current.middleLeftLine1ColorDigital) || '0') + '">' +
+'      <input type="hidden" id="middleLeftLine1CustomPrims" value="' + esc((isAnalog ? current.middleLeftLine1CustomPrimsAnalog : current.middleLeftLine1CustomPrimsDigital) || '') + '">' +
+'      <input type="hidden" id="middleLeftLine1Shake" value="' + (current.middleLeftLine1Shake === '1' ? '1' : '0') + '">' +
 '      <select id="middleLeftLine2Content">' + cornerContentOptionsHtml(isAnalog ? current.middleLeftLine2ContentAnalog : current.middleLeftLine2ContentDigital, current.auroraEnabled) + '</select>' +
 '      <input type="hidden" id="middleLeftLine2Color" value="' + esc((isAnalog ? current.middleLeftLine2ColorAnalog : current.middleLeftLine2ColorDigital) || '0') + '">' +
+'      <input type="hidden" id="middleLeftLine2CustomPrims" value="' + esc((isAnalog ? current.middleLeftLine2CustomPrimsAnalog : current.middleLeftLine2CustomPrimsDigital) || '') + '">' +
+'      <input type="hidden" id="middleLeftLine2Shake" value="' + (current.middleLeftLine2Shake === '1' ? '1' : '0') + '">' +
 '      <select id="middleRightLine1Content">' + cornerContentOptionsHtml(isAnalog ? current.middleRightLine1ContentAnalog : current.middleRightLine1ContentDigital, current.auroraEnabled) + '</select>' +
 '      <input type="hidden" id="middleRightLine1Color" value="' + esc((isAnalog ? current.middleRightLine1ColorAnalog : current.middleRightLine1ColorDigital) || '0') + '">' +
+'      <input type="hidden" id="middleRightLine1CustomPrims" value="' + esc((isAnalog ? current.middleRightLine1CustomPrimsAnalog : current.middleRightLine1CustomPrimsDigital) || '') + '">' +
+'      <input type="hidden" id="middleRightLine1Shake" value="' + (current.middleRightLine1Shake === '1' ? '1' : '0') + '">' +
 '      <select id="middleRightLine2Content">' + cornerContentOptionsHtml(isAnalog ? current.middleRightLine2ContentAnalog : current.middleRightLine2ContentDigital, current.auroraEnabled) + '</select>' +
 '      <input type="hidden" id="middleRightLine2Color" value="' + esc((isAnalog ? current.middleRightLine2ColorAnalog : current.middleRightLine2ColorDigital) || '0') + '">' +
+'      <input type="hidden" id="middleRightLine2CustomPrims" value="' + esc((isAnalog ? current.middleRightLine2CustomPrimsAnalog : current.middleRightLine2CustomPrimsDigital) || '') + '">' +
+'      <input type="hidden" id="middleRightLine2Shake" value="' + (current.middleRightLine2Shake === '1' ? '1' : '0') + '">' +
 '    </div>' +
 
 '    <div class="subsection">' +
@@ -1715,6 +1873,9 @@ configPresetSchedule.modalHtml +
 '      <button type="button" class="help-btn" onclick="toggleHelp(\'help-drawFeaturesBeneathHands\')">?</button>' +
 '    </div>' +
 '    <div class="help" id="help-drawFeaturesBeneathHands" style="display:none;">In Analog mode, draws feature text underneath the hands instead of on top.</div>' +
+'    <div class="field-label-row" style="margin-top:12px;"><button type="button" class="secondary-btn" id="loadPrefFeaturesBtn" onclick="loadPreferredFeatures()">Load user preferences</button><button type="button" class="help-btn" onclick="toggleHelp(\'help-loadPrefFeatures\')">?</button></div>' +
+'    <div class="help" id="help-loadPrefFeatures" style="display:none;">Fills Upper-middle line 2, Bottom-middle line 1 and the first line on the left and on the right with the readings you chose in the Pebble app (Settings &rarr; Plugins &rarr; Complications), in that order. They replace what those four slots show now; the change is only kept when you save.</div>' +
+'    <div class="help" id="prefFeaturesStatus" style="display:none;"></div>' +
 '    </div>' +
 '  </fieldset>' +
 '  <fieldset>' +
@@ -1850,6 +2011,15 @@ configPresetSchedule.modalHtml +
 '    <div class="help" id="help-shakeAnimMode" style="display:none;">Choose what happens when you shake the watch.</div>' +
 
 '    <div class="subsection">' +
+'      <div class="checkbox-row">' +
+'        <input type="checkbox" id="shakeHandsTranslucent" ' + (current.shakeHandsTranslucent ? 'checked' : '') + ' onchange="updatePreview(); try { refreshAllSectionSubheaders(); } catch (e) {}">' +
+'        <label for="shakeHandsTranslucent" style="margin:0;">Semi-transparent hands on shake</label>' +
+'        <button type="button" class="help-btn" onclick="toggleHelp(\'help-shakeHandsTranslucent\')">?</button>' +
+'      </div>' +
+'    </div>' +
+'    <div class="help" id="help-shakeHandsTranslucent" style="display:none;">The hands turn semi-transparent for the duration of the shake animation (see the duration slider below), so you can see the dial and features underneath them. Works with or without the smooth second hand.</div>' +
+
+'    <div class="subsection">' +
 '      <div class="slider-row">' +
 '        <div class="field-label-row"><label for="shakeLabelSeconds">Shake animations duration <span class="val" id="shakeLabelSecondsVal">' + esc(current.shakeLabelSeconds || '3') + 's</span></label><button type="button" class="help-btn" onclick="toggleHelp(\'help-shakeLabelSeconds\')">?</button></div>' +
 '        <div class="slider-with-buttons">' +
@@ -1859,7 +2029,7 @@ configPresetSchedule.modalHtml +
 '        </div>' +
 '      </div>' +
 '    </div>' +
-'    <div class="help" id="help-shakeLabelSeconds" style="display:none;">Sets how long shake-triggered animations and temporary labels remain active.</div>' +
+'    <div class="help" id="help-shakeLabelSeconds" style="display:none;">Sets how long shake-triggered animations (smooth second hand, semi-transparent hands), temporary labels and shake-only features stay active.</div>' +
 '    </div>' +
 
 '    </div>' +
@@ -1892,6 +2062,7 @@ configPresetSchedule.modalHtml +
 '    <div class="section-body" id="section-weather" style="display:none;">' +
 '    <div class="subsection"></div>' +
 '    <div class="help section-intro" onclick="toggleSectionIntro(this)">Cloud cover is always pulled from Open-Meteo (no signup needed). Optionally add an OpenWeatherMap API key to average in a second forecast.</div>' +
+    configPlugins.weatherSourceHtml(current) +
 '    <label for="owmKey">OpenWeatherMap API key (optional)</label>' +
 '    <input type="text" id="owmKey" placeholder="leave blank to skip" value="' + esc(current.owmKey) + '">' +
 
@@ -1900,7 +2071,7 @@ configPresetSchedule.modalHtml +
         { value: 'C', label: '\u00b0C' },
         { value: 'F', label: '\u00b0F' },
         { value: 'K', label: 'K' }
-      ], current.tempUnit || 'C') +
+      ], current.tempUnit || 'C', 'onTempUnitChange') +
 '    <div class="help" id="help-tempUnit" style="display:none;">Sets the temperature unit used throughout the watchface.</div>' +
 
 '    <div class="field-label-row"><label style="margin-top:10px;">Wind speed unit</label><button type="button" class="help-btn" onclick="toggleHelp(\'help-windSpeedUnit\')">?</button></div>' +
@@ -1925,6 +2096,10 @@ configPresetSchedule.modalHtml +
         { value: '1', label: 'FEET' }
       ], current.altitudeUnit || '0') +
 '    <div class="help" id="help-altitudeUnit" style="display:none;">Sets the unit used by the Altitude feature.</div>' +
+
+'    <div class="field-label-row" style="margin-top:12px;"><button type="button" class="secondary-btn" id="loadPrefUnitsBtn" onclick="loadPreferredUnits()">Load units from Pebble app</button><button type="button" class="help-btn" onclick="toggleHelp(\'help-loadPrefUnits\')">?</button></div>' +
+'    <div class="help" id="help-loadPrefUnits" style="display:none;">Sets the temperature, wind speed and altitude units to the ones chosen in the Pebble app (altitude follows its distance unit: km = meters, mi = feet). The air quality scale has no Pebble app equivalent and is left alone. The change is only kept when you save.</div>' +
+'    <div class="help" id="prefUnitsStatus" style="display:none;"></div>' +
 
 '    </div>' +
 '  </fieldset>' +
@@ -2087,6 +2262,15 @@ configPresetSchedule.modalHtml +
 '    <div class="help" id="help-hourlyVibeOverrideQuiet" style="display:none;">When enabled, hourly vibrations continue during Quiet Time.</div>'
     ) : '') +
 
+'    <div class="field-label-row"><label style="margin-top:16px;">Vibrate when Bluetooth connection is lost</label><button type="button" class="help-btn" onclick="toggleHelp(\'help-btLostVibe\')">?</button></div>' +
+      verticalButtonGroupHtml('btLostVibeGroup', 'btLostVibe', [
+        { value: '0', label: 'Off' },
+        { value: '1', label: 'Short' },
+        { value: '2', label: 'Double' },
+        { value: '3', label: 'Long' }
+      ], current.btLostVibe || '0') +
+'    <div class="help" id="help-btLostVibe" style="display:none;">Vibrates once when the watch loses its connection to the phone. Nothing happens when the connection comes back.</div>' +
+
 '    <div class="checkbox-row" style="margin-top:14px;">' +
 '      <input type="checkbox" id="showFlights" ' + (current.showFlights ? 'checked' : '') + ' onchange="toggleFlightsOptions()">' +
 '      <label for="showFlights" style="margin:0;">Flights (shake to show nearby aircraft)</label>' +
@@ -2173,7 +2357,9 @@ configPresetSchedule.modalHtml +
 '    </div>' +
 '  </fieldset>' +
 
-'  <div class="save-bar"><button onclick="save()">Save</button></div>' +
+(current.liveMode
+  ? '  <div class="save-bar"><div id="liveStatus" class="help" style="text-align:center; margin:0 0 6px;">Live</div><button id="saveBtn" onclick="save()">Send</button></div>'
+  : '  <div class="save-bar"><button id="saveBtn" onclick="save()">Save</button></div>') +
 
 '<script>' +
 'var MARKER_PREVIEW_IMAGES = ' + JSON.stringify(MARKER_PREVIEW_IMAGES) + ';' +
@@ -2183,6 +2369,8 @@ configPresetSchedule.modalHtml +
 'var HAND_STYLE_ICON_IMAGES = ' + JSON.stringify(HAND_STYLE_ICON_IMAGES) + ';' +
 'var FAQ_ITEMS = ' + JSON.stringify(FAQ_ITEMS) + ';' +
 'var WEATHER_ICON_STYLE_PREVIEWS = ' + JSON.stringify(WEATHER_ICON_STYLE_PREVIEWS) + ';' +
+'var PREVIEW_ICON_IMAGES = ' + JSON.stringify(PREVIEW_ICON_IMAGES) + ';' +
+'var PREVIEW_ICON_TOKENS = ' + JSON.stringify(PREVIEW_ICON_TOKENS) + ';' +
 // Matches weather_icon_style\'s own <option> list exactly.
 'var WEATHER_ICON_STYLE_NAMES = ["Simple", "Hollow", "Full color"];' +
 // Matches the Shape <option> list\'s own order/values exactly (see
@@ -2287,9 +2475,7 @@ configPresetSchedule.modalHtml +
 '    alert("Not valid JSON -- fix the text before sending:\\n\\n" + e.message);' +
 '    return;' +
 '  }' +
-'  var returnTo = getQueryParam("return_to", "pebblejs://close#");' +
-'  var payload = { CONFIG_SEND_FULL_KEYSET: true, CONFIG_FULL_KEYSET_DATA: text };' +
-'  document.location = returnTo + encodeURIComponent(JSON.stringify(payload));' +
+'  phoneAction({ CONFIG_SEND_FULL_KEYSET: true, CONFIG_FULL_KEYSET_DATA: text });' +
 '}' +
 // 8-point compass label for the wind-direction slider's live readout
 // -- same +22/45 bucketing as the watch\'s own compass-arrow feature
@@ -2341,9 +2527,7 @@ configPresetSchedule.modalHtml +
 '}' +
 'function sendFakeWeatherToWatch() {' +
 '  var dict = buildFakeWeatherDict();' +
-'  var returnTo = getQueryParam("return_to", "pebblejs://close#");' +
-'  var payload = { CONFIG_SEND_FAKE_WEATHER: true, CONFIG_FAKE_WEATHER_DATA: JSON.stringify(dict) };' +
-'  document.location = returnTo + encodeURIComponent(JSON.stringify(payload));' +
+'  phoneAction({ CONFIG_SEND_FAKE_WEATHER: true, CONFIG_FAKE_WEATHER_DATA: JSON.stringify(dict) });' +
 '}' +
 // Boils a Nominatim `address` object (city/town/village/... + country)
 // down to the short "City, Country" form the Location sub-header shows
@@ -2562,6 +2746,8 @@ fontManagerSource +
         DUAL_CONTEXT_FIELD_LIST.forEach(function (base) {
           seed.analog[base + 'Content'] = current[base + 'ContentAnalog'] || '0';
           seed.analog[base + 'Color'] = current[base + 'ColorAnalog'] || '0';
+          seed.analog[base + 'CustomPrims'] = current[base + 'CustomPrimsAnalog'] || '';
+          seed.digital[base + 'CustomPrims'] = current[base + 'CustomPrimsDigital'] || '';
           seed.digital[base + 'Content'] = current[base + 'ContentDigital'] || '0';
           seed.digital[base + 'Color'] = current[base + 'ColorDigital'] || '0';
         });
@@ -3148,6 +3334,70 @@ require('./config/config-preview') +
 '    if (it.preview) CORNER_PREVIEW_LABELS[it.id] = it.preview;' +
 '  });' +
 '});' +
+// Primitive-strip preview (Phase 9/10) -- the precomputed per-content chip
+// table (primitiveContentDecompositions above), serialized whole rather
+// than hand-duplicated client-side. See config/primitive-decompose.js's
+// primitiveChipsForContent() for what a chip is and how each entry is
+// derived from that content id's own real transport sequence.
+'var PRIMITIVE_DECOMPOSITIONS = ' + JSON.stringify(primitiveContentDecompositions) + ';' +
+// Phase 9 composer: the palette (grouped, for the reference list) and a
+// flat id->label lookup (for rendering arbitrary typed IDs), same
+// serialize-the-canonical-table pattern as everything else on this page.
+'var PRIMITIVE_PALETTE = ' + JSON.stringify(primitivePalette) + ';' +
+'var PRIMITIVE_LABEL_BY_ID = {};' +
+'PRIMITIVE_PALETTE.forEach(function (g) { g.items.forEach(function (it) { PRIMITIVE_LABEL_BY_ID[it.id] = it.label; }); });' +
+'PRIMITIVE_LABEL_BY_ID[' + primitiveIds.PRIM_LABEL_HIGH_PREFIX + '] = "\\"H\\" label"; PRIMITIVE_LABEL_BY_ID[' + primitiveIds.PRIM_LABEL_LOW_PREFIX + '] = "\\"L\\" label";' +
+'var PRIMITIVE_TRANSPORT_SEQUENCES = ' + JSON.stringify(primitiveTransportSequences) + ';' +
+'var PRIMITIVE_TRANSPORT_AUX = ' + JSON.stringify(primitiveTransportAux) + ';' +
+'var TIMEZONE_ZONES = ' + JSON.stringify(primitiveTimezoneZones) + ';' +
+// Update 25 introduced FORECAST_SLOTS and the composer's forecast picker
+// but never actually baked this line in -- the composer's PARAM_OPTIONS
+// referenced an undefined global the moment the script ran (caught here,
+// during Phase 10's own end-to-end script-execution test, not by any
+// earlier node --check, which only parses; see this update's notes).
+'var FORECAST_SLOTS = ' + JSON.stringify(primitiveForecastSlots) + ';' +
+'var PRIMITIVE_PREVIEW_TEXT = ' + JSON.stringify(primitivePreviewText) + ';' +
+'var PRIM_SPACE_ID = ' + primitiveIds.PRIM_SPACE + ';' +
+'var PRIM_PLUGIN_TEXT_ID = ' + primitiveIds.PRIM_PLUGIN_TEXT + ';' +
+configPlugins.pluginScript(current) +
+'var COMPOSER_MAX = 10;' + // must match PRIMITIVE_FEATURE_MAX (primitives/primitive_storage.h)
+'\n' + composerClientSource + '\n' +
+// Phase 10: PRIMITIVE_DECOMPOSITIONS now has a precomputed entry for every
+// content id (derived server-side from that id's real transport sequence --
+// see primitiveContentDecompositions above), so this is a straight lookup.
+// CORNER_PREVIEW_LABELS is kept only as a defensive last resort (a content
+// id present in CORNER_CATEGORIES but somehow missing here, which
+// shouldn't happen -- see that table's own header) rather than being load-
+// bearing the way it was before Phase 10.
+// Phase 10: the plain string form of a content id's preview -- what the
+// canvas preview and slot-picker buttons show -- built by joining that
+// content id's own real chip text, instead of a separately-authored
+// CORNER_PREVIEW_LABELS string. Falls back to CORNER_PREVIEW_LABELS only
+// when PRIMITIVE_DECOMPOSITIONS has no entry at all (shouldn\'t happen --
+// see primitiveChipsForContent\'s own comment).
+'function primitiveDecompositionText(contentId, forPreview) {' +
+'  var idNum = parseInt(contentId, 10);' +
+'  var chips = PRIMITIVE_DECOMPOSITIONS[idNum];' +
+'  if (chips && chips.length) return chips.map(function (c, i) { var gap = forPreview && i > 0 && (c.kind === "icon" || chips[i - 1].kind === "icon"); return (gap ? "\\uE000" : "") + c.text; }).join("");' +
+'  return CORNER_PREVIEW_LABELS[idNum] || "";' +
+'}' +
+'function primitiveChipsForContent(contentId) {' +
+'  var idNum = parseInt(contentId, 10);' +
+'  if (idNum === 0) return [];' +
+'  if (PRIMITIVE_DECOMPOSITIONS[idNum]) return PRIMITIVE_DECOMPOSITIONS[idNum];' +
+'  var fallback = CORNER_PREVIEW_LABELS[idNum];' +
+'  return fallback ? [{ kind: "value", text: fallback }] : [];' +
+'}' +
+'function renderSlotEditPrimitiveStrip(contentId) {' +
+'  var strip = document.getElementById("slotEditPrimitives");' +
+'  if (!strip) return;' +
+'  var chips = primitiveChipsForContent(contentId);' +
+'  if (!chips.length) { strip.style.display = "none"; strip.innerHTML = ""; return; }' +
+'  strip.style.display = "flex";' +
+'  strip.innerHTML = chips.map(function (chip) {' +
+'    return "<span class=\'primitive-chip primitive-chip-" + chip.kind + "\'>" + esc(chip.text) + "</span>";' +
+'  }).join("");' +
+'}' +
 'function categoryForContentId(contentId) {' +
 '  var idNum = parseInt(contentId, 10);' +
 '  for (var i = 0; i < CORNER_CATEGORIES.length; i++) {' +
@@ -3164,6 +3414,7 @@ require('./config/config-preview') +
 '  return CORNER_CATEGORIES[0];' +
 '}' +
 'function categoryItemOptionsHtml(categoryId, selectedContentId) {' +
+'  if (categoryId === "plugins") return pluginItemOptionsHtml(selectedContentId);' +
 '  var items = findCategory(categoryId).items;' +
 '  var html = "";' +
 '  for (var i = 0; i < items.length; i++) {' +
@@ -3207,6 +3458,15 @@ require('./config/config-preview') +
 '  digitalRight3: { contentId: "upperMiddleLine2Content", colorId: "upperMiddleLine2Color", btnId: "slotBtn-digitalRight3", label: "Right side, row 3 (bottom)", contexts: ["digital"], avail: function (a) { return a.digitalBottomRow; } },' +
 '  digitalBottom: { contentId: "bottomMiddleLine1Content", colorId: "bottomMiddleLine1Color", btnId: "slotBtn-digitalBottom", label: "Bottom feature", contexts: ["digital"], avail: function () { return true; } }' +
 '};' +
+// Every slot (including the digital-layout ones, which share the analog edge slots' underlying
+// inputs -- see above) keeps its custom sequence and shake flag in "<contentId minus Content>CustomPrims/Shake".
+'(function () {' +
+'  for (var k in SLOT_DEFS) {' +
+'    var d = SLOT_DEFS[k], base = d.contentId.replace(/Content$/, "");' +
+'    d.customPrimsId = base + "CustomPrims";' +
+'    d.shakeId = base + "Shake";' +
+'  }' +
+'})();' +
 'var CURRENT_SLOT_KEY = null;' +
 'var SLOT_EDITOR_DRAFT_COLOR = 0;' +
 // Procedural marker styles (<3) have all 8 slots and the 4 corners;
@@ -3268,6 +3528,17 @@ require('./config/config-preview') +
 // or "N/A") and styling to match current settings -- called on init
 // and whenever bottom-style/marker-style or a slot\'s own content
 // changes.
+// Slot buttons are small, so every icon is just "(i)" instead of its placeholder text such
+// as "(weather)" (the Pebble logo icon keeps "LOGO"). The canvas preview still uses the full placeholders to draw the icons.
+'function slotIconLabels(text) {' +
+'  return String(text).replace(/\\([A-Za-z+]{1,12}\\)/g, "(i)");' +
+'}' +
+'function slotButtonText(contentId) {' +
+'  var idNum = parseInt(contentId, 10);' +
+'  var chips = PRIMITIVE_DECOMPOSITIONS[idNum];' +
+'  if (chips && chips.length) return chips.map(function (c) { return (c.kind === "icon" && c.text !== "LOGO") ? "(i)" : c.text; }).join("");' +
+'  return slotIconLabels(CORNER_PREVIEW_LABELS[idNum] || "");' +
+'}' +
 'function renderSlotPicker() {' +
 '  var avail = computeSlotAvailability();' +
 '  var styleValNow = document.getElementById("bottomStyleValue").value;' +
@@ -3285,6 +3556,7 @@ require('./config/config-preview') +
 '  document.getElementById("slotPickerDiagram").classList.toggle("top-bar-mode", isDigitalTopMode);' +
 '  document.getElementById("slotPickerDiagram").classList.toggle("center-mode", isCenterMode);' +
 '  document.getElementById("slotPickerDiagram").classList.toggle("big-digital-mode", isBigDigitalMode);' +
+'  var anyShake = false;' +
 '  for (var key in SLOT_DEFS) {' +
 '    var def = SLOT_DEFS[key];' +
 '    var btn = document.getElementById(def.btnId);' +
@@ -3308,14 +3580,24 @@ require('./config/config-preview') +
 '      continue;' +
 '    }' +
 '    var val = parseInt(document.getElementById(def.contentId).value, 10);' +
-'    if (!val || !CORNER_PREVIEW_LABELS[val]) {' +
+// A slot with a custom sequence shows that sequence on its button (same text the
+// watch preview draws), even when its Content is None.
+'    var customEl = def.customPrimsId ? document.getElementById(def.customPrimsId) : null;' +
+'    var customText = (customEl && customEl.value) ? composerPreviewLabel(customEl.value) : "";' +
+'    if (customText) {' +
+'      btn.textContent = slotIconLabels(customText);' +
+'      btn.className = baseClass;' +
+'    } else if (!val || !primitiveDecompositionText(val)) {' +
 '      btn.textContent = "OFF";' +
 '      btn.className = baseClass + " slot-off";' +
 '    } else {' +
-'      btn.textContent = CORNER_PREVIEW_LABELS[val];' +
+'      btn.textContent = (val >= PLUGIN_CONTENT_FIRST && val < PLUGIN_CONTENT_FIRST + PLUGIN_SLOT_COUNT) ? pluginButtonText(val) : slotButtonText(val);' +
 '      btn.className = baseClass;' +
 '    }' +
+'    if (document.getElementById(def.shakeId).value === "1" && btn.className.indexOf("slot-off") === -1) { btn.className += " slot-shake"; anyShake = true; }' +
 '  }' +
+'  var legendEl = document.getElementById("slotShakeLegend");' +
+'  if (legendEl) legendEl.style.display = anyShake ? "" : "none";' +
 // Applied AFTER the loop above, not before it -- these two buttons'
 // className just got fully overwritten (baseClass + a mode-dependent
 // suffix) by that loop, same as every other slot button's, so toggling
@@ -3335,7 +3617,8 @@ require('./config/config-preview') +
 '  document.getElementById("slotBtn-cornerTR").classList.toggle("slot-corner-below-bar", isDigitalTopMode);' +
 '}' +
 'function setSlotEditorColorGroupVisibility(contentVal) {' +
-'  document.getElementById("slotEditColorGroup").style.display = (contentVal === "0") ? "none" : "flex";' +
+'  var customOn = document.getElementById("slotEditCustomPrimsToggle").checked;' +
+'  document.getElementById("slotEditColorGroup").style.display = (contentVal === "0" && !customOn) ? "none" : "flex";' +
 '}' +
 'function setSlotEditorColorButtons(value) {' +
 '  SLOT_EDITOR_DRAFT_COLOR = parseInt(value, 10) || 0;' +
@@ -3346,9 +3629,14 @@ require('./config/config-preview') +
 '}' +
 'function slotEditorSelectColor(value) {' +
 '  setSlotEditorColorButtons(value);' +
+'  renderSlotEditPreview();' +
 '}' +
 'function onSlotEditContentChange() {' +
-'  setSlotEditorColorGroupVisibility(document.getElementById("slotEditContent").value);' +
+'  pluginResolveContentSelect(document.getElementById("slotEditContent"));' +
+'  var contentVal = document.getElementById("slotEditContent").value;' +
+'  setSlotEditorColorGroupVisibility(contentVal);' +
+'  renderSlotEditPrimitiveStrip(contentVal);' +
+'  renderSlotEditPreview();' +
 '}' +
 // Renders the 9 category picker buttons once (their icons/order never
 // change at runtime, unlike Content below which is rebuilt per open) --
@@ -3380,9 +3668,9 @@ require('./config/config-preview') +
 '  var categoryId = document.getElementById("slotEditCategory").value;' +
 '  var firstItemId = findCategory(categoryId).items[0].id;' +
 '  var contentSelect = document.getElementById("slotEditContent");' +
-'  contentSelect.innerHTML = categoryItemOptionsHtml(categoryId, firstItemId);' +
-'  contentSelect.disabled = (categoryId === "none");' +
-'  document.getElementById("slotEditCategoryHelp").style.display = (categoryId === "timezone") ? "" : "none";' +
+'  contentSelect.innerHTML = categoryItemOptionsHtml(categoryId, categoryId === "plugins" ? "" : firstItemId);' +
+'  contentSelect.disabled = slotEditContentDisabled(categoryId);' +
+'  slotEditCategoryHelpUpdate(categoryId);' +
 '  onSlotEditContentChange();' +
 '}' +
 // Opens the popup pre-filled with this slot\'s current (already-saved)
@@ -3401,11 +3689,15 @@ require('./config/config-preview') +
 '  updateCategoryButtonActive(categoryId);' +
 '  var contentSelect = document.getElementById("slotEditContent");' +
 '  contentSelect.innerHTML = categoryItemOptionsHtml(categoryId, contentVal);' +
-'  contentSelect.disabled = (categoryId === "none");' +
-'  document.getElementById("slotEditCategoryHelp").style.display = (categoryId === "timezone") ? "" : "none";' +
+'  contentSelect.disabled = slotEditContentDisabled(categoryId);' +
+'  slotEditCategoryHelpUpdate(categoryId);' +
 '  setSlotEditorColorGroupVisibility(contentVal);' +
+'  renderSlotEditPrimitiveStrip(contentVal);' +
 '  setSlotEditorColorButtons(colorVal);' +
+'  composerOpen(def);' +
+'  document.getElementById("slotEditShake").checked = document.getElementById(def.shakeId).value === "1";' +
 '  document.getElementById("slotEditModal").className = "modal-overlay open";' +
+'  renderSlotEditPreview();' + // the canvas only has a width once the popup is visible
 '}' +
 'function closeSlotEditor() {' +
 '  document.getElementById("slotEditModal").className = "modal-overlay";' +
@@ -3416,6 +3708,12 @@ require('./config/config-preview') +
 '  var def = SLOT_DEFS[CURRENT_SLOT_KEY];' +
 '  document.getElementById(def.contentId).value = document.getElementById("slotEditContent").value;' +
 '  document.getElementById(def.colorId).value = String(SLOT_EDITOR_DRAFT_COLOR);' +
+'  document.getElementById(def.shakeId).value = document.getElementById("slotEditShake").checked ? "1" : "0";' +
+'  if (def.customPrimsId) {' +
+'    var committed = composerCommitValue();' +
+'    if (committed === null) return;' + // over-limit/empty: stay open, message already shown
+'    document.getElementById(def.customPrimsId).value = committed;' +
+'  }' +
 '  closeSlotEditor();' +
 '  renderSlotPicker();' +
 '  updateWeatherIconStyleVisibility();' +
@@ -3591,6 +3889,7 @@ require('./config/config-preview') +
 '  document.getElementById("customMarkerSection").style.display = (val === "8") ? "" : "none";' +
 '  var isBitmap = (val === "3" || val === "4" || val === "5" || val === "6" || val === "7");' +
 '  document.getElementById("bitmapMarkerTransparentRow").style.display = isBitmap ? "" : "none";' +
+'  document.getElementById("bitmapMarkerInvertRow").style.display = isBitmap ? "" : "none";' +
 '  document.getElementById("bitmapCornerOverrideRow").style.display = (isBitmap && val !== "5") ? "" : "none";' +
 '  updateMarkerStyleButtonLabel();' +
 '  clearGrayedSlotsIfUnavailable();' +
@@ -3610,7 +3909,7 @@ require('./config/config-preview') +
 '  var avail = computeSlotAvailability();' +
 '  if (avail.cornersGrayed) {' +
 '    var cornerIds = ["cornerTL", "cornerTR", "cornerBL", "cornerBR"];' +
-'    for (var i = 0; i < cornerIds.length; i++) { document.getElementById(cornerIds[i]).value = "0"; }' +
+'    for (var i = 0; i < cornerIds.length; i++) { document.getElementById(cornerIds[i]).value = "0"; document.getElementById(cornerIds[i] + "CustomPrims").value = ""; document.getElementById(cornerIds[i] + "Shake").value = "0"; }' +
 '  }' +
   // middleLeft/RightLineContent are dual-purpose (digital mode's own
   // side-feature columns reuse these same fields -- see SLOT_DEFS'
@@ -3624,10 +3923,18 @@ require('./config/config-preview') +
 '  if (isAnalog && !avail.left) {' +
 '    document.getElementById("middleLeftLine1Content").value = "0";' +
 '    document.getElementById("middleLeftLine2Content").value = "0";' +
+'    document.getElementById("middleLeftLine1CustomPrims").value = "";' +
+'    document.getElementById("middleLeftLine2CustomPrims").value = "";' +
+'    document.getElementById("middleLeftLine1Shake").value = "0";' +
+'    document.getElementById("middleLeftLine2Shake").value = "0";' +
 '  }' +
 '  if (isAnalog && !avail.right) {' +
 '    document.getElementById("middleRightLine1Content").value = "0";' +
 '    document.getElementById("middleRightLine2Content").value = "0";' +
+'    document.getElementById("middleRightLine1CustomPrims").value = "";' +
+'    document.getElementById("middleRightLine2CustomPrims").value = "";' +
+'    document.getElementById("middleRightLine1Shake").value = "0";' +
+'    document.getElementById("middleRightLine2Shake").value = "0";' +
 '  }' +
 '}' +
 'function onBitmapCornerOverrideChange() {' +
@@ -4223,6 +4530,20 @@ require('./config/config-preview') +
 '      obj[el.id] = (el.type === "checkbox") ? el.checked : el.value;' +
 '    });' +
 '  });' +
+// Plugin features point at one of 12 shared plugin slots (content id 200 + slot, or the
+// "Plugin data" element's aux), and what a slot MEANS (which plugin data source) lives in
+// PLUGIN_SLOTS, outside every input this walk visits. Without it a saved style only keeps
+// "slot 5" and loses what slot 5 was, so it is stored with the style (only the slots the
+// style actually uses) and put back when the style is applied.
+'  if (typeof pluginSlotsInUse === "function" && typeof PLUGIN_SLOTS !== "undefined") {' +
+'    var used = pluginSlotsInUse(), slots = [], any = false;' +
+'    for (var si = 0; si < PLUGIN_SLOT_COUNT; si++) {' +
+'      var sk = used[si] && typeof PLUGIN_SLOTS[si] === "string" ? PLUGIN_SLOTS[si] : "";' +
+'      if (sk) any = true;' +
+'      slots.push(sk);' +
+'    }' +
+'    if (any) obj.__pluginSlots = slots;' +
+'  }' +
 '  return obj;' +
 '}' +
 // Sets every id->value pair from a previously-exported (or a preset
@@ -4230,7 +4551,13 @@ require('./config/config-preview') +
 // handlers each field\'s own onchange would have triggered by hand --
 // show/hide rows, slot picker labels, the preview canvas.
 'function applyStyleCornersJson(obj) {' +
+// Restore the plugin slot assignments first: the Features pickers rebuilt below read them.
+// Styles saved before this existed have none; the current assignments are left alone then.
+'  if (obj && Array.isArray(obj.__pluginSlots) && typeof PLUGIN_SLOTS !== "undefined") {' +
+'    for (var psi = 0; psi < PLUGIN_SLOT_COUNT; psi++) PLUGIN_SLOTS[psi] = typeof obj.__pluginSlots[psi] === "string" ? obj.__pluginSlots[psi] : "";' +
+'  }' +
 '  Object.keys(obj).forEach(function (id) {' +
+'    if (id === "__pluginSlots") return;' +
 '    var el = document.getElementById(id);' +
 '    if (!el) {' +
 '      var radio = document.querySelector(\'input[name="\' + id + \'"][value="\' + obj[id] + \'"]\');' + // no plain element has this id -- try it as a radio group name instead
@@ -4775,7 +5102,7 @@ configPresetSchedule.clientJs(current.scheduleKnownIds) +
 'var DUAL_CONTEXT_SHADOW = { analog: {}, digital: {} };' +
 '(function () {' +
 '  DUAL_CONTEXT_FIELD_LIST.forEach(function (base) {' +
-'    ["Content", "Color"].forEach(function (suffix) {' +
+'    ["Content", "Color", "CustomPrims"].forEach(function (suffix) {' +
 '      DUAL_CONTEXT_SHADOW.analog[base + suffix] = DUAL_CONTEXT_SEED.analog[base + suffix];' +
 '      DUAL_CONTEXT_SHADOW.digital[base + suffix] = DUAL_CONTEXT_SEED.digital[base + suffix];' +
 '    });' +
@@ -4794,7 +5121,7 @@ configPresetSchedule.clientJs(current.scheduleKnownIds) +
 '  var toCtx = isAnalogCtx(toStyleVal) ? "analog" : "digital";' +
 '  if (fromCtx === toCtx) return;' +
 '  DUAL_CONTEXT_FIELD_LIST.forEach(function (base) {' +
-'    ["Content", "Color"].forEach(function (suffix) {' +
+'    ["Content", "Color", "CustomPrims"].forEach(function (suffix) {' +
 '      var el = document.getElementById(base + suffix);' +
 '      if (!el) return;' +
 '      DUAL_CONTEXT_SHADOW[fromCtx][base + suffix] = el.value;' +
@@ -4868,6 +5195,10 @@ configPresetSchedule.clientJs(current.scheduleKnownIds) +
 'function selectSkyMode(val) {' +
 '  selectModeButton("skyModeGroup", "skyMode", val);' +
 '  onSkyModeChange();' +
+'}' +
+'function onTempUnitChange(val) {' +
+'  selectModeButton("tempUnitGroup", "tempUnit", val);' +
+'  updatePreview();' +
 '}' +
 'function onOutlineStyleChange(val) {' +
 '  selectModeButton("outlineStyleGroup", "outlineStyle", val);' +
@@ -5475,13 +5806,19 @@ require('./config/config-runtime') +
 '  var avail = computeSlotAvailability();' +
 '  var isAnalogNow = document.getElementById("bottomStyleValue").value === "analog";' +
 '  function val(id) { return parseInt(document.getElementById(id).value, 10) || 0; }' +
+// A slot counts when it has content OR a custom sequence (id + "CustomPrims"
+// for corners; the "Content" suffix swapped for it on edge slots).
+'  function hasCustom(id) {' +
+'    var el = document.getElementById(id.replace(/Content$/, "") + "CustomPrims");' +
+'    return !!(el && el.value);' +
+'  }' +
 '  function edgeActive(id, analogFlag, digitalFlag) {' +
 '    var usable = isAnalogNow ? analogFlag : digitalFlag;' +
-'    return usable && val(id) !== 0;' +
+'    return usable && (val(id) !== 0 || hasCustom(id));' +
 '  }' +
 '  var count = 0;' +
 '  if (!avail.cornersGrayed) {' +
-'    ["cornerTL", "cornerTR", "cornerBL", "cornerBR"].forEach(function (id) { if (val(id) !== 0) count++; });' +
+'    ["cornerTL", "cornerTR", "cornerBL", "cornerBR"].forEach(function (id) { if (val(id) !== 0 || hasCustom(id)) count++; });' +
 '  }' +
 '  if (edgeActive("upperMiddleLine1Content", avail.upper, avail.digitalBottomRow)) count++;' +
 '  if (edgeActive("upperMiddleLine2Content", avail.upper, avail.digitalBottomRow)) count++;' +
@@ -5517,6 +5854,7 @@ require('./config/config-runtime') +
 '  if (shake === "2" || shake === "3") shakeParts.push("planets");' +
 '  if (shake === "1" || shake === "3") shakeParts.push("second hand");' +
 '  if (shakeParts.length) parts.push(shakeParts.join(" and ") + " on shake");' +
+'  if (document.getElementById("shakeHandsTranslucent").checked) parts.push("semi-transparent hands on shake");' +
 '  if (!parts.length) return "No animations active";' +
 '  var s = parts.join(", ");' +
 '  return s.charAt(0).toUpperCase() + s.slice(1);' +
@@ -5664,6 +6002,7 @@ require('./config/config-runtime') +
 'renderMarkerStyleGrid();' +
 'if (window.__eclipzStartupProgress) window.__eclipzStartupProgress(62, "Preparing previews…");' +
 'renderCategoryButtons();' +
+'liveInit();' +
 'updateWeatherIconStyleVisibility();' +
 'adjustTopBarSpacing();' +
 'if (window.__eclipzStartupProgress) window.__eclipzStartupProgress(78, "Finishing layout…");' +

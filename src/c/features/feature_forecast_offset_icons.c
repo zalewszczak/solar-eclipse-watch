@@ -20,15 +20,17 @@
 // pass and simple/hollow tinting in feature_icon_assets_draw_styled_with_outline()
 // still apply on top of that one piece of art, same as any other icon.
 //
-// Index 0-5 = "+1h" through "+6h" (features_layer.c content ids 87-92),
-// 6-8 = "+1 day" through "+3 days" (content ids 93-95) -- both computed as
-// content-87 by feature_value_weather.c, the same index forecast_temp_c/
-// forecast_condition in eclipse_data.h already use for this same data.
+// Index 0-5 = "+1h" through "+6h", 6-8 = "+1 day" through "+3 days",
+// 9-14 = "+7h" through "+12h" -- the same index forecast_temp_c/
+// forecast_condition in eclipse_data.h use for this data.
 #define FORECAST_ICON(n) { RESOURCE_ID_ICON_FORECAST_##n, RESOURCE_ID_ICON_FORECAST_##n, RESOURCE_ID_ICON_FORECAST_##n }
-static const IconResourceSet FORECAST_OFFSET_ICON_SETS[9] = {
+static const IconResourceSet FORECAST_OFFSET_ICON_SETS[15] = {
   FORECAST_ICON(0), FORECAST_ICON(1), FORECAST_ICON(2),
   FORECAST_ICON(3), FORECAST_ICON(4), FORECAST_ICON(5),
   FORECAST_ICON(6), FORECAST_ICON(7), FORECAST_ICON(8),
+  // 9-14 = "+7h" through "+12h" (images/forecast_9.png .. forecast_14.png).
+  FORECAST_ICON(9), FORECAST_ICON(10), FORECAST_ICON(11),
+  FORECAST_ICON(12), FORECAST_ICON(13), FORECAST_ICON(14),
 };
 #undef FORECAST_ICON
 
@@ -38,7 +40,7 @@ static const IconResourceSet FORECAST_OFFSET_ICON_SETS[9] = {
 void feature_forecast_offset_icons_draw_with_outline(GContext *ctx, GPoint top_left, uint8_t idx,
                                                       uint8_t style, uint8_t outline_style,
                                                       GColor outline_color, GColor color) {
-  if (idx > 8) return;
+  if (idx > 14) return;
   feature_icon_assets_draw_styled_with_outline(ctx, top_left, &FORECAST_OFFSET_ICON_SETS[idx], style,
                                                outline_style, outline_color, color, ICON_W, ICON_H);
 }

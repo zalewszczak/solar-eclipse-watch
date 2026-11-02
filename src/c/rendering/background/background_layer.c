@@ -68,6 +68,7 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
   GRect bounds = layer_get_bounds(layer);
   GPoint center = GPoint(bounds.size.w / 2, bounds.size.h / 2);
   time_t now = time(NULL);
+  state->markers.draw_origin = layer_convert_point_to_screen(layer, GPointZero); // invert blend writes the frame buffer directly
 
   if (!d->valid) {
     graphics_context_set_fill_color(ctx, GColorWhite);

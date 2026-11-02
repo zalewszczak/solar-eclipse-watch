@@ -2,6 +2,7 @@
 
 #include <pebble.h>
 #include "../data/eclipse_data.h"
+#include "./primitives/primitive_ids.h"
 
 // Pebble Layer wrapper for the always-on-top feature-slot overlay.
 
@@ -16,8 +17,8 @@ void features_layer_set_data(Layer *layer, EclipseData *data);
 // Recomputes all active slot values without changing layout.
 void features_layer_refresh_values(Layer *layer);
 
-// Recomputes only slots whose content requires second-level updates.
+// Recomputes only slots containing second-refresh primitives.
 void features_layer_refresh_second_slots(Layer *layer);
 
-// Recomputes only slots currently showing the supplied content id.
-void features_layer_refresh_content(Layer *layer, uint8_t content);
+// Recomputes slots containing the supplied primitive ID.
+void features_layer_refresh_primitive(Layer *layer, PrimitiveId primitive);

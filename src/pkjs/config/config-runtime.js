@@ -28,7 +28,7 @@
 //   rationale.
 
 module.exports =
-'function save(forceRefresh) {' +
+'function collectSettings(forceRefresh) {' +
 '  var mins = parseInt(document.getElementById("updateMins").value, 10);' +
 '  if (isNaN(mins) || mins < 5) mins = 20;' +
 '  var bottomStyleVal = document.getElementById("bottomStyleValue").value;' +
@@ -109,6 +109,19 @@ module.exports =
 '    CONFIG_SHADOW_ANGLE: document.getElementById("shadowAngle").value,' +
 '    CONFIG_BIG_ANALOG_MARKER_STYLE: document.getElementById("bigAnalogMarkerStyle").value,' +
 '    CONFIG_BITMAP_MARKER_TRANSPARENT: document.getElementById("bitmapMarkerTransparent").checked,' +
+'    CONFIG_BITMAP_MARKER_INVERT: document.getElementById("bitmapMarkerInvert").checked,' +
+'    CONFIG_UPPER_MIDDLE_LINE1_SHAKE: document.getElementById("upperMiddleLine1Shake").value,' +
+'    CONFIG_UPPER_MIDDLE_LINE2_SHAKE: document.getElementById("upperMiddleLine2Shake").value,' +
+'    CONFIG_BOTTOM_MIDDLE_LINE1_SHAKE: document.getElementById("bottomMiddleLine1Shake").value,' +
+'    CONFIG_BOTTOM_MIDDLE_LINE2_SHAKE: document.getElementById("bottomMiddleLine2Shake").value,' +
+'    CONFIG_MIDDLE_LEFT_LINE1_SHAKE: document.getElementById("middleLeftLine1Shake").value,' +
+'    CONFIG_MIDDLE_LEFT_LINE2_SHAKE: document.getElementById("middleLeftLine2Shake").value,' +
+'    CONFIG_MIDDLE_RIGHT_LINE1_SHAKE: document.getElementById("middleRightLine1Shake").value,' +
+'    CONFIG_MIDDLE_RIGHT_LINE2_SHAKE: document.getElementById("middleRightLine2Shake").value,' +
+'    CONFIG_CORNER_TL_SHAKE: document.getElementById("cornerTLShake").value,' +
+'    CONFIG_CORNER_TR_SHAKE: document.getElementById("cornerTRShake").value,' +
+'    CONFIG_CORNER_BL_SHAKE: document.getElementById("cornerBLShake").value,' +
+'    CONFIG_CORNER_BR_SHAKE: document.getElementById("cornerBRShake").value,' +
 '    CONFIG_BITMAP_CORNER_OVERRIDE: document.getElementById("bitmapCornerOverride").checked,' +
 '    CONFIG_DRAW_FEATURES_BENEATH_HANDS: document.getElementById("drawFeaturesBeneathHands").checked,' +
 '    CONFIG_UPPER_MIDDLE_LINE1_CONTENT_ANALOG: dualCtxVal("upperMiddleLine1", "Content", "analog"),' +
@@ -157,6 +170,7 @@ module.exports =
 '    CONFIG_STARTUP_CLOCK_ANIM_MODE: document.getElementById("startupClockAnimMode").value,' +
 '    CONFIG_BG_ANIM_MODE: document.getElementById("bgAnimMode").value,' +
 '    CONFIG_SHAKE_ANIM_MODE: document.getElementById("shakeAnimMode").value,' +
+'    CONFIG_SHAKE_HANDS_TRANSLUCENT: document.getElementById("shakeHandsTranslucent").checked,' +
 '    CONFIG_OUTLINE_ENABLED: document.getElementById("outlineStyle").value,' +
 '    CONFIG_BATTERY_SAVER_ENABLED: document.getElementById("batterySaverEnabled").checked,' +
 '    CONFIG_CORNER_FONT: document.getElementById("cornerFont").value,' +
@@ -168,6 +182,25 @@ module.exports =
 '    CONFIG_CORNER_TR_COLOR: document.getElementById("cornerTRColor").value,' +
 '    CONFIG_CORNER_BL_COLOR: document.getElementById("cornerBLColor").value,' +
 '    CONFIG_CORNER_BR_COLOR: document.getElementById("cornerBRColor").value,' +
+'    CONFIG_UPPER_MIDDLE_LINE1_CUSTOM_PRIMS_ANALOG: dualCtxVal("upperMiddleLine1", "CustomPrims", "analog"),' +
+'    CONFIG_UPPER_MIDDLE_LINE1_CUSTOM_PRIMS_DIGITAL: dualCtxVal("upperMiddleLine1", "CustomPrims", "digital"),' +
+'    CONFIG_UPPER_MIDDLE_LINE2_CUSTOM_PRIMS_ANALOG: dualCtxVal("upperMiddleLine2", "CustomPrims", "analog"),' +
+'    CONFIG_UPPER_MIDDLE_LINE2_CUSTOM_PRIMS_DIGITAL: dualCtxVal("upperMiddleLine2", "CustomPrims", "digital"),' +
+'    CONFIG_BOTTOM_MIDDLE_LINE1_CUSTOM_PRIMS_ANALOG: dualCtxVal("bottomMiddleLine1", "CustomPrims", "analog"),' +
+'    CONFIG_BOTTOM_MIDDLE_LINE1_CUSTOM_PRIMS_DIGITAL: dualCtxVal("bottomMiddleLine1", "CustomPrims", "digital"),' +
+'    CONFIG_MIDDLE_LEFT_LINE1_CUSTOM_PRIMS_ANALOG: dualCtxVal("middleLeftLine1", "CustomPrims", "analog"),' +
+'    CONFIG_MIDDLE_LEFT_LINE1_CUSTOM_PRIMS_DIGITAL: dualCtxVal("middleLeftLine1", "CustomPrims", "digital"),' +
+'    CONFIG_MIDDLE_LEFT_LINE2_CUSTOM_PRIMS_ANALOG: dualCtxVal("middleLeftLine2", "CustomPrims", "analog"),' +
+'    CONFIG_MIDDLE_LEFT_LINE2_CUSTOM_PRIMS_DIGITAL: dualCtxVal("middleLeftLine2", "CustomPrims", "digital"),' +
+'    CONFIG_MIDDLE_RIGHT_LINE1_CUSTOM_PRIMS_ANALOG: dualCtxVal("middleRightLine1", "CustomPrims", "analog"),' +
+'    CONFIG_MIDDLE_RIGHT_LINE1_CUSTOM_PRIMS_DIGITAL: dualCtxVal("middleRightLine1", "CustomPrims", "digital"),' +
+'    CONFIG_MIDDLE_RIGHT_LINE2_CUSTOM_PRIMS_ANALOG: dualCtxVal("middleRightLine2", "CustomPrims", "analog"),' +
+'    CONFIG_MIDDLE_RIGHT_LINE2_CUSTOM_PRIMS_DIGITAL: dualCtxVal("middleRightLine2", "CustomPrims", "digital"),' +
+'    CONFIG_BOTTOM_MIDDLE_LINE2_CUSTOM_PRIMS: (isAnalogNow && !avail.bottom) ? "" : document.getElementById("bottomMiddleLine2CustomPrims").value,' +
+'    CONFIG_CORNER_TL_CUSTOM_PRIMS: avail.cornersGrayed ? "" : document.getElementById("cornerTLCustomPrims").value,' +
+'    CONFIG_CORNER_TR_CUSTOM_PRIMS: avail.cornersGrayed ? "" : document.getElementById("cornerTRCustomPrims").value,' +
+'    CONFIG_CORNER_BL_CUSTOM_PRIMS: avail.cornersGrayed ? "" : document.getElementById("cornerBLCustomPrims").value,' +
+'    CONFIG_CORNER_BR_CUSTOM_PRIMS: avail.cornersGrayed ? "" : document.getElementById("cornerBRCustomPrims").value,' +
 '    CONFIG_STEP_GOAL: document.getElementById("stepGoal").value,' +
 '    CONFIG_SUN_MOON_SIZE: document.getElementById("sunMoonSize").value,' +
 '    CONFIG_SHAKE_LABEL_SECONDS: document.getElementById("shakeLabelSeconds").value,' +
@@ -272,6 +305,7 @@ module.exports =
 '    CONFIG_HOURLY_VIBE_MODE: document.getElementById("hourlyVibeMode").value,' +
 '    CONFIG_HOURLY_VIBE_INTERVAL_MIN: document.getElementById("hourlyVibeIntervalMin").value,' +
 '    CONFIG_HOURLY_VIBE_PATTERN: document.getElementById("hourlyVibePattern").value,' +
+'    CONFIG_BT_LOST_VIBE: document.getElementById("btLostVibe").value,' +
 '    CONFIG_HOURLY_VIBE_START_TIME: document.getElementById("hourlyVibeStartTime").value,' +
 '    CONFIG_HOURLY_VIBE_END_TIME: document.getElementById("hourlyVibeEndTime").value,' +
 '    CONFIG_HOURLY_VIBE_DAYS_MASK: document.getElementById("hourlyVibeDaysMask").value,' +
@@ -283,8 +317,86 @@ module.exports =
 // settings and let the normal refresh cadence pick up anything that
 // actually needs new data -- never itself persisted via setSetting.
 '  settings.CONFIG_FORCE_REFRESH = !!forceRefresh;' +
+// Pebble plugins: weather source (kept as stored while the select is disabled) and
+// the watch's plugin slot assignment, freed of sources no feature uses any more.
+'  var wsEl = document.getElementById("weatherSource");' +
+'  settings.CONFIG_WEATHER_SOURCE = wsEl ? (wsEl.disabled ? wsEl.getAttribute("data-stored") : wsEl.value) : "plugin";' +
+'  pluginGcSlots();' +
+'  settings.CONFIG_PLUGIN_SLOTS = JSON.stringify(PLUGIN_SLOTS);' +
+'  return settings;' +
+'}' +
+'function save(forceRefresh) {' +
+'  var settings = collectSettings(forceRefresh);' +
+'  if (LIVE.active) { liveSend(settings, true); return; }' +
 '  var returnTo = getQueryParam("return_to", "pebblejs://close#");' +
 '  document.location = returnTo + encodeURIComponent(JSON.stringify(settings));' +
+'}' +
+// Debug sends (full keyset / fake weather): navigate in the legacy flow, message PKJS in the live one.
+'function phoneAction(payload) {' +
+'  if (LIVE.active) { return Pebble.sendMessage("pkjs", { type: "action", payload: payload }).then(function () { liveStatus("Sent"); }, function () { liveStatus("Not sent: no connection to the phone app", true); }); }' +
+'  var returnTo = getQueryParam("return_to", "pebblejs://close#");' +
+'  document.location = returnTo + encodeURIComponent(JSON.stringify(payload));' +
+'}' +
+// ---- live mode: changes go to the phone (and on to the watch) as they happen -------
+//
+// Only when this page was opened by a Pebble app that bundles settings pages and
+// offers Pebble.sendMessage (LIVE_MODE is baked in by PKJS, which only builds the
+// page that way when serving it over that bridge). Every 800 ms the settings are
+// collected; once they have stopped changing for one tick and differ from what was
+// last sent, they are sent. Polling instead of listening to events catches every
+// programmatic change too (style presets, pickers, sliders).
+'var LIVE = { active: false, last: "", seen: "", busy: false, timer: null };' +
+'function liveStatus(text, isError) {' +
+'  var el = document.getElementById("liveStatus");' +
+'  if (!el) return;' +
+'  el.textContent = text;' +
+'  el.style.color = isError ? "#d9822b" : "";' +
+'}' +
+'function liveJson(settings) {' +
+'  return JSON.stringify(settings, function (k, v) { return k === "CONFIG_FORCE_REFRESH" ? undefined : v; });' +
+'}' +
+'function liveSend(settings, force) {' +
+'  if (LIVE.busy) return;' +
+'  LIVE.busy = true;' +
+'  var json = liveJson(settings);' +
+'  liveStatus("Sending\u2026");' +
+'  Pebble.sendMessage("pkjs", { type: "settings", settings: settings }).then(function (reply) {' +
+'    LIVE.busy = false;' +
+'    if (reply && reply.ok === false) { liveStatus("Phone app reported an error", true); return; }' +
+'    LIVE.last = json;' +
+'    liveStatus(force ? "Sent to the watch" : "Live \u2013 changes are sent to the watch");' +
+'  }, function () {' +
+'    LIVE.busy = false;' +
+'    liveStatus("Could not reach the phone app \u2013 will retry", true);' +
+'  });' +
+'}' +
+'function liveTick() {' +
+'  if (!LIVE.active || LIVE.busy) return;' +
+'  var settings;' +
+'  try { settings = collectSettings(false); } catch (e) { return; }' +
+'  var json = liveJson(settings);' +
+'  if (json === LIVE.last) { LIVE.seen = json; return; }' +
+'  if (json !== LIVE.seen) { LIVE.seen = json; return; }' +
+'  liveSend(settings, false);' +
+'}' +
+// Visible proof of which way this page was loaded: the bottom button (and the page title). LIVE = bundled
+// page + plugin API (button "Send", changes stream to the watch); LEGACY = classic showConfiguration data:
+// URI page (button "Save", settings are returned when the page closes); WARN = served as a bundled page
+// but the Pebble.sendMessage bridge is missing, so it falls back to the legacy Save behaviour.
+'function setModeUi(kind) {' +
+'  var btn = document.getElementById("saveBtn");' +
+'  if (btn) btn.textContent = (kind === "live") ? "Send" : "Save";' +
+'  try { document.title = "Eclipz Settings (" + kind + ")"; } catch (e) {}' +
+'}' +
+'function liveInit() {' +
+'  if (typeof LIVE_MODE === "undefined" || !LIVE_MODE) { setModeUi("legacy"); return; }' +
+'  if (typeof Pebble === "undefined" || typeof Pebble.sendMessage !== "function") { setModeUi("warn"); return; }' +
+'  setModeUi("live");' +
+'  LIVE.active = true;' +
+'  try { LIVE.last = liveJson(collectSettings(false)); } catch (e) { LIVE.last = ""; }' +
+'  LIVE.seen = LIVE.last;' +
+'  liveStatus("Live \u2013 changes are sent to the watch");' +
+'  LIVE.timer = setInterval(liveTick, 800);' +
 '}' +
 'function getQueryParam(name, defaultValue) {' +
 '  var query = location.search.substring(1);' +

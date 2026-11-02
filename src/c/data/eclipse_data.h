@@ -68,6 +68,15 @@ typedef enum {
   PLANET_COUNT
 } PlanetId;
 
+// Forecast slots: 0-5 = 1-6 hours ahead, 6-8 = 1-3 days ahead (the original
+// layout, kept so saved settings keep their meaning), 9-14 = 7-12 hours ahead.
+#define FORECAST_SLOT_COUNT 15
+
+// Pebble plugin data slots (see pkjs/plugins/plugin-manager.js): each slot holds
+// the latest text of one plugin data source, NUL-terminated.
+#define PLUGIN_SLOT_COUNT 12
+#define PLUGIN_TEXT_LEN 16
+
 typedef struct {
   // Payload/status state.
   bool valid;              // true after a valid payload has been received.
@@ -89,28 +98,20 @@ typedef struct {
   uint8_t humidity_pct;     // current relative humidity.
   int16_t wind_speed_kmh;  // current wind speed.
 
-  // Corner feature content and color modes.
-  uint8_t corner_content[4];
+  // Primitive-only feature configuration. Content/feature IDs are resolved
+  // on the phone and never stored or interpreted by the watch: each slot is a
+  // sequence of up to 10 primitive IDs (+ one aux byte each), 0 = end.
+  // Corner slots follow feature_slot.h's SLOT_CORNER_* order (TL, TR, BL, BR);
+  // edge/middle line slots are indexed 0-7 = upper L1, L2, bottom L1, L2,
+  // middle-left L1, L2, middle-right L1, L2 (digital layouts reuse them the
+  // same way the old content fields were reused).
   uint8_t corner_color_mode[4];
+  uint8_t corner_primitive_ids[4][10];
+  uint8_t corner_primitive_aux[4][10];
   uint16_t daily_step_goal; // app-local step goal.
-
-  // Shared analog edge slots; digital layouts reuse these fields.
-  uint8_t upper_middle_line1_content;
-  uint8_t upper_middle_line1_color_mode;
-  uint8_t upper_middle_line2_content;
-  uint8_t upper_middle_line2_color_mode;
-  uint8_t bottom_middle_line1_content;
-  uint8_t bottom_middle_line1_color_mode;
-  uint8_t bottom_middle_line2_content;
-  uint8_t bottom_middle_line2_color_mode;
-  uint8_t middle_left_line1_content;
-  uint8_t middle_left_line1_color_mode;
-  uint8_t middle_left_line2_content;
-  uint8_t middle_left_line2_color_mode;
-  uint8_t middle_right_line1_content;
-  uint8_t middle_right_line1_color_mode;
-  uint8_t middle_right_line2_content;
-  uint8_t middle_right_line2_color_mode;
+  uint8_t edge_line_color_mode[8];
+  uint8_t edge_line_primitive_ids[8][10];
+  uint8_t edge_line_primitive_aux[8][10];
 
   // Day color scheme, stored as packed Pebble color values.
   uint8_t custom_bg;
@@ -139,7 +140,12 @@ typedef struct {
 
   uint8_t sun_moon_size_pct; // 25, 50, 75 or 100 percent.
 
-  uint8_t shake_label_seconds; // label visibility duration.
+  uint8_t shake_label_seconds; // label visibility duration; also how long "show on shake" features stay visible.
+  // Bit i set = feature slot i (feature_slot.h's slot enum order) is only
+  // shown while the watch has been shaken, for shake_label_seconds.
+  uint16_t shake_only_mask;
+  // Hands turn semi-transparent for the duration of the shake animation. 0 = off.
+  uint8_t shake_hands_translucent;
   uint8_t label_style;     // 0=boxed, 1=outlined, 2=soft.
 
   bool vibrate_on_phase_change; // vibrate at C1/C2/C3/C4.
@@ -179,6 +185,11 @@ typedef struct {
                                    // drives Big Digital's own digit-bitmap transparency
                                    // (see big_digital_display.c), since the two are
                                    // never on screen together and share one setting.
+  bool bitmap_marker_invert;      // blend the bitmap marker into the background as a black/white contrast colour.
+  // Bit mask of slots using explicit tight primitive spacing (corner bits 0-3,
+  // edge/middle bits 4-11).
+  uint8_t primitive_tight_mask_lo;
+  uint8_t primitive_tight_mask_hi;
 
   MarkerRingConfig custom_hour_marker;
   MarkerRingConfig custom_second_marker;
@@ -214,9 +225,58 @@ typedef struct {
   uint8_t weather_sources; // number of weather sources used.
   uint8_t weather_condition; // 0=clear/cloudy, 1=fog, 2=rain, 3=snow, 4=storm.
 
+  char plugin_text[PLUGIN_SLOT_COUNT][PLUGIN_TEXT_LEN];
+  char location_name[32];  // reverse-geocoded place name.
+
+  // PKJS-computed icon category (0-6) and its color for the current-weather
+  // icon feature primitive; only trusted when current_temp_display is also
+  // non-empty (both are sent together).
+  uint8_t weather_icon_category;
+  uint8_t weather_icon_color;
+
   uint8_t icon_style; // 0=simple, 1=hollow, 2=full color. Applies to weather AND plain feature icons alike (was weather-only; wire key is still MK_WEATHER_ICON_STYLE, see comms_decoder.c).
 
   int16_t weather_temp_c;  // current temperature in Celsius.
+
+  // PKJS-formatted, unit-converted, display-ready weather readouts. Each
+  // *_display string is empty until PKJS has sent one (the primitive resolver
+  // then falls back to raw data where it can); each *_color is a packed GColor8
+  // byte (same wire format as the SETTINGS custom colors) that is only
+  // meaningful when the paired *_display string is non-empty.
+  char current_temp_display[8];
+  char temp_high_display[8];
+  char temp_low_display[8];
+  char feels_like_display[8];
+  uint8_t current_temp_color;
+  uint8_t temp_high_color;
+  uint8_t temp_low_color;
+  uint8_t feels_like_color;
+  char uv_daily_display[6];
+  uint8_t uv_daily_color;
+  char uv_current_display[6];
+  uint8_t uv_current_color;
+  char rain_chance_display[6];
+  uint8_t rain_chance_color;
+  char humidity_display[6];
+  uint8_t humidity_color;
+  char wind_speed_display[8];
+  uint8_t wind_speed_color;
+  char cloud_cover_display[6];
+  uint8_t cloud_cover_color;
+  char vis_score_display[6];
+  uint8_t vis_score_color;
+  char altitude_display[10];
+  uint8_t altitude_color;
+  char dew_point_display[8];
+  char pressure_display[10];
+  uint8_t pressure_color;
+  char aqi_display[10];
+  uint8_t aqi_color;
+
+  // Forecast temperatures: FORECAST_SLOT_COUNT discrete display strings plus
+  // one packed-color byte each.
+  char forecast_temp_display[FORECAST_SLOT_COUNT][6];
+  uint8_t forecast_temp_color[FORECAST_SLOT_COUNT];
 
   // Weather fetch status and freshness.
   uint8_t weather_error_code;
@@ -224,12 +284,12 @@ typedef struct {
   bool weather_ever_valid;
   time_t weather_last_update;
 
-  // Forecast for the next 1-6 hours (index 0-5) and next 1-3 days (index
-  // 6-8) -- one shared pair of arrays for both (content id - 87 indexes
-  // straight into them), rather than a second wire format for what's
-  // structurally the same data.
-  int16_t forecast_temp_c[9];
-  uint8_t forecast_condition[9];
+  // Forecast for the next 1-6 hours (index 0-5), next 1-3 days (index 6-8)
+  // and hours 7-12 ahead (index 9-14) -- one shared set of arrays for all.
+  int16_t forecast_temp_c[FORECAST_SLOT_COUNT];
+  uint8_t forecast_condition[FORECAST_SLOT_COUNT];
+  // PKJS-computed icon category per forecast index, gated on forecast_temp_display[idx].
+  uint8_t forecast_icon_category[FORECAST_SLOT_COUNT];
   uint8_t timezone_id;     // index into the timezone table.
 
   // Additional weather data.
@@ -271,11 +331,13 @@ typedef struct {
   uint16_t star_az_decideg[STAR_COUNT];
 
   uint8_t saturn_ring_open_pct; // 0-100 ring opening.
+  char saturn_rings_display[10]; // PKJS-formatted "Rings N%".
 
   int16_t sky_scale_max_alt_decideg; // shared altitude scale ×10 degrees.
 
   uint8_t moon_phase_pct;  // illuminated fraction, 0-100.
   bool moon_waxing;        // true when phase is increasing.
+  char moon_phase_display[6]; // PKJS-formatted short phase name ("New"/"1stQ"/...).
 
   time_t sun_rise;         // today’s sunrise; 0 if unavailable.
   time_t sun_set;          // today’s sunset; 0 if unavailable.
@@ -287,6 +349,8 @@ typedef struct {
   // Active meteor shower, if any.
   uint8_t meteor_intensity; // active-shower intensity, 0-100.
   char meteor_shower_name[16]; // empty when no shower is active.
+  char meteor_display[16];     // PKJS-formatted "name or N/A".
+  uint8_t meteor_color;
 
   // ISS visibility and current-pass data.
   bool show_iss;            // draw current ISS position when fresh.
@@ -311,6 +375,8 @@ typedef struct {
   bool aurora_enabled;      // fetch and display aurora data.
 
   uint8_t aurora_kp_x10;    // Kp index ×10.
+  char aurora_kp_display[8]; // PKJS-formatted "Kp N.N".
+  uint8_t aurora_kp_color;
 
   uint8_t aurora_visibility_pct; // estimated local visibility, 0-100.
 
@@ -320,6 +386,7 @@ typedef struct {
   uint8_t hourly_vibe_mode; // 0=off, 1=hourly, 2=interval.
   uint8_t hourly_vibe_interval_min; // interval for mode 2.
   uint8_t hourly_vibe_pattern; // 0=short, 1=double, 2=long.
+  uint8_t bt_lost_vibe;        // vibrate when the phone connection is lost: 0=off, 1=short, 2=double, 3=long.
   uint16_t hourly_vibe_start_min; // start minute of day.
   uint16_t hourly_vibe_end_min; // end minute; equal means all day.
 

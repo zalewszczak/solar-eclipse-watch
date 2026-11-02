@@ -15,6 +15,8 @@
 
 var astro = require('./astro');
 var weather = require('./weather/weather');
+var weatherSource = require('./weather/weather-source');
+var primitiveIds = require('./config/primitive-ids-generated');
 var geocode = require('./geocode');
 var iss = require('./iss');
 var servicelog = require('./servicelog');
@@ -301,8 +303,10 @@ function resendLastFullData() {
 // somewhere" reasoning as fetchAirQualityIfEnabled below, since both
 // draw from the exact same Celestrak fetch + astro.js computation.
 function fetchIssIfEnabled(lat, lon, cb) {
-  var nextPassInUse = AQI_SLOT_CONTENT_KEYS.some(function (key) { return getSetting(key, '0') === '83'; });
-  if (getSetting('CONFIG_SHOW_ISS', 'false') !== 'true' && !nextPassInUse) {
+  // Optional sources are fetched only when a slot actually shows them: the next-pass
+  // primitives (or the legacy sky-view "Show ISS" toggle, which draws the dot).
+  if (getSetting('CONFIG_SHOW_ISS', 'false') !== 'true' &&
+      !activePrimitiveUsed([primitiveIds.PRIM_ISS_NEXT_PASS, primitiveIds.PRIM_ISS_ICON])) {
     return cb(null, 0);
   }
   iss.getIssPosition(lat, lon, function (err, pos) {
@@ -315,17 +319,18 @@ function fetchIssIfEnabled(lat, lon, cb) {
   });
 }
 
+// True when any active feature slot (content id or user-built sequence, already compiled to
+// primitive ids by the encoder, in the layout currently shown) uses one of the primitive ids.
+function activePrimitiveUsed(ids) {
+  var active = messageEncoder.activePrimitiveIds();
+  return ids.some(function (id) { return active[id]; });
+}
+
 // Same "only fetch if actually shown somewhere" gate as fetchIssIfEnabled
-// above -- there's no dedicated CONFIG_SHOW_AQI checkbox, so this checks
-// the 12 corner/edge slots directly for content id 36 ("Air quality").
-var AQI_SLOT_CONTENT_KEYS = ['CONFIG_CORNER_TL', 'CONFIG_CORNER_TR',
-  'CONFIG_CORNER_BL', 'CONFIG_CORNER_BR',
-  'CONFIG_UPPER_MIDDLE_LINE1_CONTENT', 'CONFIG_UPPER_MIDDLE_LINE2_CONTENT',
-  'CONFIG_BOTTOM_MIDDLE_LINE1_CONTENT', 'CONFIG_BOTTOM_MIDDLE_LINE2_CONTENT',
-  'CONFIG_MIDDLE_LEFT_LINE1_CONTENT', 'CONFIG_MIDDLE_LEFT_LINE2_CONTENT',
-  'CONFIG_MIDDLE_RIGHT_LINE1_CONTENT', 'CONFIG_MIDDLE_RIGHT_LINE2_CONTENT'];
+// above -- there's no dedicated AQI checkbox, so this checks the active slots'
+// primitive sequences for the air-quality primitives.
 function fetchAirQualityIfEnabled(lat, lon, cb) {
-  var inUse = AQI_SLOT_CONTENT_KEYS.some(function (key) { return getSetting(key, '0') === '36'; });
+  var inUse = activePrimitiveUsed([primitiveIds.PRIM_AQI_TEXT, primitiveIds.PRIM_AQI_VALUE]);
   if (!inUse) return cb({ aqiUs: null, aqiEu: null });
   weather.fetchAirQuality(lat, lon, function (err, aqi) {
     servicelog.recordAttempt('airquality', err);
@@ -344,7 +349,9 @@ function fetchAirQualityIfEnabled(lat, lon, cb) {
 // just means no aurora reading this cycle (score 0), not a hard
 // refresh failure.
 function fetchAuroraIfEnabled(lat, lon, cb) {
-  if (getSetting('CONFIG_AURORA_ENABLED', 'false') !== 'true') return cb({ kp: null, visibilityPct: 0 }, 0);
+  var auroraInUse = getSetting('CONFIG_AURORA_ENABLED', 'false') === 'true' ||
+    activePrimitiveUsed([primitiveIds.PRIM_AURORA_ICON, primitiveIds.PRIM_AURORA_KP, primitiveIds.PRIM_AURORA_KP_VALUE]);
+  if (!auroraInUse) return cb({ kp: null, visibilityPct: 0 }, 0);
   weather.fetchAuroraKp(function (err, kp) {
     var cls = servicelog.recordAttempt('aurora', err || (typeof kp !== 'number' ? new Error('no data') : null));
     if (err || typeof kp !== 'number') {
@@ -457,7 +464,9 @@ function refreshAndSend(force, resendOnSkip) {
     var owmKey = getSetting('CONFIG_OWM_KEY', '');
 
     getLocationName(lat, lon, function (locationName) {
-      weather.getDailyCloudGrid(lat, lon, sky.times, now, function (gridErr, cloudGrid, extras) {
+      // Pebble weather plugin by default (headline values), Open-Meteo for everything the
+      // plugin lacks and always for the sky cloud samples; see weather/weather-source.js.
+      weatherSource.getDailyCloudGrid(lat, lon, sky.times, now, function (gridErr, cloudGrid, extras) {
         var weatherCls = servicelog.recordAttempt('weather', gridErr);
         if (gridErr) console.log('eclipse-watch: sky cloud grid fetch failed - ' + gridErr.message);
 

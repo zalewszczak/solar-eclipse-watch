@@ -33,6 +33,7 @@ var SCRIPTS_DIR = __dirname;
 // normally invoked by hand ("node scripts/xyz.js" from the repo root).
 var STEPS = [
   { label: 'generate-message-keys.js (MK_* indices for SIMPLE_FIELD_MAP, see its own comment)', command: 'node scripts/generate-message-keys.js' },
+  { label: 'generate-primitive-ids.js (PRIM_* ids from primitive_ids.h for the phone-side feature compiler)', command: 'node scripts/generate-primitive-ids.js' },
   { label: 'generate_hand_style_icons.py (renders the 11 hand-style icon PNGs)', command: 'python3 scripts/generate_hand_style_icons.py' },
   { label: 'generate-hand-style-icons.js (bakes those PNGs for the settings page)', command: 'node scripts/generate-hand-style-icons.js' },
   { label: 'generate-font-previews.js', command: 'node scripts/generate-font-previews.js' },
@@ -42,6 +43,12 @@ var STEPS = [
   { label: 'generate-preset-previews.js', command: 'node scripts/generate-preset-previews.js' },
   { label: 'generate-example-style-previews.js', command: 'node scripts/generate-example-style-previews.js' }
 ];
+
+// Real icon PNGs for the settings preview (script owned by the settings-page
+// shell); only run when it exists in this tree.
+if (require('fs').existsSync(path.join(SCRIPTS_DIR, 'generate-preview-icons.js'))) {
+  STEPS.push({ label: 'generate-preview-icons.js (real icon PNGs for the settings preview)', command: 'node scripts/generate-preview-icons.js' });
+}
 
 var PROJECT_ROOT = path.join(SCRIPTS_DIR, '..');
 

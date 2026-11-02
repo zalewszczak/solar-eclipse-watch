@@ -31,6 +31,23 @@ static void hands_controller_invalidate(void *context) {
 
 static EclipseData s_data;
 
+// ---- phone connection -------------------------------------------------------
+// The Bluetooth features read the connection state when they are drawn, but
+// nothing redraws them when it changes -- so refresh them here, and give the
+// optional "connection lost" vibration.
+static void app_connection_handler(bool connected) {
+  Layer *features = layout_controller_features_layer();
+  if (features) features_layer_refresh_values(features);
+  if (!connected) {
+    switch (s_data.bt_lost_vibe) {
+      case 1: vibes_short_pulse(); break;
+      case 2: vibes_double_pulse(); break;
+      case 3: vibes_long_pulse(); break;
+      default: break;
+    }
+  }
+}
+
 // Tick subscription policy lives in time_service.c; this callback owns visual work.
 // ---- tick + click ---------------------------------------------------------
 
@@ -181,10 +198,12 @@ void app_controller_init(void) {
   feature_refresh_start();
 
   comms_init(&s_data, comms_data_applied, NULL);
+  connection_service_subscribe((ConnectionHandlers){ .pebble_app_connection_handler = app_connection_handler });
   battery_saver_controller_update();
 }
 
 void app_controller_deinit(void) {
+  connection_service_unsubscribe();
   battery_saver_controller_deinit();
   time_service_deinit();
   input_deinit();

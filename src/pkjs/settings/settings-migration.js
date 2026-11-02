@@ -10,7 +10,7 @@
 // C consolidated 86 individual settings AppMessage keys (HAND_HOUR_*,
 // CUSTOM_HOUR_*/CUSTOM_SEC_*, MARKER_TEXT_*, the edge-line content/color
 // keys, and the CUSTOM_*/NIGHT_CUSTOM_* color keys) into 5 packed-byte-
-// array keys -- HANDS, MARKER_RINGS, EDGE_LINES, MARKER_TEXT, COLORS.
+// array keys -- HANDS, MARKER_RINGS, EDGE_LINE_COLOR_MODE, MARKER_TEXT, COLORS.
 // See handsBytes()/markerRingsBytes()/edgeLinesBytes()/markerTextBytes()/
 // colorsBytes() in index.js, and apply_consolidated_fields() in
 // pebble-eclipse-watch.c for the watch side.
@@ -33,7 +33,10 @@
 // normally on the very next refresh either way.
 // 3 = marker style ids renumbered: Minimal moved 0 -> 10 and 0 became "None"
 //     (it was 9; 9 is Classy now). Stored value and saved snapshots remapped.
-var SETTINGS_KEY_SCHEMA_VERSION = 3; // 1 = pre-consolidation (86 individual keys), 2 = HANDS/MARKER_RINGS/EDGE_LINES/MARKER_TEXT/COLORS, 3 = marker style renumbering
+// 4 = primitive features: CORNER_CONTENT/EDGE_LINES are gone from the wire (primitive id/aux
+//     arrays instead); the cached full dict still carrying them is discarded. No CONFIG_*
+//     value changes meaning (content ids stay phone-side), so nothing else is migrated.
+var SETTINGS_KEY_SCHEMA_VERSION = 4; // 1 = pre-consolidation (86 individual keys), 2 = HANDS/MARKER_RINGS/EDGE_LINE_COLOR_MODE/MARKER_TEXT/COLORS, 3 = marker style renumbering, 4 = primitive features
 (function migrateSettingsKeySchema() {
   try {
     var stored = parseInt(localStorage.getItem('SETTINGS_KEY_SCHEMA_VERSION'), 10);

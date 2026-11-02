@@ -5,7 +5,7 @@
 #include "./feature_vector_icons.h"
 #include "./feature_render.h"
 #include "../data/eclipse_ui.h"
-#include "../rendering/background/celestial_layer.h"
+#include "./feature_support.h"
 
 // Anchor/centering math below is intentionally left at the OLD icon size
 // (16x12, and 20x10 for the sunrise/sunset glyph) even though every icon now
@@ -125,7 +125,7 @@ void feature_icons_draw_render_icon(GContext *ctx, uint8_t icon_kind, int16_t ic
         }
       }
       draw_debug_marker_point(ctx, draw_debug, center, GColorMagenta);
-      celestial_draw_moon_phase(ctx, clip, center, moon_r, (uint8_t)icon_extra, icon_flag, color);
+      feature_draw_moon_phase(ctx, clip, center, moon_r, (uint8_t)icon_extra, icon_flag, color);
       return;
     }
     case 11: { // sunrise/sunset glyph -- a plain styled image (see resources/images/<style>/
@@ -161,7 +161,7 @@ void feature_icons_draw_render_icon(GContext *ctx, uint8_t icon_kind, int16_t ic
     case 14: { // weather condition icon -- style picked in settings (simple/hollow/full color),
                // plus day/night art for the 2 categories that have both
                // (icon_flag carries "is it night right now", set by
-               // feature_value_weather.c when it resolves the category).
+               // legacy weather feature code when it resolves the category).
       GPoint pos = GPoint(icon_x, box_y + (row_height - ICON_ROWS) / 2 - 2);
       uint8_t category = (uint8_t)icon_extra;
       draw_debug_marker_point(ctx, draw_debug, pos, GColorMagenta);
@@ -203,10 +203,28 @@ void feature_icons_draw_render_icon(GContext *ctx, uint8_t icon_kind, int16_t ic
       return;
     }
     case 13: { // bluetooth -- own case rather than the generic STYLED_ICONS
-               // bucket above: that bucket draws each bitmap right-anchored
+               // bucket above: that bucket draws each bitmap right-anchored.
+               // icon_flag = phone disconnected. Simple/Hollow already turn red
+               // through `color`; Full color art keeps its own colors, so it gets a
+               // red X across it instead.
       GPoint pos = GPoint(icon_x, box_y + (row_height - ICON_ROWS) / 2);
       feature_icon_assets_draw_styled_with_outline(ctx, pos, &BLUETOOTH_ICON_SET, icon_style,
                                                    outline_style, outline_color, color, ICON_DRAW_W, ICON_DRAW_H);
+      if (icon_flag && icon_style == 2) {
+        GPoint a = GPoint(pos.x + 3, pos.y + 1), b = GPoint(pos.x + 12, pos.y + 10);
+        GPoint c = GPoint(pos.x + 12, pos.y + 1), d = GPoint(pos.x + 3, pos.y + 10);
+        if (do_outline) {
+          graphics_context_set_stroke_color(ctx, outline_color);
+          graphics_context_set_stroke_width(ctx, 4);
+          graphics_draw_line(ctx, a, b);
+          graphics_draw_line(ctx, c, d);
+        }
+        graphics_context_set_stroke_color(ctx, GColorRed);
+        graphics_context_set_stroke_width(ctx, 2);
+        graphics_draw_line(ctx, a, b);
+        graphics_draw_line(ctx, c, d);
+        graphics_context_set_stroke_width(ctx, 1);
+      }
       return;
     }
     case 27: { // compass -- asleep (Zz glyph) or a live heading rose with a distinct north arrow
@@ -236,7 +254,7 @@ void feature_icons_draw_render_icon(GContext *ctx, uint8_t icon_kind, int16_t ic
     case 30: { // "+Xh"/"+X day" forecast-offset half-icon (see
                // feature_forecast_offset_icons.c) -- icon_extra carries the
                // 0-8 offset index (content-87, computed by
-               // feature_value_weather.c), drawn just like any other
+               // legacy weather feature code), drawn just like any other
                // fixed-shape icon; feature_icons_plus_gap_width()'s own
                // table is what makes this one only take up half the width.
       GPoint pos = GPoint(icon_x, box_y + (row_height - ICON_ROWS) / 2 - 2);

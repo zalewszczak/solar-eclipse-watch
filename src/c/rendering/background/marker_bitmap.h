@@ -12,3 +12,4 @@ void marker_bitmap_tint(GBitmap *bitmap, bool *bitmap_tinted, GColor *tint_color
                         bool *tint_transparent, GColor tint, bool transparent);
 void marker_bitmap_draw(GContext *ctx, GBitmap *bitmap, GRect bounds,
                         bool anim_active, int32_t anim_progress_1000);
+void marker_bitmap_draw_inverted(GContext *ctx, GBitmap *bitmap, GRect bounds, GPoint origin, bool semi);

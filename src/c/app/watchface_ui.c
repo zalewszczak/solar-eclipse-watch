@@ -88,6 +88,10 @@ static void input_wake_handler(void *context) {
 static void input_labels_changed(bool visible, void *context) {
   (void)context;
   if (layout_controller_canvas_layer()) background_layer_set_labels_visible(layout_controller_canvas_layer(), visible);
+  // The shake window also opens/closes "show on shake" features; values of
+  // hidden slots are not kept fresh, so recompute them when they appear.
+  Layer *features = layout_controller_features_layer();
+  if (features && s_data && s_data->shake_only_mask != 0) features_layer_refresh_values(features);
 }
 
 static void input_animation_frame_handler(bool active, uint32_t elapsed_ms, bool planet_seek, void *context) {
@@ -103,7 +107,7 @@ static void input_animation_frame_handler(bool active, uint32_t elapsed_ms, bool
 
 static void input_compass_feature_refresh_handler(void *context) {
   (void)context;
-  if (layout_controller_features_layer()) features_layer_refresh_content(layout_controller_features_layer(), 85);
+  if (layout_controller_features_layer()) features_layer_refresh_primitive(layout_controller_features_layer(), PRIM_COMPASS_DIR_TEXT);
 }
 
 const InputCallbacks *watchface_ui_input_callbacks(void) {

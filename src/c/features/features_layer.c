@@ -54,9 +54,9 @@ void features_layer_refresh_second_slots(Layer *layer) {
   layer_mark_dirty(layer);
 }
 
-void features_layer_refresh_content(Layer *layer, uint8_t content) {
+void features_layer_refresh_primitive(Layer *layer, PrimitiveId primitive) {
   FeaturesState *state = (FeaturesState *)layer_get_data(layer);
-  feature_controller_refresh_content(state, content);
+  feature_controller_refresh_primitive(state, primitive);
   layer_mark_dirty(layer);
 }
 

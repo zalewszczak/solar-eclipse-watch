@@ -257,8 +257,10 @@ module.exports =
 'function hasPreviewContent(contentId) {' +
 '  var el = document.getElementById(contentId);' +
 '  if (!el) return false;' +
+'  var customEl = document.getElementById(contentId.replace(/Content$/, \"\") + \"CustomPrims\");' +
+'  if (customEl && customEl.value && composerPreviewLabel(customEl.value)) return true;' +
 '  var v = parseInt(el.value, 10);' +
-'  return v !== 0 && !!CORNER_PREVIEW_LABELS[v];' +
+'  return v !== 0 && !!primitiveDecompositionText(v);' +
 '}' +
 
 'function slotAvailable(wrapId) {' +
@@ -279,20 +281,166 @@ module.exports =
 '  var colorEl = document.getElementById(colorId);' +
 '  if (!contentEl || !colorEl) return;' +
 '  var content = parseInt(contentEl.value, 10);' +
-'  var label = CORNER_PREVIEW_LABELS[content];' +
+// A slot's custom sequence (hidden input "<slot>CustomPrims": the content
+// id with any trailing "Content" dropped, so cornerTL -> cornerTLCustomPrims
+// and upperMiddleLine1Content -> upperMiddleLine1CustomPrims) overrides the
+// Content label -- the watch does the same, and does it even when Content is
+// None.
+'  var customEl = document.getElementById(contentId.replace(/Content$/, \"\") + \"CustomPrims\");' +
+'  var label = (customEl && customEl.value) ? composerPreviewLabel(customEl.value) : \"\";' +
+'  if (!label) label = primitiveDecompositionText(content, true);' +
 '  if (!label) return;' +
 '  var mode = parseInt(colorEl.value, 10);' +
 '  var color = colors.text, alpha = 1;' +
 '  if (mode === 1) { color = colors.accent; }' +
 '  else if (mode === 2) { color = colors.accent; alpha = 0.55; }' +
 '  else if (mode === 3) { color = "#4caf50"; }' +
+'  var fm = /([0-9.]+)px/.exec(fontCss);' +
+'  var fontPx = fm ? parseFloat(fm[1]) : 10;' +
 '  ctx.font = fontCss;' +
-'  ctx.textAlign = textAlign;' +
 '  ctx.textBaseline = "top";' +
 '  ctx.globalAlpha = alpha;' +
 '  ctx.fillStyle = color;' +
-'  ctx.fillText(label, x, y);' +
+// Split the label into text runs and "(token)" icon placeholders; every
+// token with embedded art becomes a real icon, the rest stay text.
+'  var segs = previewLabelSegments(label, fontPx);' +
+'  var total = 0, i;' +
+'  for (i = 0; i < segs.length; i++) {' +
+'    if (segs[i].icon) { segs[i].width = segs[i].icon.width; }' +
+'    else if (segs[i].gap) { segs[i].width = segs[i].gap; }' +
+'    else { segs[i].width = ctx.measureText(segs[i].text).width; }' +
+'    total += segs[i].width;' +
+'  }' +
+'  var cx = (textAlign === "center") ? x - total / 2 : (textAlign === "right" ? x - total : x);' +
+'  ctx.textAlign = "left";' +
+'  for (i = 0; i < segs.length; i++) {' +
+'    if (segs[i].icon) {' +
+'      var ic = segs[i].icon;' +
+'      var iy = y + (fontPx - ic.height) / 2;' +
+'      drawPreviewIcon(ctx, ic, cx, iy, color);' +
+'    } else {' +
+'      ctx.fillStyle = color;' +
+'      ctx.fillText(segs[i].text, cx, y);' +
+'    }' +
+'    cx += segs[i].width;' +
+'  }' +
 '  ctx.globalAlpha = 1;' +
+'}' +
+
+// ---- real icon art in the preview -----------------------------------------
+// The watch draws feature icons from the resource PNGs (simple/hollow are
+// 2-colour palette art tinted to the feature colour, full color is drawn as
+// is; an outline pass draws offset silhouettes first). This mirrors
+// feature_icon_assets.c in the canvas: PREVIEW_ICON_IMAGES[style][name] holds
+// the embedded PNGs (scripts/generate-preview-icons.js), PREVIEW_ICON_TOKENS
+// maps the "(token)" placeholders onto them.
+'var PREVIEW_ICON_OUTLINE_THIN = [[-1,0],[1,0],[0,-1],[0,1]];' +
+'var PREVIEW_ICON_OUTLINE_THICK = [[-1,0],[1,0],[0,-1],[0,1],[-2,0],[2,0],[0,-2],[0,2],[1,1],[-1,1],[-1,-1],[1,-1]];' +
+'var PREVIEW_TINT_CACHE = {};' +
+
+'function previewIconSource(style, name) {' +
+'  var set = (typeof PREVIEW_ICON_IMAGES !== "undefined") ? PREVIEW_ICON_IMAGES[style] : null;' +
+'  return set ? set[name] : null;' +
+'}' +
+
+// {name, style, width, height} for a token that has embedded art in the
+// current Icons style (full color also needs the hollow art for its outline
+// when outlines are on), else null so the caller keeps the text.
+'function previewIconForToken(token, iconPx) {' +
+'  if (typeof PREVIEW_ICON_TOKENS === "undefined") return null;' +
+'  var name = PREVIEW_ICON_TOKENS[token];' +
+'  if (!name) return null;' +
+'  var styleEl = document.getElementById("weatherIconStyle");' +
+'  var style = styleEl ? String(parseInt(styleEl.value, 10) || 0) : "1";' +
+'  var src = previewIconSource(style, name);' +
+'  if (!src) return null;' +
+'  var img = getCachedImage(src);' +
+'  if (!img.complete || !img.naturalWidth) return null;' +
+'  var f = iconPx / 16;' +
+'  return { name: name, style: style, factor: f, width: img.naturalWidth * f, height: img.naturalHeight * f };' +
+'}' +
+
+'function previewLabelSegments(label, fontPx) {' +
+// "\\uE000" marks the watch's one automatic gap in a built-in feature: next
+// to an icon (about 0.4 em of the feature font). Text runs sit flush.
+'  var parts = label.split(/(\\([A-Za-z]+\\)|\\uE000)/);' +
+'  var iconPx = Math.max(8, Math.round(fontPx * 1.15));' +
+'  var out = [];' +
+'  for (var i = 0; i < parts.length; i++) {' +
+'    var p = parts[i];' +
+'    if (!p) continue;' +
+'    if (p === "\\uE000") { out.push({ text: "", gap: Math.round(fontPx * 0.4) }); continue; }' +
+'    var m = /^\\(([A-Za-z]+)\\)$/.exec(p);' +
+'    var ic = m ? previewIconForToken(m[1], iconPx) : null;' +
+'    if (ic) out.push({ icon: ic });' +
+'    else out.push({ text: p });' +
+'  }' +
+'  return out;' +
+'}' +
+
+'function previewHexLuma(hex) {' +
+'  var c = hexToRgb(hex);' +
+'  return ((c.r >> 6) * 3 + (c.g >> 6) * 6 + (c.b >> 6));' +
+'}' +
+
+// Same rule as feature_icon_assets.c's tint: with a transparent palette
+// entry, the opaque pixels are the ink; with two opaque entries the darker
+// one is. Ink becomes `hex`, everything else clear.
+'function tintPreviewIcon(img, hex) {' +
+'  var key = img.src.length + ":" + img.src.slice(-40) + ":" + hex;' +
+'  if (PREVIEW_TINT_CACHE[key]) return PREVIEW_TINT_CACHE[key];' +
+'  var cv = document.createElement("canvas");' +
+'  cv.width = img.naturalWidth; cv.height = img.naturalHeight;' +
+'  var c2 = cv.getContext("2d");' +
+'  c2.drawImage(img, 0, 0);' +
+'  var data = c2.getImageData(0, 0, cv.width, cv.height);' +
+'  var d = data.data, n = d.length / 4, k, hasClear = false, lo = 1e9, hi = -1;' +
+'  for (k = 0; k < n; k++) {' +
+'    if (d[k*4+3] < 128) { hasClear = true; continue; }' +
+'    var l = d[k*4] * 0.3 + d[k*4+1] * 0.59 + d[k*4+2] * 0.11;' +
+'    if (l < lo) lo = l; if (l > hi) hi = l;' +
+'  }' +
+'  var mid = (lo + hi) / 2;' +
+'  var rgb = hexToRgb(hex);' +
+'  for (k = 0; k < n; k++) {' +
+'    var opaque = d[k*4+3] >= 128;' +
+'    var ink = opaque;' +
+'    if (opaque && !hasClear) { var l2 = d[k*4] * 0.3 + d[k*4+1] * 0.59 + d[k*4+2] * 0.11; ink = (hi === lo) || l2 <= mid; }' +
+'    d[k*4] = rgb.r; d[k*4+1] = rgb.g; d[k*4+2] = rgb.b; d[k*4+3] = ink ? 255 : 0;' +
+'  }' +
+'  c2.putImageData(data, 0, 0);' +
+'  PREVIEW_TINT_CACHE[key] = cv;' +
+'  return cv;' +
+'}' +
+
+'function drawPreviewIcon(ctx, ic, x, y, hex) {' +
+'  var img = getCachedImage(previewIconSource(ic.style, ic.name));' +
+'  if (!img.complete || !img.naturalWidth) return;' +
+'  var f = ic.factor;' +
+'  var oEl = document.getElementById("outlineStyle");' +
+'  var outline = oEl ? parseInt(oEl.value, 10) || 0 : 0;' +
+'  var prevSmooth = ctx.imageSmoothingEnabled;' +
+'  ctx.imageSmoothingEnabled = false;' +
+'  if (outline) {' +
+'    var outHex = previewHexLuma(hex) >= 9 ? "#000000" : "#ffffff";' +
+// Full color art has no ink channel: its outline borrows the hollow silhouette.
+'    var sil = img;' +
+'    if (ic.style === "2") {' +
+'      var hs = previewIconSource("1", ic.name);' +
+'      var himg = hs ? getCachedImage(hs) : null;' +
+'      sil = (himg && himg.complete && himg.naturalWidth) ? himg : null;' +
+'    }' +
+'    if (sil) {' +
+'      var tc = tintPreviewIcon(sil, outHex);' +
+'      var offs = outline >= 2 ? PREVIEW_ICON_OUTLINE_THICK : PREVIEW_ICON_OUTLINE_THIN;' +
+'      for (var o = 0; o < offs.length; o++) {' +
+'        ctx.drawImage(tc, x + offs[o][0] * f, y + offs[o][1] * f, tc.width * f, tc.height * f);' +
+'      }' +
+'    }' +
+'  }' +
+'  if (ic.style === "2") ctx.drawImage(img, x, y, img.naturalWidth * f, img.naturalHeight * f);' +
+'  else { var main = tintPreviewIcon(img, hex); ctx.drawImage(main, x, y, main.width * f, main.height * f); }' +
+'  ctx.imageSmoothingEnabled = prevSmooth;' +
 '}' +
 
 // Direct port of features_recompute_layout()'s own margin computation
@@ -314,7 +462,10 @@ module.exports =
 '  var margins = { top: 44 * scale, bottom: 40 * scale, left: 30 * scale, right: 30 * scale };' +
 '  var markerStyle = parseInt(document.getElementById("bigAnalogMarkerStyle").value, 10);' +
 '  var isBitmapStyle = markerStyle >= 3 && markerStyle <= 7;' +
-'  if (isBitmapStyle) return margins;' + // BITMAP_STYLE_MARGINS's 5 entries are all identical to the defaults above -- nothing to differ
+'  if (isBitmapStyle) {' + // mirrors BITMAP_STYLE_MARGINS in src/c/features/feature_layout.c (top, bottom, left, right per style 3-7)
+'    var bm = [[38,37,42,39],[37,33,38,33],[44,42,27,20],[46,44,45,45],[44,40,30,26]][markerStyle - 3];' +
+'    return { top: bm[0] * scale, bottom: bm[1] * scale, left: bm[2] * scale, right: bm[3] * scale };' +
+'  }' +
 '  var pct, ecc;' +
 // Every non-bitmap style (Custom AND the Minimal/Braun/Swiss/Classy
 // presets) reads the customHour* fields here: picking a preset copies
@@ -1154,6 +1305,9 @@ module.exports =
 '}' +
 
 'function updatePreview() {' +
+// A font or icon image that finishes loading lands here: keep the slot
+// editor's own preview (if it is open) in step with the main one.
+'  if (typeof CURRENT_SLOT_KEY !== "undefined" && CURRENT_SLOT_KEY && typeof renderSlotEditPreview === "function") { try { renderSlotEditPreview(); } catch (e) {} }' +
 '  var canvas = document.getElementById("previewCanvas");' +
 '  if (!canvas || !canvas.getContext) return;' +
 '  var ctx = canvas.getContext("2d");' +
@@ -1179,7 +1333,14 @@ module.exports =
 '    drawCelestialPreview(ctx, 0, 0, w, h, skyMode, phase, colors, now);' +
 '    var markerStyleVal = document.getElementById("bigAnalogMarkerStyle").value;' +
 '    var markerStyleInt = parseInt(markerStyleVal, 10);' +
-'    var markerImageDrawn = (markerStyleInt >= 3 && markerStyleInt <= 7) && drawTintedMarkerBitmap(ctx, markerStyleVal, w, h, colors.text);' +
+'    var markerTint = colors.text;' +
+'    var invEl = document.getElementById("bitmapMarkerInvert");' +
+'    if (invEl && invEl.checked) {' +
+'      var bgRgb = hexToRgb(colors.bg);' +
+'      var bgLum = bgRgb ? (0.3 * bgRgb.r + 0.59 * bgRgb.g + 0.11 * bgRgb.b) : 0;' +
+'      markerTint = bgLum > 127 ? "#000000" : "#FFFFFF";' +
+'    }' +
+'    var markerImageDrawn = (markerStyleInt >= 3 && markerStyleInt <= 7) && drawTintedMarkerBitmap(ctx, markerStyleVal, w, h, markerTint);' +
 '    drawBigAnalogPreview(ctx, colors, now, showSeconds, w, h, markerImageDrawn);' +
 '    drawCornersAndEdges(ctx, w, h, colors, h);' +
 '  } else if (styleVal === "digitalTop") {' +

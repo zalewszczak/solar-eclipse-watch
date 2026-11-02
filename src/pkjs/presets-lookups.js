@@ -281,7 +281,7 @@ var FONT_CATEGORIES = [
   { id: 'handwritten', label: 'Handwritten' }
 ];
 
-// Must match get_color_scheme() in pebble-eclipse-watch.c exactly --
+// Must match get_color_scheme() in src/c/comms/comms_decoder.c exactly --
 // same order, same id, same colors.
 var COLOR_SCHEMES = [
   // Proven classics retained from the original set.
@@ -371,9 +371,19 @@ var CORNER_CATEGORIES = [
         "preview": "82%"
       },
       {
+        "id": 13,
+        "label": "Location",
+        "preview": "Innsbruck"
+      },
+      {
         "id": 17,
         "label": "Pebble logo /w battery bar",
         "preview": "LOGO"
+      },
+      {
+        "id": 20,
+        "label": "Bluetooth connection",
+        "preview": "Connected"
       },
       {
         "id": 78,
@@ -391,9 +401,24 @@ var CORNER_CATEGORIES = [
         "preview": "NNW"
       },
       {
+        "id": 102,
+        "label": "Battery + Bluetooth (icons only)",
+        "preview": "(batt)(bt)"
+      },
+      {
         "id": 103,
         "label": "Battery % + Bluetooth",
         "preview": "68% (bt)"
+      },
+      {
+        "id": 108,
+        "label": "Quiet Time (icon only)",
+        "preview": "(quiet)"
+      },
+      {
+        "id": 109,
+        "label": "Quiet Time (icon + ON/OFF)",
+        "preview": "(spkr) OFF"
       },
       {
         "id": 112,
@@ -868,6 +893,21 @@ var CORNER_CATEGORIES = [
         "preview": "19:42"
       },
       {
+        "id": 79,
+        "label": "Planets visible now",
+        "preview": "3 planets"
+      },
+      {
+        "id": 80,
+        "label": "Meteor shower",
+        "preview": "Perseids"
+      },
+      {
+        "id": 81,
+        "label": "Saturn ring angle",
+        "preview": "Rings 12%"
+      },
+      {
         "id": 82,
         "label": "Next planet rise",
         "preview": "VEN 18:32"
@@ -893,6 +933,11 @@ var CORNER_CATEGORIES = [
         "id": 100,
         "label": "Heart rate + steps",
         "preview": "72 5234"
+      },
+      {
+        "id": 101,
+        "label": "Bed time + wake time",
+        "preview": "23:45 /07:20"
       },
       {
         "id": 104,
@@ -923,6 +968,73 @@ var CORNER_CATEGORIES = [
         "id": 118,
         "label": "Battery + Bluetooth + Quiet Time (% for battery only)",
         "preview": "82% (bt)(spkr)"
+      }
+    ]
+  },
+  {
+    "id": "plugins",
+    "label": "Plugins",
+    "icon": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M10 4.5a1.8 1.8 0 0 1 3.6 0V6H18a1 1 0 0 1 1 1v3.4h-1.5a1.8 1.8 0 0 0 0 3.6H19V18a1 1 0 0 1-1 1h-3.4v-1.5a1.8 1.8 0 0 0-3.6 0V19H7a1 1 0 0 1-1-1v-4H4.5a1.8 1.8 0 0 1 0-3.6H6V7a1 1 0 0 1 1-1h3z\"/></svg>",
+    "items": [
+      {
+        "id": 200,
+        "label": "Plugin data 1",
+        "preview": "PLG"
+      },
+      {
+        "id": 201,
+        "label": "Plugin data 2",
+        "preview": "PLG"
+      },
+      {
+        "id": 202,
+        "label": "Plugin data 3",
+        "preview": "PLG"
+      },
+      {
+        "id": 203,
+        "label": "Plugin data 4",
+        "preview": "PLG"
+      },
+      {
+        "id": 204,
+        "label": "Plugin data 5",
+        "preview": "PLG"
+      },
+      {
+        "id": 205,
+        "label": "Plugin data 6",
+        "preview": "PLG"
+      },
+      {
+        "id": 206,
+        "label": "Plugin data 7",
+        "preview": "PLG"
+      },
+      {
+        "id": 207,
+        "label": "Plugin data 8",
+        "preview": "PLG"
+      },
+      {
+        "id": 208,
+        "label": "Plugin data 9",
+        "preview": "PLG"
+      },
+      {
+        "id": 209,
+        "label": "Plugin data 10",
+        "preview": "PLG"
+      },
+      {
+        "id": 210,
+        "label": "Plugin data 11",
+        "preview": "PLG"
+      },
+      {
+        "id": 211,
+        "label": "Plugin data 12",
+        "preview": "PLG"
       }
     ]
   }
@@ -1377,6 +1489,7 @@ Object.keys(MARKER_STYLE_PRESET_INDEX).forEach(function (styleId) {
 var FAQ_ITEMS = [
     ['What is Eclipz?', 'Eclipz is a play on word Eclipse and my favourite letter, initally suffix \'z\' indicated watchfaces that were animated and so was this one supposed to be, but I ended running out of memory. Once I get the memory situation under control I\'ll add some animations to fulfill the namesake.'],
     ['Why does the Sun and Moon appear close to each other where they aren\'t in reality?', 'Celestial bodies positions are calculated on your phone, then cast to match roughly 360 degree projection of the sky within watchface square background. Think of it as Mercator projection of the world and Africa size situation, I hope UN won\'t have to force changes to the sun and moon project here. In the Planet Seek animation mode it shifts to show current 90 degrees that are ahead of you based on watches compass readout. Note: Calculations of the azimuths tend to be a bit skewed for objects that are close to horizon - this is intentional due to lack of precision and computation limitations that I haven\'t solved yet.'],
+    ['Can a feature appear only when I shake the watch?', 'Yes. Open any feature position and tick "Show only when the watch is shaken" on the bottom. That feature stays hidden until you shake (or tap) the watch and then stays visible for the same number of seconds as the shake animation duration.'],
     ['I select a setting and nothing happens on my watch, is it broken?', 'Have you pressed "Save" button on the bottom? The way settings work on peebble require you to send that configuration to the watch by confriming it - backing out or pressing back icon on top will just discard that without ever applying it to watch.'],
     ['I\'m pressing Save and still nothing happens on watch, is it a bug?', 'Well, my last explanation for this could be color scheme that causes your changes to not be visible on the background of the watchface, check if you are making changes to right color scheme (day/night) and finally check the help icon by the option you are adjusting - it might contain a hint. If nothing helps, restart watch. If still nothing, try reinstalling the watchface (remove it and add again to the watch). Give it some time, walk it off, maybe its up to higher powers.'],
     ['What are all those little pieces of text around the clock?', 'They are Features. I called them like that because I don\'t like the name Complications. You can call them complications if you want. You can configure them in "Features" section of the settings page. Each available slot can be assigned a different piece of information such as temperature, battery, weekday, wind direction or Moon phase. Available positions depend on the selected layout.'],
@@ -1389,7 +1502,7 @@ var FAQ_ITEMS = [
     ['Why does the sky not always look the same?', 'The sky can reflect the time of day, atmospheric conditions and is affected by Sky Style. The astronomy layer also uses your location to calculate the position of the celestial bodies, so basically its rather unlikely you will see same sky at all times.'],
     ['What does the eclipse information mean?', 'Eclipz calculates the eclipse for your selected location and represents its progression through the relevant phases. You can also enable vibration when the eclipse reaches its next phase. This is done once a day and if theres a sun eclipse occuring you will see a countdown on top to every phase till the eclipse is over or the sun sets behind horizon'],
     ['Do I need to enter my location?', 'You can use phone GPS automatically, search for a place manually, or enter latitude and longitude. Location affects eclipse calculations, Sun/Moon positioning, astronomy, sunrise/sunset and weather.'],
-    ['Why is the weather sometimes unavailable?', 'Cloud cover comes from Open-Meteo and does not require an API key. Eclipz can optionally combine that information with OpenWeatherMap if you provide your own API key. Weather data is fetched periodically rather than continuously and will depend on internet connection of your phone.'],
+    ['Why is the weather sometimes unavailable?', 'By default the weather comes from the Pebble app weather plugin, with any missing parts (and as a fallback if the plugin fails) filled in from Open-Meteo, which does not require an API key. Cloud cover comes from Open-Meteo. Eclipz can optionally combine that information with OpenWeatherMap if you provide your own API key. Weather data is fetched periodically rather than continuously and will depend on internet connection of your phone.'],
     ['What does the refresh interval mean?', 'It sets the minimum time between automatic data updates. A shorter interval provides fresher information but can require more phone/network activity and will result in battery drain. A significant location change can trigger an earlier update.'],
     ['How do I get to see planes, ISS or planets location with compass?', 'To see planes you will need to enable on-shake animation and set it to "planet seek", then enable ISS in Astronomy section, and finally Flights in Other section. This is complicated mostly due to the fact that I had to optimise the way watch fetches flight information - on its own its quite heavy operation that uses restrained API endpoint, for continous flight view I\'d need a paid service to display that information. ISS location has to be fetched due to the stations slow drift - we just can\'t calculate its location based on past data. Planets are calculated on your phone. Don\'t be surprised when battery starts to be drained faster with these options enabled.'],
     ['Why did the aircraft not update?', 'Flight information is fetched on demand and is subject to OpenSky service limits. Eclipz keeps track of service errors and rate limiting - you can check for errors in Update section under OpenSky - green means no errors. Fetch is limited to happen once per 3 minutes and cached on watch, so flight location won\'t update until 3 minute timeout. I\'m aware that sometimes flights tend to get stuck and only solution is to restart the watchface - I have yet to find out why that data gets stale - this is very rare occurenace in my experience so restart the watchface only after you are certain that there was no update to the flights for more than 6 minutes. Mostly its just either missing data from API or mismatch in watch-phone communication that clears on next fetch.'],

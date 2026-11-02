@@ -92,6 +92,13 @@ GColor feature_colors_altitude_gradient(int16_t altitude_m) {
   return feature_colors_white_to_turquoise_gradient(altitude_m, 0, ALTITUDE_GRADIENT_MAX_M);
 }
 
+// Dim gray (faint) -> white (strong), for the meteor-shower intensity
+GColor feature_colors_meteor_intensity_gradient(uint8_t pct) {
+  int32_t frac1000 = ((int32_t)pct * 1000) / 100;
+  int16_t v = 90 + (int16_t)((165 * frac1000) / 1000);
+  return GColorFromRGB((uint8_t)v, (uint8_t)v, (uint8_t)v);
+}
+
 // White during the day, black at night, blending linearly across the
 #define DAYNIGHT_TRANSITION_SECS 3600
 GColor feature_colors_daynight_gradient(time_t at, time_t sun_rise, time_t sun_set) {

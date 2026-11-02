@@ -13,11 +13,15 @@ typedef struct {
   bool bitmap_tinted;
   GColor bitmap_tint_color;
   bool bitmap_tint_transparent;
+  GPoint draw_origin; // layer origin in the frame buffer (needed by the invert blend)
   FontSlot text_font_slot;
 } MarkerLayerState;
 
 void marker_layer_init(MarkerLayerState *state);
 void marker_layer_deinit(MarkerLayerState *state);
+// Frees the bitmap and font the markers need while drawing (they are reloaded
+// on demand by the next marker_layer_draw()).
+void marker_layer_release_resources(MarkerLayerState *state);
 
 void marker_layer_draw(GContext *ctx, MarkerLayerState *state, GPoint center, GRect screen,
                        const EclipseData *data, GColor main_color, GColor accent_color,

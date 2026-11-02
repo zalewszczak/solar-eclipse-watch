@@ -130,6 +130,15 @@ static const SimpleFieldMapping SIMPLE_FIELD_MAP[] = {
   { MK_HOURLY_VIBE_DAYS_MASK, F_U8, offsetof(EclipseData, hourly_vibe_days_mask) },
   { MK_HOURLY_VIBE_OVERRIDE_QUIET, F_BOOL, offsetof(EclipseData, hourly_vibe_override_quiet) },
   { MK_NEXT_STYLE_CHECK, F_TIME, offsetof(EclipseData, next_style_check) },
+  // Primitive-feature support fields (PKJS-computed icon category/colors, shake-only slots).
+  { MK_WEATHER_ICON_CATEGORY, F_U8, offsetof(EclipseData, weather_icon_category) },
+  { MK_WEATHER_ICON_COLOR, F_U8, offsetof(EclipseData, weather_icon_color) },
+  { MK_ALTITUDE_COLOR, F_U8, offsetof(EclipseData, altitude_color) },
+  { MK_PRESSURE_COLOR, F_U8, offsetof(EclipseData, pressure_color) },
+  { MK_AQI_COLOR, F_U8, offsetof(EclipseData, aqi_color) },
+  { MK_AURORA_KP_COLOR, F_U8, offsetof(EclipseData, aurora_kp_color) },
+  { MK_METEOR_COLOR, F_U8, offsetof(EclipseData, meteor_color) },
+  { MK_SHAKE_ONLY_MASK, F_U16, offsetof(EclipseData, shake_only_mask) },
   // Settings that also raise a presentation change flag.
   { MK_CLOCK_FONT, F_U8 | FL_FONT, offsetof(EclipseData, clock_font) },
   { MK_SHOW_SECONDS, F_BOOL | FL_HANDS, offsetof(EclipseData, show_seconds) },
@@ -201,8 +210,12 @@ _Static_assert(sizeof(time_t) == 4, "PLANET_RISE/SET wire format assumes a 4-byt
 
 // Applied to every message, including invalid payloads.
 static const BlobFieldMapping BLOB_FIELD_MAP[] = {
-  { MK_CORNER_CONTENT, 1, offsetof(EclipseData, corner_content), 4 },
   { MK_CORNER_COLOR_MODE, 1, offsetof(EclipseData, corner_color_mode), 4 },
+  { MK_CORNER_PRIMITIVE_IDS, 1, offsetof(EclipseData, corner_primitive_ids), 40 }, // 4 * 10, see eclipse_data.h
+  { MK_CORNER_PRIMITIVE_AUX, 1, offsetof(EclipseData, corner_primitive_aux), 40 },
+  { MK_EDGE_LINE_PRIMITIVE_IDS, 1, offsetof(EclipseData, edge_line_primitive_ids), 80 }, // 8 * 10, see eclipse_data.h
+  { MK_EDGE_LINE_PRIMITIVE_AUX, 1, offsetof(EclipseData, edge_line_primitive_aux), 80 },
+  { MK_PLUGIN_TEXTS, 1, offsetof(EclipseData, plugin_text), PLUGIN_SLOT_COUNT * PLUGIN_TEXT_LEN },
   { MK_OVERHEAD_OBJECTS, 8, offsetof(EclipseData, overhead_objects), MAX_OVERHEAD_OBJECTS * 8 },
 };
 
@@ -212,7 +225,9 @@ _Static_assert(sizeof(OverheadObject) == 8, "OVERHEAD_OBJECTS wire format assume
 static const BlobFieldMapping BLOB_FIELD_MAP_VALID[] = {
   { MK_SEP_SAMPLES, 2, offsetof(EclipseData, sep_samples_centideg), MAX_SEP_SAMPLES * 2 },
   { MK_MAG_SAMPLES, 1, offsetof(EclipseData, mag_pct_samples), MAX_SEP_SAMPLES },
-  { MK_FORECAST_CONDITION, 1, offsetof(EclipseData, forecast_condition), 9 },
+  { MK_FORECAST_CONDITION, 1, offsetof(EclipseData, forecast_condition), FORECAST_SLOT_COUNT },
+  { MK_FORECAST_ICON_CATEGORIES, 1, offsetof(EclipseData, forecast_icon_category), FORECAST_SLOT_COUNT },
+  { MK_FORECAST_TEMP_COLORS, 1, offsetof(EclipseData, forecast_temp_color), FORECAST_SLOT_COUNT },
   { MK_SUN_ALT_SAMPLES, 2, offsetof(EclipseData, sun_alt_decideg), MAX_SKY_SAMPLES * 2 },
   { MK_SUN_AZ_SAMPLES, 2, offsetof(EclipseData, sun_az_decideg), MAX_SKY_SAMPLES * 2 },
   { MK_CLOUD_SAMPLES, 1, offsetof(EclipseData, cloud_pct_samples), MAX_SKY_SAMPLES },
@@ -251,6 +266,54 @@ static void apply_planet_grid(DictionaryIterator *iter, uint8_t key_index, void 
   }
 }
 
+// Scattered single-byte fields that always travel together as one group are packed
+// into one wire blob instead of one AppMessage key per field. Every field here is u8 or
+// bool (bool's wire/storage representation is identical: a single 0/1 byte), so one shared
+// apply function covers all groups -- just a list of destination offsets, applied
+// positionally against the incoming blob's bytes. The order of each table must match the
+// order the phone builds the blob in (comms/message-encoder.js). Only fields that are NEW
+// with the primitive-feature architecture travel this way; Eclipz's older settings keep
+// their own keys.
+static void apply_scattered_u8_blob(DictionaryIterator *iter, EclipseData *d, uint8_t key_index,
+                                     const uint16_t *offsets, uint8_t count) {
+  Tuple *t = dict_find(iter, MESSAGE_KEY_MESSAGE_TYPE + key_index);
+  if (!t) return;
+  uint16_t len = t->length;
+  if (len > count) len = count; // defensive: never read past either side's declared field count
+  const uint8_t *src = t->value->data;
+  for (uint16_t i = 0; i < len; i++) {
+    *((uint8_t *)d + offsets[i]) = src[i];
+  }
+}
+
+// Group 1 (5 fields): new plain settings, set on every settings push.
+static const uint16_t SETTINGS_BLOB_OFFSETS[] = {
+  offsetof(EclipseData, primitive_tight_mask_lo),
+  offsetof(EclipseData, primitive_tight_mask_hi),
+  offsetof(EclipseData, bitmap_marker_invert),
+  offsetof(EclipseData, shake_hands_translucent),
+  offsetof(EclipseData, bt_lost_vibe),
+};
+
+// Group 2 (2 fields): cloud/visibility readout gradient colors.
+static const uint16_t WEATHER_CLOUD_BLOB_OFFSETS[] = {
+  offsetof(EclipseData, cloud_cover_color),
+  offsetof(EclipseData, vis_score_color),
+};
+
+// Group 3 (9 fields): gradient colors of the main weather readouts.
+static const uint16_t WEATHER_MAIN_BLOB_OFFSETS[] = {
+  offsetof(EclipseData, current_temp_color),
+  offsetof(EclipseData, temp_high_color),
+  offsetof(EclipseData, temp_low_color),
+  offsetof(EclipseData, feels_like_color),
+  offsetof(EclipseData, uv_daily_color),
+  offsetof(EclipseData, uv_current_color),
+  offsetof(EclipseData, rain_chance_color),
+  offsetof(EclipseData, humidity_color),
+  offsetof(EclipseData, wind_speed_color),
+};
+
 // Copy a bounded C-string field.
 static void apply_cstring(DictionaryIterator *iter, uint8_t key_index, char *dst, uint16_t cap) {
   Tuple *t = dict_find(iter, MESSAGE_KEY_MESSAGE_TYPE + key_index);
@@ -259,8 +322,19 @@ static void apply_cstring(DictionaryIterator *iter, uint8_t key_index, char *dst
   dst[cap - 1] = '\0';
 }
 
+// One MK_* per forecast-temp index (see eclipse_data.h's forecast_temp_display
+// comment for why discrete keys rather than one delimited string).
+static const uint8_t FORECAST_TEMP_DISPLAY_KEYS[FORECAST_SLOT_COUNT] = {
+  MK_FORECAST_TEMP_DISPLAY_0, MK_FORECAST_TEMP_DISPLAY_1, MK_FORECAST_TEMP_DISPLAY_2,
+  MK_FORECAST_TEMP_DISPLAY_3, MK_FORECAST_TEMP_DISPLAY_4, MK_FORECAST_TEMP_DISPLAY_5,
+  MK_FORECAST_TEMP_DISPLAY_6, MK_FORECAST_TEMP_DISPLAY_7, MK_FORECAST_TEMP_DISPLAY_8,
+  MK_FORECAST_TEMP_DISPLAY_9, MK_FORECAST_TEMP_DISPLAY_10, MK_FORECAST_TEMP_DISPLAY_11,
+  MK_FORECAST_TEMP_DISPLAY_12, MK_FORECAST_TEMP_DISPLAY_13, MK_FORECAST_TEMP_DISPLAY_14,
+};
+
 // Consolidated settings fields use fixed wire layouts.
-// HANDS, MARKER_RINGS, and EDGE_LINES can be copied directly; MARKER_TEXT and COLORS are packed.
+// HANDS, MARKER_RINGS, and EDGE_LINE_COLOR_MODE use fixed byte layouts;
+// MARKER_TEXT and COLORS are unpacked field-by-field.
 _Static_assert(sizeof(HandConfig) == 14, "HANDS wire format assumes a 14-byte HandConfig");
 _Static_assert(sizeof(MarkerRingConfig) == 8, "MARKER_RINGS wire format assumes an 8-byte MarkerRingConfig");
 
@@ -278,9 +352,9 @@ static void apply_consolidated_fields(DictionaryIterator *iter, EclipseData *d) 
     memcpy(&d->custom_hour_marker, t->value->data, 2 * sizeof(MarkerRingConfig));
   }
 
-  // EDGE_LINES: 16 content/color-mode bytes in EclipseData declaration order.
-  if ((t = dict_find(iter, base + MK_EDGE_LINES)) && t->length >= 16) {
-    memcpy(&d->upper_middle_line1_content, t->value->data, 16);
+  // EDGE_LINE_COLOR_MODE is a primitive-only payload: eight color-mode bytes, one per slot.
+  if ((t = dict_find(iter, base + MK_EDGE_LINE_COLOR_MODE)) && t->length >= 8) {
+    memcpy(d->edge_line_color_mode, t->value->data, 8);
   }
 
   // MARKER_TEXT: target, font, signed offset, two little-endian masks, Roman-numeral flag.
@@ -316,6 +390,7 @@ CommsChangeFlags comms_decoder_apply(DictionaryIterator *iter, EclipseData *data
   uint32_t changes = apply_simple_fields(iter, d, SIMPLE_FIELD_MAP, NELEM(SIMPLE_FIELD_MAP));
   apply_consolidated_fields(iter, d);
   apply_blob_fields(iter, d, BLOB_FIELD_MAP, NELEM(BLOB_FIELD_MAP));
+  apply_scattered_u8_blob(iter, d, MK_SETTINGS_U8_BLOB, SETTINGS_BLOB_OFFSETS, NELEM(SETTINGS_BLOB_OFFSETS));
 
   // Any response to REQUEST_FLIGHTS (success or failure) carries a fresh
   // OVERHEAD_OBJECTS_COMPUTED_AT -- PKJS sends it either way, so its mere
@@ -346,6 +421,8 @@ CommsChangeFlags comms_decoder_apply(DictionaryIterator *iter, EclipseData *data
   }
 
   changes |= apply_simple_fields(iter, d, SIMPLE_FIELD_MAP_VALID, NELEM(SIMPLE_FIELD_MAP_VALID));
+  apply_scattered_u8_blob(iter, d, MK_WEATHER_CLOUD_U8_BLOB, WEATHER_CLOUD_BLOB_OFFSETS, NELEM(WEATHER_CLOUD_BLOB_OFFSETS));
+  apply_scattered_u8_blob(iter, d, MK_WEATHER_MAIN_U8_BLOB, WEATHER_MAIN_BLOB_OFFSETS, NELEM(WEATHER_MAIN_BLOB_OFFSETS));
 
   if ((t = dict_find(iter, base + MK_WEATHER_ERROR_CODE))) {
     d->weather_error_code = t->value->uint8;
@@ -358,11 +435,12 @@ CommsChangeFlags comms_decoder_apply(DictionaryIterator *iter, EclipseData *data
   }
 
   // Forecast temperatures use a +50 byte offset; 255 means unavailable.
-  // 9 entries: 0-5 are the next 1-6 hours, 6-8 the next 1-3 days.
+  // 15 entries: 0-5 are the next 1-6 hours, 6-8 the next 1-3 days, 9-14 the
+  // hours 7-12 ahead (see FORECAST_SLOT_COUNT in eclipse_data.h).
   if ((t = dict_find(iter, base + MK_FORECAST_TEMP_C))) {
     uint8_t *raw = t->value->data;
     int n = t->length;
-    if (n > 9) n = 9;
+    if (n > FORECAST_SLOT_COUNT) n = FORECAST_SLOT_COUNT;
     for (int i = 0; i < n; i++) {
       d->forecast_temp_c[i] = (raw[i] == 255) ? -128 : ((int16_t)raw[i] - 50);
     }
@@ -371,7 +449,30 @@ CommsChangeFlags comms_decoder_apply(DictionaryIterator *iter, EclipseData *data
   apply_blob_fields(iter, d, BLOB_FIELD_MAP_VALID, NELEM(BLOB_FIELD_MAP_VALID));
   apply_planet_grid(iter, MK_PLANET_ALT_SAMPLES, d->planet_alt_decideg);
   apply_planet_grid(iter, MK_PLANET_AZ_SAMPLES, d->planet_az_decideg);
+  apply_cstring(iter, MK_LOCATION_NAME, d->location_name, sizeof(d->location_name));
   apply_cstring(iter, MK_METEOR_SHOWER_NAME, d->meteor_shower_name, sizeof(d->meteor_shower_name));
+  apply_cstring(iter, MK_METEOR_DISPLAY, d->meteor_display, sizeof(d->meteor_display));
+  apply_cstring(iter, MK_MOON_PHASE_DISPLAY, d->moon_phase_display, sizeof(d->moon_phase_display));
+  apply_cstring(iter, MK_SATURN_RINGS_DISPLAY, d->saturn_rings_display, sizeof(d->saturn_rings_display));
+  apply_cstring(iter, MK_AURORA_KP_DISPLAY, d->aurora_kp_display, sizeof(d->aurora_kp_display));
+  apply_cstring(iter, MK_CURRENT_TEMP_DISPLAY, d->current_temp_display, sizeof(d->current_temp_display));
+  apply_cstring(iter, MK_TEMP_HIGH_DISPLAY, d->temp_high_display, sizeof(d->temp_high_display));
+  apply_cstring(iter, MK_TEMP_LOW_DISPLAY, d->temp_low_display, sizeof(d->temp_low_display));
+  apply_cstring(iter, MK_FEELS_LIKE_DISPLAY, d->feels_like_display, sizeof(d->feels_like_display));
+  apply_cstring(iter, MK_UV_DAILY_DISPLAY, d->uv_daily_display, sizeof(d->uv_daily_display));
+  apply_cstring(iter, MK_UV_CURRENT_DISPLAY, d->uv_current_display, sizeof(d->uv_current_display));
+  apply_cstring(iter, MK_RAIN_CHANCE_DISPLAY, d->rain_chance_display, sizeof(d->rain_chance_display));
+  apply_cstring(iter, MK_HUMIDITY_DISPLAY, d->humidity_display, sizeof(d->humidity_display));
+  apply_cstring(iter, MK_WIND_SPEED_DISPLAY, d->wind_speed_display, sizeof(d->wind_speed_display));
+  apply_cstring(iter, MK_CLOUD_COVER_DISPLAY, d->cloud_cover_display, sizeof(d->cloud_cover_display));
+  apply_cstring(iter, MK_VIS_SCORE_DISPLAY, d->vis_score_display, sizeof(d->vis_score_display));
+  apply_cstring(iter, MK_ALTITUDE_DISPLAY, d->altitude_display, sizeof(d->altitude_display));
+  apply_cstring(iter, MK_DEW_POINT_DISPLAY, d->dew_point_display, sizeof(d->dew_point_display));
+  apply_cstring(iter, MK_PRESSURE_DISPLAY, d->pressure_display, sizeof(d->pressure_display));
+  apply_cstring(iter, MK_AQI_DISPLAY, d->aqi_display, sizeof(d->aqi_display));
+  for (int i = 0; i < FORECAST_SLOT_COUNT; i++) {
+    apply_cstring(iter, FORECAST_TEMP_DISPLAY_KEYS[i], d->forecast_temp_display[i], sizeof(d->forecast_temp_display[i]));
+  }
 
   return changes;
 }

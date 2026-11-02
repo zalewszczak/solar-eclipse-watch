@@ -88,9 +88,12 @@ static void draw_big_digital_panel(Layer *layer, GContext *ctx) {
   int16_t x = bounds.origin.x + (bounds.size.w - total_w) / 2;
   int16_t y = bounds.origin.y + (bounds.size.h - DIGIT_H) / 2;
   
-  if (s_data->upper_middle_line1_content == 0 && s_data->bottom_middle_line1_content != 0) {
+  // edge_line_primitive_ids[0] = upper centre feature, [2] = bottom centre feature
+  bool has_upper = s_data->edge_line_primitive_ids[0][0] != 0;
+  bool has_bottom = s_data->edge_line_primitive_ids[2][0] != 0;
+  if (!has_upper && has_bottom) {
     y -= 10;
-  } else if (s_data->upper_middle_line1_content != 0 && s_data->bottom_middle_line1_content == 0) {
+  } else if (has_upper && !has_bottom) {
     y += 10;
   }
   

@@ -667,3 +667,14 @@ number, chosen per source image so the result lands close to
 `TARGET_HEIGHT` (a constant near the top of the script) -- tweak that
 constant, not the source PNGs, if the previews come out too small or
 large next to the option names.
+
+
+## Merged from Modern (plugins, live settings, primitive features)
+
+- **Plugins**: Pebble app plugins (`src/pkjs/plugins/`), Pebble weather plugin as the default weather source (`weather/weather-source.js`; Open-Meteo still supplies wind, humidity, pressure, cloud cover, forecasts and all sky/eclipse weather, and is the fallback), Pebble app user preferences (units/complications, first start only), plugin text slots (`PLUGIN_TEXTS`, 12 x 16 bytes) and the "Plugin data" feature primitive.
+- **Live settings**: root `config.html` bootstrap + `plugins/config-bridge.js` + `liveTick()` in `config/config-runtime.js`. Plain `pebble build` does not bundle `config.html`; the legacy `showConfiguration` flow is used then.
+- **Primitive features**: the watch only knows primitive sequences (`src/c/features/primitives/`); content IDs live on the phone (`presets-lookups.js`, `config/primitive-decompose.js`). Custom features are built in the slot editor (`config/config-composer.js`). Regenerate `config/primitive-ids-generated.js` with `node scripts/generate-primitive-ids.js` after changing `primitive_ids.h`.
+- **Wire format**: the legacy `CORNER_CONTENT` / `EDGE_LINES` keys are gone; slots travel as `CORNER_PRIMITIVE_IDS/AUX`, `EDGE_LINE_PRIMITIVE_IDS/AUX`, `EDGE_LINE_COLOR_MODE`. New single-byte fields travel as positional blobs (`SETTINGS_U8_BLOB`, `WEATHER_CLOUD_U8_BLOB`, `WEATHER_MAIN_U8_BLOB`; order = offset tables in `comms/comms_decoder.c`, built in `comms/message-encoder.js`). Run `node scripts/generate-message-keys.js` after any `messageKeys` change. Persisted settings use a schema signature, so the first start after updating discards the old stored data until the phone resends settings.
+- **Shake**: per-slot "Show only when the watch is shaken" (`SHAKE_ONLY_MASK`, window = shake label seconds), optional semi-transparent hands during the shake animation, vibration when the phone connection is lost (`bt_lost_vibe`).
+- **Bitmap indices**: updated `BITMAP_STYLE_MARGINS` (feature offsets per bitmap style), inverted-blend option, new `images/modern_background.png`.
+- **New resources needed** (copy from Modern): `images/forecast_9.png` .. `forecast_14.png`, `images/fullcolor/bluetooth.png`, `images/fullcolor/quiet_time.png`, `images/fullcolor/quiet_time_muted.png`, `images/modern_background.png`.

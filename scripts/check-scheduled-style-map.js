@@ -30,7 +30,7 @@ Object.keys(ss.FIELD_MAP).forEach(function (id) {
 Object.keys(ss.DUAL_MAP).forEach(function (id) {
   ['analog', 'digital'].forEach(function (ctx, i) {
     var key = ss.DUAL_MAP[id][i];
-    var m = /^(.*?)(Content|Color)$/.exec(id);
+    var m = /^(.*?)(Content|Color|CustomPrims)$/.exec(id);
     var re = new RegExp(key + ':\\s*dualCtxVal\\("' + m[1] + '", "' + m[2] + '", "' + ctx + '"\\)');
     if (!re.test(runtime)) problems.push('DUAL_MAP ' + id + ' (' + ctx + ') -> ' + key + ': not found in save() payload');
     if (indexSrc.indexOf("setSetting('" + key + "'") < 0) problems.push(key + ': never stored by the webviewclosed handler');

@@ -1,10 +1,17 @@
 #include "./feature_layout.h"
 #include "../rendering/background/background_layer.h"
 #include "../rendering/background/marker_layer.h"
-#include "./feature_rules.h"
 #include "../fonts/font_lookup.h"
+#include "./primitives/primitive_catalogue.h"
 
 #define FEATURE_LAYOUT_CORNER_INSET_PX 2
+
+static bool primitive_sequence_enabled(const uint8_t ids[10]) { return ids[0] != PRIM_ID_NONE; }
+static bool primitive_sequence_needs_second_refresh(const uint8_t ids[10]) {
+  for (int i = 0; i < 10 && ids[i] != PRIM_ID_NONE; i++)
+    if (primitive_catalogue_refresh_class_for((PrimitiveId)ids[i]) == PRIMITIVE_REFRESH_SECOND) return true;
+  return false;
+}
 
 uint8_t feature_layout_digital_side_mode(uint8_t bottom_style) {
   return feature_layout_is_digital_top_layout(bottom_style) ? bottom_style - 5 : bottom_style;
@@ -46,11 +53,11 @@ void feature_layout_recompute(FeaturesState *state) {
   // from those rings + marker text below.
   typedef struct { int8_t top, bottom, left, right; } EdgeMargins;
   static const EdgeMargins BITMAP_STYLE_MARGINS[5] = {
-    { 34, 30, 40, 35 }, // 3: Modern
+    { 38, 37, 42, 39 }, // 3: Modern
     { 37, 33, 38, 33 }, // 4: Shadow
-    { 44, 40, 25, 15 }, // 5: Tally
-    { 46, 42, 45, 45 }, // 6: Bell
-    { 44, 40, 30, 20 }, // 7: Fancy
+    { 44, 42, 27, 20 }, // 5: Tally
+    { 46, 44, 45, 45 }, // 6: Bell
+    { 44, 40, 30, 26 }, // 7: Fancy
   };
   int16_t dyn_upper_offset = 24, dyn_bottom_shift = 20, dyn_left_inset = 0, dyn_right_inset = 0;
   if (is_analog && marker_is_bitmap) {
@@ -101,79 +108,79 @@ void feature_layout_recompute(FeaturesState *state) {
   }
 
   if (is_analog) {
-    bool has_line2 = d->upper_middle_line2_content != 0;
+    bool has_line2 = primitive_sequence_enabled(d->edge_line_primitive_ids[1]);
     int16_t line1_offset = has_line2 ? dyn_upper_offset : dyn_upper_offset + CORNER_ROW_H / 2;
     state->slots[SLOT_UPPER_L1] = (FeatureSlot){
-      .active = true, .content = d->upper_middle_line1_content, .color_mode = d->upper_middle_line1_color_mode,
+      .active = primitive_sequence_enabled(d->edge_line_primitive_ids[0]), .color_mode = d->edge_line_color_mode[0],
       .is_top = true, .is_left = true, .is_middle = false, .is_edge = false,
       .top_offset = line1_offset, .bottom_shift = 0, .middle_inset = 0,
       .center_horizontal = true, .center_vertical = false, .allow_outline = true,
-      .needs_second_refresh = feature_rules_content_needs_second_refresh(d->upper_middle_line1_content),
+      .needs_second_refresh = primitive_sequence_needs_second_refresh(d->edge_line_primitive_ids[0]),
     };
     if (has_line2) {
       state->slots[SLOT_UPPER_L2] = (FeatureSlot){
-        .active = true, .content = d->upper_middle_line2_content, .color_mode = d->upper_middle_line2_color_mode,
+        .active = primitive_sequence_enabled(d->edge_line_primitive_ids[1]), .color_mode = d->edge_line_color_mode[1],
         .is_top = true, .is_left = true, .is_middle = false, .is_edge = false,
         .top_offset = dyn_upper_offset + CORNER_ROW_H, .bottom_shift = 0, .middle_inset = 0,
         .center_horizontal = true, .center_vertical = false, .allow_outline = true,
-        .needs_second_refresh = feature_rules_content_needs_second_refresh(d->upper_middle_line2_content),
+        .needs_second_refresh = primitive_sequence_needs_second_refresh(d->edge_line_primitive_ids[1]),
       };
     }
 
-    has_line2 = d->bottom_middle_line2_content != 0;
+    has_line2 = primitive_sequence_enabled(d->edge_line_primitive_ids[3]);
     int16_t line1_shift = has_line2 ? dyn_bottom_shift + CORNER_ROW_H : dyn_bottom_shift + CORNER_ROW_H / 2;
     state->slots[SLOT_BOTTOM_L1] = (FeatureSlot){
-      .active = true, .content = d->bottom_middle_line1_content, .color_mode = d->bottom_middle_line1_color_mode,
+      .active = primitive_sequence_enabled(d->edge_line_primitive_ids[2]), .color_mode = d->edge_line_color_mode[2],
       .is_top = false, .is_left = true, .is_middle = false, .is_edge = false,
       .top_offset = 0, .bottom_shift = line1_shift, .middle_inset = 0,
       .center_horizontal = true, .center_vertical = false, .allow_outline = true,
-      .needs_second_refresh = feature_rules_content_needs_second_refresh(d->bottom_middle_line1_content),
+      .needs_second_refresh = primitive_sequence_needs_second_refresh(d->edge_line_primitive_ids[2]),
     };
     if (has_line2) {
       state->slots[SLOT_BOTTOM_L2] = (FeatureSlot){
-        .active = true, .content = d->bottom_middle_line2_content, .color_mode = d->bottom_middle_line2_color_mode,
+        .active = primitive_sequence_enabled(d->edge_line_primitive_ids[3]), .color_mode = d->edge_line_color_mode[3],
         .is_top = false, .is_left = true, .is_middle = false, .is_edge = false,
         .top_offset = 0, .bottom_shift = dyn_bottom_shift, .middle_inset = 0,
         .center_horizontal = true, .center_vertical = false, .allow_outline = true,
-        .needs_second_refresh = feature_rules_content_needs_second_refresh(d->bottom_middle_line2_content),
+        .needs_second_refresh = primitive_sequence_needs_second_refresh(d->edge_line_primitive_ids[3]),
       };
     }
 
-    has_line2 = d->middle_left_line2_content != 0;
+    has_line2 = primitive_sequence_enabled(d->edge_line_primitive_ids[5]);
     line1_offset = has_line2 ? -(CORNER_ROW_H / 2) : 0;
     state->slots[SLOT_LEFT_L1] = (FeatureSlot){
-      .active = true, .content = d->middle_left_line1_content, .color_mode = d->middle_left_line1_color_mode,
+      .active = primitive_sequence_enabled(d->edge_line_primitive_ids[4]), .color_mode = d->edge_line_color_mode[4],
       .is_top = false, .is_left = true, .is_middle = true, .is_edge = false,
       .top_offset = line1_offset, .bottom_shift = 0, .middle_inset = dyn_left_inset,
       .center_horizontal = false, .center_vertical = true, .allow_outline = true,
-      .needs_second_refresh = feature_rules_content_needs_second_refresh(d->middle_left_line1_content),
+      .needs_second_refresh = primitive_sequence_needs_second_refresh(d->edge_line_primitive_ids[4]),
     };
     if (has_line2) {
       state->slots[SLOT_LEFT_L2] = (FeatureSlot){
-        .active = true, .content = d->middle_left_line2_content, .color_mode = d->middle_left_line2_color_mode,
+        .active = primitive_sequence_enabled(d->edge_line_primitive_ids[5]), .color_mode = d->edge_line_color_mode[5],
         .is_top = false, .is_left = true, .is_middle = true, .is_edge = false,
         .top_offset = CORNER_ROW_H / 2, .bottom_shift = 0, .middle_inset = dyn_left_inset,
         .center_horizontal = false, .center_vertical = true, .allow_outline = true,
-        .needs_second_refresh = feature_rules_content_needs_second_refresh(d->middle_left_line2_content),
+        .needs_second_refresh = primitive_sequence_needs_second_refresh(d->edge_line_primitive_ids[5]),
       };
     }
 
-    has_line2 = d->middle_right_line2_content != 0;
+    has_line2 = primitive_sequence_enabled(d->edge_line_primitive_ids[7]);
     line1_offset = has_line2 ? -(CORNER_ROW_H / 2) : 0;
     state->slots[SLOT_RIGHT_L1] = (FeatureSlot){
-      .active = true, .content = d->middle_right_line1_content, .color_mode = d->middle_right_line1_color_mode,
+      .active = primitive_sequence_enabled(d->edge_line_primitive_ids[6]), .color_mode = d->edge_line_color_mode[6],
       .is_top = false, .is_left = false, .is_middle = true, .is_edge = false,
       .top_offset = line1_offset, .bottom_shift = 0, .middle_inset = dyn_right_inset,
       .center_horizontal = false, .center_vertical = true, .allow_outline = true,
-      .needs_second_refresh = feature_rules_content_needs_second_refresh(d->middle_right_line1_content),
+      .needs_second_refresh = primitive_sequence_needs_second_refresh(d->edge_line_primitive_ids[6]),
     };
     if (has_line2) {
       state->slots[SLOT_RIGHT_L2] = (FeatureSlot){
-        .active = true, .content = d->middle_right_line2_content, .color_mode = d->middle_right_line2_color_mode,
+        .active = primitive_sequence_enabled(d->edge_line_primitive_ids[7]), .color_mode = d->edge_line_color_mode[7],
         .is_top = false, .is_left = false, .is_middle = true, .is_edge = false,
         .top_offset = CORNER_ROW_H / 2, .bottom_shift = 0, .middle_inset = dyn_right_inset,
         .center_horizontal = false, .center_vertical = true, .allow_outline = true,
-        .needs_second_refresh = feature_rules_content_needs_second_refresh(d->middle_right_line2_content),
+        .needs_second_refresh = primitive_sequence_needs_second_refresh(d->edge_line_primitive_ids[7]),
       };
     }
   }
@@ -185,18 +192,18 @@ void feature_layout_recompute(FeaturesState *state) {
   // center features at all, so its corresponding slots stay inactive.
   if (is_big_digital) {
     state->slots[SLOT_UPPER_L1] = (FeatureSlot){
-      .active = true, .content = d->upper_middle_line1_content, .color_mode = d->upper_middle_line1_color_mode,
+      .active = primitive_sequence_enabled(d->edge_line_primitive_ids[0]), .color_mode = d->edge_line_color_mode[0],
       .is_top = true, .is_left = true, .is_middle = false, .is_edge = false,
       .top_offset = CORNER_ROW_H, .bottom_shift = 0, .middle_inset = 0,
       .center_horizontal = true, .center_vertical = false, .allow_outline = true,
-      .needs_second_refresh = feature_rules_content_needs_second_refresh(d->upper_middle_line1_content),
+      .needs_second_refresh = primitive_sequence_needs_second_refresh(d->edge_line_primitive_ids[0]),
     };
     state->slots[SLOT_BOTTOM_L1] = (FeatureSlot){
-      .active = true, .content = d->bottom_middle_line1_content, .color_mode = d->bottom_middle_line1_color_mode,
+      .active = primitive_sequence_enabled(d->edge_line_primitive_ids[2]), .color_mode = d->edge_line_color_mode[2],
       .is_top = false, .is_left = true, .is_middle = false, .is_edge = false,
       .top_offset = 0, .bottom_shift = CORNER_ROW_H, .middle_inset = 0,
       .center_horizontal = true, .center_vertical = false, .allow_outline = true,
-      .needs_second_refresh = feature_rules_content_needs_second_refresh(d->bottom_middle_line1_content),
+      .needs_second_refresh = primitive_sequence_needs_second_refresh(d->edge_line_primitive_ids[2]),
     };
   }
 
@@ -208,91 +215,91 @@ void feature_layout_recompute(FeaturesState *state) {
     // 1 = nearest the clock, 3 = nearest the screen's own outer edge
     int16_t row1_off = CORNER_ROW_H * 2, row2_off = CORNER_ROW_H, row3_off = 0;
     state->slots[SLOT_LEFT_L1] = (FeatureSlot){
-      .active = true, .content = d->middle_left_line1_content, .color_mode = d->middle_left_line1_color_mode,
+      .active = primitive_sequence_enabled(d->edge_line_primitive_ids[4]), .color_mode = d->edge_line_color_mode[4],
       .is_top = is_digital_top, .is_left = true, .is_middle = false, .is_edge = true,
       .top_offset = is_digital_top ? row1_off : 0, .bottom_shift = is_digital_top ? 0 : row1_off, .middle_inset = 0,
       .center_horizontal = false, .center_vertical = false, .allow_outline = true,
-      .needs_second_refresh = feature_rules_content_needs_second_refresh(d->middle_left_line1_content),
+      .needs_second_refresh = primitive_sequence_needs_second_refresh(d->edge_line_primitive_ids[4]),
     };
     state->slots[SLOT_LEFT_L2] = (FeatureSlot){
-      .active = true, .content = d->middle_left_line2_content, .color_mode = d->middle_left_line2_color_mode,
+      .active = primitive_sequence_enabled(d->edge_line_primitive_ids[5]), .color_mode = d->edge_line_color_mode[5],
       .is_top = is_digital_top, .is_left = true, .is_middle = false, .is_edge = true,
       .top_offset = is_digital_top ? row2_off : 0, .bottom_shift = is_digital_top ? 0 : row2_off, .middle_inset = 0,
       .center_horizontal = false, .center_vertical = false, .allow_outline = true,
-      .needs_second_refresh = feature_rules_content_needs_second_refresh(d->middle_left_line2_content),
+      .needs_second_refresh = primitive_sequence_needs_second_refresh(d->edge_line_primitive_ids[5]),
     };
     state->slots[SLOT_UPPER_L1] = (FeatureSlot){ // reused: digital left column, row 3 -- reads upper_middle_line1
-      .active = true, .content = d->upper_middle_line1_content, .color_mode = d->upper_middle_line1_color_mode,
+      .active = primitive_sequence_enabled(d->edge_line_primitive_ids[0]), .color_mode = d->edge_line_color_mode[0],
       .is_top = is_digital_top, .is_left = true, .is_middle = false, .is_edge = true,
       .top_offset = row3_off, .bottom_shift = row3_off, .middle_inset = 0,
       .center_horizontal = false, .center_vertical = false, .allow_outline = true,
-      .needs_second_refresh = feature_rules_content_needs_second_refresh(d->upper_middle_line1_content),
+      .needs_second_refresh = primitive_sequence_needs_second_refresh(d->edge_line_primitive_ids[0]),
     };
 
     state->slots[SLOT_RIGHT_L1] = (FeatureSlot){
-      .active = true, .content = d->middle_right_line1_content, .color_mode = d->middle_right_line1_color_mode,
+      .active = primitive_sequence_enabled(d->edge_line_primitive_ids[6]), .color_mode = d->edge_line_color_mode[6],
       .is_top = is_digital_top, .is_left = false, .is_middle = false, .is_edge = true,
       .top_offset = is_digital_top ? row1_off : 0, .bottom_shift = is_digital_top ? 0 : row1_off, .middle_inset = 0,
       .center_horizontal = false, .center_vertical = false, .allow_outline = true,
-      .needs_second_refresh = feature_rules_content_needs_second_refresh(d->middle_right_line1_content),
+      .needs_second_refresh = primitive_sequence_needs_second_refresh(d->edge_line_primitive_ids[6]),
     };
     state->slots[SLOT_RIGHT_L2] = (FeatureSlot){
-      .active = true, .content = d->middle_right_line2_content, .color_mode = d->middle_right_line2_color_mode,
+      .active = primitive_sequence_enabled(d->edge_line_primitive_ids[7]), .color_mode = d->edge_line_color_mode[7],
       .is_top = is_digital_top, .is_left = false, .is_middle = false, .is_edge = true,
       .top_offset = is_digital_top ? row2_off : 0, .bottom_shift = is_digital_top ? 0 : row2_off, .middle_inset = 0,
       .center_horizontal = false, .center_vertical = false, .allow_outline = true,
-      .needs_second_refresh = feature_rules_content_needs_second_refresh(d->middle_right_line2_content),
+      .needs_second_refresh = primitive_sequence_needs_second_refresh(d->edge_line_primitive_ids[7]),
     };
     state->slots[SLOT_UPPER_L2] = (FeatureSlot){ // reused: digital right column, row 3 -- reads upper_middle_line2
-      .active = true, .content = d->upper_middle_line2_content, .color_mode = d->upper_middle_line2_color_mode,
+      .active = primitive_sequence_enabled(d->edge_line_primitive_ids[1]), .color_mode = d->edge_line_color_mode[1],
       .is_top = is_digital_top, .is_left = false, .is_middle = false, .is_edge = true,
       .top_offset = row3_off, .bottom_shift = row3_off, .middle_inset = 0,
       .center_horizontal = false, .center_vertical = false, .allow_outline = true,
-      .needs_second_refresh = feature_rules_content_needs_second_refresh(d->upper_middle_line2_content),
+      .needs_second_refresh = primitive_sequence_needs_second_refresh(d->edge_line_primitive_ids[1]),
     };
 
     // Single bottom feature -- reuses bottom_middle_line1 (analog's
     state->slots[SLOT_BOTTOM_L1] = (FeatureSlot){
-      .active = true, .content = d->bottom_middle_line1_content, .color_mode = d->bottom_middle_line1_color_mode,
+      .active = primitive_sequence_enabled(d->edge_line_primitive_ids[2]), .color_mode = d->edge_line_color_mode[2],
       .is_top = is_digital_top, .is_left = true, .is_middle = false, .is_edge = false,
       .top_offset = 0, .bottom_shift = 0, .middle_inset = 0,
       .center_horizontal = false, .center_vertical = false, .allow_outline = true,
       .custom_box = true, .box_x = clock_x, .box_w = clock_w,
-      .needs_second_refresh = feature_rules_content_needs_second_refresh(d->bottom_middle_line1_content),
+      .needs_second_refresh = primitive_sequence_needs_second_refresh(d->edge_line_primitive_ids[2]),
     };
   }
 
-  // Corners always just draw whatever d->corner_content[] says, for
+  // Corners always just draw whatever d->corner_primitive_ids[] says, for
   int16_t top_corner_shift = is_digital_top ? DIGITAL_PANEL_H : 0;
   state->slots[SLOT_CORNER_TL] = (FeatureSlot){
-    .active = true, .content = d->corner_content[0], .color_mode = d->corner_color_mode[0],
+    .active = primitive_sequence_enabled(d->corner_primitive_ids[0]), .color_mode = d->corner_color_mode[0],
     .is_top = true, .is_left = true, .is_middle = false, .is_edge = true,
     .top_offset = FEATURE_LAYOUT_CORNER_INSET_PX + top_corner_shift, .bottom_shift = 0,
     .center_horizontal = false, .center_vertical = false, .allow_outline = true,
-    .needs_second_refresh = feature_rules_content_needs_second_refresh(d->corner_content[0]),
+    .needs_second_refresh = primitive_sequence_needs_second_refresh(d->corner_primitive_ids[0]),
   };
   state->slots[SLOT_CORNER_TR] = (FeatureSlot){
-    .active = true, .content = d->corner_content[1], .color_mode = d->corner_color_mode[1],
+    .active = primitive_sequence_enabled(d->corner_primitive_ids[1]), .color_mode = d->corner_color_mode[1],
     .is_top = true, .is_left = false, .is_middle = false, .is_edge = true,
     .top_offset = FEATURE_LAYOUT_CORNER_INSET_PX + top_corner_shift, .bottom_shift = 0,
     .center_horizontal = false, .center_vertical = false, .allow_outline = true,
-    .needs_second_refresh = feature_rules_content_needs_second_refresh(d->corner_content[1]),
+    .needs_second_refresh = primitive_sequence_needs_second_refresh(d->corner_primitive_ids[1]),
   };
   // Bottom corners (BL/BR): stay anchored to the SKY's own bottom
   int16_t bottom_corner_shift = (is_analog || is_digital_top || is_big_digital || is_grid) ? 0 : DIGITAL_PANEL_H;
   state->slots[SLOT_CORNER_BL] = (FeatureSlot){
-    .active = true, .content = d->corner_content[2], .color_mode = d->corner_color_mode[2],
+    .active = primitive_sequence_enabled(d->corner_primitive_ids[2]), .color_mode = d->corner_color_mode[2],
     .is_top = false, .is_left = true, .is_middle = false, .is_edge = true,
     .top_offset = 0, .bottom_shift = bottom_corner_shift,
     .center_horizontal = false, .center_vertical = false, .allow_outline = true,
-    .needs_second_refresh = feature_rules_content_needs_second_refresh(d->corner_content[2]),
+    .needs_second_refresh = primitive_sequence_needs_second_refresh(d->corner_primitive_ids[2]),
   };
   state->slots[SLOT_CORNER_BR] = (FeatureSlot){
-    .active = true, .content = d->corner_content[3], .color_mode = d->corner_color_mode[3],
+    .active = primitive_sequence_enabled(d->corner_primitive_ids[3]), .color_mode = d->corner_color_mode[3],
     .is_top = false, .is_left = false, .is_middle = false, .is_edge = true,
     .top_offset = 0, .bottom_shift = bottom_corner_shift,
     .center_horizontal = false, .center_vertical = false, .allow_outline = true,
-    .needs_second_refresh = feature_rules_content_needs_second_refresh(d->corner_content[3]),
+    .needs_second_refresh = primitive_sequence_needs_second_refresh(d->corner_primitive_ids[3]),
   };
 }
 

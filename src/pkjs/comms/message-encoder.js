@@ -167,9 +167,40 @@ var shakeAnimModeCode = settingsCodecs.shakeAnimModeCode;
 var outlineEnabledCode = settingsCodecs.outlineEnabledCode;
 var batterySaverEnabledCode = settingsCodecs.batterySaverEnabledCode;
 var cornerFontCode = settingsCodecs.cornerFontCode;
-var cornerContentBytes = settingsCodecs.cornerContentBytes;
+var cornerContentBytes = settingsCodecs.cornerContentBytes; // local compiler input only, never sent
 var cornerColorModeBytes = settingsCodecs.cornerColorModeBytes;
 var dailyStepGoalValue = settingsCodecs.dailyStepGoalValue;
+var shakeOnlyMaskCode = settingsCodecs.shakeOnlyMaskCode;
+var bitmapMarkerInvertCode = settingsCodecs.bitmapMarkerInvertCode;
+var shakeHandsTranslucentCode = settingsCodecs.shakeHandsTranslucentCode;
+var btLostVibeCode = settingsCodecs.btLostVibeCode;
+var weatherNormalize = require('../weather/weather-normalize');
+var formatTempDisplay = weatherNormalize.formatTempDisplay;
+var apparentTempC = weatherNormalize.apparentTempC;
+var tempGradientColorByte = weatherNormalize.tempGradientColorByte;
+var formatUvDisplay = weatherNormalize.formatUvDisplay;
+var uvGradientColorByte = weatherNormalize.uvGradientColorByte;
+var formatPercentDisplay = weatherNormalize.formatPercentDisplay;
+var percentGradientColorByte = weatherNormalize.percentGradientColorByte;
+var overcastGrayColorByte = weatherNormalize.overcastGrayColorByte;
+var formatWindSpeedDisplay = weatherNormalize.formatWindSpeedDisplay;
+var windSpeedGradientColorByte = weatherNormalize.windSpeedGradientColorByte;
+var formatPressureDisplay = weatherNormalize.formatPressureDisplay;
+var pressureGradientColorByte = weatherNormalize.pressureGradientColorByte;
+var formatAqiDisplay = weatherNormalize.formatAqiDisplay;
+var aqiGradientColorByte = weatherNormalize.aqiGradientColorByte;
+var formatAltitudeDisplay = weatherNormalize.formatAltitudeDisplay;
+var altitudeGradientColorByte = weatherNormalize.altitudeGradientColorByte;
+var weatherIconCategory = weatherNormalize.weatherIconCategory;
+var weatherConditionColorByte = weatherNormalize.weatherConditionColorByte;
+var featureDisplay = require('../astronomy/feature-display');
+var primitiveDecompose = require('../config/primitive-decompose');
+var primitiveIdSequenceForContent = primitiveDecompose.primitiveIdSequenceForContent;
+var primitiveAuxSequenceForContent = primitiveDecompose.primitiveAuxSequenceForContent;
+var normalizePrimitiveSequence = primitiveDecompose.normalizePrimitiveSequence;
+var normalizePrimitiveAux = primitiveDecompose.normalizePrimitiveAux;
+var parseCustomPrimsSetting = primitiveDecompose.parseCustomPrimsSetting;
+var pluginManager = require('../plugins/plugin-manager');
 var messageQueue = require('./message-queue');
 var enqueueFlatDict = messageQueue.enqueueFlatDict;
 
@@ -265,7 +296,12 @@ function skyFieldsDict(sky, cloudGrid, moonPhase, riseSet, meteorShower, cloudAl
     'MOON_RISE': toEpoch(riseSet.moon.rise),
     'MOON_SET': toEpoch(riseSet.moon.set),
     'METEOR_INTENSITY': meteorShower ? meteorShower.intensity : 0,
-    'METEOR_SHOWER_NAME': meteorShower ? meteorShower.name : ''
+    'METEOR_SHOWER_NAME': meteorShower ? meteorShower.name : '',
+    // Feature-facing display text/colours (primitive features read these strings).
+    'MOON_PHASE_DISPLAY': featureDisplay.formatMoonPhaseDisplay(moonPhase.illuminatedPct, moonPhase.waxing),
+    'SATURN_RINGS_DISPLAY': featureDisplay.formatSaturnRingsDisplay(sky.saturnRingOpenPct),
+    'METEOR_DISPLAY': featureDisplay.formatMeteorDisplay(meteorShower ? meteorShower.intensity : 0, meteorShower ? meteorShower.name : ''),
+    'METEOR_COLOR': featureDisplay.meteorGradientColorByte(meteorShower ? meteorShower.intensity : 0)
   };
 }
 
@@ -353,20 +389,68 @@ function markerRingsBytes() {
   );
 }
 
-// EDGE_LINES: 16 bytes, in the exact order eclipse_data.h declares the
-// 16 upper/bottom/middle_left/middle_right line1/line2 content+color_mode
-// fields (a truly contiguous run in the struct, hence a plain memcpy target).
+// EDGE_LINE_COLOR_MODE: eight color-mode bytes in slot order (SLOT_UPPER_L1 ..
+// SLOT_RIGHT_L2). Feature identity (content ids) is phone-local: only compiled
+// primitive sequences cross the wire. Each code is read through the active
+// analog-or-digital context (dualContextSetting), exactly like before.
 function edgeLinesBytes() {
   return [
-    upperMiddleLine1ContentCode(), upperMiddleLine1ColorModeCode(),
-    upperMiddleLine2ContentCode(), upperMiddleLine2ColorModeCode(),
-    bottomMiddleLine1ContentCode(), bottomMiddleLine1ColorModeCode(),
-    bottomMiddleLine2ContentCode(), bottomMiddleLine2ColorModeCode(),
-    middleLeftLine1ContentCode(), middleLeftLine1ColorModeCode(),
-    middleLeftLine2ContentCode(), middleLeftLine2ColorModeCode(),
-    middleRightLine1ContentCode(), middleRightLine1ColorModeCode(),
-    middleRightLine2ContentCode(), middleRightLine2ColorModeCode()
+    upperMiddleLine1ColorModeCode(), upperMiddleLine2ColorModeCode(),
+    bottomMiddleLine1ColorModeCode(), bottomMiddleLine2ColorModeCode(),
+    middleLeftLine1ColorModeCode(), middleLeftLine2ColorModeCode(),
+    middleRightLine1ColorModeCode(), middleRightLine2ColorModeCode()
   ];
+}
+function edgeCustomPrims() {
+  return settingsCodecs.edgeCustomPrimsStrings().map(parseCustomPrimsSetting);
+}
+// Selected feature IDs are local compiler inputs only; they are never sent.
+function edgeFeatureCodesRaw() {
+  return [
+    upperMiddleLine1ContentCode(), upperMiddleLine2ContentCode(),
+    bottomMiddleLine1ContentCode(), bottomMiddleLine2ContentCode(),
+    middleLeftLine1ContentCode(), middleLeftLine2ContentCode(),
+    middleRightLine1ContentCode(), middleRightLine2ContentCode()
+  ];
+}
+var CORNER_CUSTOM_PRIMS_KEYS = ['CONFIG_CORNER_TL_CUSTOM_PRIMS', 'CONFIG_CORNER_TR_CUSTOM_PRIMS',
+  'CONFIG_CORNER_BL_CUSTOM_PRIMS', 'CONFIG_CORNER_BR_CUSTOM_PRIMS'];
+function cornerCustomPrims() {
+  return CORNER_CUSTOM_PRIMS_KEYS.map(function (k) { return parseCustomPrimsSetting(getSetting(k, '')); });
+}
+// Bit n set = slot n is a user-built sequence: corners TL,TR,BL,BR are bits 0-3,
+// edge/middle slots (SLOT_UPPER_L1..SLOT_RIGHT_L2) are bits 4-11. The watch lays
+// those out with no automatic gaps between elements.
+function primitiveTightMask() {
+  var mask = 0;
+  cornerCustomPrims().forEach(function (c, i) { if (c.ids.length) mask |= (1 << i); });
+  edgeCustomPrims().forEach(function (c, i) { if (c.ids.length) mask |= (1 << (4 + i)); });
+  return mask;
+}
+// A slot with a custom sequence sends that sequence (and its own aux bytes); every
+// other slot derives its sequence from its content id via primitive-decompose.js.
+function slotSequences(contentIds, customs) {
+  return contentIds.map(function (contentId, i) {
+    var custom = customs[i];
+    return custom.ids.length
+      ? { ids: normalizePrimitiveSequence(custom.ids), aux: normalizePrimitiveAux(custom.aux) }
+      : { ids: primitiveIdSequenceForContent(contentId), aux: primitiveAuxSequenceForContent(contentId) };
+  });
+}
+function concatField(seqs, field) {
+  return seqs.reduce(function (acc, q) { return acc.concat(q[field]); }, []);
+}
+function edgeSequences() { return slotSequences(edgeFeatureCodesRaw(), edgeCustomPrims()); }
+function cornerSequences() { return slotSequences(cornerContentBytes(), cornerCustomPrims()); }
+
+// Every primitive id currently in use by an active slot (for refresh-manager's
+// "only fetch optional sources a slot actually shows" gating).
+function activePrimitiveIds() {
+  var seen = {};
+  edgeSequences().concat(cornerSequences()).forEach(function (q) {
+    q.ids.forEach(function (id) { if (id) seen[id] = true; });
+  });
+  return seen;
 }
 
 // MARKER_TEXT: 8 bytes -- target, font_choice, offset_px (signed byte),
@@ -437,7 +521,21 @@ function populateSettingsFields(dict) {
   dict['HANDS'] = handsBytes();
   dict['CENTER_CIRCLE_RADIUS'] = centerCircleRadiusCode();
   dict['CENTER_CIRCLE_COLOR'] = centerCircleColorCode();
-  dict['EDGE_LINES'] = edgeLinesBytes();
+  dict['EDGE_LINE_COLOR_MODE'] = edgeLinesBytes(); // primitive-only slot color modes
+  var edgeSeqs = edgeSequences();
+  dict['EDGE_LINE_PRIMITIVE_IDS'] = concatField(edgeSeqs, 'ids'); // 8 slots x 10
+  dict['EDGE_LINE_PRIMITIVE_AUX'] = concatField(edgeSeqs, 'aux');
+  var cornerSeqs = cornerSequences();
+  dict['CORNER_PRIMITIVE_IDS'] = concatField(cornerSeqs, 'ids'); // 4 slots x 10, TL,TR,BL,BR
+  dict['CORNER_PRIMITIVE_AUX'] = concatField(cornerSeqs, 'aux');
+  dict['SHAKE_ONLY_MASK'] = shakeOnlyMaskCode();
+  dict['PLUGIN_TEXTS'] = pluginManager.textsBytes();
+  // Order must match SETTINGS_BLOB_OFFSETS in comms_decoder.c.
+  var tightMask = primitiveTightMask();
+  dict['SETTINGS_U8_BLOB'] = [
+    tightMask & 255, (tightMask >> 8) & 255,
+    bitmapMarkerInvertCode(), shakeHandsTranslucentCode(), btLostVibeCode()
+  ];
   dict['SHOW_SUN_TIME'] = showSunTimeCode();
   dict['SHOW_ISS'] = showIssCode();
   dict['SHOW_FLIGHTS'] = showFlightsCode();
@@ -449,7 +547,7 @@ function populateSettingsFields(dict) {
   dict['OUTLINE_ENABLED'] = outlineEnabledCode();
   dict['BATTERY_SAVER_ENABLED'] = batterySaverEnabledCode();
   dict['CORNER_FONT'] = cornerFontCode();
-  dict['CORNER_CONTENT'] = cornerContentBytes();
+  // Legacy CORNER_CONTENT/EDGE_LINES are never emitted: feature ids stay on the phone.
   dict['CORNER_COLOR_MODE'] = cornerColorModeBytes();
   dict['DAILY_STEP_GOAL'] = dailyStepGoalValue();
   dict['HOURLY_VIBE_MODE'] = hourlyVibeModeCode();
@@ -602,24 +700,44 @@ function extraWeatherFieldsDict(extra) {
     // transient fetch failure to protect a previous reading from.
     'ALTITUDE_M': (typeof extra.altitudeMeters === 'number') ? Math.round(extra.altitudeMeters) : -32000
   };
+  if (typeof extra.altitudeMeters === 'number') {
+    // Not sent for the -32000/"unavailable" case: the watch keeps its own N/A handling.
+    dict['ALTITUDE_DISPLAY'] = formatAltitudeDisplay(extra.altitudeMeters, altitudeUnitCode());
+    dict['ALTITUDE_COLOR'] = altitudeGradientColorByte(extra.altitudeMeters);
+  }
   if (typeof extra.windDirDeg === 'number') dict['WIND_DIR_DEG'] = Math.round(extra.windDirDeg);
-  if (typeof extra.dewPointC === 'number') dict['DEW_POINT_C'] = Math.round(extra.dewPointC);
+  if (typeof extra.dewPointC === 'number') {
+    dict['DEW_POINT_C'] = Math.round(extra.dewPointC);
+    dict['DEW_POINT_DISPLAY'] = formatTempDisplay(extra.dewPointC, tempUnitCode()); // no colour: never a gradient
+  }
   if (typeof extra.pressureHpa === 'number') {
     dict['PRESSURE_HPA'] = Math.round(extra.pressureHpa);
     dict['PRESSURE_TREND'] = extra.pressureTrend || 0; // trend only means anything alongside a real pressure reading
+    dict['PRESSURE_DISPLAY'] = formatPressureDisplay(extra.pressureHpa);
+    dict['PRESSURE_COLOR'] = pressureGradientColorByte(extra.pressureHpa);
   }
   if (typeof extra.aqiUs === 'number') dict['AQI_US'] = extra.aqiUs;
   if (typeof extra.aqiEu === 'number') dict['AQI_EU'] = extra.aqiEu;
+  if (typeof extra.aqiUs === 'number' || typeof extra.aqiEu === 'number') {
+    var aqiValue = aqiUnitCode() === 1 ? extra.aqiEu : extra.aqiUs;
+    if (typeof aqiValue === 'number') {
+      dict['AQI_DISPLAY'] = formatAqiDisplay(aqiValue);
+      dict['AQI_COLOR'] = aqiGradientColorByte(aqiValue, aqiUnitCode());
+    }
+  }
   // x10 -- same convention as every other _x10/_decideg field. Kp is
   // fractional (thirds: .00/.33/.67), hence the scaling rather than
   // sending it as a plain 0-9 integer.
-  if (typeof extra.auroraKpX10 === 'number') dict['AURORA_KP_X10'] = extra.auroraKpX10;
+  if (typeof extra.auroraKpX10 === 'number') {
+    dict['AURORA_KP_X10'] = extra.auroraKpX10;
+    dict['AURORA_KP_DISPLAY'] = featureDisplay.formatAuroraKpDisplay(extra.auroraKpX10);
+    dict['AURORA_KP_COLOR'] = featureDisplay.auroraGradientColorByte(extra.auroraKpX10);
+  }
   if (typeof extra.auroraVisibilityPct === 'number') dict['AURORA_VISIBILITY_PCT'] = extra.auroraVisibilityPct;
   // Always sent, same reasoning as ISS_ERROR_CODE above.
   dict['AURORA_ERROR_CODE'] = extra.auroraErrorCode || 0;
-  // "Weather in N hours"/"Weather in N days" (features_layer.c ids
-  // 87-95) -- sent as byte arrays, one entry per forecast slot: 1h
-  // through 6h ahead, then 1 through 3 days ahead (indices 0-5, 6-8;
+  // "Weather in N hours/days" -- sent as byte arrays, one entry per forecast slot: 1h
+  // through 6h ahead, 1 through 3 days ahead, then 7h-12h ahead (indices 0-5, 6-8, 9-14;
   // content id - 87 either way, same index eclipse_data.h's own
   // forecast_temp_c/forecast_condition use). Only sent when the
   // daily-forecast fetch that produced them actually succeeded, same
@@ -634,13 +752,125 @@ function extraWeatherFieldsDict(extra) {
     dict['FORECAST_TEMP_C'] = extra.forecastTempC.map(function (c) {
       return (typeof c === 'number') ? Math.max(0, Math.min(255, Math.round(c) + 50)) : 255;
     });
+    // Per-slot display text (15 discrete cstring keys: AppMessage has no string array)
+    // plus one 15-byte colour blob. An unavailable slot formats to '' ("nothing to show").
+    var forecastUnitCode = tempUnitCode();
+    var forecastColorBytes = [];
+    extra.forecastTempC.forEach(function (c, i) {
+      dict['FORECAST_TEMP_DISPLAY_' + i] = formatTempDisplay(c, forecastUnitCode);
+      forecastColorBytes.push(tempGradientColorByte(c));
+    });
+    dict['FORECAST_TEMP_COLORS'] = forecastColorBytes;
   }
   if (extra.forecastCondition) {
     dict['FORECAST_CONDITION'] = extra.forecastCondition.map(function (c) {
       return (typeof c === 'number') ? c : 0;
     });
+    // Same category function as WEATHER_ICON_CATEGORY, with the neutral 50% cloud guess
+    // (no per-hour cloud forecast is used for icons).
+    dict['FORECAST_ICON_CATEGORIES'] = extra.forecastCondition.map(function (c) {
+      return weatherIconCategory(typeof c === 'number' ? c : 0, 50);
+    });
   }
   return dict;
+}
+
+// Feature-facing weather fields shared by both full-data sends: the display strings and
+// gradient colours the primitive features show (formatted here, in the user's units), the
+// location name, the PKJS-chosen weather icon category/colour and the colour blobs whose
+// order must match WEATHER_CLOUD_BLOB_OFFSETS / WEATHER_MAIN_BLOB_OFFSETS in comms_decoder.c.
+// The eclipse-window CLOUD_COVER/VIS_SCORE keys stay as the sends set them.
+function addFeatureWeatherFields(dict, o) {
+  dict['LOCATION_NAME'] = o.locationName || '';
+  if (o.haveCloudData) {
+    var cloudColor = overcastGrayColorByte(o.displayCloudPct);
+    dict['WEATHER_CLOUD_U8_BLOB'] = [cloudColor, cloudColor]; // [cloud_cover_color, vis_score_color]
+    dict['CLOUD_COVER_DISPLAY'] = formatPercentDisplay(o.displayCloudPct);
+    dict['VIS_SCORE_DISPLAY'] = formatPercentDisplay(100 - o.displayCloudPct);
+  }
+  if (o.weatherOk) {
+    var unit = tempUnitCode();
+    // [current_temp, temp_high, temp_low, feels_like, uv_daily, uv_current, rain_chance, humidity, wind_speed]
+    dict['WEATHER_MAIN_U8_BLOB'] = [
+      tempGradientColorByte(o.tempC), tempGradientColorByte(o.tempHighC), tempGradientColorByte(o.tempLowC),
+      tempGradientColorByte(apparentTempC(o.tempC, o.windSpeedKmh, o.humidityPct)),
+      uvGradientColorByte(o.uvIndexMax), uvGradientColorByte(o.uvIndexCurrent),
+      percentGradientColorByte(o.rainChancePct), percentGradientColorByte(o.humidityPct),
+      windSpeedGradientColorByte(o.windSpeedKmh)
+    ];
+    if (o.haveCloudData) {
+      dict['WEATHER_ICON_CATEGORY'] = weatherIconCategory(o.condition || 0, o.displayCloudPct);
+      dict['WEATHER_ICON_COLOR'] = weatherConditionColorByte(o.condition || 0, o.displayCloudPct, o.rainChancePct);
+    }
+    dict['CURRENT_TEMP_DISPLAY'] = formatTempDisplay(o.tempC, unit);
+    dict['TEMP_HIGH_DISPLAY'] = formatTempDisplay(o.tempHighC, unit);
+    dict['TEMP_LOW_DISPLAY'] = formatTempDisplay(o.tempLowC, unit);
+    dict['FEELS_LIKE_DISPLAY'] = formatTempDisplay(apparentTempC(o.tempC, o.windSpeedKmh, o.humidityPct), unit);
+    dict['UV_DAILY_DISPLAY'] = formatUvDisplay(o.uvIndexMax);
+    dict['UV_CURRENT_DISPLAY'] = formatUvDisplay(o.uvIndexCurrent);
+    dict['RAIN_CHANCE_DISPLAY'] = formatPercentDisplay(o.rainChancePct);
+    dict['HUMIDITY_DISPLAY'] = formatPercentDisplay(o.humidityPct);
+    dict['WIND_SPEED_DISPLAY'] = formatWindSpeedDisplay(o.windSpeedKmh, windSpeedUnitCode());
+  }
+}
+
+// ---- unit changes without a weather refresh -----------------------------------------
+//
+// The *_DISPLAY strings that depend on a unit setting (temperatures, wind speed, altitude,
+// air quality scale) are formatted here when weather is sent, so changing a unit would show
+// on the watch only after the next weather push. The raw inputs of the last push are
+// remembered (LAST_UNIT_INPUTS) so the strings can be re-formatted the moment a unit changes.
+var UNIT_INPUTS_KEY = 'LAST_UNIT_INPUTS';
+function rememberUnitInputs(o) {
+  try {
+    var e = o.extraWeather || {};
+    localStorage.setItem(UNIT_INPUTS_KEY, JSON.stringify({
+      ok: !!o.weatherOk, tempC: o.tempC, highC: o.tempHighC, lowC: o.tempLowC, humidity: o.humidityPct, windKmh: o.windSpeedKmh,
+      dewC: e.dewPointC, altM: e.altitudeMeters, forecastTempC: e.forecastTempC, aqiUs: e.aqiUs, aqiEu: e.aqiEu
+    }));
+  } catch (err) { /* storage unavailable: units then apply with the next weather push */ }
+}
+function unitDisplayDict() {
+  var raw = null;
+  try { raw = JSON.parse(localStorage.getItem(UNIT_INPUTS_KEY)); } catch (err) { return null; }
+  if (!raw || typeof raw !== 'object') return null;
+  var dict = {}, tempUnit = tempUnitCode();
+  if (raw.ok) {
+    dict['CURRENT_TEMP_DISPLAY'] = formatTempDisplay(raw.tempC, tempUnit);
+    dict['TEMP_HIGH_DISPLAY'] = formatTempDisplay(raw.highC, tempUnit);
+    dict['TEMP_LOW_DISPLAY'] = formatTempDisplay(raw.lowC, tempUnit);
+    dict['FEELS_LIKE_DISPLAY'] = formatTempDisplay(apparentTempC(raw.tempC, raw.windKmh, raw.humidity), tempUnit);
+    dict['WIND_SPEED_DISPLAY'] = formatWindSpeedDisplay(raw.windKmh, windSpeedUnitCode());
+  }
+  if (typeof raw.dewC === 'number') dict['DEW_POINT_DISPLAY'] = formatTempDisplay(raw.dewC, tempUnit);
+  if (typeof raw.altM === 'number') dict['ALTITUDE_DISPLAY'] = formatAltitudeDisplay(raw.altM, altitudeUnitCode());
+  if (Array.isArray(raw.forecastTempC)) {
+    raw.forecastTempC.forEach(function (c, i) { dict['FORECAST_TEMP_DISPLAY_' + i] = formatTempDisplay(c, tempUnit); });
+  }
+  if (typeof raw.aqiUs === 'number' || typeof raw.aqiEu === 'number') {
+    var aqiUnit = aqiUnitCode();
+    var aqiValue = aqiUnit === 1 ? raw.aqiEu : raw.aqiUs;
+    if (typeof aqiValue === 'number') {
+      dict['AQI_DISPLAY'] = formatAqiDisplay(aqiValue);
+      dict['AQI_COLOR'] = aqiGradientColorByte(aqiValue, aqiUnit);
+    }
+  }
+  return Object.keys(dict).length ? dict : null;
+}
+// Sends the re-formatted strings and updates the cached full dict, so a later resend of it
+// does not bring the old units back. Returns false when nothing was sent yet.
+function resendUnitDisplays() {
+  var dict = unitDisplayDict();
+  if (!dict) return false;
+  try {
+    var cached = JSON.parse(localStorage.getItem('LAST_FULL_COMPUTED_DICT'));
+    if (cached && typeof cached === 'object') {
+      Object.keys(dict).forEach(function (k) { cached[k] = dict[k]; });
+      localStorage.setItem('LAST_FULL_COMPUTED_DICT', JSON.stringify(cached));
+    }
+  } catch (err) { /* nothing cached yet */ }
+  enqueueFlatDict(dict);
+  return true;
 }
 
 // weatherOk: false when the daily-forecast fetch (weather.js's
@@ -698,6 +928,14 @@ function sendNoEclipseToday(sky, cloudGrid, headlineCloud, headlineSources, loca
     dict['WIND_SPEED_KMH'] = (typeof windSpeedKmh === 'number') ? Math.round(windSpeedKmh) : 0;
     dict['WEATHER_LAST_UPDATE'] = Math.floor(Date.now() / 1000);
   }
+  addFeatureWeatherFields(dict, {
+    locationName: locationName, haveCloudData: haveCloudData, displayCloudPct: displayCloudPct, weatherOk: weatherOk,
+    condition: weatherCondition, tempC: weatherTempC, tempHighC: tempHighC, tempLowC: tempLowC,
+    uvIndexMax: uvIndexMax, uvIndexCurrent: uvIndexCurrent, rainChancePct: rainChancePct,
+    humidityPct: humidityPct, windSpeedKmh: windSpeedKmh, extraWeather: extraWeather
+  });
+  rememberUnitInputs({ weatherOk: weatherOk, tempC: weatherTempC, tempHighC: tempHighC, tempLowC: tempLowC,
+    humidityPct: humidityPct, windSpeedKmh: windSpeedKmh, extraWeather: extraWeather });
   var sky_ = skyFieldsDict(sky, cloudGrid, moonPhase, riseSet, meteorShower, cloudAltitudePct, sunRiseTomorrow, stars);
   Object.keys(sky_).forEach(function (k) { dict[k] = sky_[k]; });
   var extraW_ = extraWeatherFieldsDict(extraWeather);
@@ -748,6 +986,14 @@ function sendEclipseData(result, sky, cloudGrid, headlineCloud, headlineSources,
     dict['WIND_SPEED_KMH'] = (typeof windSpeedKmh === 'number') ? Math.round(windSpeedKmh) : 0;
     dict['WEATHER_LAST_UPDATE'] = Math.floor(Date.now() / 1000);
   }
+  addFeatureWeatherFields(dict, {
+    locationName: locationName, haveCloudData: haveCloudData, displayCloudPct: displayCloudPct, weatherOk: weatherOk,
+    condition: weatherCondition, tempC: weatherTempC, tempHighC: tempHighC, tempLowC: tempLowC,
+    uvIndexMax: uvIndexMax, uvIndexCurrent: uvIndexCurrent, rainChancePct: rainChancePct,
+    humidityPct: humidityPct, windSpeedKmh: windSpeedKmh, extraWeather: extraWeather
+  });
+  rememberUnitInputs({ weatherOk: weatherOk, tempC: weatherTempC, tempHighC: tempHighC, tempLowC: tempLowC,
+    humidityPct: humidityPct, windSpeedKmh: windSpeedKmh, extraWeather: extraWeather });
   var sky_ = skyFieldsDict(sky, cloudGrid, moonPhase, riseSet, meteorShower, cloudAltitudePct, sunRiseTomorrow, stars);
   Object.keys(sky_).forEach(function (k) { dict[k] = sky_[k]; });
   var extraW_ = extraWeatherFieldsDict(extraWeather);
@@ -757,11 +1003,41 @@ function sendEclipseData(result, sky, cloudGrid, headlineCloud, headlineSources,
   sendFlatDict(dict);
 }
 
+// Settings-page "Fake weather" debug panel: the raw slider values (wire key names, as the
+// page builds them) go out unchanged, plus the display strings/colours the primitive
+// features read, derived from them. Enqueued as-is; nothing is persisted.
+function sendFakeWeather(v) {
+  var dict = {};
+  Object.keys(v).forEach(function (k) { dict[k] = v[k]; });
+  dict['DATA_VALID'] = 1;
+  var cloud = typeof v.CLOUD_COVER === 'number' && !isNaN(v.CLOUD_COVER) ? v.CLOUD_COVER : 0;
+  var windSpeedKmh = v.WIND_SPEED_KMH, humidityPct = v.HUMIDITY_PCT;
+  var extra = extraWeatherFieldsDict({
+    windDirDeg: v.WIND_DIR_DEG, dewPointC: v.DEW_POINT_C, pressureHpa: v.PRESSURE_HPA,
+    pressureTrend: v.PRESSURE_TREND, aqiUs: v.AQI_US, aqiEu: v.AQI_EU
+  });
+  delete extra['AURORA_ERROR_CODE'];
+  delete extra['ALTITUDE_M'];
+  var feature = {};
+  addFeatureWeatherFields(feature, {
+    locationName: '', haveCloudData: true, displayCloudPct: cloud, weatherOk: true,
+    condition: v.WEATHER_CONDITION, tempC: v.WEATHER_TEMP_C, tempHighC: v.WEATHER_TEMP_HIGH_C, tempLowC: v.WEATHER_TEMP_LOW_C,
+    uvIndexMax: v.UV_INDEX_X10 / 10, uvIndexCurrent: v.UV_INDEX_CURRENT_X10 / 10, rainChancePct: v.RAIN_CHANCE_PCT,
+    humidityPct: humidityPct, windSpeedKmh: windSpeedKmh
+  });
+  delete feature['LOCATION_NAME'];
+  [extra, feature].forEach(function (part) { Object.keys(part).forEach(function (k) { dict[k] = part[k]; }); });
+  enqueueFlatDict(dict);
+}
+
 module.exports = {
   sendFlatDict: sendFlatDict,
   sendInvalid: sendInvalid,
   sendEclipseData: sendEclipseData,
   sendNoEclipseToday: sendNoEclipseToday,
+  sendFakeWeather: sendFakeWeather,
+  resendUnitDisplays: resendUnitDisplays,
   buildFullKeysetDict: buildFullKeysetDict,
-  overheadObjectsBytes: overheadObjectsBytes
+  overheadObjectsBytes: overheadObjectsBytes,
+  activePrimitiveIds: activePrimitiveIds
 };

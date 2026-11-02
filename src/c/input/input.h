@@ -12,7 +12,14 @@ typedef struct {
 
 void input_init(EclipseData *data, InputCallbacks callbacks, void *context);
 void input_deinit(void);
+// True for shake_label_seconds after a shake: features flagged "show on shake"
+// are drawn only while this is true (the same window as the sky labels).
+bool input_shake_features_active(void);
+// True while a shake-triggered motion animation (smooth second / Planet Seek) runs.
 bool input_shake_animation_active(void);
+// True during the shake window in which hands are drawn translucent
+// (only meaningful when shake_hands_translucent is set).
+bool input_shake_translucent_active(void);
 bool input_shake_animation_wants_smooth_second(uint8_t mode);
 int32_t input_planet_seek_heading_deg(void);
 bool input_planet_seek_compass_low_accuracy(void);
