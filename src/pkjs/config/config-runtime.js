@@ -109,19 +109,6 @@ module.exports =
 '    CONFIG_SHADOW_ANGLE: document.getElementById("shadowAngle").value,' +
 '    CONFIG_BIG_ANALOG_MARKER_STYLE: document.getElementById("bigAnalogMarkerStyle").value,' +
 '    CONFIG_BITMAP_MARKER_TRANSPARENT: document.getElementById("bitmapMarkerTransparent").checked,' +
-'    CONFIG_BITMAP_MARKER_INVERT: document.getElementById("bitmapMarkerInvert").checked,' +
-'    CONFIG_UPPER_MIDDLE_LINE1_SHAKE: document.getElementById("upperMiddleLine1Shake").value,' +
-'    CONFIG_UPPER_MIDDLE_LINE2_SHAKE: document.getElementById("upperMiddleLine2Shake").value,' +
-'    CONFIG_BOTTOM_MIDDLE_LINE1_SHAKE: document.getElementById("bottomMiddleLine1Shake").value,' +
-'    CONFIG_BOTTOM_MIDDLE_LINE2_SHAKE: document.getElementById("bottomMiddleLine2Shake").value,' +
-'    CONFIG_MIDDLE_LEFT_LINE1_SHAKE: document.getElementById("middleLeftLine1Shake").value,' +
-'    CONFIG_MIDDLE_LEFT_LINE2_SHAKE: document.getElementById("middleLeftLine2Shake").value,' +
-'    CONFIG_MIDDLE_RIGHT_LINE1_SHAKE: document.getElementById("middleRightLine1Shake").value,' +
-'    CONFIG_MIDDLE_RIGHT_LINE2_SHAKE: document.getElementById("middleRightLine2Shake").value,' +
-'    CONFIG_CORNER_TL_SHAKE: document.getElementById("cornerTLShake").value,' +
-'    CONFIG_CORNER_TR_SHAKE: document.getElementById("cornerTRShake").value,' +
-'    CONFIG_CORNER_BL_SHAKE: document.getElementById("cornerBLShake").value,' +
-'    CONFIG_CORNER_BR_SHAKE: document.getElementById("cornerBRShake").value,' +
 '    CONFIG_BITMAP_CORNER_OVERRIDE: document.getElementById("bitmapCornerOverride").checked,' +
 '    CONFIG_DRAW_FEATURES_BENEATH_HANDS: document.getElementById("drawFeaturesBeneathHands").checked,' +
 '    CONFIG_UPPER_MIDDLE_LINE1_CONTENT_ANALOG: dualCtxVal("upperMiddleLine1", "Content", "analog"),' +
@@ -305,7 +292,6 @@ module.exports =
 '    CONFIG_HOURLY_VIBE_MODE: document.getElementById("hourlyVibeMode").value,' +
 '    CONFIG_HOURLY_VIBE_INTERVAL_MIN: document.getElementById("hourlyVibeIntervalMin").value,' +
 '    CONFIG_HOURLY_VIBE_PATTERN: document.getElementById("hourlyVibePattern").value,' +
-'    CONFIG_BT_LOST_VIBE: document.getElementById("btLostVibe").value,' +
 '    CONFIG_HOURLY_VIBE_START_TIME: document.getElementById("hourlyVibeStartTime").value,' +
 '    CONFIG_HOURLY_VIBE_END_TIME: document.getElementById("hourlyVibeEndTime").value,' +
 '    CONFIG_HOURLY_VIBE_DAYS_MASK: document.getElementById("hourlyVibeDaysMask").value,' +

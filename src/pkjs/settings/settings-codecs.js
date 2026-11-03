@@ -189,7 +189,6 @@ function bigAnalogMarkerStyleCode() {
 // bigAnalogHandsTransparentCode() above (that one used to double as
 // this too, which meant toggling hand transparency also silently
 // dimmed the markers whether or not that's what was wanted).
-function bitmapMarkerInvertCode() { return getSetting('CONFIG_BITMAP_MARKER_INVERT', 'false') === 'true' ? 1 : 0; }
 function bitmapMarkerTransparentCode() { return getSetting('CONFIG_BITMAP_MARKER_TRANSPARENT', 'false') === 'true' ? 1 : 0; }
 
 // Whether the corners/edges feature overlay draws underneath the
@@ -552,7 +551,6 @@ function drawDebugCode() { return getSetting('CONFIG_DRAW_DEBUG', 'false') === '
 // eclipse_data.h for the full field layout this maps onto.
 function hourlyVibeModeCode() { return clampInt(getSetting('CONFIG_HOURLY_VIBE_MODE', '0'), 0, 2, 0); }
 function hourlyVibeIntervalMinCode() { return clampInt(getSetting('CONFIG_HOURLY_VIBE_INTERVAL_MIN', '30'), 1, 180, 30); }
-function btLostVibeCode() { return clampInt(getSetting('CONFIG_BT_LOST_VIBE', '0'), 0, 3, 0); }
 function shakeHandsTranslucentCode() { return getSetting('CONFIG_SHAKE_HANDS_TRANSLUCENT', 'false') === 'true' ? 1 : 0; }
 function hourlyVibePatternCode() { return clampInt(getSetting('CONFIG_HOURLY_VIBE_PATTERN', '0'), 0, 2, 0); }
 // "HH:MM" (the config page's own <input type="time"> value) -> minutes
@@ -633,25 +631,6 @@ function edgeCustomPrimsStrings() {
   });
 }
 
-// Per-feature "show only when shaken" flags -> one 12-bit mask, bit order = the
-// watch's feature slot enum (feature_slot.h): upper l1/l2, bottom l1/l2, middle-left
-// l1/l2, middle-right l1/l2, corners TL/TR/BL/BR.
-var SHAKE_ONLY_SETTINGS = [
-  'CONFIG_UPPER_MIDDLE_LINE1_SHAKE', 'CONFIG_UPPER_MIDDLE_LINE2_SHAKE',
-  'CONFIG_BOTTOM_MIDDLE_LINE1_SHAKE', 'CONFIG_BOTTOM_MIDDLE_LINE2_SHAKE',
-  'CONFIG_MIDDLE_LEFT_LINE1_SHAKE', 'CONFIG_MIDDLE_LEFT_LINE2_SHAKE',
-  'CONFIG_MIDDLE_RIGHT_LINE1_SHAKE', 'CONFIG_MIDDLE_RIGHT_LINE2_SHAKE',
-  'CONFIG_CORNER_TL_SHAKE', 'CONFIG_CORNER_TR_SHAKE',
-  'CONFIG_CORNER_BL_SHAKE', 'CONFIG_CORNER_BR_SHAKE'
-];
-function shakeOnlyMaskCode() {
-  var mask = 0;
-  for (var i = 0; i < SHAKE_ONLY_SETTINGS.length; i++) {
-    if (getSetting(SHAKE_ONLY_SETTINGS[i], '0') === '1') mask |= (1 << i);
-  }
-  return mask;
-}
-
 // Corners: 4 slots (0=top-left, 1=top-right, 2=bottom-left,
 // 3=bottom-right), each an independent content-type + color-mode
 // pair. Sent as two packed byte arrays rather than 8 separate keys.
@@ -679,11 +658,8 @@ function dailyStepGoalValue() {
 }
 
 module.exports = {
-  shakeOnlyMaskCode: shakeOnlyMaskCode,
   edgeCustomPrimsStrings: edgeCustomPrimsStrings,
   EDGE_CUSTOM_PRIMS_SLOTS: EDGE_CUSTOM_PRIMS_SLOTS,
-  bitmapMarkerInvertCode: bitmapMarkerInvertCode,
-  btLostVibeCode: btLostVibeCode,
   shakeHandsTranslucentCode: shakeHandsTranslucentCode,
   clampFontId: clampFontId,
   clockFontCode: clockFontCode,

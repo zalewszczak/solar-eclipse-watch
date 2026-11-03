@@ -217,13 +217,10 @@ static void hands_controller_update_proc(Layer *layer, GContext *ctx) {
   GColor hour_main = flash_hour ? bg : main_color, hour_bg = flash_hour ? main_color : bg;
   GColor min_main = flash_min ? bg : main_color, min_bg = flash_min ? main_color : bg;
 
-  // Features with a thick outline get thicker hand outlines too.
-  const bool thick_outline = s_data->outline_style == 2;
-
-  hand_layer_draw(ctx, center, hour_angle, &hour_cfg, hour_main, accent_color, hour_bg, s_data->shadow_translucent, s_data->shadow_angle_deg, hour_length_scale_1000, thick_outline);
-  hand_layer_draw(ctx, center, min_angle, &min_cfg, min_main, accent_color, min_bg, s_data->shadow_translucent, s_data->shadow_angle_deg, min_length_scale_1000, thick_outline);
+  hand_layer_draw(ctx, center, hour_angle, &hour_cfg, hour_main, accent_color, hour_bg, s_data->shadow_translucent, s_data->shadow_angle_deg, hour_length_scale_1000);
+  hand_layer_draw(ctx, center, min_angle, &min_cfg, min_main, accent_color, min_bg, s_data->shadow_translucent, s_data->shadow_angle_deg, min_length_scale_1000);
   if (s_data->show_seconds) {
-    hand_layer_draw(ctx, center, sec_angle, &sec_cfg, main_color, accent_color, bg, s_data->shadow_translucent, s_data->shadow_angle_deg, sec_length_scale_1000, thick_outline);
+    hand_layer_draw(ctx, center, sec_angle, &sec_cfg, main_color, accent_color, bg, s_data->shadow_translucent, s_data->shadow_angle_deg, sec_length_scale_1000);
   }
 
   hand_layer_draw_center_circle(ctx, center, s_data->center_circle_radius, s_data->center_circle_color,

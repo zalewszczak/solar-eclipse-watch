@@ -83,7 +83,6 @@ static void feature_controller_recompute_second_slots(FeaturesState *state) {
 
   for (int i = 0; i < FEATURES_MAX_SLOTS; i++) {
     if (!state->slots[i].active || !state->slots[i].needs_second_refresh) continue;
-    if (state->slots[i].shake_only && !input_shake_features_active()) continue;
     feature_controller_recompute_slot_value(&state->slots[i], i, state->data, main_color, accent_color, bg, font, font_h, now, t);
   }
 }
@@ -91,9 +90,6 @@ static void feature_controller_recompute_second_slots(FeaturesState *state) {
 void feature_controller_set_data(FeaturesState *state, EclipseData *data) {
   state->data = data;
   feature_layout_recompute(state);
-  for (int i = 0; i < FEATURES_MAX_SLOTS; i++) {
-    state->slots[i].shake_only = data && ((data->shake_only_mask >> i) & 1u);
-  }
   feature_controller_recompute_all_values(state);
 }
 

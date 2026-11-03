@@ -1120,9 +1120,6 @@ configPresetSchedule.css +
 '  .slot-btn { position: absolute; min-width: 54px; padding: 5px 8px; font-size: 11px; font-weight: 700; color: #222; background: rgba(255,255,255,0.85); border: 1px solid rgba(0,0,0,0.2); border-radius: 6px; text-align: center; }' +
 '  .slot-btn:active { background: #fff; }' +
 '  .slot-btn.slot-off { color: #777; font-weight: 400; }' +
-'  .slot-btn.slot-shake { border: 2px dashed #e07a00; padding: 4px 7px; }' +
-'  .slot-legend { margin: 8px 2px 0; font-size: 12px; line-height: 1.4; color: var(--text-muted); }' +
-'  .slot-legend .slot-legend-sample { display: inline-block; padding: 0 5px; border: 2px dashed #e07a00; border-radius: 5px; font-weight: 700; color: var(--text); }' +
 '  .slot-btn.slot-na { color: #aaa; background: rgba(230,230,230,0.7); font-style: italic; pointer-events: none; }' +
 '  .slot-corner-tl { left: 6px; top: 6px; }' +
 '  .slot-corner-tr { right: 6px; top: 6px; }' +
@@ -1356,10 +1353,6 @@ configPresetSchedule.css +
 '      <button type="button" class="mode-btn" onclick="slotEditorSelectColor(3)">COLOR</button>' +
 '    </div>' +
 '    <div class="help"><b>MONO</b> = your main color, <b>ACC</b> = accent color, <b>PILL</b> = solid background-color capsule behind main-color content, <b>COLOR</b> = dynamic (changes with the value shown).</div>' +
-'    <div class="checkbox-row" style="margin-top:12px;">' +
-'      <input type="checkbox" id="slotEditShake">' +
-'      <label for="slotEditShake" style="margin:0;">Show only when the watch is shaken</label>' +
-'    </div>' +
 '    </div>' +
 '    <div class="slot-edit-footer">' +
 '      <button type="button" onclick="saveSlotEditor()" style="width:100%; box-sizing:border-box; padding:14px; font-size:16px; font-weight:600; color:#fff; background:#ff9200; border:none; border-radius:8px;">OK</button>' +
@@ -1684,10 +1677,6 @@ configPresetSchedule.modalHtml +
 '        <input type="checkbox" id="bitmapMarkerTransparent" ' + (current.bitmapMarkerTransparent ? 'checked' : '') + ' onchange="onBitmapMarkerTransparentChange()">' +
 '        <label for="bitmapMarkerTransparent" style="margin:0;">Semi transparent markers (see the sky through them)</label>' +
 '      </div>' +
-'      <div class="checkbox-row" id="bitmapMarkerInvertRow" style="margin-top:8px;' + (isBitmapMarkerStyle ? '' : ' display:none;') + '">' +
-'        <input type="checkbox" id="bitmapMarkerInvert" ' + (current.bitmapMarkerInvert ? 'checked' : '') + ' onchange="updatePreview()">' +
-'        <label for="bitmapMarkerInvert" style="margin:0;">Inverted blend (markers turn black or white for contrast with the background)</label>' +
-'      </div>' +
 '      <div class="help" id="help-indicesStyle" style="display:none;">Choose the hour/second markers around the analog face. Custom lets you edit them.</div>' +
 
 '      <div id="customMarkerSection" style="' + (current.bigAnalogMarkerStyle === '8' ? '' : 'display:none;') + '">' +
@@ -1764,7 +1753,6 @@ configPresetSchedule.modalHtml +
 '      <button type="button" class="slot-btn slot-digital-right3" id="slotBtn-digitalRight3" onclick="openSlotEditor(\'digitalRight3\')"></button>' +
 '      <button type="button" class="slot-btn slot-digital-bottom" id="slotBtn-digitalBottom" onclick="openSlotEditor(\'digitalBottom\')"></button>' +
 '    </div>' +
-'    <div class="slot-legend" id="slotShakeLegend" style="display:none;"><span class="slot-legend-sample">&nbsp;&nbsp;&nbsp;</span> Features with an orange dashed border are hidden until you shake the watch.</div>' +
 
 '    <div class="checkbox-row" id="bitmapCornerOverrideRow" style="margin-top:12px;' + ((isBitmapMarkerStyle && markerStyleNum !== 5) ? '' : ' display:none;') + '">' +
 '      <input type="checkbox" id="bitmapCornerOverride" ' + (current.bitmapCornerOverride ? 'checked' : '') + ' onchange="onBitmapCornerOverrideChange()">' +
@@ -1814,51 +1802,39 @@ configPresetSchedule.modalHtml +
 '      <select id="cornerTL">' + cornerContentOptionsHtml(current.cornerTL, current.auroraEnabled) + '</select>' +
 '      <input type="hidden" id="cornerTLColor" value="' + esc(current.cornerTLColor || '0') + '">' +
 '      <input type="hidden" id="cornerTLCustomPrims" value="' + esc(current.cornerTLCustomPrims || '') + '">' +
-'      <input type="hidden" id="cornerTLShake" value="' + (current.cornerTLShake === '1' ? '1' : '0') + '">' +
 '      <select id="cornerTR">' + cornerContentOptionsHtml(current.cornerTR, current.auroraEnabled) + '</select>' +
 '      <input type="hidden" id="cornerTRColor" value="' + esc(current.cornerTRColor || '0') + '">' +
 '      <input type="hidden" id="cornerTRCustomPrims" value="' + esc(current.cornerTRCustomPrims || '') + '">' +
-'      <input type="hidden" id="cornerTRShake" value="' + (current.cornerTRShake === '1' ? '1' : '0') + '">' +
 '      <select id="cornerBL">' + cornerContentOptionsHtml(current.cornerBL, current.auroraEnabled) + '</select>' +
 '      <input type="hidden" id="cornerBLColor" value="' + esc(current.cornerBLColor || '0') + '">' +
 '      <input type="hidden" id="cornerBLCustomPrims" value="' + esc(current.cornerBLCustomPrims || '') + '">' +
-'      <input type="hidden" id="cornerBLShake" value="' + (current.cornerBLShake === '1' ? '1' : '0') + '">' +
 '      <select id="cornerBR">' + cornerContentOptionsHtml(current.cornerBR, current.auroraEnabled) + '</select>' +
 '      <input type="hidden" id="cornerBRColor" value="' + esc(current.cornerBRColor || '0') + '">' +
 '      <input type="hidden" id="cornerBRCustomPrims" value="' + esc(current.cornerBRCustomPrims || '') + '">' +
-'      <input type="hidden" id="cornerBRShake" value="' + (current.cornerBRShake === '1' ? '1' : '0') + '">' +
 '      <select id="upperMiddleLine1Content">' + cornerContentOptionsHtml(isAnalog ? current.upperMiddleLine1ContentAnalog : current.upperMiddleLine1ContentDigital, current.auroraEnabled) + '</select>' +
 '      <input type="hidden" id="upperMiddleLine1Color" value="' + esc((isAnalog ? current.upperMiddleLine1ColorAnalog : current.upperMiddleLine1ColorDigital) || '0') + '">' +
 '      <input type="hidden" id="upperMiddleLine1CustomPrims" value="' + esc((isAnalog ? current.upperMiddleLine1CustomPrimsAnalog : current.upperMiddleLine1CustomPrimsDigital) || '') + '">' +
-'      <input type="hidden" id="upperMiddleLine1Shake" value="' + (current.upperMiddleLine1Shake === '1' ? '1' : '0') + '">' +
 '      <select id="upperMiddleLine2Content">' + cornerContentOptionsHtml(isAnalog ? current.upperMiddleLine2ContentAnalog : current.upperMiddleLine2ContentDigital, current.auroraEnabled) + '</select>' +
 '      <input type="hidden" id="upperMiddleLine2Color" value="' + esc((isAnalog ? current.upperMiddleLine2ColorAnalog : current.upperMiddleLine2ColorDigital) || '0') + '">' +
 '      <input type="hidden" id="upperMiddleLine2CustomPrims" value="' + esc((isAnalog ? current.upperMiddleLine2CustomPrimsAnalog : current.upperMiddleLine2CustomPrimsDigital) || '') + '">' +
-'      <input type="hidden" id="upperMiddleLine2Shake" value="' + (current.upperMiddleLine2Shake === '1' ? '1' : '0') + '">' +
 '      <select id="bottomMiddleLine1Content">' + cornerContentOptionsHtml(isAnalog ? current.bottomMiddleLine1ContentAnalog : current.bottomMiddleLine1ContentDigital, current.auroraEnabled) + '</select>' +
 '      <input type="hidden" id="bottomMiddleLine1Color" value="' + esc((isAnalog ? current.bottomMiddleLine1ColorAnalog : current.bottomMiddleLine1ColorDigital) || '0') + '">' +
 '      <input type="hidden" id="bottomMiddleLine1CustomPrims" value="' + esc((isAnalog ? current.bottomMiddleLine1CustomPrimsAnalog : current.bottomMiddleLine1CustomPrimsDigital) || '') + '">' +
-'      <input type="hidden" id="bottomMiddleLine1Shake" value="' + (current.bottomMiddleLine1Shake === '1' ? '1' : '0') + '">' +
 '      <select id="bottomMiddleLine2Content">' + cornerContentOptionsHtml(current.bottomMiddleLine2Content, current.auroraEnabled) + '</select>' +
 '      <input type="hidden" id="bottomMiddleLine2Color" value="' + esc(current.bottomMiddleLine2Color || '0') + '">' +
 '      <input type="hidden" id="bottomMiddleLine2CustomPrims" value="' + esc(current.bottomMiddleLine2CustomPrims || '') + '">' +
-'      <input type="hidden" id="bottomMiddleLine2Shake" value="' + (current.bottomMiddleLine2Shake === '1' ? '1' : '0') + '">' +
 '      <select id="middleLeftLine1Content">' + cornerContentOptionsHtml(isAnalog ? current.middleLeftLine1ContentAnalog : current.middleLeftLine1ContentDigital, current.auroraEnabled) + '</select>' +
 '      <input type="hidden" id="middleLeftLine1Color" value="' + esc((isAnalog ? current.middleLeftLine1ColorAnalog : current.middleLeftLine1ColorDigital) || '0') + '">' +
 '      <input type="hidden" id="middleLeftLine1CustomPrims" value="' + esc((isAnalog ? current.middleLeftLine1CustomPrimsAnalog : current.middleLeftLine1CustomPrimsDigital) || '') + '">' +
-'      <input type="hidden" id="middleLeftLine1Shake" value="' + (current.middleLeftLine1Shake === '1' ? '1' : '0') + '">' +
 '      <select id="middleLeftLine2Content">' + cornerContentOptionsHtml(isAnalog ? current.middleLeftLine2ContentAnalog : current.middleLeftLine2ContentDigital, current.auroraEnabled) + '</select>' +
 '      <input type="hidden" id="middleLeftLine2Color" value="' + esc((isAnalog ? current.middleLeftLine2ColorAnalog : current.middleLeftLine2ColorDigital) || '0') + '">' +
 '      <input type="hidden" id="middleLeftLine2CustomPrims" value="' + esc((isAnalog ? current.middleLeftLine2CustomPrimsAnalog : current.middleLeftLine2CustomPrimsDigital) || '') + '">' +
-'      <input type="hidden" id="middleLeftLine2Shake" value="' + (current.middleLeftLine2Shake === '1' ? '1' : '0') + '">' +
 '      <select id="middleRightLine1Content">' + cornerContentOptionsHtml(isAnalog ? current.middleRightLine1ContentAnalog : current.middleRightLine1ContentDigital, current.auroraEnabled) + '</select>' +
 '      <input type="hidden" id="middleRightLine1Color" value="' + esc((isAnalog ? current.middleRightLine1ColorAnalog : current.middleRightLine1ColorDigital) || '0') + '">' +
 '      <input type="hidden" id="middleRightLine1CustomPrims" value="' + esc((isAnalog ? current.middleRightLine1CustomPrimsAnalog : current.middleRightLine1CustomPrimsDigital) || '') + '">' +
-'      <input type="hidden" id="middleRightLine1Shake" value="' + (current.middleRightLine1Shake === '1' ? '1' : '0') + '">' +
 '      <select id="middleRightLine2Content">' + cornerContentOptionsHtml(isAnalog ? current.middleRightLine2ContentAnalog : current.middleRightLine2ContentDigital, current.auroraEnabled) + '</select>' +
 '      <input type="hidden" id="middleRightLine2Color" value="' + esc((isAnalog ? current.middleRightLine2ColorAnalog : current.middleRightLine2ColorDigital) || '0') + '">' +
 '      <input type="hidden" id="middleRightLine2CustomPrims" value="' + esc((isAnalog ? current.middleRightLine2CustomPrimsAnalog : current.middleRightLine2CustomPrimsDigital) || '') + '">' +
-'      <input type="hidden" id="middleRightLine2Shake" value="' + (current.middleRightLine2Shake === '1' ? '1' : '0') + '">' +
 '    </div>' +
 
 '    <div class="subsection">' +
@@ -2261,15 +2237,6 @@ configPresetSchedule.modalHtml +
 '    </div>' +
 '    <div class="help" id="help-hourlyVibeOverrideQuiet" style="display:none;">When enabled, hourly vibrations continue during Quiet Time.</div>'
     ) : '') +
-
-'    <div class="field-label-row"><label style="margin-top:16px;">Vibrate when Bluetooth connection is lost</label><button type="button" class="help-btn" onclick="toggleHelp(\'help-btLostVibe\')">?</button></div>' +
-      verticalButtonGroupHtml('btLostVibeGroup', 'btLostVibe', [
-        { value: '0', label: 'Off' },
-        { value: '1', label: 'Short' },
-        { value: '2', label: 'Double' },
-        { value: '3', label: 'Long' }
-      ], current.btLostVibe || '0') +
-'    <div class="help" id="help-btLostVibe" style="display:none;">Vibrates once when the watch loses its connection to the phone. Nothing happens when the connection comes back.</div>' +
 
 '    <div class="checkbox-row" style="margin-top:14px;">' +
 '      <input type="checkbox" id="showFlights" ' + (current.showFlights ? 'checked' : '') + ' onchange="toggleFlightsOptions()">' +
@@ -3459,12 +3426,11 @@ configPlugins.pluginScript(current) +
 '  digitalBottom: { contentId: "bottomMiddleLine1Content", colorId: "bottomMiddleLine1Color", btnId: "slotBtn-digitalBottom", label: "Bottom feature", contexts: ["digital"], avail: function () { return true; } }' +
 '};' +
 // Every slot (including the digital-layout ones, which share the analog edge slots' underlying
-// inputs -- see above) keeps its custom sequence and shake flag in "<contentId minus Content>CustomPrims/Shake".
+// inputs -- see above) keeps its custom sequence in "<contentId minus Content>CustomPrims".
 '(function () {' +
 '  for (var k in SLOT_DEFS) {' +
 '    var d = SLOT_DEFS[k], base = d.contentId.replace(/Content$/, "");' +
 '    d.customPrimsId = base + "CustomPrims";' +
-'    d.shakeId = base + "Shake";' +
 '  }' +
 '})();' +
 'var CURRENT_SLOT_KEY = null;' +
@@ -3556,7 +3522,6 @@ configPlugins.pluginScript(current) +
 '  document.getElementById("slotPickerDiagram").classList.toggle("top-bar-mode", isDigitalTopMode);' +
 '  document.getElementById("slotPickerDiagram").classList.toggle("center-mode", isCenterMode);' +
 '  document.getElementById("slotPickerDiagram").classList.toggle("big-digital-mode", isBigDigitalMode);' +
-'  var anyShake = false;' +
 '  for (var key in SLOT_DEFS) {' +
 '    var def = SLOT_DEFS[key];' +
 '    var btn = document.getElementById(def.btnId);' +
@@ -3594,10 +3559,7 @@ configPlugins.pluginScript(current) +
 '      btn.textContent = (val >= PLUGIN_CONTENT_FIRST && val < PLUGIN_CONTENT_FIRST + PLUGIN_SLOT_COUNT) ? pluginButtonText(val) : slotButtonText(val);' +
 '      btn.className = baseClass;' +
 '    }' +
-'    if (document.getElementById(def.shakeId).value === "1" && btn.className.indexOf("slot-off") === -1) { btn.className += " slot-shake"; anyShake = true; }' +
 '  }' +
-'  var legendEl = document.getElementById("slotShakeLegend");' +
-'  if (legendEl) legendEl.style.display = anyShake ? "" : "none";' +
 // Applied AFTER the loop above, not before it -- these two buttons'
 // className just got fully overwritten (baseClass + a mode-dependent
 // suffix) by that loop, same as every other slot button's, so toggling
@@ -3695,7 +3657,6 @@ configPlugins.pluginScript(current) +
 '  renderSlotEditPrimitiveStrip(contentVal);' +
 '  setSlotEditorColorButtons(colorVal);' +
 '  composerOpen(def);' +
-'  document.getElementById("slotEditShake").checked = document.getElementById(def.shakeId).value === "1";' +
 '  document.getElementById("slotEditModal").className = "modal-overlay open";' +
 '  renderSlotEditPreview();' + // the canvas only has a width once the popup is visible
 '}' +
@@ -3708,7 +3669,6 @@ configPlugins.pluginScript(current) +
 '  var def = SLOT_DEFS[CURRENT_SLOT_KEY];' +
 '  document.getElementById(def.contentId).value = document.getElementById("slotEditContent").value;' +
 '  document.getElementById(def.colorId).value = String(SLOT_EDITOR_DRAFT_COLOR);' +
-'  document.getElementById(def.shakeId).value = document.getElementById("slotEditShake").checked ? "1" : "0";' +
 '  if (def.customPrimsId) {' +
 '    var committed = composerCommitValue();' +
 '    if (committed === null) return;' + // over-limit/empty: stay open, message already shown
@@ -3889,7 +3849,6 @@ configPlugins.pluginScript(current) +
 '  document.getElementById("customMarkerSection").style.display = (val === "8") ? "" : "none";' +
 '  var isBitmap = (val === "3" || val === "4" || val === "5" || val === "6" || val === "7");' +
 '  document.getElementById("bitmapMarkerTransparentRow").style.display = isBitmap ? "" : "none";' +
-'  document.getElementById("bitmapMarkerInvertRow").style.display = isBitmap ? "" : "none";' +
 '  document.getElementById("bitmapCornerOverrideRow").style.display = (isBitmap && val !== "5") ? "" : "none";' +
 '  updateMarkerStyleButtonLabel();' +
 '  clearGrayedSlotsIfUnavailable();' +
@@ -3909,7 +3868,7 @@ configPlugins.pluginScript(current) +
 '  var avail = computeSlotAvailability();' +
 '  if (avail.cornersGrayed) {' +
 '    var cornerIds = ["cornerTL", "cornerTR", "cornerBL", "cornerBR"];' +
-'    for (var i = 0; i < cornerIds.length; i++) { document.getElementById(cornerIds[i]).value = "0"; document.getElementById(cornerIds[i] + "CustomPrims").value = ""; document.getElementById(cornerIds[i] + "Shake").value = "0"; }' +
+'    for (var i = 0; i < cornerIds.length; i++) { document.getElementById(cornerIds[i]).value = "0"; document.getElementById(cornerIds[i] + "CustomPrims").value = ""; }' +
 '  }' +
   // middleLeft/RightLineContent are dual-purpose (digital mode's own
   // side-feature columns reuse these same fields -- see SLOT_DEFS'
@@ -3925,16 +3884,12 @@ configPlugins.pluginScript(current) +
 '    document.getElementById("middleLeftLine2Content").value = "0";' +
 '    document.getElementById("middleLeftLine1CustomPrims").value = "";' +
 '    document.getElementById("middleLeftLine2CustomPrims").value = "";' +
-'    document.getElementById("middleLeftLine1Shake").value = "0";' +
-'    document.getElementById("middleLeftLine2Shake").value = "0";' +
 '  }' +
 '  if (isAnalog && !avail.right) {' +
 '    document.getElementById("middleRightLine1Content").value = "0";' +
 '    document.getElementById("middleRightLine2Content").value = "0";' +
 '    document.getElementById("middleRightLine1CustomPrims").value = "";' +
 '    document.getElementById("middleRightLine2CustomPrims").value = "";' +
-'    document.getElementById("middleRightLine1Shake").value = "0";' +
-'    document.getElementById("middleRightLine2Shake").value = "0";' +
 '  }' +
 '}' +
 'function onBitmapCornerOverrideChange() {' +

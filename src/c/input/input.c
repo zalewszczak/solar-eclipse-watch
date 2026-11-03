@@ -293,8 +293,6 @@ void input_deinit(void) {
 
 bool input_shake_animation_active(void) { return s_shake_anim_active && s_shake_anim_motion; }
 bool input_shake_translucent_active(void) { return s_shake_anim_active; }
-// The shake window (labels and "show on shake" features share it).
-bool input_shake_features_active(void) { return s_labels_visible; }
 bool input_shake_animation_wants_smooth_second(uint8_t mode) { return mode == 1 || mode == 3; }
 int32_t input_planet_seek_heading_deg(void) { return s_compass_heading_smoothed_fp >> 8; }
 bool input_planet_seek_compass_low_accuracy(void) { return s_input_planet_seek_compass_low_accuracy; }

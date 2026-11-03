@@ -140,10 +140,7 @@ typedef struct {
 
   uint8_t sun_moon_size_pct; // 25, 50, 75 or 100 percent.
 
-  uint8_t shake_label_seconds; // label visibility duration; also how long "show on shake" features stay visible.
-  // Bit i set = feature slot i (feature_slot.h's slot enum order) is only
-  // shown while the watch has been shaken, for shake_label_seconds.
-  uint16_t shake_only_mask;
+  uint8_t shake_label_seconds; // label visibility duration.
   // Hands turn semi-transparent for the duration of the shake animation. 0 = off.
   uint8_t shake_hands_translucent;
   uint8_t label_style;     // 0=boxed, 1=outlined, 2=soft.
@@ -185,7 +182,6 @@ typedef struct {
                                    // drives Big Digital's own digit-bitmap transparency
                                    // (see big_digital_display.c), since the two are
                                    // never on screen together and share one setting.
-  bool bitmap_marker_invert;      // blend the bitmap marker into the background as a black/white contrast colour.
   // Bit mask of slots using explicit tight primitive spacing (corner bits 0-3,
   // edge/middle bits 4-11).
   uint8_t primitive_tight_mask_lo;
@@ -273,10 +269,9 @@ typedef struct {
   char aqi_display[10];
   uint8_t aqi_color;
 
-  // Forecast temperatures: FORECAST_SLOT_COUNT discrete display strings plus
-  // one packed-color byte each.
+  // Forecast temperatures: FORECAST_SLOT_COUNT display strings (one packed
+  // blob of 6-byte NUL-padded records on the wire).
   char forecast_temp_display[FORECAST_SLOT_COUNT][6];
-  uint8_t forecast_temp_color[FORECAST_SLOT_COUNT];
 
   // Weather fetch status and freshness.
   uint8_t weather_error_code;
@@ -287,6 +282,9 @@ typedef struct {
   // Forecast for the next 1-6 hours (index 0-5), next 1-3 days (index 6-8)
   // and hours 7-12 ahead (index 9-14) -- one shared set of arrays for all.
   int16_t forecast_temp_c[FORECAST_SLOT_COUNT];
+  // These three arrays MUST stay adjacent and in this order: the FORECAST blob
+  // (comms_decoder.c) copies them with a single memcpy.
+  uint8_t forecast_temp_color[FORECAST_SLOT_COUNT];  // packed colour per index.
   uint8_t forecast_condition[FORECAST_SLOT_COUNT];
   // PKJS-computed icon category per forecast index, gated on forecast_temp_display[idx].
   uint8_t forecast_icon_category[FORECAST_SLOT_COUNT];
@@ -386,7 +384,6 @@ typedef struct {
   uint8_t hourly_vibe_mode; // 0=off, 1=hourly, 2=interval.
   uint8_t hourly_vibe_interval_min; // interval for mode 2.
   uint8_t hourly_vibe_pattern; // 0=short, 1=double, 2=long.
-  uint8_t bt_lost_vibe;        // vibrate when the phone connection is lost: 0=off, 1=short, 2=double, 3=long.
   uint16_t hourly_vibe_start_min; // start minute of day.
   uint16_t hourly_vibe_end_min; // end minute; equal means all day.
 

@@ -463,7 +463,7 @@ module.exports =
 '  var markerStyle = parseInt(document.getElementById("bigAnalogMarkerStyle").value, 10);' +
 '  var isBitmapStyle = markerStyle >= 3 && markerStyle <= 7;' +
 '  if (isBitmapStyle) {' + // mirrors BITMAP_STYLE_MARGINS in src/c/features/feature_layout.c (top, bottom, left, right per style 3-7)
-'    var bm = [[38,37,42,39],[37,33,38,33],[44,42,27,20],[46,44,45,45],[44,40,30,26]][markerStyle - 3];' +
+'    var bm = [[34,30,40,35],[37,33,38,33],[44,40,25,15],[46,42,45,45],[44,40,30,20]][markerStyle - 3];' +
 '    return { top: bm[0] * scale, bottom: bm[1] * scale, left: bm[2] * scale, right: bm[3] * scale };' +
 '  }' +
 '  var pct, ecc;' +
@@ -1334,12 +1334,6 @@ module.exports =
 '    var markerStyleVal = document.getElementById("bigAnalogMarkerStyle").value;' +
 '    var markerStyleInt = parseInt(markerStyleVal, 10);' +
 '    var markerTint = colors.text;' +
-'    var invEl = document.getElementById("bitmapMarkerInvert");' +
-'    if (invEl && invEl.checked) {' +
-'      var bgRgb = hexToRgb(colors.bg);' +
-'      var bgLum = bgRgb ? (0.3 * bgRgb.r + 0.59 * bgRgb.g + 0.11 * bgRgb.b) : 0;' +
-'      markerTint = bgLum > 127 ? "#000000" : "#FFFFFF";' +
-'    }' +
 '    var markerImageDrawn = (markerStyleInt >= 3 && markerStyleInt <= 7) && drawTintedMarkerBitmap(ctx, markerStyleVal, w, h, markerTint);' +
 '    drawBigAnalogPreview(ctx, colors, now, showSeconds, w, h, markerImageDrawn);' +
 '    drawCornersAndEdges(ctx, w, h, colors, h);' +

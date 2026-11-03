@@ -12,9 +12,6 @@ typedef struct {
 
 void input_init(EclipseData *data, InputCallbacks callbacks, void *context);
 void input_deinit(void);
-// True for shake_label_seconds after a shake: features flagged "show on shake"
-// are drawn only while this is true (the same window as the sky labels).
-bool input_shake_features_active(void);
 // True while a shake-triggered motion animation (smooth second / Planet Seek) runs.
 bool input_shake_animation_active(void);
 // True during the shake window in which hands are drawn translucent

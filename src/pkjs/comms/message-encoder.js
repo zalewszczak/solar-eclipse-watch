@@ -170,10 +170,7 @@ var cornerFontCode = settingsCodecs.cornerFontCode;
 var cornerContentBytes = settingsCodecs.cornerContentBytes; // local compiler input only, never sent
 var cornerColorModeBytes = settingsCodecs.cornerColorModeBytes;
 var dailyStepGoalValue = settingsCodecs.dailyStepGoalValue;
-var shakeOnlyMaskCode = settingsCodecs.shakeOnlyMaskCode;
-var bitmapMarkerInvertCode = settingsCodecs.bitmapMarkerInvertCode;
 var shakeHandsTranslucentCode = settingsCodecs.shakeHandsTranslucentCode;
-var btLostVibeCode = settingsCodecs.btLostVibeCode;
 var weatherNormalize = require('../weather/weather-normalize');
 var formatTempDisplay = weatherNormalize.formatTempDisplay;
 var apparentTempC = weatherNormalize.apparentTempC;
@@ -528,13 +525,12 @@ function populateSettingsFields(dict) {
   var cornerSeqs = cornerSequences();
   dict['CORNER_PRIMITIVE_IDS'] = concatField(cornerSeqs, 'ids'); // 4 slots x 10, TL,TR,BL,BR
   dict['CORNER_PRIMITIVE_AUX'] = concatField(cornerSeqs, 'aux');
-  dict['SHAKE_ONLY_MASK'] = shakeOnlyMaskCode();
   dict['PLUGIN_TEXTS'] = pluginManager.textsBytes();
   // Order must match SETTINGS_BLOB_OFFSETS in comms_decoder.c.
   var tightMask = primitiveTightMask();
   dict['SETTINGS_U8_BLOB'] = [
     tightMask & 255, (tightMask >> 8) & 255,
-    bitmapMarkerInvertCode(), shakeHandsTranslucentCode(), btLostVibeCode()
+    shakeHandsTranslucentCode()
   ];
   dict['SHOW_SUN_TIME'] = showSunTimeCode();
   dict['SHOW_ISS'] = showIssCode();
@@ -686,6 +682,17 @@ function issFieldsDict(issPos, issErrorCode) {
 // already showing alone" -- a transient network hiccup no longer
 // wipes out the last known-good reading the way sending an
 // unconditional 0 used to.
+// Packs one display string per forecast slot into 6-byte NUL-padded records (15 slots, the
+// watch's forecast_temp_display layout) so they travel as one blob instead of 15 keys.
+function forecastDisplayBytes(temps, unitCode) {
+  var out = [];
+  for (var i = 0; i < 15; i++) {
+    var str = (i < temps.length) ? String(formatTempDisplay(temps[i], unitCode)) : '';
+    for (var j = 0; j < 6; j++) out.push(j < 5 && j < str.length ? (str.charCodeAt(j) & 255) : 0);
+  }
+  return out;
+}
+
 function extraWeatherFieldsDict(extra) {
   extra = extra || {};
   var dict = {
@@ -749,28 +756,23 @@ function extraWeatherFieldsDict(extra) {
   // entry within an otherwise-successful fetch (see forecastTempC's own
   // per-index null check in weather.js).
   if (extra.forecastTempC) {
-    dict['FORECAST_TEMP_C'] = extra.forecastTempC.map(function (c) {
-      return (typeof c === 'number') ? Math.max(0, Math.min(255, Math.round(c) + 50)) : 255;
-    });
-    // Per-slot display text (15 discrete cstring keys: AppMessage has no string array)
-    // plus one 15-byte colour blob. An unavailable slot formats to '' ("nothing to show").
-    var forecastUnitCode = tempUnitCode();
-    var forecastColorBytes = [];
-    extra.forecastTempC.forEach(function (c, i) {
-      dict['FORECAST_TEMP_DISPLAY_' + i] = formatTempDisplay(c, forecastUnitCode);
-      forecastColorBytes.push(tempGradientColorByte(c));
-    });
-    dict['FORECAST_TEMP_COLORS'] = forecastColorBytes;
-  }
-  if (extra.forecastCondition) {
-    dict['FORECAST_CONDITION'] = extra.forecastCondition.map(function (c) {
-      return (typeof c === 'number') ? c : 0;
-    });
-    // Same category function as WEATHER_ICON_CATEGORY, with the neutral 50% cloud guess
-    // (no per-hour cloud forecast is used for icons).
-    dict['FORECAST_ICON_CATEGORIES'] = extra.forecastCondition.map(function (c) {
-      return weatherIconCategory(typeof c === 'number' ? c : 0, 50);
-    });
+    // FORECAST blob (4 x 15 bytes, decoded by comms_decoder.c): temp C with a +50 offset
+    // (AppMessage byte arrays are unsigned; 255 = this entry unavailable), packed temp
+    // colour, condition, icon category (same function as WEATHER_ICON_CATEGORY, neutral 50%
+    // cloud guess). An unavailable slot's display text is '' ("nothing to show").
+    var n = extra.forecastTempC.length;
+    var cond = extra.forecastCondition || [];
+    var fTemp = [], fColor = [], fCond = [], fIcon = [];
+    for (var fi = 0; fi < n; fi++) {
+      var fc = extra.forecastTempC[fi];
+      var cc = (typeof cond[fi] === 'number') ? cond[fi] : 0;
+      fTemp.push((typeof fc === 'number') ? Math.max(0, Math.min(255, Math.round(fc) + 50)) : 255);
+      fColor.push(tempGradientColorByte(fc));
+      fCond.push(cc);
+      fIcon.push(weatherIconCategory(cc, 50));
+    }
+    dict['FORECAST'] = fTemp.concat(fColor, fCond, fIcon);
+    dict['FORECAST_TEMP_DISPLAYS'] = forecastDisplayBytes(extra.forecastTempC, tempUnitCode());
   }
   return dict;
 }
@@ -845,7 +847,7 @@ function unitDisplayDict() {
   if (typeof raw.dewC === 'number') dict['DEW_POINT_DISPLAY'] = formatTempDisplay(raw.dewC, tempUnit);
   if (typeof raw.altM === 'number') dict['ALTITUDE_DISPLAY'] = formatAltitudeDisplay(raw.altM, altitudeUnitCode());
   if (Array.isArray(raw.forecastTempC)) {
-    raw.forecastTempC.forEach(function (c, i) { dict['FORECAST_TEMP_DISPLAY_' + i] = formatTempDisplay(c, tempUnit); });
+    dict['FORECAST_TEMP_DISPLAYS'] = forecastDisplayBytes(raw.forecastTempC, tempUnit);
   }
   if (typeof raw.aqiUs === 'number' || typeof raw.aqiEu === 'number') {
     var aqiUnit = aqiUnitCode();

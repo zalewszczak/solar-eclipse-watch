@@ -46,40 +46,13 @@ static void draw_hand_shape_from_geometry(GContext *ctx, const HandGeometry *geo
 }
 
 
-static void draw_hand_outline_once(GContext *ctx, const HandGeometry *geo, int32_t dx_fp, int32_t dy_fp,
-                                   GColor color, bool dithered) {
+static void draw_hand_outline_from_geometry(GContext *ctx, const HandGeometry *geo,
+                                             GColor color, bool dithered) {
   for (int i = 0; i < geo->n_polys; i++) {
-    FGPoint pts[HAND_MAX_POLY_PTS];
-    int n = geo->polys[i].n;
-    if (n > HAND_MAX_POLY_PTS) n = HAND_MAX_POLY_PTS;
-    for (int k = 0; k < n; k++) {
-      pts[k] = geo->polys[i].pts[k];
-      pts[k].x += dx_fp;
-      pts[k].y += dy_fp;
-    }
-    subpixel_stroke_polygon_fp(ctx, pts, n, color, dithered);
+    subpixel_stroke_polygon_fp(ctx, geo->polys[i].pts, geo->polys[i].n, color, dithered);
   }
   for (int i = 0; i < geo->n_circles; i++) {
-    FGPoint c = geo->circles[i].center;
-    c.x += dx_fp;
-    c.y += dy_fp;
-    subpixel_stroke_circle_fp(ctx, c, geo->circles[i].radius_fp, color, dithered);
-  }
-}
-
-// A thick outline (the features' "thick" outline style) is the 1px outline
-// repeated one pixel to every side. The hand fill is drawn on top afterwards,
-// so what shows is a border about twice as wide as the thin one.
-static void draw_hand_outline_from_geometry(GContext *ctx, const HandGeometry *geo,
-                                             GColor color, bool dithered, bool thick) {
-  draw_hand_outline_once(ctx, geo, 0, 0, color, dithered);
-  if (!thick) return;
-  const int32_t one = (int32_t)1 << SUBPIXEL_BITS;
-  static const int8_t DIRS[8][2] = {
-    {1, 0}, {-1, 0}, {0, 1}, {0, -1}, {1, 1}, {-1, 1}, {1, -1}, {-1, -1}
-  };
-  for (int i = 0; i < 8; i++) {
-    draw_hand_outline_once(ctx, geo, DIRS[i][0] * one, DIRS[i][1] * one, color, dithered);
+    subpixel_stroke_circle_fp(ctx, geo->circles[i].center, geo->circles[i].radius_fp, color, dithered);
   }
 }
 
@@ -178,7 +151,7 @@ static void draw_hand_shadow_once_fp(GContext *ctx, FGPoint center, int32_t angl
 void hand_layer_draw(GContext *ctx, GPoint center, int32_t angle, const HandConfig *cfg,
                       GColor main_color, GColor accent_color, GColor bg_color,
                       bool shadow_translucent_style, uint16_t shadow_angle_deg,
-                      uint16_t length_scale_1000, bool thick_outline) {
+                      uint16_t length_scale_1000) {
   
   
   
@@ -222,7 +195,7 @@ void hand_layer_draw(GContext *ctx, GPoint center, int32_t angle, const HandConf
     
     
     GColor outline_color = resolve_scheme_color(cfg->outline_color, main_color, accent_color, bg_color);
-    draw_hand_outline_from_geometry(ctx, &geo, outline_color, cfg->translucent, thick_outline);
+    draw_hand_outline_from_geometry(ctx, &geo, outline_color, cfg->translucent);
   }
 
   if (cfg->color != 3) { 

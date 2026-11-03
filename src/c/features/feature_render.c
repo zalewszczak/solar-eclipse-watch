@@ -53,7 +53,6 @@ void feature_render_draw_slot(GContext *ctx, GRect bounds, const FeatureSlot *sl
                               uint8_t outline_style, uint8_t icon_style,
                               bool draw_debug) {
   if (!slot->active) return;
-  if (slot->shake_only && !input_shake_features_active()) return;
   if (slot->primitives.count == 0) return;
 
   int16_t box_w = slot->custom_box ? slot->box_w : CORNER_BOX_W;

@@ -53,11 +53,11 @@ void feature_layout_recompute(FeaturesState *state) {
   // from those rings + marker text below.
   typedef struct { int8_t top, bottom, left, right; } EdgeMargins;
   static const EdgeMargins BITMAP_STYLE_MARGINS[5] = {
-    { 38, 37, 42, 39 }, // 3: Modern
+    { 34, 30, 40, 35 }, // 3: Modern
     { 37, 33, 38, 33 }, // 4: Shadow
-    { 44, 42, 27, 20 }, // 5: Tally
-    { 46, 44, 45, 45 }, // 6: Bell
-    { 44, 40, 30, 26 }, // 7: Fancy
+    { 44, 40, 25, 15 }, // 5: Tally
+    { 46, 42, 45, 45 }, // 6: Bell
+    { 44, 40, 30, 20 }, // 7: Fancy
   };
   int16_t dyn_upper_offset = 24, dyn_bottom_shift = 20, dyn_left_inset = 0, dyn_right_inset = 0;
   if (is_analog && marker_is_bitmap) {

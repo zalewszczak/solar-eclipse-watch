@@ -383,18 +383,6 @@ function buildCurrent() {
     // Per-feature "show only when shaken" flags ('0'/'1') and user-built primitive sequences
     // (edge slots per layout; corners and bottomMiddleLine2 single). The page compiles chosen
     // features to primitive sequences itself; the phone persists them here.
-    upperMiddleLine1Shake: getSetting('CONFIG_UPPER_MIDDLE_LINE1_SHAKE', '0'),
-    upperMiddleLine2Shake: getSetting('CONFIG_UPPER_MIDDLE_LINE2_SHAKE', '0'),
-    bottomMiddleLine1Shake: getSetting('CONFIG_BOTTOM_MIDDLE_LINE1_SHAKE', '0'),
-    bottomMiddleLine2Shake: getSetting('CONFIG_BOTTOM_MIDDLE_LINE2_SHAKE', '0'),
-    middleLeftLine1Shake: getSetting('CONFIG_MIDDLE_LEFT_LINE1_SHAKE', '0'),
-    middleLeftLine2Shake: getSetting('CONFIG_MIDDLE_LEFT_LINE2_SHAKE', '0'),
-    middleRightLine1Shake: getSetting('CONFIG_MIDDLE_RIGHT_LINE1_SHAKE', '0'),
-    middleRightLine2Shake: getSetting('CONFIG_MIDDLE_RIGHT_LINE2_SHAKE', '0'),
-    cornerTLShake: getSetting('CONFIG_CORNER_TL_SHAKE', '0'),
-    cornerTRShake: getSetting('CONFIG_CORNER_TR_SHAKE', '0'),
-    cornerBLShake: getSetting('CONFIG_CORNER_BL_SHAKE', '0'),
-    cornerBRShake: getSetting('CONFIG_CORNER_BR_SHAKE', '0'),
     upperMiddleLine1CustomPrimsAnalog: getSetting('CONFIG_UPPER_MIDDLE_LINE1_CUSTOM_PRIMS_ANALOG', ''),
     upperMiddleLine1CustomPrimsDigital: getSetting('CONFIG_UPPER_MIDDLE_LINE1_CUSTOM_PRIMS_DIGITAL', ''),
     upperMiddleLine2CustomPrimsAnalog: getSetting('CONFIG_UPPER_MIDDLE_LINE2_CUSTOM_PRIMS_ANALOG', ''),
@@ -414,9 +402,7 @@ function buildCurrent() {
     cornerTRCustomPrims: getSetting('CONFIG_CORNER_TR_CUSTOM_PRIMS', ''),
     cornerBLCustomPrims: getSetting('CONFIG_CORNER_BL_CUSTOM_PRIMS', ''),
     cornerBRCustomPrims: getSetting('CONFIG_CORNER_BR_CUSTOM_PRIMS', ''),
-    bitmapMarkerInvert: getSetting('CONFIG_BITMAP_MARKER_INVERT', 'false') === 'true',
     shakeHandsTranslucent: getSetting('CONFIG_SHAKE_HANDS_TRANSLUCENT', 'false') === 'true',
-    btLostVibe: getSetting('CONFIG_BT_LOST_VIBE', '0'),
     // Pebble plugins: what the phone app offers (or why it does not), the sources assigned to
     // the watch's plugin slots, the weather source, and the Pebble app's user preferences
     // (units, complications) as last read, for the page's "Load user preferences" buttons.
@@ -743,21 +729,7 @@ function applySettingsObject(settings) {
   setSetting('CONFIG_HOURLY_VIBE_END_TIME', settings.CONFIG_HOURLY_VIBE_END_TIME || '00:00');
   setSetting('CONFIG_HOURLY_VIBE_DAYS_MASK', settings.CONFIG_HOURLY_VIBE_DAYS_MASK || '127');
   setSetting('CONFIG_HOURLY_VIBE_OVERRIDE_QUIET', settings.CONFIG_HOURLY_VIBE_OVERRIDE_QUIET === false ? 'false' : 'true');
-  setSetting('CONFIG_BITMAP_MARKER_INVERT', settings.CONFIG_BITMAP_MARKER_INVERT ? 'true' : 'false');
   setSetting('CONFIG_SHAKE_HANDS_TRANSLUCENT', settings.CONFIG_SHAKE_HANDS_TRANSLUCENT ? 'true' : 'false');
-  setSetting('CONFIG_BT_LOST_VIBE', settings.CONFIG_BT_LOST_VIBE || '0');
-  setSetting('CONFIG_UPPER_MIDDLE_LINE1_SHAKE', settings.CONFIG_UPPER_MIDDLE_LINE1_SHAKE === '1' ? '1' : '0');
-  setSetting('CONFIG_UPPER_MIDDLE_LINE2_SHAKE', settings.CONFIG_UPPER_MIDDLE_LINE2_SHAKE === '1' ? '1' : '0');
-  setSetting('CONFIG_BOTTOM_MIDDLE_LINE1_SHAKE', settings.CONFIG_BOTTOM_MIDDLE_LINE1_SHAKE === '1' ? '1' : '0');
-  setSetting('CONFIG_BOTTOM_MIDDLE_LINE2_SHAKE', settings.CONFIG_BOTTOM_MIDDLE_LINE2_SHAKE === '1' ? '1' : '0');
-  setSetting('CONFIG_MIDDLE_LEFT_LINE1_SHAKE', settings.CONFIG_MIDDLE_LEFT_LINE1_SHAKE === '1' ? '1' : '0');
-  setSetting('CONFIG_MIDDLE_LEFT_LINE2_SHAKE', settings.CONFIG_MIDDLE_LEFT_LINE2_SHAKE === '1' ? '1' : '0');
-  setSetting('CONFIG_MIDDLE_RIGHT_LINE1_SHAKE', settings.CONFIG_MIDDLE_RIGHT_LINE1_SHAKE === '1' ? '1' : '0');
-  setSetting('CONFIG_MIDDLE_RIGHT_LINE2_SHAKE', settings.CONFIG_MIDDLE_RIGHT_LINE2_SHAKE === '1' ? '1' : '0');
-  setSetting('CONFIG_CORNER_TL_SHAKE', settings.CONFIG_CORNER_TL_SHAKE === '1' ? '1' : '0');
-  setSetting('CONFIG_CORNER_TR_SHAKE', settings.CONFIG_CORNER_TR_SHAKE === '1' ? '1' : '0');
-  setSetting('CONFIG_CORNER_BL_SHAKE', settings.CONFIG_CORNER_BL_SHAKE === '1' ? '1' : '0');
-  setSetting('CONFIG_CORNER_BR_SHAKE', settings.CONFIG_CORNER_BR_SHAKE === '1' ? '1' : '0');
   setSetting('CONFIG_UPPER_MIDDLE_LINE1_CUSTOM_PRIMS_ANALOG', settings.CONFIG_UPPER_MIDDLE_LINE1_CUSTOM_PRIMS_ANALOG || '');
   setSetting('CONFIG_UPPER_MIDDLE_LINE1_CUSTOM_PRIMS_DIGITAL', settings.CONFIG_UPPER_MIDDLE_LINE1_CUSTOM_PRIMS_DIGITAL || '');
   setSetting('CONFIG_UPPER_MIDDLE_LINE2_CUSTOM_PRIMS_ANALOG', settings.CONFIG_UPPER_MIDDLE_LINE2_CUSTOM_PRIMS_ANALOG || '');

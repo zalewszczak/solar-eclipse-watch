@@ -203,28 +203,10 @@ void feature_icons_draw_render_icon(GContext *ctx, uint8_t icon_kind, int16_t ic
       return;
     }
     case 13: { // bluetooth -- own case rather than the generic STYLED_ICONS
-               // bucket above: that bucket draws each bitmap right-anchored.
-               // icon_flag = phone disconnected. Simple/Hollow already turn red
-               // through `color`; Full color art keeps its own colors, so it gets a
-               // red X across it instead.
+               // bucket above: that bucket draws each bitmap right-anchored
       GPoint pos = GPoint(icon_x, box_y + (row_height - ICON_ROWS) / 2);
       feature_icon_assets_draw_styled_with_outline(ctx, pos, &BLUETOOTH_ICON_SET, icon_style,
                                                    outline_style, outline_color, color, ICON_DRAW_W, ICON_DRAW_H);
-      if (icon_flag && icon_style == 2) {
-        GPoint a = GPoint(pos.x + 3, pos.y + 1), b = GPoint(pos.x + 12, pos.y + 10);
-        GPoint c = GPoint(pos.x + 12, pos.y + 1), d = GPoint(pos.x + 3, pos.y + 10);
-        if (do_outline) {
-          graphics_context_set_stroke_color(ctx, outline_color);
-          graphics_context_set_stroke_width(ctx, 4);
-          graphics_draw_line(ctx, a, b);
-          graphics_draw_line(ctx, c, d);
-        }
-        graphics_context_set_stroke_color(ctx, GColorRed);
-        graphics_context_set_stroke_width(ctx, 2);
-        graphics_draw_line(ctx, a, b);
-        graphics_draw_line(ctx, c, d);
-        graphics_context_set_stroke_width(ctx, 1);
-      }
       return;
     }
     case 27: { // compass -- asleep (Zz glyph) or a live heading rose with a distinct north arrow

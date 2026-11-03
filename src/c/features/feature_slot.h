@@ -14,7 +14,6 @@
 
 typedef struct FeatureSlot {
   bool active;
-  bool shake_only;
   uint8_t color_mode;
 
   bool is_top;
