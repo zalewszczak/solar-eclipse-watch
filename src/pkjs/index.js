@@ -220,7 +220,6 @@ function buildCurrent() {
     markerTextOffset: getSetting('CONFIG_MARKER_TEXT_OFFSET', '0'),
     markerTextHourMask: getSetting('CONFIG_MARKER_TEXT_HOUR_MASK', '4095'),
     markerTextSecMask: getSetting('CONFIG_MARKER_TEXT_SEC_MASK', '4095'),
-    markerTextRoman: getSetting('CONFIG_MARKER_TEXT_ROMAN', 'false'),
     handHourStyle: getSetting('CONFIG_HAND_HOUR_STYLE', '1'),
     handHourWidth: getSetting('CONFIG_HAND_HOUR_WIDTH', '12'),
     handHourLength: getSetting('CONFIG_HAND_HOUR_LENGTH', '51'),
@@ -318,7 +317,6 @@ function buildCurrent() {
     showMajorStars: getSetting('CONFIG_SHOW_MAJOR_STARS', 'true') === 'true',
     auroraEnabled: getSetting('CONFIG_AURORA_ENABLED', 'false') === 'true',
     vibrateOnPhaseChange: getSetting('CONFIG_VIBRATE_ON_PHASE_CHANGE', 'false') === 'true',
-    startupClockAnimMode: getSetting('CONFIG_STARTUP_CLOCK_ANIM_MODE', '1'),
     bgAnimMode: getSetting('CONFIG_BG_ANIM_MODE', '0'),
     shakeAnimMode: getSetting('CONFIG_SHAKE_ANIM_MODE', '0'),
     outlineStyle: String(outlineEnabledCode()),
@@ -326,7 +324,6 @@ function buildCurrent() {
     cornerFont: getSetting('CONFIG_CORNER_FONT', '1'),
     testMode: getSetting('CONFIG_TEST_MODE', 'false') === 'true',
     testDateTime: getSetting('CONFIG_TEST_DATETIME', ''),
-    drawDebug: getSetting('CONFIG_DRAW_DEBUG', 'false') === 'true',
     hourlyVibeMode: getSetting('CONFIG_HOURLY_VIBE_MODE', '0'),
     hourlyVibeIntervalMin: getSetting('CONFIG_HOURLY_VIBE_INTERVAL_MIN', '30'),
     hourlyVibePattern: getSetting('CONFIG_HOURLY_VIBE_PATTERN', '0'),
@@ -402,7 +399,6 @@ function buildCurrent() {
     cornerTRCustomPrims: getSetting('CONFIG_CORNER_TR_CUSTOM_PRIMS', ''),
     cornerBLCustomPrims: getSetting('CONFIG_CORNER_BL_CUSTOM_PRIMS', ''),
     cornerBRCustomPrims: getSetting('CONFIG_CORNER_BR_CUSTOM_PRIMS', ''),
-    shakeHandsTranslucent: getSetting('CONFIG_SHAKE_HANDS_TRANSLUCENT', 'false') === 'true',
     // Pebble plugins: what the phone app offers (or why it does not), the sources assigned to
     // the watch's plugin slots, the weather source, and the Pebble app's user preferences
     // (units, complications) as last read, for the page's "Load user preferences" buttons.
@@ -588,7 +584,6 @@ function applySettingsObject(settings) {
   setSetting('CONFIG_MARKER_TEXT_OFFSET', settings.CONFIG_MARKER_TEXT_OFFSET || '0');
   setSetting('CONFIG_MARKER_TEXT_HOUR_MASK', settings.CONFIG_MARKER_TEXT_HOUR_MASK || '4095');
   setSetting('CONFIG_MARKER_TEXT_SEC_MASK', settings.CONFIG_MARKER_TEXT_SEC_MASK || '4095');
-  setSetting('CONFIG_MARKER_TEXT_ROMAN', settings.CONFIG_MARKER_TEXT_ROMAN ? 'true' : 'false');
   setSetting('CONFIG_HAND_HOUR_STYLE', settings.CONFIG_HAND_HOUR_STYLE || '1');
   setSetting('CONFIG_HAND_HOUR_WIDTH', settings.CONFIG_HAND_HOUR_WIDTH || '12');
   setSetting('CONFIG_HAND_HOUR_LENGTH', settings.CONFIG_HAND_HOUR_LENGTH || '51');
@@ -685,7 +680,6 @@ function applySettingsObject(settings) {
   setSetting('CONFIG_SHOW_MAJOR_STARS', settings.CONFIG_SHOW_MAJOR_STARS === false ? 'false' : 'true');
   setSetting('CONFIG_AURORA_ENABLED', settings.CONFIG_AURORA_ENABLED ? 'true' : 'false');
   setSetting('CONFIG_VIBRATE_ON_PHASE_CHANGE', settings.CONFIG_VIBRATE_ON_PHASE_CHANGE ? 'true' : 'false');
-  setSetting('CONFIG_STARTUP_CLOCK_ANIM_MODE', settings.CONFIG_STARTUP_CLOCK_ANIM_MODE || '1');
   setSetting('CONFIG_BG_ANIM_MODE', settings.CONFIG_BG_ANIM_MODE || '0');
   setSetting('CONFIG_SHAKE_ANIM_MODE', settings.CONFIG_SHAKE_ANIM_MODE || '0');
   setSetting('CONFIG_OUTLINE_ENABLED', settings.CONFIG_OUTLINE_ENABLED || '1');
@@ -721,7 +715,6 @@ function applySettingsObject(settings) {
       scheduledStyle.persistSlotSchedule(n, settings['CONFIG_PRESET_' + n + '_SCHEDULE'], nowMs);
     }
   })();
-  setSetting('CONFIG_DRAW_DEBUG', settings.CONFIG_DRAW_DEBUG ? 'true' : 'false');
   setSetting('CONFIG_HOURLY_VIBE_MODE', settings.CONFIG_HOURLY_VIBE_MODE || '0');
   setSetting('CONFIG_HOURLY_VIBE_INTERVAL_MIN', settings.CONFIG_HOURLY_VIBE_INTERVAL_MIN || '30');
   setSetting('CONFIG_HOURLY_VIBE_PATTERN', settings.CONFIG_HOURLY_VIBE_PATTERN || '0');
@@ -729,7 +722,6 @@ function applySettingsObject(settings) {
   setSetting('CONFIG_HOURLY_VIBE_END_TIME', settings.CONFIG_HOURLY_VIBE_END_TIME || '00:00');
   setSetting('CONFIG_HOURLY_VIBE_DAYS_MASK', settings.CONFIG_HOURLY_VIBE_DAYS_MASK || '127');
   setSetting('CONFIG_HOURLY_VIBE_OVERRIDE_QUIET', settings.CONFIG_HOURLY_VIBE_OVERRIDE_QUIET === false ? 'false' : 'true');
-  setSetting('CONFIG_SHAKE_HANDS_TRANSLUCENT', settings.CONFIG_SHAKE_HANDS_TRANSLUCENT ? 'true' : 'false');
   setSetting('CONFIG_UPPER_MIDDLE_LINE1_CUSTOM_PRIMS_ANALOG', settings.CONFIG_UPPER_MIDDLE_LINE1_CUSTOM_PRIMS_ANALOG || '');
   setSetting('CONFIG_UPPER_MIDDLE_LINE1_CUSTOM_PRIMS_DIGITAL', settings.CONFIG_UPPER_MIDDLE_LINE1_CUSTOM_PRIMS_DIGITAL || '');
   setSetting('CONFIG_UPPER_MIDDLE_LINE2_CUSTOM_PRIMS_ANALOG', settings.CONFIG_UPPER_MIDDLE_LINE2_CUSTOM_PRIMS_ANALOG || '');

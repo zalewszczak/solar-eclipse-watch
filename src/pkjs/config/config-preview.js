@@ -1052,13 +1052,6 @@ module.exports =
 // caller is currently using for those two rings (preset or custom),
 // since text markers piggyback on that ring\'s own innerBorderPct/
 // innerEccentricity to decide where the numeral sits.
-'function romanNumeral(num) {' +
-'  if (num <= 0) return String(num);' +
-'  var VALUES = [50, 40, 10, 9, 5, 4, 1], SYMBOLS = ["L", "XL", "X", "IX", "V", "IV", "I"];' +
-'  var out = "";' +
-'  for (var i = 0; i < VALUES.length && num > 0; i++) { while (num >= VALUES[i]) { out += SYMBOLS[i]; num -= VALUES[i]; } }' +
-'  return out;' +
-'}' +
 'function drawTextMarkers(ctx, cx, cy, w, h, colors) {' +
 '  var target = document.getElementById("markerTextTarget").value;' +
 '  if (target === "0") return;' +
@@ -1068,7 +1061,6 @@ module.exports =
 '  if (!mask) return;' +
 '  var fontSel = document.getElementById("markerTextFont");' +
 '  var opt = fontSel.options[fontSel.selectedIndex];' +
-'  var roman = document.getElementById("markerTextRoman").checked;' +
 '  var offsetPx = parseFloat(document.getElementById("markerTextOffset").value) || 0;' +
 '  var scale = w / 200;' +
 '  ctx.font = canvasFontFor(opt.getAttribute("data-preview") || "", 14 * scale, fontSel.value);' +
@@ -1080,7 +1072,7 @@ module.exports =
 '    var offsetPct = Math.max(0, Math.min(100, ring.innerBorderPct + offsetPx));' +
 '    var pos = pointOnRing(cx, cy, w, h, angle, offsetPct, ring.innerEccentricity);' +
 '    var label = isHour ? (i === 0 ? 12 : i) : i * 5;' +
-'    var text = roman ? (label > 0 ? romanNumeral(label) : "") : String(label);' +
+'    var text = String(label);' +
 '    ctx.fillText(text, pos.x, pos.y);' +
 '  }' +
 '}' +

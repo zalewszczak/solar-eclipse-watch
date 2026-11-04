@@ -102,7 +102,6 @@ static void window_load(Window *window) {
   clock_display_apply_font(); // uses whatever was loaded from persistent storage
 
   watchface_ui_refresh_status(true);
-  hands_controller_start_startup_animation();
   background_animation_start(&s_data, layout_controller_canvas_layer());
 }
 

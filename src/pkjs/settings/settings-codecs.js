@@ -220,8 +220,7 @@ var CUSTOM_MARKER_KEY_FIELDS = {
   CONFIG_MARKER_TEXT_FONT: ['text', 'Font'],
   CONFIG_MARKER_TEXT_OFFSET: ['text', 'Offset'],
   CONFIG_MARKER_TEXT_HOUR_MASK: ['text', 'HourMask'],
-  CONFIG_MARKER_TEXT_SEC_MASK: ['text', 'SecMask'],
-  CONFIG_MARKER_TEXT_ROMAN: ['text', 'Roman']
+  CONFIG_MARKER_TEXT_SEC_MASK: ['text', 'SecMask']
 };
 ['hour', 'sec'].forEach(function (kind) {
   ['Style', 'Thickness', 'InnerThickness', 'InnerEcc', 'OuterEcc', 'InnerBorder', 'OuterBorder', 'Translucent', 'Color'].forEach(function (field) {
@@ -277,7 +276,6 @@ function markerTextFontCode() { return clampInt(customMarkerSetting('CONFIG_MARK
 function markerTextOffsetCode() { return clampInt(customMarkerSetting('CONFIG_MARKER_TEXT_OFFSET', '0'), -50, 50, 0); }
 function markerTextHourMaskCode() { return clampInt(customMarkerSetting('CONFIG_MARKER_TEXT_HOUR_MASK', '4095'), 0, 4095, 4095); }
 function markerTextSecMaskCode() { return clampInt(customMarkerSetting('CONFIG_MARKER_TEXT_SEC_MASK', '4095'), 0, 4095, 4095); }
-function markerTextRomanCode() { return customMarkerSetting('CONFIG_MARKER_TEXT_ROMAN', 'false') === 'true' ? 1 : 0; }
 
 // Hour/minute/second hand system -- see HandConfig in hand_layer.h for
 // what each field means. Style 0-2 are the original dot/triangle/square;
@@ -546,12 +544,10 @@ function showFlightsCode() { return getSetting('CONFIG_SHOW_FLIGHTS', 'false') =
 function showMajorStarsCode() { return getSetting('CONFIG_SHOW_MAJOR_STARS', 'true') === 'true' ? 1 : 0; }
 function auroraEnabledCode() { return getSetting('CONFIG_AURORA_ENABLED', 'false') === 'true' ? 1 : 0; }
 function vibrateOnPhaseChangeCode() { return getSetting('CONFIG_VIBRATE_ON_PHASE_CHANGE', 'false') === 'true' ? 1 : 0; }
-function drawDebugCode() { return getSetting('CONFIG_DRAW_DEBUG', 'false') === 'true' ? 1 : 0; }
 // Hourly vibrations -- see hourly_vibe_mode's own comment in
 // eclipse_data.h for the full field layout this maps onto.
 function hourlyVibeModeCode() { return clampInt(getSetting('CONFIG_HOURLY_VIBE_MODE', '0'), 0, 2, 0); }
 function hourlyVibeIntervalMinCode() { return clampInt(getSetting('CONFIG_HOURLY_VIBE_INTERVAL_MIN', '30'), 1, 180, 30); }
-function shakeHandsTranslucentCode() { return getSetting('CONFIG_SHAKE_HANDS_TRANSLUCENT', 'false') === 'true' ? 1 : 0; }
 function hourlyVibePatternCode() { return clampInt(getSetting('CONFIG_HOURLY_VIBE_PATTERN', '0'), 0, 2, 0); }
 // "HH:MM" (the config page's own <input type="time"> value) -> minutes
 // since midnight (0-1439), same units hourly_vibe_start_min/
@@ -566,14 +562,6 @@ function hourlyVibeStartMinCode() { return minutesSinceMidnight(getSetting('CONF
 function hourlyVibeEndMinCode() { return minutesSinceMidnight(getSetting('CONFIG_HOURLY_VIBE_END_TIME', '00:00')); }
 function hourlyVibeDaysMaskCode() { return clampInt(getSetting('CONFIG_HOURLY_VIBE_DAYS_MASK', '127'), 0, 127, 127); }
 function hourlyVibeOverrideQuietCode() { return getSetting('CONFIG_HOURLY_VIBE_OVERRIDE_QUIET', 'true') === 'true' ? 1 : 0; }
-// Radio-style, exactly one of 0=off, 1=animate clock, 2=planet sweep
-// time shift -- see startup_clock_anim_mode's own comment in
-// eclipse_data.h. Default 1 (animate clock), matching the old
-// boolean's own default-true.
-function startupClockAnimModeCode() {
-  var v = parseInt(getSetting('CONFIG_STARTUP_CLOCK_ANIM_MODE', '1'), 10);
-  return [0, 1, 2].indexOf(v) === -1 ? 0 : v;
-}
 // Radio-style, exactly one of 0=off, 1=planets, 2=markers -- see bg_anim_mode's own comment in eclipse_data.h.
 function bgAnimModeCode() {
   var v = parseInt(getSetting('CONFIG_BG_ANIM_MODE', '0'), 10);
@@ -660,7 +648,6 @@ function dailyStepGoalValue() {
 module.exports = {
   edgeCustomPrimsStrings: edgeCustomPrimsStrings,
   EDGE_CUSTOM_PRIMS_SLOTS: EDGE_CUSTOM_PRIMS_SLOTS,
-  shakeHandsTranslucentCode: shakeHandsTranslucentCode,
   clampFontId: clampFontId,
   clockFontCode: clockFontCode,
   tempUnitCode: tempUnitCode,
@@ -714,7 +701,6 @@ module.exports = {
   markerTextOffsetCode: markerTextOffsetCode,
   markerTextHourMaskCode: markerTextHourMaskCode,
   markerTextSecMaskCode: markerTextSecMaskCode,
-  markerTextRomanCode: markerTextRomanCode,
   handStyleFieldCode: handStyleFieldCode,
   handColorFieldCode: handColorFieldCode,
   handMainColorFieldCode: handMainColorFieldCode,
@@ -796,7 +782,6 @@ module.exports = {
   showMajorStarsCode: showMajorStarsCode,
   auroraEnabledCode: auroraEnabledCode,
   vibrateOnPhaseChangeCode: vibrateOnPhaseChangeCode,
-  drawDebugCode: drawDebugCode,
   hourlyVibeModeCode: hourlyVibeModeCode,
   hourlyVibeIntervalMinCode: hourlyVibeIntervalMinCode,
   hourlyVibePatternCode: hourlyVibePatternCode,
@@ -805,7 +790,6 @@ module.exports = {
   hourlyVibeEndMinCode: hourlyVibeEndMinCode,
   hourlyVibeDaysMaskCode: hourlyVibeDaysMaskCode,
   hourlyVibeOverrideQuietCode: hourlyVibeOverrideQuietCode,
-  startupClockAnimModeCode: startupClockAnimModeCode,
   bgAnimModeCode: bgAnimModeCode,
   shakeAnimModeCode: shakeAnimModeCode,
   outlineEnabledCode: outlineEnabledCode,

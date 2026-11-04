@@ -10,6 +10,6 @@ void background_overlays_draw_marker_animation(GContext *ctx, MarkerLayerState *
   eclipse_ui_get_active_color_scheme(d, now, &bg, &main_color, &accent_color);
   int32_t progress_1000 = ((int32_t)elapsed_ms * 1000) / duration_ms;
   if (progress_1000 > 1000) progress_1000 = 1000;
-  marker_layer_draw(ctx, markers, center, bounds, d, main_color, accent_color, bg, true, progress_1000, d->draw_debug);
+  marker_layer_draw(ctx, markers, center, bounds, d, main_color, accent_color, bg, true, progress_1000);
 }
 

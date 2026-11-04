@@ -14,4 +14,3 @@ PrimitiveRefreshClass primitive_catalogue_refresh_class_for(PrimitiveId id);
 // legends/units). While the weather service reports a persistent error these
 // are replaced by a red "ERR n" (see primitive_transport.c). Aviation/ISS/
 // aurora/air-quality/altitude values have their own error handling.
-bool primitive_catalogue_is_weather_derived(PrimitiveId id);

@@ -23,28 +23,6 @@ static void draw_digital_clock_panel(Layer *layer, GContext *ctx) {
   time_t now = time(NULL);
   struct tm *t = localtime(&now);
 
-  // Startup animation: substitute an eased count-up from 120 minutes
-  // before the real time. Limiting the span keeps the sweep readable while
-  // still covering a useful portion of the current day. The substitution
-  // affects DISPLAYED time only; `now` and the color scheme use real time.
-  // only -- `now`/the color scheme below still use the real current
-  // time. Every read of `t->tm_hour`/`tm_min`/`tm_sec` below shares
-  // this one struct tm, so the digital HH:MM(:SS) text gets the
-  // count-up for free from this single substitution. Uses the same
-  // shared ease-out table every other "settles gracefully into place"
-  // animation in this app uses (fast at first, gradually slowing into
-  // the real time) -- the shared easing decelerates into the target.
-  struct tm anim_tm;
-  if (hands_controller_animation_active()) {
-    int32_t eased = hands_controller_animation_eased_progress_1000();
-    time_t anim_start = now - 120 * 60; // 2 hours before the real time
-    int32_t total_seconds = (int32_t)(now - anim_start);
-    int32_t fake_seconds = (int32_t)(((int64_t)total_seconds * eased) / 1000);
-    time_t fake_time = anim_start + fake_seconds;
-    anim_tm = *localtime(&fake_time);
-    t = &anim_tm;
-  }
-
   GColor bg, text_color, accent_color;
   eclipse_ui_get_active_color_scheme(s_data, now, &bg, &text_color, &accent_color);
 
@@ -113,12 +91,6 @@ static void draw_digital_clock_panel(Layer *layer, GContext *ctx) {
       clock_rect.size.w -= 30;
       clock_rect.origin.x += 30;
     }
-  }
-
-  if (s_data->draw_debug){
-    graphics_context_set_stroke_width(ctx, 1);
-    graphics_context_set_stroke_color(ctx, GColorCyan);
-    graphics_draw_rect(ctx, clock_rect);
   }
 
   // ---- big time ----

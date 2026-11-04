@@ -12,7 +12,5 @@ void weather_layer_draw_clouds(GContext *ctx, GRect bounds, uint8_t cloud_pct,
 
 // Returns whether weather-derived feature slots should display an error
 // instead of stale data after repeated failed refreshes.
-bool weather_layer_should_show_error(const EclipseData *data);
 
 // Compact condition label suitable for narrow feature slots.
-const char *weather_layer_short_condition_text(uint8_t weather_condition, uint8_t cloud_pct);

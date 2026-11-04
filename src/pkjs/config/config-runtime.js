@@ -154,10 +154,8 @@ module.exports =
 '    CONFIG_FLIGHTS_RANGE_KM: document.getElementById("flightsRangeKm").value,' +
 '    CONFIG_AURORA_ENABLED: document.getElementById("auroraEnabled").checked,' +
 '    CONFIG_VIBRATE_ON_PHASE_CHANGE: document.getElementById("vibrateOnPhaseChange").checked,' +
-'    CONFIG_STARTUP_CLOCK_ANIM_MODE: document.getElementById("startupClockAnimMode").value,' +
 '    CONFIG_BG_ANIM_MODE: document.getElementById("bgAnimMode").value,' +
 '    CONFIG_SHAKE_ANIM_MODE: document.getElementById("shakeAnimMode").value,' +
-'    CONFIG_SHAKE_HANDS_TRANSLUCENT: document.getElementById("shakeHandsTranslucent").checked,' +
 '    CONFIG_OUTLINE_ENABLED: document.getElementById("outlineStyle").value,' +
 '    CONFIG_BATTERY_SAVER_ENABLED: document.getElementById("batterySaverEnabled").checked,' +
 '    CONFIG_CORNER_FONT: document.getElementById("cornerFont").value,' +
@@ -218,7 +216,6 @@ module.exports =
 '    CONFIG_MARKER_TEXT_OFFSET: document.getElementById("markerTextOffset").value,' +
 '    CONFIG_MARKER_TEXT_HOUR_MASK: document.getElementById("markerTextHourMask").value,' +
 '    CONFIG_MARKER_TEXT_SEC_MASK: document.getElementById("markerTextSecMask").value,' +
-'    CONFIG_MARKER_TEXT_ROMAN: document.getElementById("markerTextRoman").checked,' +
 '    CONFIG_HAND_HOUR_STYLE: document.getElementById("handHourStyle").value,' +
 '    CONFIG_HAND_HOUR_WIDTH: document.getElementById("handHourWidth").value,' +
 '    CONFIG_HAND_HOUR_LENGTH: document.getElementById("handHourLength").value,' +
@@ -288,7 +285,6 @@ module.exports =
 '    CONFIG_PRESET_4_SCHEDULE: document.getElementById("presetSlot4Schedule").value,' +
 '    CONFIG_PRESET_5_SCHEDULE: document.getElementById("presetSlot5Schedule").value,' +
 '    CONFIG_PRESET_6_SCHEDULE: document.getElementById("presetSlot6Schedule").value,' +
-'    CONFIG_DRAW_DEBUG: document.getElementById("drawDebug").checked,' +
 '    CONFIG_HOURLY_VIBE_MODE: document.getElementById("hourlyVibeMode").value,' +
 '    CONFIG_HOURLY_VIBE_INTERVAL_MIN: document.getElementById("hourlyVibeIntervalMin").value,' +
 '    CONFIG_HOURLY_VIBE_PATTERN: document.getElementById("hourlyVibePattern").value,' +

@@ -21,8 +21,7 @@ void marker_layer_deinit(MarkerLayerState *state);
 
 void marker_layer_draw(GContext *ctx, MarkerLayerState *state, GPoint center, GRect screen,
                        const EclipseData *data, GColor main_color, GColor accent_color,
-                       GColor bg_color, bool anim_active, int32_t anim_progress_1000,
-                       bool draw_debug);
+                       GColor bg_color, bool anim_active, int32_t anim_progress_1000);
 
 GPoint marker_layer_point_on_ring(GPoint center, GRect screen, int32_t angle,
                      uint8_t pct, uint8_t eccentricity_pct);

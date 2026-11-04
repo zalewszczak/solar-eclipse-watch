@@ -12,43 +12,7 @@ void feature_vector_icons_battery(GContext *ctx, GPoint top_left, GColor color, 
 
 
 
-void feature_vector_icons_pressure_trend(GContext *ctx, GPoint top_left, uint8_t trend, GColor color) {
-  GPoint center = GPoint(top_left.x + 5, top_left.y + 6);
-  graphics_context_set_stroke_color(ctx, color);
-  graphics_context_set_stroke_width(ctx, 2);
-  if (trend == 1) { // rising
-    graphics_draw_line(ctx, GPoint(center.x, center.y + 5), GPoint(center.x, center.y - 5));
-    graphics_draw_line(ctx, GPoint(center.x, center.y - 5), GPoint(center.x - 3, center.y - 2));
-    graphics_draw_line(ctx, GPoint(center.x, center.y - 5), GPoint(center.x + 3, center.y - 2));
-  } else if (trend == 2) { // falling
-    graphics_draw_line(ctx, GPoint(center.x, center.y - 5), GPoint(center.x, center.y + 5));
-    graphics_draw_line(ctx, GPoint(center.x, center.y + 5), GPoint(center.x - 3, center.y + 2));
-    graphics_draw_line(ctx, GPoint(center.x, center.y + 5), GPoint(center.x + 3, center.y + 2));
-  } else { // flat
-    graphics_draw_line(ctx, GPoint(center.x - 5, center.y), GPoint(center.x + 5, center.y));
-  }
-}
 
-
-
-void feature_vector_icons_wind_direction(GContext *ctx, GPoint top_left, int16_t from_deg, GColor color) {
-  GPoint center = GPoint(top_left.x + 6, top_left.y + 6);
-  int32_t angle = (int32_t)(((from_deg + 180) % 360) * TRIG_MAX_ANGLE) / 360;
-  int16_t len = 6;
-  GPoint tip = GPoint(center.x + (len * sin_lookup(angle)) / TRIG_MAX_RATIO,
-                       center.y - (len * cos_lookup(angle)) / TRIG_MAX_RATIO);
-  GPoint tail = GPoint(center.x - (len * sin_lookup(angle)) / TRIG_MAX_RATIO,
-                        center.y + (len * cos_lookup(angle)) / TRIG_MAX_RATIO);
-  graphics_context_set_stroke_color(ctx, color);
-  graphics_context_set_stroke_width(ctx, 1);
-  graphics_draw_line(ctx, tail, tip);
-  int32_t back_angle1 = angle + (TRIG_MAX_ANGLE * 150) / 360;
-  int32_t back_angle2 = angle - (TRIG_MAX_ANGLE * 150) / 360;
-  GPoint h1 = GPoint(tip.x + (4 * sin_lookup(back_angle1)) / TRIG_MAX_RATIO, tip.y - (4 * cos_lookup(back_angle1)) / TRIG_MAX_RATIO);
-  GPoint h2 = GPoint(tip.x + (4 * sin_lookup(back_angle2)) / TRIG_MAX_RATIO, tip.y - (4 * cos_lookup(back_angle2)) / TRIG_MAX_RATIO);
-  graphics_draw_line(ctx, tip, h1);
-  graphics_draw_line(ctx, tip, h2);
-}
 
 
 

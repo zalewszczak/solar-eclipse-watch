@@ -50,8 +50,7 @@ void feature_render_draw_text_outlined(GContext *ctx, const char *text, GFont fo
 
 void feature_render_draw_slot(GContext *ctx, GRect bounds, const FeatureSlot *slot,
                               GFont font, int16_t font_h, int16_t font_offset,
-                              uint8_t outline_style, uint8_t icon_style,
-                              bool draw_debug) {
+                              uint8_t outline_style, uint8_t icon_style) {
   if (!slot->active) return;
   if (slot->primitives.count == 0) return;
 
@@ -110,5 +109,5 @@ void feature_render_draw_slot(GContext *ctx, GRect bounds, const FeatureSlot *sl
   uint8_t effective_outline_style = slot->allow_outline ? outline_style : 0;
 
   primitive_renderer_draw_feature(ctx, box_x, box_y, CORNER_ROW_H, &slot->primitives, slot,
-                                  font, font_h, font_offset, effective_outline_style, icon_style, draw_debug);
+                                  font, font_h, font_offset, effective_outline_style, icon_style);
 }

@@ -70,7 +70,6 @@ var markerTextFontCode = settingsCodecs.markerTextFontCode;
 var markerTextOffsetCode = settingsCodecs.markerTextOffsetCode;
 var markerTextHourMaskCode = settingsCodecs.markerTextHourMaskCode;
 var markerTextSecMaskCode = settingsCodecs.markerTextSecMaskCode;
-var markerTextRomanCode = settingsCodecs.markerTextRomanCode;
 var handStyleFieldCode = settingsCodecs.handStyleFieldCode;
 var handColorFieldCode = settingsCodecs.handColorFieldCode;
 var handMainColorFieldCode = settingsCodecs.handMainColorFieldCode;
@@ -152,7 +151,6 @@ var showFlightsCode = settingsCodecs.showFlightsCode;
 var showMajorStarsCode = settingsCodecs.showMajorStarsCode;
 var auroraEnabledCode = settingsCodecs.auroraEnabledCode;
 var vibrateOnPhaseChangeCode = settingsCodecs.vibrateOnPhaseChangeCode;
-var drawDebugCode = settingsCodecs.drawDebugCode;
 var hourlyVibeModeCode = settingsCodecs.hourlyVibeModeCode;
 var hourlyVibeIntervalMinCode = settingsCodecs.hourlyVibeIntervalMinCode;
 var hourlyVibePatternCode = settingsCodecs.hourlyVibePatternCode;
@@ -161,7 +159,6 @@ var hourlyVibeStartMinCode = settingsCodecs.hourlyVibeStartMinCode;
 var hourlyVibeEndMinCode = settingsCodecs.hourlyVibeEndMinCode;
 var hourlyVibeDaysMaskCode = settingsCodecs.hourlyVibeDaysMaskCode;
 var hourlyVibeOverrideQuietCode = settingsCodecs.hourlyVibeOverrideQuietCode;
-var startupClockAnimModeCode = settingsCodecs.startupClockAnimModeCode;
 var bgAnimModeCode = settingsCodecs.bgAnimModeCode;
 var shakeAnimModeCode = settingsCodecs.shakeAnimModeCode;
 var outlineEnabledCode = settingsCodecs.outlineEnabledCode;
@@ -170,7 +167,6 @@ var cornerFontCode = settingsCodecs.cornerFontCode;
 var cornerContentBytes = settingsCodecs.cornerContentBytes; // local compiler input only, never sent
 var cornerColorModeBytes = settingsCodecs.cornerColorModeBytes;
 var dailyStepGoalValue = settingsCodecs.dailyStepGoalValue;
-var shakeHandsTranslucentCode = settingsCodecs.shakeHandsTranslucentCode;
 var weatherNormalize = require('../weather/weather-normalize');
 var formatTempDisplay = weatherNormalize.formatTempDisplay;
 var apparentTempC = weatherNormalize.apparentTempC;
@@ -450,11 +446,11 @@ function activePrimitiveIds() {
   return seen;
 }
 
-// MARKER_TEXT: 8 bytes -- target, font_choice, offset_px (signed byte),
+// MARKER_TEXT: 7 bytes -- target, font_choice, offset_px (signed byte),
 // hour_mask (u16 little-endian), second_mask (u16 little-endian),
-// roman_numerals. Not a memcpy target on the C side (MarkerTextConfig
+// Not a memcpy target on the C side (MarkerTextConfig
 // has padding around its two u16 masks), but PKJS still needs to send
-// exactly these 8 bytes in exactly this order for that unpack to work.
+// exactly these 7 bytes in exactly this order for that unpack to work.
 function markerTextBytes() {
   var hourMask = markerTextHourMaskCode();
   var secMask = markerTextSecMaskCode();
@@ -463,8 +459,7 @@ function markerTextBytes() {
     markerTextFontCode(),
     toU8(markerTextOffsetCode()),
     hourMask & 0xFF, (hourMask >> 8) & 0xFF,
-    secMask & 0xFF, (secMask >> 8) & 0xFF,
-    markerTextRomanCode()
+    secMask & 0xFF, (secMask >> 8) & 0xFF
   ];
 }
 
@@ -529,15 +524,13 @@ function populateSettingsFields(dict) {
   // Order must match SETTINGS_BLOB_OFFSETS in comms_decoder.c.
   var tightMask = primitiveTightMask();
   dict['SETTINGS_U8_BLOB'] = [
-    tightMask & 255, (tightMask >> 8) & 255,
-    shakeHandsTranslucentCode()
+    tightMask & 255, (tightMask >> 8) & 255
   ];
   dict['SHOW_SUN_TIME'] = showSunTimeCode();
   dict['SHOW_ISS'] = showIssCode();
   dict['SHOW_FLIGHTS'] = showFlightsCode();
   dict['AURORA_ENABLED'] = auroraEnabledCode();
   dict['VIBRATE_ON_PHASE_CHANGE'] = vibrateOnPhaseChangeCode();
-  dict['STARTUP_CLOCK_ANIM_MODE'] = startupClockAnimModeCode();
   dict['BG_ANIM_MODE'] = bgAnimModeCode();
   dict['SHAKE_ANIM_MODE'] = shakeAnimModeCode();
   dict['OUTLINE_ENABLED'] = outlineEnabledCode();
@@ -553,7 +546,6 @@ function populateSettingsFields(dict) {
   dict['HOURLY_VIBE_END_MIN'] = hourlyVibeEndMinCode();
   dict['HOURLY_VIBE_DAYS_MASK'] = hourlyVibeDaysMaskCode();
   dict['HOURLY_VIBE_OVERRIDE_QUIET'] = hourlyVibeOverrideQuietCode();
-  dict['DRAW_DEBUG'] = drawDebugCode();
   // Scheduled My styles: when the watch should next ask PKJS to serve one
   // (0 = none). Always sent so the watch's copy can never go stale.
   dict['NEXT_STYLE_CHECK'] = scheduledStyle.nextCheckSeconds(Date.now());
@@ -719,7 +711,6 @@ function extraWeatherFieldsDict(extra) {
   }
   if (typeof extra.pressureHpa === 'number') {
     dict['PRESSURE_HPA'] = Math.round(extra.pressureHpa);
-    dict['PRESSURE_TREND'] = extra.pressureTrend || 0; // trend only means anything alongside a real pressure reading
     dict['PRESSURE_DISPLAY'] = formatPressureDisplay(extra.pressureHpa);
     dict['PRESSURE_COLOR'] = pressureGradientColorByte(extra.pressureHpa);
   }
@@ -910,8 +901,7 @@ function sendNoEclipseToday(sky, cloudGrid, headlineCloud, headlineSources, loca
     'SAMPLE_START': 0, 'SAMPLE_INTERVAL': 0, 'SAMPLE_COUNT': 0,
     'SEP_SAMPLES': [0, 0],
     'MAG_SAMPLES': [0, 0],
-    'RADIUS_RATIO_PCT': 0,
-    'WEATHER_ERROR_CODE': weatherErrorCode || 0
+    'RADIUS_RATIO_PCT': 0
   };
   if (haveCloudData) {
     dict['CLOUD_COVER'] = displayCloudPct;
@@ -968,8 +958,7 @@ function sendEclipseData(result, sky, cloudGrid, headlineCloud, headlineSources,
     'SAMPLE_COUNT': result.sepSamplesCentideg.length,
     'SEP_SAMPLES': u16ArrayToBytes(result.sepSamplesCentideg),
     'MAG_SAMPLES': result.magPctSamples,
-    'RADIUS_RATIO_PCT': result.radiusRatioPct,
-    'WEATHER_ERROR_CODE': weatherErrorCode || 0
+    'RADIUS_RATIO_PCT': result.radiusRatioPct
   };
   if (haveCloudData) {
     dict['CLOUD_COVER'] = displayCloudPct;

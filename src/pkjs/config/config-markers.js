@@ -179,8 +179,7 @@ function customMarkerModalHtml(kind, title, thicknessMax) {
 // way there is with the ring geometry popups.
 function textMarkerModalHtml(current) {
   var markerTextFontId = parseInt(current.markerTextFont || '0', 10);
-  var markerTextRomanOk = fontFlag(fontLookupEntry(markerTextFontId).romanOk);
-  return (
+    return (
 '<div class="modal-overlay" id="textMarkerModal" onclick="if (event.target === this) closeTextMarkerEditor();">' +
 '  <div class="modal-box">' +
 '    <div class="modal-title">Edit numerals</div>' +
@@ -202,11 +201,6 @@ function textMarkerModalHtml(current) {
 '        <span class="font-picker-name" id="markerTextFontTriggerName"></span>' +
 '      </button>' +
 
-'      <div class="checkbox-row" style="margin-top:12px;">' +
-'        <input type="checkbox" id="markerTextRoman" onchange="refreshAllFontTriggerLabels()" ' + (current.markerTextRoman === 'true' && markerTextRomanOk ? 'checked' : '') + ' ' + (markerTextRomanOk ? '' : 'disabled') + '>' +
-'        <label for="markerTextRoman" style="margin:0;">Roman numerals</label>' +
-'      </div>' +
-'      <div class="help" id="markerTextRomanHelp">' + (markerTextRomanOk ? 'Shows I, II, III... instead of 1, 2, 3....' : 'This font does not support Roman numerals correctly.') + '</div>' +
 
 '      <div class="slider-row">' +
 '        <label for="markerTextOffset">Offset from index <span class="val" id="markerTextOffsetVal">' + esc(current.markerTextOffset || '0') + 'px</span></label>' +

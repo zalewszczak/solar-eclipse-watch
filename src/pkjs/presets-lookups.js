@@ -1427,11 +1427,11 @@ var MARKER_STYLE_SECOND_PRESETS = [
 // edge; `hourMask`/`secondMask` 12-bit bitmasks of which of the 12
 // hour/5-second marks get a label (4095 = all); `roman` I, II, III...
 var MARKER_STYLE_TEXT_PRESETS = [
-  { target: 0, font: 0, offset: 0, roman: false, hourMask: 4095, secondMask: 4095 }, // Minimal
-  { target: 2, font: 2, offset: -45, roman: false, hourMask: 4095, secondMask: 4095 }, // Braun
-  { target: 0, font: 0, offset: 0, roman: false, hourMask: 4095, secondMask: 4095 }, // Swiss
-  { target: 0, font: 0, offset: 0, roman: false, hourMask: 4095, secondMask: 4095 }, // Classy
-  { target: 0, font: 0, offset: 0, roman: false, hourMask: 4095, secondMask: 4095 }  // None
+  { target: 0, font: 0, offset: 0, hourMask: 4095, secondMask: 4095 }, // Minimal
+  { target: 2, font: 2, offset: -45, hourMask: 4095, secondMask: 4095 }, // Braun
+  { target: 0, font: 0, offset: 0, hourMask: 4095, secondMask: 4095 }, // Swiss
+  { target: 0, font: 0, offset: 0, hourMask: 4095, secondMask: 4095 }, // Classy
+  { target: 0, font: 0, offset: 0, hourMask: 4095, secondMask: 4095 }  // None
 ];
 
 // bigAnalogMarkerStyle value -> index into the three arrays above. Any
@@ -1463,8 +1463,7 @@ function markerTextPresetToFields(t) {
     Font: String(t.font),
     Offset: String(t.offset),
     HourMask: String(t.hourMask),
-    SecMask: String(t.secondMask),
-    Roman: String(t.roman)
+    SecMask: String(t.secondMask)
   };
 }
 

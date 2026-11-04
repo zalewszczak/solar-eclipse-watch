@@ -56,7 +56,6 @@ static const SimpleFieldMapping SIMPLE_FIELD_MAP[] = {
   { MK_WIND_SPEED_UNIT, F_U8, offsetof(EclipseData, wind_speed_unit) },
   { MK_SHAKE_LABEL_SECONDS, F_U8, offsetof(EclipseData, shake_label_seconds) },
   { MK_VIBRATE_ON_PHASE_CHANGE, F_BOOL, offsetof(EclipseData, vibrate_on_phase_change) },
-  { MK_STARTUP_CLOCK_ANIM_MODE, F_U8, offsetof(EclipseData, startup_clock_anim_mode) },
   { MK_OUTLINE_ENABLED, F_U8, offsetof(EclipseData, outline_style) },
   { MK_BATTERY_SAVER_ENABLED, F_BOOL, offsetof(EclipseData, battery_saver_enabled) },
   { MK_CORNER_FONT, F_U8, offsetof(EclipseData, corner_font) },
@@ -82,7 +81,6 @@ static const SimpleFieldMapping SIMPLE_FIELD_MAP[] = {
   { MK_WIND_DIR_DEG, F_I16, offsetof(EclipseData, wind_dir_deg) },
   { MK_DEW_POINT_C, F_I16, offsetof(EclipseData, dew_point_c) },
   { MK_PRESSURE_HPA, F_I16, offsetof(EclipseData, pressure_hpa) },
-  { MK_PRESSURE_TREND, F_U8, offsetof(EclipseData, pressure_trend) },
   { MK_AQI_US, F_U16, offsetof(EclipseData, aqi_us) },
   { MK_AQI_EU, F_U16, offsetof(EclipseData, aqi_eu) },
   { MK_ALTITUDE_M, F_I16, offsetof(EclipseData, altitude_m) },
@@ -115,7 +113,6 @@ static const SimpleFieldMapping SIMPLE_FIELD_MAP[] = {
   { MK_ISS_NEXT_PASS, F_TIME, offsetof(EclipseData, iss_next_pass) },
   { MK_ISS_ERROR_CODE, F_U8, offsetof(EclipseData, iss_error_code) },
   { MK_WEATHER_LAST_UPDATE, F_TIME, offsetof(EclipseData, weather_last_update) },
-  { MK_DRAW_DEBUG, F_BOOL, offsetof(EclipseData, draw_debug) },
   { MK_SHOW_FLIGHTS, F_BOOL, offsetof(EclipseData, show_flights) },
   { MK_OVERHEAD_OBJECT_COUNT, F_U8, offsetof(EclipseData, overhead_object_count) },
   { MK_OVERHEAD_OBJECTS_COMPUTED_AT, F_TIME, offsetof(EclipseData, overhead_objects_computed_at) },
@@ -286,11 +283,10 @@ static void apply_scattered_u8_blob(DictionaryIterator *iter, EclipseData *d, ui
   }
 }
 
-// Group 1 (3 fields): new plain settings, set on every settings push.
+// Group 1 (2 fields): new plain settings, set on every settings push.
 static const uint16_t SETTINGS_BLOB_OFFSETS[] = {
   offsetof(EclipseData, primitive_tight_mask_lo),
   offsetof(EclipseData, primitive_tight_mask_hi),
-  offsetof(EclipseData, shake_hands_translucent),
 };
 
 // Group 2 (2 fields): cloud/visibility readout gradient colors.
@@ -380,15 +376,14 @@ static void apply_consolidated_fields(DictionaryIterator *iter, EclipseData *d) 
     memcpy(d->edge_line_color_mode, t->value->data, 8);
   }
 
-  // MARKER_TEXT: target, font, signed offset, two little-endian masks, Roman-numeral flag.
-  if ((t = dict_find(iter, base + MK_MARKER_TEXT)) && t->length >= 8) {
+  // MARKER_TEXT: target, font, signed offset, two little-endian masks.
+  if ((t = dict_find(iter, base + MK_MARKER_TEXT)) && t->length >= 7) {
     uint8_t *b = t->value->data;
     d->marker_text.target = b[0];
     d->marker_text.font_choice = b[1];
     d->marker_text.offset_px = (int8_t)b[2];
     d->marker_text.hour_mask = (uint16_t)(b[3] | (b[4] << 8));
     d->marker_text.second_mask = (uint16_t)(b[5] | (b[6] << 8));
-    d->marker_text.roman_numerals = b[7] != 0;
   }
 
   // COLORS: six custom colors; night_scheme_enabled is sent separately.
@@ -446,16 +441,6 @@ CommsChangeFlags comms_decoder_apply(DictionaryIterator *iter, EclipseData *data
   changes |= apply_simple_fields(iter, d, SIMPLE_FIELD_MAP_VALID, NELEM(SIMPLE_FIELD_MAP_VALID));
   apply_scattered_u8_blob(iter, d, MK_WEATHER_CLOUD_U8_BLOB, WEATHER_CLOUD_BLOB_OFFSETS, NELEM(WEATHER_CLOUD_BLOB_OFFSETS));
   apply_scattered_u8_blob(iter, d, MK_WEATHER_MAIN_U8_BLOB, WEATHER_MAIN_BLOB_OFFSETS, NELEM(WEATHER_MAIN_BLOB_OFFSETS));
-
-  if ((t = dict_find(iter, base + MK_WEATHER_ERROR_CODE))) {
-    d->weather_error_code = t->value->uint8;
-    if (d->weather_error_code == 0) {
-      d->weather_error_streak = 0;
-      d->weather_ever_valid = true;
-    } else if (d->weather_error_streak < 250) { // Saturate the streak.
-      d->weather_error_streak++;
-    }
-  }
 
   // FORECAST blob, 4 x FORECAST_SLOT_COUNT bytes: temp C (+50 offset, 255 =
   // unavailable), packed temp colour, condition, icon category. Indices 0-5

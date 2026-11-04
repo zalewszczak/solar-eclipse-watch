@@ -141,13 +141,10 @@ typedef struct {
   uint8_t sun_moon_size_pct; // 25, 50, 75 or 100 percent.
 
   uint8_t shake_label_seconds; // label visibility duration.
-  // Hands turn semi-transparent for the duration of the shake animation. 0 = off.
-  uint8_t shake_hands_translucent;
   uint8_t label_style;     // 0=boxed, 1=outlined, 2=soft.
 
   bool vibrate_on_phase_change; // vibrate at C1/C2/C3/C4.
 
-  uint8_t startup_clock_anim_mode; // 0=off, 1=clock sweep, 2=planet-time sweep.
 
   uint8_t bg_anim_mode;    // 0=off, 1=planets, 2=hour markers.
 
@@ -274,9 +271,6 @@ typedef struct {
   char forecast_temp_display[FORECAST_SLOT_COUNT][6];
 
   // Weather fetch status and freshness.
-  uint8_t weather_error_code;
-  uint8_t weather_error_streak;
-  bool weather_ever_valid;
   time_t weather_last_update;
 
   // Forecast for the next 1-6 hours (index 0-5), next 1-3 days (index 6-8)
@@ -294,7 +288,6 @@ typedef struct {
   int16_t wind_dir_deg;    // meteorological wind direction, degrees.
   int16_t dew_point_c;     // dew point in Celsius.
   int16_t pressure_hpa;    // sea-level pressure in hPa.
-  uint8_t pressure_trend;  // 0=flat, 1=rising, 2=falling.
   uint8_t aqi_unit;        // 0=US AQI, 1=EU AQI.
 
   uint16_t aqi_us;         // 0 means unavailable.
@@ -397,5 +390,4 @@ typedef struct {
   // when the time has come and nudge PKJS, which may not be running.
   time_t next_style_check;
 
-  bool draw_debug;
 } EclipseData;

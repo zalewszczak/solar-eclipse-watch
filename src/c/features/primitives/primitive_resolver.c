@@ -502,7 +502,6 @@ bool primitive_resolver_resolve(PrimitiveId id, uint8_t aux_in, const EclipseDat
       resolve_text(out, buf2, c);
       return true;
     }
-    case PRIM_PRESSURE_TREND_ICON:
     case PRIM_PRESSURE_TEXT: {
       char buf2[16];
       GColor c;
@@ -513,18 +512,15 @@ bool primitive_resolver_resolve(PrimitiveId id, uint8_t aux_in, const EclipseDat
         snprintf(buf2, sizeof(buf2), "%d hPa", data->pressure_hpa);
         c = feature_colors_seven_stop_gradient(data->pressure_hpa, 970, 1050);
       }
-      if (id == PRIM_PRESSURE_TREND_ICON) { resolve_icon(out, 15, data->pressure_trend, false, c); return true; }
       resolve_text(out, buf2, c);
       return true;
     }
-    case PRIM_WIND_DIRECTION_ICON:
     case PRIM_WIND_DIRECTION_TEXT: {
       static const char *COMPASS8[8] = { "N", "NE", "E", "SE", "S", "SW", "W", "NW" };
       int idx = ((data->wind_dir_deg + 22) / 45) % 8;
       if (idx < 0) idx += 8;
       // Legacy case 35 always uses main_color, not a graded value.
-      if (id == PRIM_WIND_DIRECTION_ICON) { resolve_icon(out, 16, data->wind_dir_deg, false, GColorWhite); }
-      else { resolve_text(out, COMPASS8[idx], GColorWhite); }
+      resolve_text(out, COMPASS8[idx], GColorWhite);
       out->dynamic_is_main = true;
       return true;
     }
@@ -588,6 +584,7 @@ bool primitive_resolver_resolve(PrimitiveId id, uint8_t aux_in, const EclipseDat
       // pick any of the 9 forecast slots via the composer's zone-style aux
       // picker (labelled "Forecast slot" there, not "Zone").
       if (aux_in >= FORECAST_SLOT_COUNT) return false;
+      if (id == PRIM_FORECAST_OFFSET_ICON && aux_in > 8) return false; // +7h..+12h have no icon art
       bool is_hour = aux_in <= 5 || aux_in >= 9;
       if (data->forecast_temp_c[aux_in] <= -128) {
         if (id == PRIM_FORECAST_OFFSET_ICON) { resolve_icon(out, 30, aux_in, false, GColorLightGray); }

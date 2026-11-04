@@ -6,6 +6,7 @@
 #include "./feature_render.h"
 #include "../data/eclipse_ui.h"
 #include "./feature_support.h"
+#include "../rendering/background/celestial_layer.h"
 
 // Anchor/centering math below is intentionally left at the OLD icon size
 // (16x12, and 20x10 for the sunrise/sunset glyph) even though every icon now
@@ -24,15 +25,6 @@
 #define ICON_DRAW_H 16
 #define SUN_TIME_ICON_DRAW_W 20
 #define SUN_TIME_ICON_DRAW_H 16
-
-// Optional debug crosshair for icon anchor points and geometry.
-static void draw_debug_marker_point(GContext *ctx, bool draw_debug, GPoint pos, GColor color) {
-  if (!draw_debug) return;
-  graphics_context_set_stroke_width(ctx, 1);
-  graphics_context_set_stroke_color(ctx, color);
-  graphics_draw_rect(ctx, GRect(pos.x, pos.y - 15, 1, 30));
-  graphics_draw_rect(ctx, GRect(pos.x - 15, pos.y, 30, 1));
-}
 
 static const uint8_t PEBBLE_ICON[62]     = { 0x00, 0x02, 0x04, 0x08, 0x00, 0x00, 0x02, 0x04, 0x08, 0x00, 0xFD, 0xFB,
   0xF7, 0xE9, 0xF8, 0x85, 0x0A, 0x14, 0x29, 0x08, 0x85, 0x0A, 0x14, 0x29,
@@ -85,16 +77,14 @@ static const IconResourceSet SUN_TIME_ICON_SET[2] = { ICON_SET(SUN_TIME_SET), IC
 void feature_icons_draw_render_icon(GContext *ctx, uint8_t icon_kind, int16_t icon_extra,
                                     bool icon_flag, GColor color, GColor color2,
                                     int16_t icon_x, int16_t box_y, int16_t row_height,
-                                    uint8_t outline_style, uint8_t icon_style, bool draw_debug) {
+                                    uint8_t outline_style, uint8_t icon_style) {
   GColor outline_color = feature_render_contrasting_outline_color(color);
   bool do_outline = outline_style != 0;
   const GPoint *offs = NULL; int offs_n = 0;
   if (do_outline) feature_icon_assets_get_outline_offsets(outline_style, &offs, &offs_n);
-  draw_debug_marker_point(ctx, draw_debug, GPoint(icon_x, box_y), GColorRed);
   for (size_t i = 0; i < sizeof(STYLED_ICONS) / sizeof(STYLED_ICONS[0]); i++) {
     if (STYLED_ICONS[i].kind != icon_kind) continue;
     GPoint pos = GPoint(icon_x - ICON_WIDTH + STYLED_ICONS[i].x_nudge, box_y + (row_height - ICON_ROWS) / 2);
-    draw_debug_marker_point(ctx, draw_debug, pos, GColorMagenta);
     feature_icon_assets_draw_styled_with_outline(ctx, pos, &STYLED_ICONS[i].set, icon_style,
                                                  outline_style, outline_color, color, ICON_DRAW_W, ICON_DRAW_H);
     return;
@@ -110,7 +100,6 @@ void feature_icons_draw_render_icon(GContext *ctx, uint8_t icon_kind, int16_t ic
           feature_vector_icons_battery(ctx, GPoint(pos.x + offs[i].x, pos.y + offs[i].y), oc, 0);
         }
       }
-      draw_debug_marker_point(ctx, draw_debug, pos, GColorMagenta);
       feature_vector_icons_battery(ctx, pos, c, icon_extra);
       return;
     }
@@ -124,15 +113,13 @@ void feature_icons_draw_render_icon(GContext *ctx, uint8_t icon_kind, int16_t ic
           graphics_fill_circle(ctx, GPoint(center.x + offs[i].x, center.y + offs[i].y), moon_r);
         }
       }
-      draw_debug_marker_point(ctx, draw_debug, center, GColorMagenta);
-      feature_draw_moon_phase(ctx, clip, center, moon_r, (uint8_t)icon_extra, icon_flag, color);
+      celestial_draw_moon_phase(ctx, clip, center, moon_r, (uint8_t)icon_extra, icon_flag, color);
       return;
     }
     case 11: { // sunrise/sunset glyph -- a plain styled image (see resources/images/<style>/
                // sun_time_rise.png / sun_time_set.png), drawn the exact
       GPoint pos = GPoint(icon_x, box_y + (row_height - SUN_TIME_ICON_ROWS) / 2);
       const IconResourceSet *set = &SUN_TIME_ICON_SET[icon_flag ? 1 : 0];
-      draw_debug_marker_point(ctx, draw_debug, pos, GColorMagenta);
       feature_icon_assets_draw_styled_with_outline(ctx, pos, set, icon_style,
                                                    outline_style, outline_color, color, SUN_TIME_ICON_DRAW_W, SUN_TIME_ICON_DRAW_H);
       return;
@@ -152,7 +139,6 @@ void feature_icons_draw_render_icon(GContext *ctx, uint8_t icon_kind, int16_t ic
         graphics_draw_line(ctx, GPoint(p1.x - 1, p1.y), GPoint(p2.x + 1, p2.y));
         graphics_draw_line(ctx, GPoint(p1.x, p1.y - 1), GPoint(p2.x, p2.y - 1));
       }
-      draw_debug_marker_point(ctx, draw_debug, pos, GColorMagenta);
       feature_icon_assets_draw_tiny(ctx, pos, PEBBLE_ICON, 10, 40, c);
       graphics_context_set_stroke_color(ctx, c);
       graphics_draw_line(ctx, p1, p2);
@@ -164,31 +150,8 @@ void feature_icons_draw_render_icon(GContext *ctx, uint8_t icon_kind, int16_t ic
                // legacy weather feature code when it resolves the category).
       GPoint pos = GPoint(icon_x, box_y + (row_height - ICON_ROWS) / 2 - 2);
       uint8_t category = (uint8_t)icon_extra;
-      draw_debug_marker_point(ctx, draw_debug, pos, GColorMagenta);
       feature_weather_icons_draw_with_outline(ctx, pos, category, icon_flag, icon_style,
                                               outline_style, outline_color, color);
-      return;
-    }
-    case 15: { // pressure trend chevron
-      GPoint pos = GPoint(icon_x, box_y + (row_height - 12) / 2);
-      if (do_outline) {
-        for (int i = 0; i < offs_n; i++) {
-          feature_vector_icons_pressure_trend(ctx, GPoint(pos.x + offs[i].x, pos.y + offs[i].y), (uint8_t)icon_extra, outline_color);
-        }
-      }
-      draw_debug_marker_point(ctx, draw_debug, pos, GColorMagenta);
-      feature_vector_icons_pressure_trend(ctx, pos, (uint8_t)icon_extra, color);
-      return;
-    }
-    case 16: { // wind direction arrow
-      GPoint pos = GPoint(icon_x, box_y + (row_height - 12) / 2);
-      if (do_outline) {
-        for (int i = 0; i < offs_n; i++) {
-          feature_vector_icons_wind_direction(ctx, GPoint(pos.x + offs[i].x, pos.y + offs[i].y), icon_extra, outline_color);
-        }
-      }
-      draw_debug_marker_point(ctx, draw_debug, pos, GColorMagenta);
-      feature_vector_icons_wind_direction(ctx, pos, icon_extra, color);
       return;
     }
     case 17: { // altitude mountain glyph
@@ -198,7 +161,6 @@ void feature_icons_draw_render_icon(GContext *ctx, uint8_t icon_kind, int16_t ic
           feature_vector_icons_mountain(ctx, GPoint(pos.x + offs[i].x, pos.y + offs[i].y), outline_color);
         }
       }
-      draw_debug_marker_point(ctx, draw_debug, pos, GColorMagenta);
       feature_vector_icons_mountain(ctx, pos, color);
       return;
     }
@@ -218,7 +180,6 @@ void feature_icons_draw_render_icon(GContext *ctx, uint8_t icon_kind, int16_t ic
           else feature_vector_icons_compass(ctx, shifted, icon_extra, outline_color, outline_color);
         }
       }
-      draw_debug_marker_point(ctx, draw_debug, pos, GColorMagenta);
       if (icon_flag) feature_vector_icons_compass_sleep(ctx, pos, color);
       else feature_vector_icons_compass(ctx, pos, icon_extra, color, color2);
       return;
@@ -228,7 +189,6 @@ void feature_icons_draw_render_icon(GContext *ctx, uint8_t icon_kind, int16_t ic
                // quiet_time_muted.png).
       GPoint pos = GPoint(icon_x, box_y + (row_height - ICON_ROWS) / 2);
       const IconResourceSet *set = &QUIET_TIME_ICON_SET[icon_flag ? 1 : 0];
-      draw_debug_marker_point(ctx, draw_debug, pos, GColorMagenta);
       feature_icon_assets_draw_styled_with_outline(ctx, pos, set, icon_style,
                                                    outline_style, outline_color, color, ICON_DRAW_W, ICON_DRAW_H);
       return;
@@ -240,7 +200,6 @@ void feature_icons_draw_render_icon(GContext *ctx, uint8_t icon_kind, int16_t ic
                // fixed-shape icon; feature_icons_plus_gap_width()'s own
                // table is what makes this one only take up half the width.
       GPoint pos = GPoint(icon_x, box_y + (row_height - ICON_ROWS) / 2 - 2);
-      draw_debug_marker_point(ctx, draw_debug, pos, GColorMagenta);
       feature_forecast_offset_icons_draw_with_outline(ctx, pos, (uint8_t)icon_extra, icon_style,
                                                        outline_style, outline_color, color);
       return;

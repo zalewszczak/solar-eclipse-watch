@@ -18,9 +18,6 @@ static bool s_labels_visible;
 static AppTimer *s_shake_anim_timer = NULL;
 static bool s_shake_anim_active = false;
 static int64_t s_shake_anim_start_ms = 0;
-// True when the running animation may move things (smooth second hand,
-// Planet Seek); false when it only keeps the hands translucent.
-static bool s_shake_anim_motion = false;
 static uint32_t s_shake_anim_duration_ms = 3000;
 
 static int64_t shake_now_ms(void) {
@@ -107,7 +104,7 @@ static uint32_t s_compass_feature_elapsed_ms = 0;
 // read the same smoothed heading.
 static AppTimer *s_compass_heading_timer = NULL;
 static bool compass_heading_needed(void) {
-  return (s_shake_anim_active && s_shake_anim_motion &&
+  return (s_shake_anim_active &&
           shake_anim_wants_planet_seek(s_data ? s_data->shake_anim_mode : 0)) ||
          s_compass_feature_active;
 }
@@ -195,20 +192,14 @@ static void shake_anim_timer_callback(void *data) {
   int64_t elapsed = shake_now_ms() - s_shake_anim_start_ms;
   if (elapsed < 0) elapsed = 0;
   int64_t remaining = (int64_t)s_shake_anim_duration_ms - elapsed;
-  bool planet_seek_wanted = s_shake_anim_motion &&
-                            shake_anim_wants_planet_seek(s_data->shake_anim_mode);
+  bool planet_seek_wanted = shake_anim_wants_planet_seek(s_data->shake_anim_mode);
   bool still_active = remaining > 0;
   if (!still_active) {
     s_shake_anim_active = false;
-    s_shake_anim_motion = false;
     s_shake_anim_timer = NULL;
     compass_heading_service_maybe_unsubscribe();
   } else {
-    // Full frame rate only when something moves; translucent hands alone
-    // just need a redraw when the animation ends.
-    uint32_t delay = SHAKE_ANIM_FRAME_MS;
-    if (!s_shake_anim_motion) delay = remaining > 500 ? 500 : (uint32_t)remaining + 1;
-    s_shake_anim_timer = app_timer_register(delay, shake_anim_timer_callback, NULL);
+    s_shake_anim_timer = app_timer_register(SHAKE_ANIM_FRAME_MS, shake_anim_timer_callback, NULL);
   }
   if (s_callbacks.animation_frame)
     s_callbacks.animation_frame(still_active, (uint32_t)elapsed,
@@ -216,32 +207,22 @@ static void shake_anim_timer_callback(void *data) {
 }
 
 static void maybe_start_shake_animation(void) {
-  bool translucent = s_data->shake_hands_translucent != 0;
-  if (s_data->shake_anim_mode == 0 && !translucent) return;
-  // Smooth seconds / Planet Seek stay off while an eclipse is under way
-  // (it has its own per-second display); translucent hands still apply.
-  bool motion = s_data->shake_anim_mode != 0 &&
-                !eclipse_status_is_active(s_data, time(NULL)) &&
-                !(shake_anim_wants_planet_seek(s_data->shake_anim_mode) && s_data->has_eclipse);
-  if (!motion && !translucent) return;
+  if (s_data->shake_anim_mode == 0) return;
+  if (eclipse_status_is_active(s_data, time(NULL))) return;
+  if (shake_anim_wants_planet_seek(s_data->shake_anim_mode) && s_data->has_eclipse) return;
   s_shake_anim_active = true;
-  s_shake_anim_motion = motion;
   s_shake_anim_start_ms = shake_now_ms();
   uint8_t seconds = s_data->shake_label_seconds > 0 ? s_data->shake_label_seconds : 3;
   s_shake_anim_duration_ms = (uint32_t)seconds * 1000;
   if (s_shake_anim_timer) app_timer_cancel(s_shake_anim_timer);
   s_shake_anim_timer = app_timer_register(SHAKE_ANIM_FRAME_MS,
                                            shake_anim_timer_callback, NULL);
-  if (motion && shake_anim_wants_planet_seek(s_data->shake_anim_mode)) {
+  if (shake_anim_wants_planet_seek(s_data->shake_anim_mode)) {
     if (s_data->show_flights || s_data->show_iss) comms_maybe_request_flights(s_data);
     s_compass_heading_has_reading = false;
     s_compass_heading_velocity_fp = 0;
     compass_heading_service_ensure();
   }
-  // Redraw right away so translucent hands appear without waiting a frame.
-  if (s_callbacks.animation_frame)
-    s_callbacks.animation_frame(true, 0, motion && shake_anim_wants_planet_seek(s_data->shake_anim_mode),
-                                s_callbacks.context);
 }
 
 static AppTimer *s_label_timer;
@@ -286,13 +267,11 @@ void input_deinit(void) {
   if (s_compass_heading_timer) { app_timer_cancel(s_compass_heading_timer); s_compass_heading_timer = NULL; }
   s_compass_feature_active = false;
   s_shake_anim_active = false;
-  s_shake_anim_motion = false;
   if (s_label_timer) { app_timer_cancel(s_label_timer); s_label_timer = NULL; }
   s_data = NULL; s_callbacks = (InputCallbacks){0}; s_labels_visible = false;
 }
 
-bool input_shake_animation_active(void) { return s_shake_anim_active && s_shake_anim_motion; }
-bool input_shake_translucent_active(void) { return s_shake_anim_active; }
+bool input_shake_animation_active(void) { return s_shake_anim_active; }
 bool input_shake_animation_wants_smooth_second(uint8_t mode) { return mode == 1 || mode == 3; }
 int32_t input_planet_seek_heading_deg(void) { return s_compass_heading_smoothed_fp >> 8; }
 bool input_planet_seek_compass_low_accuracy(void) { return s_input_planet_seek_compass_low_accuracy; }

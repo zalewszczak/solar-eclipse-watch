@@ -119,19 +119,6 @@ static GPoint moon_offset_px(const EclipseData *d, time_t now, int16_t sun_r, in
 }
 
 // Compact labels used by the small corner/edge Moon-phase slots.
-const char *celestial_moon_phase_short_name(uint8_t pct, bool waxing) {
-  if (pct <= 2) return "New";
-  if (pct >= 98) return "Full";
-  if (waxing) {
-    if (pct < 48) return "WxCr";
-    if (pct <= 52) return "1stQ";
-    return "WxGb";
-  }
-  if (pct > 52) return "WnGb";
-  if (pct >= 48) return "3rdQ";
-  return "WnCr";
-}
-
 void celestial_layer_init(CelestialLayerState *state) {
   memset(state, 0, sizeof(*state));
 }

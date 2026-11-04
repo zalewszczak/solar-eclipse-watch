@@ -27,7 +27,7 @@ static GRect text_box_for(const PrimitiveInstance *p, int16_t box_x, int16_t box
 void primitive_renderer_draw_feature(GContext *ctx, int16_t box_x, int16_t box_y, int16_t row_height,
                                      const PrimitiveFeature *feature, const FeatureSlot *slot,
                                      GFont font, int16_t font_h, int16_t font_offset,
-                                     uint8_t outline_style, uint8_t icon_style, bool draw_debug) {
+                                     uint8_t outline_style, uint8_t icon_style) {
   if (!feature || feature->count == 0) return;
   uint8_t effective_outline_style = (slot && slot->allow_outline) ? outline_style : 0;
 
@@ -48,17 +48,12 @@ void primitive_renderer_draw_feature(GContext *ctx, int16_t box_x, int16_t box_y
     int16_t seg_x = box_x + p->x_offset;
     if (p->kind == PRIMITIVE_KIND_ICON) {
       feature_icons_draw_render_icon(ctx, p->icon_kind, p->aux, p->aux_flag, p->color, p->color2,
-                                     seg_x, box_y, row_height, effective_outline_style, icon_style, draw_debug);
+                                     seg_x, box_y, row_height, effective_outline_style, icon_style);
       continue;
     }
     const char *text = (p->kind == PRIMITIVE_KIND_TEXT || p->kind == PRIMITIVE_KIND_PUNCT) ? p->text : spacer_glyph(p->kind);
     GRect box = text_box_for(p, box_x, box_y, row_height, font_h, font_offset);
     feature_render_draw_text_content_only(ctx, text, font, box, GTextOverflowModeTrailingEllipsis,
                                           GTextAlignmentLeft, p->color);
-    if (draw_debug) {
-      graphics_context_set_stroke_width(ctx, 1);
-      graphics_context_set_stroke_color(ctx, GColorGreen);
-      graphics_draw_rect(ctx, box);
-    }
   }
 }

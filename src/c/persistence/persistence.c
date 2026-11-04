@@ -10,7 +10,7 @@
 // build with a different EclipseData layout (including any release that
 // predates this struct) are rejected instead of being misread.
 #define PERSIST_KEY_SCHEMA 100
-#define PERSIST_SCHEMA_VERSION 3
+#define PERSIST_SCHEMA_VERSION 4
 
 typedef char persist_capacity_check[
   (PERSIST_CHUNK_SIZE * PERSIST_CHUNK_COUNT >= (int)sizeof(EclipseData)) ? 1 : -1];

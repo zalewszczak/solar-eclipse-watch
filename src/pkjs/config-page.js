@@ -1956,16 +1956,6 @@ configPresetSchedule.modalHtml +
     sectionLegendHtml('animation', 'Animation') +
 '    <div class="section-body" id="section-animation" style="display:none;">' +
 '    <div class="subsection">' +
-'      <div class="field-label-row"><label>Startup clock animation</label><button type="button" class="help-btn" onclick="toggleHelp(\'help-startupClockAnim\')">?</button></div>' +
-      verticalButtonGroupHtml('startupClockAnimModeGroup', 'startupClockAnimMode', [
-        { value: '0', label: 'Off' },
-        { value: '1', label: 'Animate clock' },
-        { value: '2', label: 'Planet sweep time shift' }
-      ], current.startupClockAnimMode || '1') +
-'    </div>' +
-'    <div class="help" id="help-startupClockAnim" style="display:none;">Choose how the clock appears when the watchface starts.</div>' +
-
-'    <div class="subsection">' +
 '      <div class="field-label-row"><label>Animate background on start</label><button type="button" class="help-btn" onclick="toggleHelp(\'help-bgAnimMode\')">?</button></div>' +
       verticalButtonGroupHtml('bgAnimModeGroup', 'bgAnimMode', [
         { value: '0', label: 'Off' },
@@ -1985,15 +1975,6 @@ configPresetSchedule.modalHtml +
       ], current.shakeAnimMode || '0') +
 '    </div>' +
 '    <div class="help" id="help-shakeAnimMode" style="display:none;">Choose what happens when you shake the watch.</div>' +
-
-'    <div class="subsection">' +
-'      <div class="checkbox-row">' +
-'        <input type="checkbox" id="shakeHandsTranslucent" ' + (current.shakeHandsTranslucent ? 'checked' : '') + ' onchange="updatePreview(); try { refreshAllSectionSubheaders(); } catch (e) {}">' +
-'        <label for="shakeHandsTranslucent" style="margin:0;">Semi-transparent hands on shake</label>' +
-'        <button type="button" class="help-btn" onclick="toggleHelp(\'help-shakeHandsTranslucent\')">?</button>' +
-'      </div>' +
-'    </div>' +
-'    <div class="help" id="help-shakeHandsTranslucent" style="display:none;">The hands turn semi-transparent for the duration of the shake animation (see the duration slider below), so you can see the dial and features underneath them. Works with or without the smooth second hand.</div>' +
 
 '    <div class="subsection">' +
 '      <div class="slider-row">' +
@@ -2283,10 +2264,6 @@ configPresetSchedule.modalHtml +
 '    <label for="testDateTime">Test date &amp; time</label>' +
 '    <input type="datetime-local" id="testDateTime" ' + testDisabled + ' value="' + esc(current.testDateTime) + '">' +
 '    <div class="help" id="help-testMode" style="display:none;">Uses the selected date and time for eclipse calculations so you can preview another date.</div>' +
-'    <div class="checkbox-row subsection">' +
-'      <input type="checkbox" id="drawDebug" ' + (current.drawDebug ? 'checked' : '') + '>' +
-'      <label for="drawDebug" style="margin:0;">Draw debug bounding boxes</label>' +
-'    </div>' +
 '    <div class="subsection">' +
 '      <div class="field-label-row"><label for="fontImportTarget">Import font for preview</label><button type="button" class="help-btn" onclick="toggleHelp(\'help-fontImport\')">?</button></div>' +
 '      <div class="help" id="help-fontImport" style="display:none;">Imports a local TTF, OTF, WOFF or WOFF2 file as the live settings-page preview for the selected font. This does not change the font installed on the watch or the app resources. Choose the exact font entry the file is replacing before importing it, and use the same family, weight and italic/regular style. For the most accurate result, use the original font file rather than a different webfont or a visually similar substitute. The replacement is matched to the selected font entry, not detected automatically from the filename. If the same font is used by several entries (for example different sizes), import it separately for each entry you want to override.</div>' +
@@ -2488,7 +2465,6 @@ configPresetSchedule.modalHtml +
 '    PRESSURE_TREND: iv("fakeWxPressureTrend"),' +
 '    AQI_US: iv("fakeWxAqiUs"),' +
 '    AQI_EU: iv("fakeWxAqiEu"),' +
-'    WEATHER_ERROR_CODE: 0,' +
 '    WEATHER_LAST_UPDATE: Math.floor(Date.now() / 1000)' +
 '  };' +
 '}' +
@@ -2776,7 +2752,7 @@ fontManagerSource +
 '  cornerFont: { selectId: "cornerFont", triggerId: "cornerFontTrigger", title: "Font", onlyMainClock: false, showIncompatibleToggle: true,' +
 '    previewText: function () { return "-10\\u00b0C"; } },' +
 '  markerTextFont: { selectId: "markerTextFont", triggerId: "markerTextFontTrigger", title: "Font", onlyMainClock: false, showIncompatibleToggle: false,' +
-'    previewText: function () { var roman = document.getElementById("markerTextRoman"); return (roman && roman.checked) ? "XII" : "12"; } }' +
+'    previewText: function () { return "12"; } }' +
 '};' +
 'var currentFontPickerRole = null;' +
 // Big Digital and the other digital layouts intentionally use different
@@ -3973,7 +3949,6 @@ configPlugins.pluginScript(current) +
 'function applyMarkerTextPresetFields(t) {' +
 '  if (!t) return;' +
 '  document.getElementById("markerTextFont").value = t.Font;' +
-'  document.getElementById("markerTextRoman").checked = t.Roman === "true";' +
 '  document.getElementById("markerTextOffset").value = t.Offset;' +
 '  document.getElementById("markerTextOffsetVal").textContent = t.Offset + "px";' +
 '  setMarkMask("hour", t.HourMask);' +
@@ -4141,15 +4116,6 @@ configPlugins.pluginScript(current) +
 '  updatePreview();' +
 '}' +
 'function onMarkerTextFontChange() {' +
-'  var font = document.getElementById("markerTextFont").value;' +
-'  var romanBox = document.getElementById("markerTextRoman");' +
-'  var romanHelp = document.getElementById("markerTextRomanHelp");' +
-'  var incompatible = !fontFlag(fontLookupEntry(font).romanOk);' +
-'  romanBox.disabled = incompatible;' +
-'  if (incompatible) romanBox.checked = false;' +
-'  if (romanHelp) romanHelp.textContent = incompatible ?' +
-'    "Not available with this font -- its glyphs don\'t support Roman numerals correctly." :' +
-'    "Shows I, II, III... instead of 1, 2, 3... -- independent of the font above.";' +
 '  updatePreview();' +
 '}' +
 'function openTextMarkerEditor() {' +
@@ -5798,9 +5764,6 @@ require('./config/config-runtime') +
 // start" picker, per the request\'s own example.
 'function computeAnimationSubheader() {' +
 '  var parts = [];' +
-'  var startup = document.getElementById("startupClockAnimMode").value;' +
-'  if (startup === "2") parts.push("planet sweep time shift on start");' +
-'  else if (startup === "1") parts.push("animated clock on start");' +
 '  var bg = document.getElementById("bgAnimMode").value;' +
 '  if (bg === "1") parts.push("planets on start");' +
 '  else if (bg === "2") parts.push("indices on start");' +
@@ -5809,7 +5772,6 @@ require('./config/config-runtime') +
 '  if (shake === "2" || shake === "3") shakeParts.push("planets");' +
 '  if (shake === "1" || shake === "3") shakeParts.push("second hand");' +
 '  if (shakeParts.length) parts.push(shakeParts.join(" and ") + " on shake");' +
-'  if (document.getElementById("shakeHandsTranslucent").checked) parts.push("semi-transparent hands on shake");' +
 '  if (!parts.length) return "No animations active";' +
 '  var s = parts.join(", ");' +
 '  return s.charAt(0).toUpperCase() + s.slice(1);' +
@@ -5874,8 +5836,6 @@ require('./config/config-runtime') +
 'function computeDebugSubheader() {' +
 '  var testOn = document.getElementById("testMode").checked;' +
 '  var overridePart = testOn ? ("Override: " + (formatTestDateTime(document.getElementById("testDateTime").value) || "not set")) : "Override: off";' +
-'  var boxesOn = document.getElementById("drawDebug").checked;' +
-'  var boxesPart = testOn ? "bounding boxes enabled, ": "bounding boxes disabled, ";' +
 '  var lastPart = "last: none yet";' +
 '  try {' +
 '    var log = JSON.parse(document.getElementById("rawMessageLogJson").value || "[]");' +
@@ -5886,7 +5846,7 @@ require('./config/config-runtime') +
 '      lastPart = "last " + pad(d.getHours()) + ":" + pad(d.getMinutes()) + ":" + pad(d.getSeconds()) + "." + pad(d.getMilliseconds(), 3);' +
 '    }' +
 '  } catch (e) {}' +
-'  return overridePart + ", " + boxesPart + lastPart;' +
+'  return overridePart + ", " + lastPart;' +
 '}' +
 // Called on init, after every click/change/input anywhere on the page
 // (see the delegated listeners below -- cheaper and far less fragile

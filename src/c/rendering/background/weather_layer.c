@@ -3,13 +3,6 @@
 #include "./weather_layout.h"
 #include "../render_math.h"
 
-// Treat a weather value as stale only after repeated failed refreshes.
-// Keep the last valid weather state during short-lived fetch failures.
-bool weather_layer_should_show_error(const EclipseData *data) {
-  if (data->weather_error_code == 0) return false;
-  if (!data->weather_ever_valid) return true;
-  return data->weather_error_streak >= 10;
-}
 #define GROUND_H 18
 #define SKY_TOP_MARGIN 20
 
@@ -252,16 +245,3 @@ void weather_layer_draw_clouds(GContext *ctx, GRect bounds, uint8_t cloud_pct, u
 }
 
 // Short weather-condition word used by the status/corners overlay.
-const char *weather_layer_short_condition_text(uint8_t weather_condition, uint8_t cloud_pct) {
-  switch (weather_condition) {
-    case 1: return "Fog";
-    case 2: return "Rain";
-    case 3: return "Snow";
-    case 4: return "Storm";
-    default:
-      if (cloud_pct < 20) return "Sunny";
-      if (cloud_pct < 60) return "P.Cloudy";
-      if (cloud_pct < 90) return "Cloudy";
-      return "Overcast";
-  }
-}

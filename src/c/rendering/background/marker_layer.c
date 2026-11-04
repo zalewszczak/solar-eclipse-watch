@@ -224,7 +224,7 @@ void marker_layer_deinit(MarkerLayerState *state) {
 // know about them.
 void marker_layer_draw(GContext *ctx, MarkerLayerState *state, GPoint center, GRect screen,
                               const EclipseData *d, GColor main_color, GColor accent_color, GColor bg_color,
-                              bool anim_active, int32_t anim_progress_1000, bool draw_debug) {
+                              bool anim_active, int32_t anim_progress_1000) {
   uint8_t marker_style = d->big_analog_marker_style;
 
   bool is_bitmap_style = marker_style >= 3 && marker_style <= 7;
@@ -248,7 +248,7 @@ void marker_layer_draw(GContext *ctx, MarkerLayerState *state, GPoint center, GR
   draw_marker_ring(ctx, center, screen, second_cfg, 60, 5, main_color, accent_color, bg_color, false, 0, second_inner_thickness);
   draw_marker_ring(ctx, center, screen, hour_cfg, 12, 0, main_color, accent_color, bg_color, anim_active, anim_progress_1000, hour_inner_thickness);
 
-  marker_text_draw(ctx, center, screen, &state->text_font_slot, &d->marker_text, hour_cfg, second_cfg, main_color, anim_active, anim_progress_1000, draw_debug);
+  marker_text_draw(ctx, center, screen, &state->text_font_slot, &d->marker_text, hour_cfg, second_cfg, main_color, anim_active, anim_progress_1000);
 }
 
 

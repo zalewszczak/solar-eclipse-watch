@@ -14,9 +14,6 @@ void input_init(EclipseData *data, InputCallbacks callbacks, void *context);
 void input_deinit(void);
 // True while a shake-triggered motion animation (smooth second / Planet Seek) runs.
 bool input_shake_animation_active(void);
-// True during the shake window in which hands are drawn translucent
-// (only meaningful when shake_hands_translucent is set).
-bool input_shake_translucent_active(void);
 bool input_shake_animation_wants_smooth_second(uint8_t mode);
 int32_t input_planet_seek_heading_deg(void);
 bool input_planet_seek_compass_low_accuracy(void);

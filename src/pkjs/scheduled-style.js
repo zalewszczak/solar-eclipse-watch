@@ -103,7 +103,6 @@ var FIELD_MAP = {
   cornerTRCustomPrims: ['CONFIG_CORNER_TR_CUSTOM_PRIMS', 's'],
   cornerBLCustomPrims: ['CONFIG_CORNER_BL_CUSTOM_PRIMS', 's'],
   cornerBRCustomPrims: ['CONFIG_CORNER_BR_CUSTOM_PRIMS', 's'],
-  shakeHandsTranslucent: ['CONFIG_SHAKE_HANDS_TRANSLUCENT', 'b'],
   customHourStyle: ['CONFIG_CUSTOM_HOUR_STYLE', 's'],
   customHourThickness: ['CONFIG_CUSTOM_HOUR_THICKNESS', 's'],
   customHourInnerThickness: ['CONFIG_CUSTOM_HOUR_INNER_THICKNESS', 's'],
@@ -151,7 +150,6 @@ var FIELD_MAP = {
   bottomMiddleLine2Color: ['CONFIG_BOTTOM_MIDDLE_LINE2_COLOR', 's'],
   stepGoal: ['CONFIG_STEP_GOAL', 's'],
   drawFeaturesBeneathHands: ['CONFIG_DRAW_FEATURES_BENEATH_HANDS', 'b'],
-  startupClockAnimMode: ['CONFIG_STARTUP_CLOCK_ANIM_MODE', 's'],
   bgAnimMode: ['CONFIG_BG_ANIM_MODE', 's'],
   shakeAnimMode: ['CONFIG_SHAKE_ANIM_MODE', 's'],
   shakeLabelSeconds: ['CONFIG_SHAKE_LABEL_SECONDS', 's']

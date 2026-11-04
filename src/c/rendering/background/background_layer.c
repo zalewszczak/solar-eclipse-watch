@@ -298,7 +298,7 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
   if (d->bottom_style == 1 && !skip_marker_paint) {
     GColor bg, main_color, accent_color;
     eclipse_ui_get_active_color_scheme(d, now, &bg, &main_color, &accent_color);
-    marker_layer_draw(ctx, &state->markers, center, bounds, d, main_color, accent_color, bg, false, 0, d->draw_debug);
+    marker_layer_draw(ctx, &state->markers, center, bounds, d, main_color, accent_color, bg, false, 0);
   }
 
 // Cache the base composition before drawing transient overlays. The cache

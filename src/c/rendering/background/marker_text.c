@@ -2,30 +2,10 @@
 #include "./marker_layer.h"
 #include <string.h>
 
-static void int_to_roman(int num, char *buf, size_t buf_size) {
-  if (num <= 0) { snprintf(buf, buf_size, "%d", num); return; }
-  static const int VALUES[] = {50, 40, 10, 9, 5, 4, 1};
-  static const char *SYMBOLS[] = {"L", "XL", "X", "IX", "V", "IV", "I"};
-  size_t pos = 0;
-  buf[0] = '\0';
-  for (int i = 0; i < 7 && num > 0; i++) {
-    while (num >= VALUES[i]) {
-      size_t len = strlen(SYMBOLS[i]);
-      if (pos + len + 1 > buf_size) return; // out of room -- truncate rather than overflow
-      memcpy(buf + pos, SYMBOLS[i], len);
-      pos += len;
-      buf[pos] = '\0';
-      num -= VALUES[i];
-    }
-  }
-}
-
-
 void marker_text_draw(GContext *ctx, GPoint center, GRect screen, FontSlot *font_slot,
                                const MarkerTextConfig *text_cfg, const MarkerRingConfig *hour_cfg,
                                const MarkerRingConfig *second_cfg, GColor color,
-                               bool anim_active, int32_t anim_overall_progress_1000,
-                               bool draw_debug) {
+                               bool anim_active, int32_t anim_overall_progress_1000) {
   if (text_cfg->target == 0) return;
   bool is_hour = (text_cfg->target == 1);
   const MarkerRingConfig *ring = is_hour ? hour_cfg : second_cfg;
@@ -65,22 +45,10 @@ void marker_text_draw(GContext *ctx, GPoint center, GRect screen, FontSlot *font
 // Hour markers never legitimately target 0 (i==0 maps to 12
       if (label == 0) continue;
     }
-    if (text_cfg->roman_numerals && label > 0) int_to_roman(label, buf, sizeof(buf));
-    else if (text_cfg->roman_numerals) buf[0] = '\0'; // roman numerals have no glyph for 0 -- blank rather than garbage mid-count-up
-    else snprintf(buf, sizeof(buf), "%d", label);
+    snprintf(buf, sizeof(buf), "%d", label);
 
     GRect box = GRect(pos.x - box_w / 2, pos.y - box_h / 2, box_w, box_h);
     graphics_draw_text(ctx, buf, font, box, GTextOverflowModeFill, GTextAlignmentCenter, NULL);
-    
-    if (draw_debug){
-      graphics_context_set_stroke_width(ctx, 1);
-      graphics_context_set_stroke_color(ctx, GColorYellow);
-      
-      graphics_draw_rect(ctx, box);
-      graphics_context_set_stroke_color(ctx, GColorOrange);
-      graphics_draw_rect(ctx, GRect(pos.x-15, pos.y, 30, 1));
-      graphics_draw_rect(ctx, GRect(pos.x, pos.y-15, 1, 30));
-    }
   }
 }
 

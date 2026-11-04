@@ -65,7 +65,6 @@
       "CLOUD_COVER",
       "VIS_SCORE",
       "WEATHER_SOURCES",
-      "WEATHER_ERROR_CODE",
       "WEATHER_CONDITION",
       "WEATHER_ICON_STYLE",
       "WEATHER_TEMP_C",
@@ -78,7 +77,6 @@
       "WIND_DIR_DEG",
       "DEW_POINT_C",
       "PRESSURE_HPA",
-      "PRESSURE_TREND",
       "AQI_US",
       "AQI_EU",
       "AQI_UNIT",
@@ -107,7 +105,6 @@
       "SHAKE_LABEL_SECONDS",
       "LABEL_STYLE",
       "VIBRATE_ON_PHASE_CHANGE",
-      "STARTUP_CLOCK_ANIM_MODE",
       "BG_ANIM_MODE",
       "SHAKE_ANIM_MODE",
       "OUTLINE_ENABLED",
@@ -157,7 +154,6 @@
       "BATTERY_SAVER_ENABLED",
       "BATTERY_SAVER_PHASE",
       "UV_INDEX_CURRENT_X10",
-      "DRAW_DEBUG",
       "CUSTOM_HOUR_INNER_THICKNESS",
       "CUSTOM_SEC_INNER_THICKNESS",
       "HOURLY_VIBE_MODE",
@@ -645,36 +641,6 @@
         "type": "bitmap",
         "name": "ICON_FORECAST_8",
         "file": "images/forecast_8.png"
-      },
-      {
-        "type": "bitmap",
-        "name": "ICON_FORECAST_9",
-        "file": "images/forecast_9.png"
-      },
-      {
-        "type": "bitmap",
-        "name": "ICON_FORECAST_10",
-        "file": "images/forecast_10.png"
-      },
-      {
-        "type": "bitmap",
-        "name": "ICON_FORECAST_11",
-        "file": "images/forecast_11.png"
-      },
-      {
-        "type": "bitmap",
-        "name": "ICON_FORECAST_12",
-        "file": "images/forecast_12.png"
-      },
-      {
-        "type": "bitmap",
-        "name": "ICON_FORECAST_13",
-        "file": "images/forecast_13.png"
-      },
-      {
-        "type": "bitmap",
-        "name": "ICON_FORECAST_14",
-        "file": "images/forecast_14.png"
       },
         {
           "type": "font",

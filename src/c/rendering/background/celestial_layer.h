@@ -40,7 +40,6 @@ typedef struct {
 
 void celestial_layer_init(CelestialLayerState *state);
 
-const char *celestial_moon_phase_short_name(uint8_t pct, bool waxing);
 
 
 

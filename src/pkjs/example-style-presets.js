@@ -138,7 +138,6 @@ module.exports = {
     "middleRightLine2Color": "3",
     "stepGoal": "10000",
     "drawFeaturesBeneathHands": true,
-    "startupClockAnimMode": "1",
     "bgAnimMode": "2",
     "shakeAnimMode": "1",
     "shakeLabelSeconds": "8"
@@ -255,7 +254,6 @@ module.exports = {
       "middleRightLine2Color": "0",
       "stepGoal": "10000",
       "drawFeaturesBeneathHands": true,
-      "startupClockAnimMode": "1",
       "bgAnimMode": "1",
       "shakeAnimMode": "3",
       "shakeLabelSeconds": "8"
@@ -373,7 +371,6 @@ module.exports = {
       "middleRightLine2Color": "3",
       "stepGoal": "10000",
       "drawFeaturesBeneathHands": true,
-      "startupClockAnimMode": "2",
       "bgAnimMode": "1",
       "shakeAnimMode": "2",
       "shakeLabelSeconds": "8"
@@ -491,7 +488,6 @@ module.exports = {
       "middleRightLine2Color": "0",
       "stepGoal": "10000",
       "drawFeaturesBeneathHands": true,
-      "startupClockAnimMode": "1",
       "bgAnimMode": "1",
       "shakeAnimMode": "2",
       "shakeLabelSeconds": "8"
@@ -609,7 +605,6 @@ module.exports = {
       "middleRightLine2Color": "0",
       "stepGoal": "10000",
       "drawFeaturesBeneathHands": true,
-      "startupClockAnimMode": "2",
       "bgAnimMode": "0",
       "shakeAnimMode": "2",
       "shakeLabelSeconds": "8"
@@ -727,7 +722,6 @@ module.exports = {
       "middleRightLine2Color": "0",
       "stepGoal": "10000",
       "drawFeaturesBeneathHands": true,
-      "startupClockAnimMode": "0",
       "bgAnimMode": "0",
       "shakeAnimMode": "2",
       "shakeLabelSeconds": "8"
@@ -845,7 +839,6 @@ module.exports = {
       "middleRightLine2Color": "3",
       "stepGoal": "10000",
       "drawFeaturesBeneathHands": true,
-      "startupClockAnimMode": "1",
       "bgAnimMode": "0",
       "shakeAnimMode": "1",
       "shakeLabelSeconds": "8"
@@ -963,7 +956,6 @@ module.exports = {
       "middleRightLine2Color": "0",
       "stepGoal": "10000",
       "drawFeaturesBeneathHands": true,
-      "startupClockAnimMode": "2",
       "bgAnimMode": "1",
       "shakeAnimMode": "3",
       "shakeLabelSeconds": "8"
@@ -1081,7 +1073,6 @@ module.exports = {
       "middleRightLine2Color": "0",
       "stepGoal": "10000",
       "drawFeaturesBeneathHands": true,
-      "startupClockAnimMode": "2",
       "bgAnimMode": "1",
       "shakeAnimMode": "3",
       "shakeLabelSeconds": "8"

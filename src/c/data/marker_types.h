@@ -21,5 +21,4 @@ typedef struct {
   int8_t offset_px;
   uint16_t hour_mask;
   uint16_t second_mask;
-  bool roman_numerals;
 } MarkerTextConfig;
