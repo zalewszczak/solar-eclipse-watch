@@ -486,33 +486,14 @@ function populateSettingsFields(dict) {
   // Always carried, on every message -- these are purely cosmetic,
   // phone-local preferences, not eclipse data, so there's no reason
   // to gate them behind DATA_VALID or wait for a full refresh cycle.
-  dict['CLOCK_FONT'] = clockFontCode();
-  dict['TEMP_UNIT'] = tempUnitCode();
-  dict['WIND_SPEED_UNIT'] = windSpeedUnitCode();
-  dict['SHOW_SECONDS'] = showSecondsCode();
   dict['COLORS'] = colorsBytes();
-  dict['NIGHT_SCHEME_ENABLED'] = nightSchemeEnabledCode();
-  dict['BOTTOM_STYLE'] = bottomStyleCode();
-  dict['SUN_MOON_SIZE_PCT'] = sunMoonSizeCode();
-  dict['SKY_MODE'] = skyModeCode();
-  dict['SHOW_MAJOR_STARS'] = showMajorStarsCode();
   dict['WEATHER_ICON_STYLE'] = weatherIconStyleCode();
   dict['AQI_UNIT'] = aqiUnitCode();
   dict['ALTITUDE_UNIT'] = altitudeUnitCode();
-  dict['SHAKE_LABEL_SECONDS'] = shakeLabelSecondsCode();
-  dict['LABEL_STYLE'] = labelStyleCode();
-  dict['SHADOW_TRANSLUCENT'] = shadowTranslucentCode();
   dict['SHADOW_ANGLE'] = shadowAngleCode();
-  dict['BIG_ANALOG_MARKER_STYLE'] = bigAnalogMarkerStyleCode();
-  dict['BITMAP_MARKER_TRANSPARENT'] = bitmapMarkerTransparentCode();
-  dict['DRAW_FEATURES_BENEATH_HANDS'] = drawFeaturesBeneathHandsCode();
   dict['MARKER_RINGS'] = markerRingsBytes();
-  dict['CUSTOM_HOUR_INNER_THICKNESS'] = customHourInnerThicknessCode();
-  dict['CUSTOM_SEC_INNER_THICKNESS'] = customSecInnerThicknessCode();
   dict['MARKER_TEXT'] = markerTextBytes();
   dict['HANDS'] = handsBytes();
-  dict['CENTER_CIRCLE_RADIUS'] = centerCircleRadiusCode();
-  dict['CENTER_CIRCLE_COLOR'] = centerCircleColorCode();
   dict['EDGE_LINE_COLOR_MODE'] = edgeLinesBytes(); // primitive-only slot color modes
   var edgeSeqs = edgeSequences();
   dict['EDGE_LINE_PRIMITIVE_IDS'] = concatField(edgeSeqs, 'ids'); // 8 slots x 10
@@ -521,31 +502,52 @@ function populateSettingsFields(dict) {
   dict['CORNER_PRIMITIVE_IDS'] = concatField(cornerSeqs, 'ids'); // 4 slots x 10, TL,TR,BL,BR
   dict['CORNER_PRIMITIVE_AUX'] = concatField(cornerSeqs, 'aux');
   dict['PLUGIN_TEXTS'] = pluginManager.textsBytes();
-  // Order must match SETTINGS_BLOB_OFFSETS in comms_decoder.c.
+  // SETTINGS_U8_BLOB: 36 single-byte settings copied verbatim into the watch's settings
+  // block (struct EclipseData's anonymous block). ORDER = struct member order; keep in
+  // sync with eclipse_data.h and the SETTINGS_BLOCK_LEN assert in comms_decoder.c.
   var tightMask = primitiveTightMask();
   dict['SETTINGS_U8_BLOB'] = [
+    tempUnitCode() & 255,
+    windSpeedUnitCode() & 255,
+    shakeLabelSecondsCode() & 255,
+    vibrateOnPhaseChangeCode() & 255,
+    outlineEnabledCode() & 255,
+    batterySaverEnabledCode() & 255,
+    cornerFontCode() & 255,
+    centerCircleRadiusCode() & 255,
+    centerCircleColorCode() & 255,
+    bitmapMarkerTransparentCode() & 255,
+    customHourInnerThicknessCode() & 255,
+    customSecInnerThicknessCode() & 255,
+    hourlyVibeModeCode() & 255,
+    hourlyVibeIntervalMinCode() & 255,
+    hourlyVibePatternCode() & 255,
+    hourlyVibeDaysMaskCode() & 255,
+    hourlyVibeOverrideQuietCode() & 255,
+    showFlightsCode() & 255,
+    bgAnimModeCode() & 255,
+    shakeAnimModeCode() & 255,
+    clockFontCode() & 255,
+    showSecondsCode() & 255,
+    bottomStyleCode() & 255,
+    sunMoonSizeCode() & 255,
+    skyModeCode() & 255,
+    labelStyleCode() & 255,
+    shadowTranslucentCode() & 255,
+    drawFeaturesBeneathHandsCode() & 255,
+    bigAnalogMarkerStyleCode() & 255,
+    showSunTimeCode() & 255,
+    showIssCode() & 255,
+    showMajorStarsCode() & 255,
+    auroraEnabledCode() & 255,
+    nightSchemeEnabledCode() & 255,
     tightMask & 255, (tightMask >> 8) & 255
   ];
-  dict['SHOW_SUN_TIME'] = showSunTimeCode();
-  dict['SHOW_ISS'] = showIssCode();
-  dict['SHOW_FLIGHTS'] = showFlightsCode();
-  dict['AURORA_ENABLED'] = auroraEnabledCode();
-  dict['VIBRATE_ON_PHASE_CHANGE'] = vibrateOnPhaseChangeCode();
-  dict['BG_ANIM_MODE'] = bgAnimModeCode();
-  dict['SHAKE_ANIM_MODE'] = shakeAnimModeCode();
-  dict['OUTLINE_ENABLED'] = outlineEnabledCode();
-  dict['BATTERY_SAVER_ENABLED'] = batterySaverEnabledCode();
-  dict['CORNER_FONT'] = cornerFontCode();
   // Legacy CORNER_CONTENT/EDGE_LINES are never emitted: feature ids stay on the phone.
   dict['CORNER_COLOR_MODE'] = cornerColorModeBytes();
   dict['DAILY_STEP_GOAL'] = dailyStepGoalValue();
-  dict['HOURLY_VIBE_MODE'] = hourlyVibeModeCode();
-  dict['HOURLY_VIBE_INTERVAL_MIN'] = hourlyVibeIntervalMinCode();
-  dict['HOURLY_VIBE_PATTERN'] = hourlyVibePatternCode();
   dict['HOURLY_VIBE_START_MIN'] = hourlyVibeStartMinCode();
   dict['HOURLY_VIBE_END_MIN'] = hourlyVibeEndMinCode();
-  dict['HOURLY_VIBE_DAYS_MASK'] = hourlyVibeDaysMaskCode();
-  dict['HOURLY_VIBE_OVERRIDE_QUIET'] = hourlyVibeOverrideQuietCode();
   // Scheduled My styles: when the watch should next ask PKJS to serve one
   // (0 = none). Always sent so the watch's copy can never go stale.
   dict['NEXT_STYLE_CHECK'] = scheduledStyle.nextCheckSeconds(Date.now());

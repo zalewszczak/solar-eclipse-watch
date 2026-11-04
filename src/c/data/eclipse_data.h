@@ -78,16 +78,54 @@ typedef enum {
 #define PLUGIN_TEXT_LEN 16
 
 typedef struct {
+  // ---- Settings block: single-byte phone settings, received as ONE blob
+  // (SETTINGS_U8_BLOB) and copied with one memcpy by comms_decoder.c. Field
+  // ORDER IS THE WIRE ORDER (see comms/message-encoder.js); every member must
+  // be 1 byte. Anonymous struct: members are still d->name.
+  struct {
+    uint8_t temp_unit;       // 0=C, 1=F, 2=K.
+    uint8_t wind_speed_unit; // 0=km/h, 1=mph, 2=m/s, 3=knots.
+    uint8_t shake_label_seconds; // label visibility duration.
+    bool vibrate_on_phase_change; // vibrate at C1/C2/C3/C4.
+    uint8_t outline_style;   // 0=none, 1=thin, 2=thick.
+    bool battery_saver_enabled; // reduce updates to save power.
+    uint8_t corner_font;     // feature text font ID.
+    uint8_t center_circle_radius; // 0 disables the center circle.
+    uint8_t center_circle_color; // 0=main, 1=accent, 2=background.
+    bool bitmap_marker_transparent; // transparent bitmap markers; also drives Big Digital's digit-bitmap transparency.
+    uint8_t custom_hour_marker_inner_thickness;
+    uint8_t custom_second_marker_inner_thickness;
+    uint8_t hourly_vibe_mode; // 0=off, 1=hourly, 2=interval.
+    uint8_t hourly_vibe_interval_min; // interval for mode 2.
+    uint8_t hourly_vibe_pattern; // 0=short, 1=double, 2=long.
+    uint8_t hourly_vibe_days_mask; // bit 0=Sun through bit 6=Sat.
+    bool hourly_vibe_override_quiet; // vibrate during Quiet Time when true.
+    bool show_flights;                          // "Flights" toggle in Other settings.
+    uint8_t bg_anim_mode;    // 0=off, 1=planets, 2=hour markers.
+    uint8_t shake_anim_mode;  // 0=off, 1=smooth seconds, 2=planet seek.
+    uint8_t clock_font;      // main clock font ID.
+    bool show_seconds;       // show seconds in the main clock.
+    uint8_t bottom_style;
+    uint8_t sun_moon_size_pct; // 25, 50, 75 or 100 percent.
+    uint8_t sky_mode;         // 0=weather, 1=clear, 2=Space.
+    uint8_t label_style;     // 0=boxed, 1=outlined, 2=soft.
+    bool shadow_translucent; // draw hand shadows dithered.
+    bool draw_features_beneath_hands; // analog mode layering.
+    uint8_t big_analog_marker_style;
+    bool show_sun_time;      // digital mode: show next sunrise/sunset instead of week number.
+    bool show_iss;            // draw current ISS position when fresh.
+    bool show_major_stars;    // Space view star field.
+    bool aurora_enabled;      // fetch and display aurora data.
+    bool night_scheme_enabled;
+    uint8_t primitive_tight_mask_lo;
+    uint8_t primitive_tight_mask_hi;
+  };
+
   // Payload/status state.
   bool valid;              // true after a valid payload has been received.
   uint8_t error_code;      // 0=none, 1=no location, 2=calculation, 3=send failure.
   bool has_eclipse;        // true when an eclipse occurs today.
-  uint8_t clock_font;      // main clock font ID.
 
-  uint8_t temp_unit;       // 0=C, 1=F, 2=K.
-  uint8_t wind_speed_unit; // 0=km/h, 1=mph, 2=m/s, 3=knots.
-  bool show_seconds;       // show seconds in the main clock.
-  bool show_sun_time;      // digital mode: show next sunrise/sunset instead of week number.
 
   int16_t temp_high_c;
   int16_t temp_low_c;
@@ -119,7 +157,6 @@ typedef struct {
   uint8_t custom_accent;
 
   // Optional night color scheme.
-  bool night_scheme_enabled;
   uint8_t night_custom_bg;
   uint8_t night_custom_text;
   uint8_t night_custom_accent;
@@ -136,29 +173,17 @@ typedef struct {
   //  9  Digital Top, both left + right side features
   //  10  Big Digital
   //  11  Grid
-  uint8_t bottom_style;
-
-  uint8_t sun_moon_size_pct; // 25, 50, 75 or 100 percent.
-
-  uint8_t shake_label_seconds; // label visibility duration.
-  uint8_t label_style;     // 0=boxed, 1=outlined, 2=soft.
-
-  bool vibrate_on_phase_change; // vibrate at C1/C2/C3/C4.
 
 
-  uint8_t bg_anim_mode;    // 0=off, 1=planets, 2=hour markers.
 
-  uint8_t shake_anim_mode;  // 0=off, 1=smooth seconds, 2=planet seek.
 
-  uint8_t outline_style;   // 0=none, 1=thin, 2=thick.
 
-  bool battery_saver_enabled; // reduce updates to save power.
 
-  uint8_t corner_font;     // feature text font ID.
 
-  bool shadow_translucent; // draw hand shadows dithered.
 
-  bool draw_features_beneath_hands; // analog mode layering.
+
+
+
 
   uint16_t shadow_angle_deg; // shadow direction in degrees.
 
@@ -166,30 +191,19 @@ typedef struct {
   HandConfig hand_hour;
   HandConfig hand_minute;
   HandConfig hand_second;
-  uint8_t center_circle_radius; // 0 disables the center circle.
-  uint8_t center_circle_color; // 0=main, 1=accent, 2=background.
 
   // 3-7 = bitmap marker styles; anything else draws custom_hour_marker/
   // custom_second_marker + marker_text below. (The phone only ever sends
   // 8: the settings page's Minimal/Braun/Swiss/Classy/None presets are
   // resolved into those ring + text values before they get here.)
-  uint8_t big_analog_marker_style;
 
-  bool bitmap_marker_transparent; // use transparent bitmap marker background; also
-                                   // drives Big Digital's own digit-bitmap transparency
-                                   // (see big_digital_display.c), since the two are
-                                   // never on screen together and share one setting.
   // Bit mask of slots using explicit tight primitive spacing (corner bits 0-3,
   // edge/middle bits 4-11).
-  uint8_t primitive_tight_mask_lo;
-  uint8_t primitive_tight_mask_hi;
 
   MarkerRingConfig custom_hour_marker;
   MarkerRingConfig custom_second_marker;
   MarkerTextConfig marker_text;
 
-  uint8_t custom_hour_marker_inner_thickness;
-  uint8_t custom_second_marker_inner_thickness;
 
   // Eclipse contacts and animation samples.
   time_t c1;
@@ -306,9 +320,7 @@ typedef struct {
   uint8_t cloud_pct_samples[MAX_SKY_SAMPLES]; // 0-100 cloud cover.
   uint8_t cloud_altitude_pct; // 0=low, 100=high cloud.
 
-  uint8_t sky_mode;         // 0=weather, 1=clear, 2=Space.
 
-  bool show_major_stars;    // Space view star field.
 
   int16_t moon_alt_decideg[MAX_SKY_SAMPLES]; // altitude ×10 degrees.
   uint16_t moon_az_decideg[MAX_SKY_SAMPLES]; // azimuth ×10 degrees.
@@ -344,7 +356,6 @@ typedef struct {
   uint8_t meteor_color;
 
   // ISS visibility and current-pass data.
-  bool show_iss;            // draw current ISS position when fresh.
   int16_t iss_alt_deg;      // snapshot altitude in degrees.
   uint16_t iss_az_deg;      // snapshot azimuth in degrees.
   time_t iss_computed_at;   // time of the ISS position snapshot.
@@ -356,14 +367,12 @@ typedef struct {
   // Shake ("Planet Seek") overhead-objects list -- ISS plus nearby flights,
   // fetched on demand; see hourly_vibration.h-style comment analogue in
   // input.c's maybe_start_shake_animation() for what triggers a refetch.
-  bool show_flights;                          // "Flights" toggle in Other settings.
   OverheadObject overhead_objects[MAX_OVERHEAD_OBJECTS];
   uint8_t overhead_object_count;
   time_t overhead_objects_computed_at;        // 0 = never fetched.
   bool overhead_objects_loading;              // watch-local only; never sent over the wire.
 
   // Aurora data and display settings.
-  bool aurora_enabled;      // fetch and display aurora data.
 
   uint8_t aurora_kp_x10;    // Kp index ×10.
   char aurora_kp_display[8]; // PKJS-formatted "Kp N.N".
@@ -374,15 +383,10 @@ typedef struct {
   uint8_t aurora_error_code; // current refresh error code, 0=ok.
 
   // Hourly vibration schedule.
-  uint8_t hourly_vibe_mode; // 0=off, 1=hourly, 2=interval.
-  uint8_t hourly_vibe_interval_min; // interval for mode 2.
-  uint8_t hourly_vibe_pattern; // 0=short, 1=double, 2=long.
   uint16_t hourly_vibe_start_min; // start minute of day.
   uint16_t hourly_vibe_end_min; // end minute; equal means all day.
 
-  uint8_t hourly_vibe_days_mask; // bit 0=Sun through bit 6=Sat.
 
-  bool hourly_vibe_override_quiet; // vibrate during Quiet Time when true.
 
   // Scheduled "My styles": epoch second at which the phone wants to be asked
   // to apply a scheduled style (0 = nothing scheduled). The phone computes

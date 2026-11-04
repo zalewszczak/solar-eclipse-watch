@@ -20,9 +20,6 @@ typedef enum {
   F_U16,        // d->FIELD = t->value->uint16;
   F_U32,        // d->FIELD = t->value->uint32;
   F_TIME,       // d->FIELD = (time_t)t->value->int32;
-  // Invalid values fall back to 0 for bounded byte settings.
-  F_U8_MAX2,    // d->FIELD = (v <= 2) ? v : 0;
-  F_U8_MAX3,    // d->FIELD = (v <= 3) ? v : 0;
 } SimpleFieldType;
 
 // Change flags are stored as (bit index + 1) in the high nibble.
@@ -52,16 +49,6 @@ typedef struct {
 static const SimpleFieldMapping SIMPLE_FIELD_MAP[] = {
   { MK_DATA_VALID, F_BOOL, offsetof(EclipseData, valid) },
   { MK_ERROR_CODE, F_U8, offsetof(EclipseData, error_code) },
-  { MK_TEMP_UNIT, F_U8, offsetof(EclipseData, temp_unit) },
-  { MK_WIND_SPEED_UNIT, F_U8, offsetof(EclipseData, wind_speed_unit) },
-  { MK_SHAKE_LABEL_SECONDS, F_U8, offsetof(EclipseData, shake_label_seconds) },
-  { MK_VIBRATE_ON_PHASE_CHANGE, F_BOOL, offsetof(EclipseData, vibrate_on_phase_change) },
-  { MK_OUTLINE_ENABLED, F_U8, offsetof(EclipseData, outline_style) },
-  { MK_BATTERY_SAVER_ENABLED, F_BOOL, offsetof(EclipseData, battery_saver_enabled) },
-  { MK_CORNER_FONT, F_U8, offsetof(EclipseData, corner_font) },
-  { MK_CENTER_CIRCLE_RADIUS, F_U8, offsetof(EclipseData, center_circle_radius) },
-  { MK_CENTER_CIRCLE_COLOR, F_U8, offsetof(EclipseData, center_circle_color) },
-  { MK_BITMAP_MARKER_TRANSPARENT, F_BOOL, offsetof(EclipseData, bitmap_marker_transparent) },
   { MK_DAILY_STEP_GOAL, F_U16, offsetof(EclipseData, daily_step_goal) },
   { MK_C1_TIME, F_TIME, offsetof(EclipseData, c1) },
   { MK_C2_TIME, F_TIME, offsetof(EclipseData, c2) },
@@ -113,19 +100,11 @@ static const SimpleFieldMapping SIMPLE_FIELD_MAP[] = {
   { MK_ISS_NEXT_PASS, F_TIME, offsetof(EclipseData, iss_next_pass) },
   { MK_ISS_ERROR_CODE, F_U8, offsetof(EclipseData, iss_error_code) },
   { MK_WEATHER_LAST_UPDATE, F_TIME, offsetof(EclipseData, weather_last_update) },
-  { MK_SHOW_FLIGHTS, F_BOOL, offsetof(EclipseData, show_flights) },
   { MK_OVERHEAD_OBJECT_COUNT, F_U8, offsetof(EclipseData, overhead_object_count) },
   { MK_OVERHEAD_OBJECTS_COMPUTED_AT, F_TIME, offsetof(EclipseData, overhead_objects_computed_at) },
   // Kept separate from MARKER_RINGS because they are independent fields.
-  { MK_CUSTOM_HOUR_INNER_THICKNESS, F_U8, offsetof(EclipseData, custom_hour_marker_inner_thickness) },
-  { MK_CUSTOM_SEC_INNER_THICKNESS, F_U8, offsetof(EclipseData, custom_second_marker_inner_thickness) },
-  { MK_HOURLY_VIBE_MODE, F_U8, offsetof(EclipseData, hourly_vibe_mode) },
-  { MK_HOURLY_VIBE_INTERVAL_MIN, F_U8, offsetof(EclipseData, hourly_vibe_interval_min) },
-  { MK_HOURLY_VIBE_PATTERN, F_U8, offsetof(EclipseData, hourly_vibe_pattern) },
   { MK_HOURLY_VIBE_START_MIN, F_U16, offsetof(EclipseData, hourly_vibe_start_min) },
   { MK_HOURLY_VIBE_END_MIN, F_U16, offsetof(EclipseData, hourly_vibe_end_min) },
-  { MK_HOURLY_VIBE_DAYS_MASK, F_U8, offsetof(EclipseData, hourly_vibe_days_mask) },
-  { MK_HOURLY_VIBE_OVERRIDE_QUIET, F_BOOL, offsetof(EclipseData, hourly_vibe_override_quiet) },
   { MK_NEXT_STYLE_CHECK, F_TIME, offsetof(EclipseData, next_style_check) },
   // Primitive-feature support fields (PKJS-computed icon category/colors, shake-only slots).
   { MK_WEATHER_ICON_CATEGORY, F_U8, offsetof(EclipseData, weather_icon_category) },
@@ -136,23 +115,7 @@ static const SimpleFieldMapping SIMPLE_FIELD_MAP[] = {
   { MK_AURORA_KP_COLOR, F_U8, offsetof(EclipseData, aurora_kp_color) },
   { MK_METEOR_COLOR, F_U8, offsetof(EclipseData, meteor_color) },
   // Settings that also raise a presentation change flag.
-  { MK_CLOCK_FONT, F_U8 | FL_FONT, offsetof(EclipseData, clock_font) },
-  { MK_SHOW_SECONDS, F_BOOL | FL_HANDS, offsetof(EclipseData, show_seconds) },
-  { MK_BOTTOM_STYLE, F_U8 | FL_LAYOUT, offsetof(EclipseData, bottom_style) },
-  { MK_SUN_MOON_SIZE_PCT, F_U8 | FL_CANVAS, offsetof(EclipseData, sun_moon_size_pct) },
-  { MK_SKY_MODE, F_U8 | FL_CANVAS, offsetof(EclipseData, sky_mode) },
-  { MK_LABEL_STYLE, F_U8 | FL_CANVAS, offsetof(EclipseData, label_style) },
-  { MK_BG_ANIM_MODE, F_U8_MAX2, offsetof(EclipseData, bg_anim_mode) },
-  { MK_SHAKE_ANIM_MODE, F_U8_MAX3, offsetof(EclipseData, shake_anim_mode) },
-  { MK_SHADOW_TRANSLUCENT, F_BOOL | FL_HANDS, offsetof(EclipseData, shadow_translucent) },
   { MK_SHADOW_ANGLE, F_U16 | FL_HANDS, offsetof(EclipseData, shadow_angle_deg) },
-  { MK_DRAW_FEATURES_BENEATH_HANDS, F_BOOL | FL_LAYOUT, offsetof(EclipseData, draw_features_beneath_hands) },
-  { MK_BIG_ANALOG_MARKER_STYLE, F_U8 | FL_HANDS, offsetof(EclipseData, big_analog_marker_style) },
-  { MK_SHOW_SUN_TIME, F_BOOL | FL_PANEL, offsetof(EclipseData, show_sun_time) },
-  { MK_SHOW_ISS, F_BOOL | FL_CANVAS, offsetof(EclipseData, show_iss) },
-  { MK_SHOW_MAJOR_STARS, F_BOOL | FL_CANVAS, offsetof(EclipseData, show_major_stars) },
-  { MK_AURORA_ENABLED, F_BOOL | FL_CANVAS, offsetof(EclipseData, aurora_enabled) },
-  { MK_NIGHT_SCHEME_ENABLED, F_BOOL | FL_PANEL, offsetof(EclipseData, night_scheme_enabled) },
 };
 
 // Additional fields applied only to valid payloads.
@@ -180,13 +143,7 @@ static uint32_t apply_simple_fields(DictionaryIterator *iter, EclipseData *d,
       case F_I16:  *(int16_t *)dst = st->value->int16; break;
       case F_U16:  *(uint16_t *)dst = st->value->uint16; break;
       case F_U32:  *(uint32_t *)dst = st->value->uint32; break;
-      case F_TIME: *(time_t *)dst = (time_t)st->value->int32; break;
-      default: { // F_U8_MAX2 / F_U8_MAX3
-        uint8_t v = st->value->uint8;
-        uint8_t limit = (uint8_t)(type - F_U8_MAX2 + 2);
-        *dst = (v <= limit) ? v : 0;
-        break;
-      }
+      default:     *(time_t *)dst = (time_t)st->value->int32; break; // F_TIME
     }
     changes |= FLAG_BITS(tf); // 0 when the high nibble is FL_NONE
   }
@@ -283,11 +240,13 @@ static void apply_scattered_u8_blob(DictionaryIterator *iter, EclipseData *d, ui
   }
 }
 
-// Group 1 (2 fields): new plain settings, set on every settings push.
-static const uint16_t SETTINGS_BLOB_OFFSETS[] = {
-  offsetof(EclipseData, primitive_tight_mask_lo),
-  offsetof(EclipseData, primitive_tight_mask_hi),
-};
+// Settings block: the 36 single-byte phone settings (struct EclipseData's anonymous
+// block, in wire order) arrive as one SETTINGS_U8_BLOB and are copied in one go.
+#define SETTINGS_BLOCK_FIRST temp_unit
+#define SETTINGS_BLOCK_LAST  primitive_tight_mask_hi
+#define SETTINGS_BLOCK_LEN   36
+_Static_assert(offsetof(EclipseData, SETTINGS_BLOCK_LAST) - offsetof(EclipseData, SETTINGS_BLOCK_FIRST) + 1 == SETTINGS_BLOCK_LEN,
+               "settings block must be exactly SETTINGS_BLOCK_LEN contiguous bytes");
 
 // Group 2 (2 fields): cloud/visibility readout gradient colors.
 static const uint16_t WEATHER_CLOUD_BLOB_OFFSETS[] = {
@@ -408,7 +367,16 @@ CommsChangeFlags comms_decoder_apply(DictionaryIterator *iter, EclipseData *data
   uint32_t changes = apply_simple_fields(iter, d, SIMPLE_FIELD_MAP, NELEM(SIMPLE_FIELD_MAP));
   apply_consolidated_fields(iter, d);
   apply_blob_fields(iter, d, BLOB_FIELD_MAP, NELEM(BLOB_FIELD_MAP));
-  apply_scattered_u8_blob(iter, d, MK_SETTINGS_U8_BLOB, SETTINGS_BLOB_OFFSETS, NELEM(SETTINGS_BLOB_OFFSETS));
+  // Every flagged setting arrives in this one blob, so a settings push raises all of the
+  // presentation flags (as the old per-key path did when the full set was sent).
+  Tuple *sb = dict_find(iter, base + MK_SETTINGS_U8_BLOB);
+  if (sb && sb->length >= SETTINGS_BLOCK_LEN) {
+    memcpy(&d->SETTINGS_BLOCK_FIRST, sb->value->data, SETTINGS_BLOCK_LEN);
+    if (d->bg_anim_mode > 2) d->bg_anim_mode = 0;
+    if (d->shake_anim_mode > 3) d->shake_anim_mode = 0;
+    changes |= COMMS_CHANGE_CLOCK_FONT | COMMS_CHANGE_LAYOUT | COMMS_CHANGE_HANDS |
+               COMMS_CHANGE_CANVAS | COMMS_CHANGE_PANEL;
+  }
 
   // Any response to REQUEST_FLIGHTS (success or failure) carries a fresh
   // OVERHEAD_OBJECTS_COMPUTED_AT -- PKJS sends it either way, so its mere
