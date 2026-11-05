@@ -138,7 +138,7 @@ module.exports = {
     "middleRightLine2Color": "3",
     "stepGoal": "10000",
     "drawFeaturesBeneathHands": true,
-    "bgAnimMode": "2",
+    "bgAnimMode": "0",
     "shakeAnimMode": "1",
     "shakeLabelSeconds": "8"
   }},

@@ -215,11 +215,6 @@ function buildCurrent() {
     customSecOuterBorder: getSetting('CONFIG_CUSTOM_SEC_OUTER_BORDER', '100'),
     customSecTranslucent: getSetting('CONFIG_CUSTOM_SEC_TRANSLUCENT', 'false'),
     customSecColor: getSetting('CONFIG_CUSTOM_SEC_COLOR', '0'),
-    markerTextTarget: getSetting('CONFIG_MARKER_TEXT_TARGET', '0'),
-    markerTextFont: getSetting('CONFIG_MARKER_TEXT_FONT', '0'),
-    markerTextOffset: getSetting('CONFIG_MARKER_TEXT_OFFSET', '0'),
-    markerTextHourMask: getSetting('CONFIG_MARKER_TEXT_HOUR_MASK', '4095'),
-    markerTextSecMask: getSetting('CONFIG_MARKER_TEXT_SEC_MASK', '4095'),
     handHourStyle: getSetting('CONFIG_HAND_HOUR_STYLE', '1'),
     handHourWidth: getSetting('CONFIG_HAND_HOUR_WIDTH', '12'),
     handHourLength: getSetting('CONFIG_HAND_HOUR_LENGTH', '51'),
@@ -579,11 +574,6 @@ function applySettingsObject(settings) {
   setSetting('CONFIG_CUSTOM_SEC_OUTER_BORDER', settings.CONFIG_CUSTOM_SEC_OUTER_BORDER || '100');
   setSetting('CONFIG_CUSTOM_SEC_TRANSLUCENT', settings.CONFIG_CUSTOM_SEC_TRANSLUCENT ? 'true' : 'false');
   setSetting('CONFIG_CUSTOM_SEC_COLOR', settings.CONFIG_CUSTOM_SEC_COLOR || '0');
-  setSetting('CONFIG_MARKER_TEXT_TARGET', settings.CONFIG_MARKER_TEXT_TARGET || '0');
-  setSetting('CONFIG_MARKER_TEXT_FONT', settings.CONFIG_MARKER_TEXT_FONT || '0');
-  setSetting('CONFIG_MARKER_TEXT_OFFSET', settings.CONFIG_MARKER_TEXT_OFFSET || '0');
-  setSetting('CONFIG_MARKER_TEXT_HOUR_MASK', settings.CONFIG_MARKER_TEXT_HOUR_MASK || '4095');
-  setSetting('CONFIG_MARKER_TEXT_SEC_MASK', settings.CONFIG_MARKER_TEXT_SEC_MASK || '4095');
   setSetting('CONFIG_HAND_HOUR_STYLE', settings.CONFIG_HAND_HOUR_STYLE || '1');
   setSetting('CONFIG_HAND_HOUR_WIDTH', settings.CONFIG_HAND_HOUR_WIDTH || '12');
   setSetting('CONFIG_HAND_HOUR_LENGTH', settings.CONFIG_HAND_HOUR_LENGTH || '51');

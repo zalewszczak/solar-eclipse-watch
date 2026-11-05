@@ -65,11 +65,6 @@ var customSecInnerBorderCode = settingsCodecs.customSecInnerBorderCode;
 var customSecOuterBorderCode = settingsCodecs.customSecOuterBorderCode;
 var customSecTranslucentCode = settingsCodecs.customSecTranslucentCode;
 var customSecColorCode = settingsCodecs.customSecColorCode;
-var markerTextTargetCode = settingsCodecs.markerTextTargetCode;
-var markerTextFontCode = settingsCodecs.markerTextFontCode;
-var markerTextOffsetCode = settingsCodecs.markerTextOffsetCode;
-var markerTextHourMaskCode = settingsCodecs.markerTextHourMaskCode;
-var markerTextSecMaskCode = settingsCodecs.markerTextSecMaskCode;
 var handStyleFieldCode = settingsCodecs.handStyleFieldCode;
 var handColorFieldCode = settingsCodecs.handColorFieldCode;
 var handMainColorFieldCode = settingsCodecs.handMainColorFieldCode;
@@ -446,23 +441,6 @@ function activePrimitiveIds() {
   return seen;
 }
 
-// MARKER_TEXT: 7 bytes -- target, font_choice, offset_px (signed byte),
-// hour_mask (u16 little-endian), second_mask (u16 little-endian),
-// Not a memcpy target on the C side (MarkerTextConfig
-// has padding around its two u16 masks), but PKJS still needs to send
-// exactly these 7 bytes in exactly this order for that unpack to work.
-function markerTextBytes() {
-  var hourMask = markerTextHourMaskCode();
-  var secMask = markerTextSecMaskCode();
-  return [
-    markerTextTargetCode(),
-    markerTextFontCode(),
-    toU8(markerTextOffsetCode()),
-    hourMask & 0xFF, (hourMask >> 8) & 0xFF,
-    secMask & 0xFF, (secMask >> 8) & 0xFF
-  ];
-}
-
 // COLORS: 6 bytes -- custom_bg, custom_text, custom_accent,
 // night_custom_bg, night_custom_text, night_custom_accent.
 // Deliberately NOT night_scheme_enabled too (still its own separate
@@ -492,7 +470,6 @@ function populateSettingsFields(dict) {
   dict['ALTITUDE_UNIT'] = altitudeUnitCode();
   dict['SHADOW_ANGLE'] = shadowAngleCode();
   dict['MARKER_RINGS'] = markerRingsBytes();
-  dict['MARKER_TEXT'] = markerTextBytes();
   dict['HANDS'] = handsBytes();
   dict['EDGE_LINE_COLOR_MODE'] = edgeLinesBytes(); // primitive-only slot color modes
   var edgeSeqs = edgeSequences();

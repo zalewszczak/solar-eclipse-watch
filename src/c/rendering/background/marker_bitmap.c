@@ -95,8 +95,7 @@ void marker_bitmap_tint(GBitmap *bitmap, bool *bitmap_tinted, GColor *tint_color
   *tint_color = tint;
 }
 
-void marker_bitmap_draw(GContext *ctx, GBitmap *bitmap, GRect bounds,
-                        bool anim_active, int32_t anim_progress_1000) {
+void marker_bitmap_draw(GContext *ctx, GBitmap *bitmap, GRect bounds) {
   if (!bitmap) return;
 
   GRect bmp_bounds = gbitmap_get_bounds(bitmap);
@@ -105,10 +104,5 @@ void marker_bitmap_draw(GContext *ctx, GBitmap *bitmap, GRect bounds,
                      bmp_bounds.size.w, bmp_bounds.size.h);
   graphics_context_set_compositing_mode(ctx, GCompOpSet);
 
-  // Bitmap marker styles currently draw immediately. The animation arguments
-  // are retained so the renderer can share one call shape with procedural and
-  // text markers if a true bitmap reveal is implemented later.
-  (void)anim_active;
-  (void)anim_progress_1000;
   graphics_draw_bitmap_in_rect(ctx, bitmap, dest);
 }

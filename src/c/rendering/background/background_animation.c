@@ -35,11 +35,6 @@ void background_animation_start(EclipseData *data, Layer *canvas_layer) {
   s_played = true;
   s_canvas_layer = canvas_layer;
 
-// Bitmap-backed marker styles cannot animate their marker artwork. Avoid
-  bool bitmap_marker_active = data->big_analog_marker_style >= 3 &&
-                              data->big_analog_marker_style <= 7;
-  if (data->bg_anim_mode == 2 && bitmap_marker_active) return;
-
   s_active = true;
   s_elapsed_ms = 0;
   if (s_canvas_layer) {

@@ -211,11 +211,6 @@ module.exports =
 '    CONFIG_CUSTOM_SEC_OUTER_BORDER: document.getElementById("customSecOuterBorder").value,' +
 '    CONFIG_CUSTOM_SEC_TRANSLUCENT: document.getElementById("customSecTranslucent").value === "true",' +
 '    CONFIG_CUSTOM_SEC_COLOR: document.getElementById("customSecColor").value,' +
-'    CONFIG_MARKER_TEXT_TARGET: document.getElementById("markerTextTarget").value,' +
-'    CONFIG_MARKER_TEXT_FONT: document.getElementById("markerTextFont").value,' +
-'    CONFIG_MARKER_TEXT_OFFSET: document.getElementById("markerTextOffset").value,' +
-'    CONFIG_MARKER_TEXT_HOUR_MASK: document.getElementById("markerTextHourMask").value,' +
-'    CONFIG_MARKER_TEXT_SEC_MASK: document.getElementById("markerTextSecMask").value,' +
 '    CONFIG_HAND_HOUR_STYLE: document.getElementById("handHourStyle").value,' +
 '    CONFIG_HAND_HOUR_WIDTH: document.getElementById("handHourWidth").value,' +
 '    CONFIG_HAND_HOUR_LENGTH: document.getElementById("handHourLength").value,' +

@@ -101,7 +101,7 @@ typedef struct {
     uint8_t hourly_vibe_days_mask; // bit 0=Sun through bit 6=Sat.
     bool hourly_vibe_override_quiet; // vibrate during Quiet Time when true.
     bool show_flights;                          // "Flights" toggle in Other settings.
-    uint8_t bg_anim_mode;    // 0=off, 1=planets, 2=hour markers.
+    uint8_t bg_anim_mode;    // 0=off, 1=planets.
     uint8_t shake_anim_mode;  // 0=off, 1=smooth seconds, 2=planet seek.
     uint8_t clock_font;      // main clock font ID.
     bool show_seconds;       // show seconds in the main clock.
@@ -193,16 +193,15 @@ typedef struct {
   HandConfig hand_second;
 
   // 3-7 = bitmap marker styles; anything else draws custom_hour_marker/
-  // custom_second_marker + marker_text below. (The phone only ever sends
+  // custom_second_marker below. (The phone only ever sends
   // 8: the settings page's Minimal/Braun/Swiss/Classy/None presets are
-  // resolved into those ring + text values before they get here.)
+  // resolved into those ring values before they get here.)
 
   // Bit mask of slots using explicit tight primitive spacing (corner bits 0-3,
   // edge/middle bits 4-11).
 
   MarkerRingConfig custom_hour_marker;
   MarkerRingConfig custom_second_marker;
-  MarkerTextConfig marker_text;
 
 
   // Eclipse contacts and animation samples.

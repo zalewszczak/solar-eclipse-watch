@@ -121,8 +121,6 @@ var FIELD_MAP = {
   customSecOuterBorder: ['CONFIG_CUSTOM_SEC_OUTER_BORDER', 's'],
   customSecTranslucent: ['CONFIG_CUSTOM_SEC_TRANSLUCENT', 'b'],
   customSecColor: ['CONFIG_CUSTOM_SEC_COLOR', 's'],
-  markerTextHourMask: ['CONFIG_MARKER_TEXT_HOUR_MASK', 's'],
-  markerTextSecMask: ['CONFIG_MARKER_TEXT_SEC_MASK', 's'],
   skyMode: ['CONFIG_SKY_MODE', 's'],
   labelStyle: ['CONFIG_LABEL_STYLE', 's'],
   outlineStyle: ['CONFIG_OUTLINE_ENABLED', 's'],

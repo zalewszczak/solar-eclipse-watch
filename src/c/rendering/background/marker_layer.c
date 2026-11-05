@@ -1,7 +1,6 @@
 #include "./marker_layer.h"
 #include "../render_math.h"
 #include "./marker_bitmap.h"
-#include "./marker_text.h"
 #include <string.h>
 #include <limits.h>
 
@@ -130,35 +129,9 @@ static GColor marker_ring_color(uint8_t choice, GColor main_color, GColor accent
   }
 }
 
-// "Animate background on start": each mark staggers in starting from
-#define MARKER_ANIM_STAGGER_1000 600 // marks' own starts spread across the first 60% of the duration
-
-static int32_t marker_ease_out_1000(int32_t t) {
-  int32_t inv = 1000 - t;
-  int64_t inv3 = ((int64_t)inv * inv * inv) / 1000000;
-  int32_t r = 1000 - (int32_t)inv3;
-  return (r > 1000) ? 1000 : r;
-}
-
-int32_t marker_layer_ease_in_1000(int32_t t) {
-  int64_t t64 = t;
-  int32_t r = (int32_t)((t64 * t64 * t64) / 1000000);
-  return (r > 1000) ? 1000 : r;
-}
-
-int32_t marker_anim_mark_progress_1000_raw(int mark_index, int marks, int32_t overall_progress_1000) {
-  int32_t start_frac = ((int32_t)mark_index * MARKER_ANIM_STAGGER_1000) / marks;
-  int32_t duration_frac = 1000 - start_frac;
-  if (duration_frac <= 0) return 1000;
-  int32_t local = ((overall_progress_1000 - start_frac) * 1000) / duration_frac;
-  if (local < 0) local = 0;
-  if (local > 1000) local = 1000;
-  return local;
-}
-
 static void draw_marker_ring(GContext *ctx, GPoint center, GRect screen, const MarkerRingConfig *cfg,
                               int marks, int skip_step, GColor main_color, GColor accent_color, GColor bg_color,
-                              bool anim_active, int32_t anim_overall_progress_1000, uint8_t inner_thickness) {
+                              uint8_t inner_thickness) {
   if (cfg->thickness == 0) return;
   GColor color = marker_ring_color(cfg->color, main_color, accent_color, bg_color);
   uint8_t inner_pct = cfg->inner_border_pct, outer_pct = cfg->outer_border_pct;
@@ -186,18 +159,8 @@ static void draw_marker_ring(GContext *ctx, GPoint center, GRect screen, const M
     int32_t angle = (((int32_t)i * TRIG_MAX_ANGLE) / marks) & 0xFFFF;
     int32_t sin_v = sin_lookup(angle), cos_v = cos_lookup(angle);
 
-    uint8_t use_inner_pct = inner_pct, use_outer_pct = outer_pct;
-    uint8_t use_inner_ecc = cfg->inner_eccentricity, use_outer_ecc = cfg->outer_eccentricity;
-    if (anim_active) {
-      int32_t p = marker_ease_out_1000(marker_anim_mark_progress_1000_raw(i, marks, anim_overall_progress_1000));
-      use_inner_pct = (uint8_t)render_math_lerp8(100, inner_pct, p, 1000);
-      use_outer_pct = (uint8_t)render_math_lerp8(100, outer_pct, p, 1000);
-      use_inner_ecc = (uint8_t)render_math_lerp8(100, cfg->inner_eccentricity, p, 1000);
-      use_outer_ecc = (uint8_t)render_math_lerp8(100, cfg->outer_eccentricity, p, 1000);
-    }
-
-    FGPoint outer_fp = marker_layer_point_on_ring_fp(center_fp, screen, sin_v, cos_v, use_outer_pct, use_outer_ecc);
-    FGPoint inner_fp = marker_layer_point_on_ring_fp(center_fp, screen, sin_v, cos_v, use_inner_pct, use_inner_ecc);
+    FGPoint outer_fp = marker_layer_point_on_ring_fp(center_fp, screen, sin_v, cos_v, outer_pct, cfg->outer_eccentricity);
+    FGPoint inner_fp = marker_layer_point_on_ring_fp(center_fp, screen, sin_v, cos_v, inner_pct, cfg->inner_eccentricity);
     draw_ring_mark_fp(ctx, inner_fp, outer_fp, sin_v, cos_v, inner_half_thick_fp, outer_half_thick_fp,
                        cfg->style, color, cfg->translucent, inner_thickness_px, cfg->thickness);
   }
@@ -209,22 +172,19 @@ void marker_layer_init(MarkerLayerState *state) {
   state->bitmap_tinted = false;
   state->bitmap_tint_color = GColorClear;
   state->bitmap_tint_transparent = false;
-  state->text_font_slot = FONT_SLOT_EMPTY;
 }
 
 void marker_layer_deinit(MarkerLayerState *state) {
   marker_bitmap_release(&state->bitmap, &state->bitmap_style, &state->bitmap_tinted);
-  font_lookup_release(&state->text_font_slot);
 }
 
 // Draws the active marker style: one of the bitmap styles (3-7), or --
-// for anything else -- the custom hour/second rings plus marker text.
+// for anything else -- the custom hour/second rings.
 // The phone resolves the Minimal/Braun/Swiss/Classy/None presets into
 // those custom ring + text values before sending, so this never has to
 // know about them.
 void marker_layer_draw(GContext *ctx, MarkerLayerState *state, GPoint center, GRect screen,
-                              const EclipseData *d, GColor main_color, GColor accent_color, GColor bg_color,
-                              bool anim_active, int32_t anim_progress_1000) {
+                              const EclipseData *d, GColor main_color, GColor accent_color, GColor bg_color) {
   uint8_t marker_style = d->big_analog_marker_style;
 
   bool is_bitmap_style = marker_style >= 3 && marker_style <= 7;
@@ -235,7 +195,7 @@ void marker_layer_draw(GContext *ctx, MarkerLayerState *state, GPoint center, GR
   if (is_bitmap_style) {
     marker_bitmap_tint(state->bitmap, &state->bitmap_tinted, &state->bitmap_tint_color,
                        &state->bitmap_tint_transparent, main_color, d->bitmap_marker_transparent);
-    marker_bitmap_draw(ctx, state->bitmap, screen, anim_active, anim_progress_1000);
+    marker_bitmap_draw(ctx, state->bitmap, screen);
     return;
   }
 
@@ -245,10 +205,9 @@ void marker_layer_draw(GContext *ctx, MarkerLayerState *state, GPoint center, GR
   uint8_t second_inner_thickness = d->custom_second_marker_inner_thickness;
 
   // Second ring first so the hour ring's marks draw on top at shared
-  draw_marker_ring(ctx, center, screen, second_cfg, 60, 5, main_color, accent_color, bg_color, false, 0, second_inner_thickness);
-  draw_marker_ring(ctx, center, screen, hour_cfg, 12, 0, main_color, accent_color, bg_color, anim_active, anim_progress_1000, hour_inner_thickness);
+  draw_marker_ring(ctx, center, screen, second_cfg, 60, 5, main_color, accent_color, bg_color, second_inner_thickness);
+  draw_marker_ring(ctx, center, screen, hour_cfg, 12, 0, main_color, accent_color, bg_color, hour_inner_thickness);
 
-  marker_text_draw(ctx, center, screen, &state->text_font_slot, &d->marker_text, hour_cfg, second_cfg, main_color, anim_active, anim_progress_1000);
 }
 
 

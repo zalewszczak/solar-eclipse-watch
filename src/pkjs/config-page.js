@@ -25,7 +25,7 @@
  * what you see here is exactly what you'll get.
  */
 
-var APP_VERSION = "1.3-rc-candidate";
+var APP_VERSION = "1.4-beta";
 
 // servicelog require removed here -- serviceStatusRowsHtml() (its
 // only user in this file) moved to config/config-debug.js, which
@@ -241,21 +241,12 @@ var composerClientSource = require('./config/config-composer');
 // numerals editor gets disabled (and, if it was checked, force-
 // unchecked) whenever the selected marker-text font has `romanOk: false`.
 
-// A 12-button grid for picking which hour numerals (kind='hour', labels
-// 12,1..11) or which every-5-second slots (kind='sec', labels 0,5..55)
-// should get a numeral -- bit i of the mask corresponds to button i,
-// same order marker_layer_draw_text() iterates on-watch.
-// markBtnGridHtml/MARKER_BORDER_MIN/MARKER_BORDER_MAX/
-// customMarkerHiddenInputsHtml/customMarkerModalHtml/textMarkerModalHtml
-// all moved to config/config-markers.js (configuration architecture
-// extraction, JS8 fifth slice).
+// Marker editor helpers live in config/config-markers.js.
 var configMarkers = require('./config/config-markers');
-var markBtnGridHtml = configMarkers.markBtnGridHtml;
 var MARKER_BORDER_MIN = configMarkers.MARKER_BORDER_MIN;
 var MARKER_BORDER_MAX = configMarkers.MARKER_BORDER_MAX;
 var customMarkerHiddenInputsHtml = configMarkers.customMarkerHiddenInputsHtml;
 var customMarkerModalHtml = configMarkers.customMarkerModalHtml;
-var textMarkerModalHtml = configMarkers.textMarkerModalHtml;
 
 // schemeColorOptionsHtml moved to config/config-colors.js
 // (configuration architecture extraction, JS8 fifth slice).
@@ -289,8 +280,6 @@ var handEditorModalHtml = configHands.handEditorModalHtml;
  *     customSecOuterEcc: '0'-'100', customHourInnerBorder/customHourOuterBorder/
  *     customSecInnerBorder/customSecOuterBorder: '0'-'100' (% reach, see marker_reach_px()
  *     in marker_layer.c -- each mark spans directly between its inner/outer border points),
- *     markerTextTarget: '0'(off)|'1'(hour)|'2'(second), markerTextFont: '0'-'35', markerTextOffset: '-50'-'50',
- *     markerTextHourMask/markerTextSecMask: 0-4095 (12-bit),
  *     hourlyVibeMode: '0'(off)|'1'(on full hours)|'2'(every X minutes), hourlyVibeIntervalMin: '1'-'180',
  *     hourlyVibePattern: '0'(short)|'1'(double)|'2'(long), hourlyVibeStartTime/hourlyVibeEndTime: 'HH:MM'
  *     (inclusive; start==end, including the '00:00'/'00:00' default, means all 24 hours),
@@ -1363,7 +1352,6 @@ configPresetSchedule.css +
 
 customMarkerModalHtml('hour', 'Edit hour indices', 20) +
 customMarkerModalHtml('sec', 'Edit seconds indices', 10) +
-textMarkerModalHtml(current) +
 
 handEditorModalHtml('hour', 'Edit hour hand') +
 handEditorModalHtml('min', 'Edit minute hand') +
@@ -1682,7 +1670,6 @@ configPresetSchedule.modalHtml +
 '      <div id="customMarkerSection" style="' + (current.bigAnalogMarkerStyle === '8' ? '' : 'display:none;') + '">' +
 '        <button type="button" class="marker-edit-btn" onclick="openCustomMarkerEditor(\'hour\')">Edit hour indices: <span id="cmHourStatusLabel"></span> &rsaquo;</button>' +
 '        <button type="button" class="marker-edit-btn" onclick="openCustomMarkerEditor(\'sec\')">Edit seconds indices: <span id="cmSecStatusLabel"></span> &rsaquo;</button>' +
-'        <button type="button" class="marker-edit-btn" onclick="openTextMarkerEditor()">Numerals: <span id="numeralsStatusLabel"></span> &rsaquo;</button>' +
           customMarkerHiddenInputsHtml(current) +
 '      </div>' +
 '      </div>' +
@@ -1959,9 +1946,8 @@ configPresetSchedule.modalHtml +
 '      <div class="field-label-row"><label>Animate background on start</label><button type="button" class="help-btn" onclick="toggleHelp(\'help-bgAnimMode\')">?</button></div>' +
       verticalButtonGroupHtml('bgAnimModeGroup', 'bgAnimMode', [
         { value: '0', label: 'Off' },
-        { value: '1', label: 'Planets (Sun/Moon/planets + sky sweep in from a couple hours ago)' },
-        { value: '2', label: 'Indices (analog hour indices animate in; seconds draw normally)' }
-      ], current.bgAnimMode || '0') +
+        { value: '1', label: 'Planets (Sun/Moon/planets + sky sweep in from a couple hours ago)' }
+      ], current.bgAnimMode === '1' ? '1' : '0') +
 '    </div>' +
 '    <div class="help" id="help-bgAnimMode" style="display:none;">Choose the animation used when the sky/background appears.</div>' +
 
@@ -2750,9 +2736,7 @@ fontManagerSource +
 '  clock: { selectId: "clockFont", triggerId: "clockFontTrigger", title: "Clock font", onlyMainClock: true, showIncompatibleToggle: true, showIncompatibleForGridOnly: true,' +
 '    previewText: function () { return "12:34"; } },' +
 '  cornerFont: { selectId: "cornerFont", triggerId: "cornerFontTrigger", title: "Font", onlyMainClock: false, showIncompatibleToggle: true,' +
-'    previewText: function () { return "-10\\u00b0C"; } },' +
-'  markerTextFont: { selectId: "markerTextFont", triggerId: "markerTextFontTrigger", title: "Font", onlyMainClock: false, showIncompatibleToggle: false,' +
-'    previewText: function () { return "12"; } }' +
+'    previewText: function () { return "-10\\u00b0C"; } }' +
 '};' +
 'var currentFontPickerRole = null;' +
 // Big Digital and the other digital layouts intentionally use different
@@ -3931,32 +3915,7 @@ configPlugins.pluginScript(current) +
 '      if (hidden && fields[kind][f] !== undefined) hidden.value = fields[kind][f];' +
 '    });' +
 '  });' +
-'  applyMarkerTextPresetFields(fields.text);' +
 '  return true;' +
-'}' +
-// The numerals half of the above. The mark-selection masks are a hidden
-// input plus 12 toggle buttons each, so setMarkMask() keeps both in step.
-// Font goes in before Roman since a font that can't do Roman numerals
-// unchecks/disables the box (onMarkerTextFontChange()).
-'function setMarkMask(kind, mask) {' +
-'  document.getElementById(kind === "hour" ? "markerTextHourMask" : "markerTextSecMask").value = String(mask);' +
-'  var m = parseInt(mask, 10) || 0;' +
-'  for (var i = 0; i < 12; i++) {' +
-'    var btn = document.getElementById("markBtn-" + kind + "-" + i);' +
-'    if (btn) btn.className = "mark-btn" + ((m & (1 << i)) ? " active" : "");' +
-'  }' +
-'}' +
-'function applyMarkerTextPresetFields(t) {' +
-'  if (!t) return;' +
-'  document.getElementById("markerTextFont").value = t.Font;' +
-'  document.getElementById("markerTextOffset").value = t.Offset;' +
-'  document.getElementById("markerTextOffsetVal").textContent = t.Offset + "px";' +
-'  setMarkMask("hour", t.HourMask);' +
-'  setMarkMask("sec", t.SecMask);' +
-'  selectModeButton("markerTextTargetGroup", "markerTextTarget", t.Target);' +
-'  onMarkerTextFontChange();' +
-'  onMarkerTextTargetChange();' +
-'  refreshAllFontTriggerLabels();' +
 '}' +
 // A rough approximation of the 3 built-in procedural styles, translated
 // into border-reach percentages (see marker_reach_px() in
@@ -4103,27 +4062,6 @@ configPlugins.pluginScript(current) +
 '  updateCustomMarkerValLabels(kind);' +
 '  updateCustomMarkerRowVisibility(kind);' +
 '}' +
-'function selectMarkerTextTarget(val) {' +
-'  selectModeButton("markerTextTargetGroup", "markerTextTarget", val);' +
-'  onMarkerTextTargetChange();' +
-'  refreshEditButtonLabels();' +
-'}' +
-'function onMarkerTextTargetChange() {' +
-'  var val = document.getElementById("markerTextTarget").value;' +
-'  document.getElementById("markerTextOptions").style.display = (val === "0") ? "none" : "";' +
-'  document.getElementById("markerTextHourGrid").style.display = (val === "1") ? "" : "none";' +
-'  document.getElementById("markerTextSecGrid").style.display = (val === "2") ? "" : "none";' +
-'  updatePreview();' +
-'}' +
-'function onMarkerTextFontChange() {' +
-'  updatePreview();' +
-'}' +
-'function openTextMarkerEditor() {' +
-'  document.getElementById("textMarkerModal").className = "modal-overlay open";' +
-'}' +
-'function closeTextMarkerEditor() {' +
-'  document.getElementById("textMarkerModal").className = "modal-overlay";' +
-'}' +
 'function openCenterCircleEditor() {' +
 '  document.getElementById("centerCircleModal").className = "modal-overlay open";' +
 '}' +
@@ -4135,15 +4073,6 @@ configPlugins.pluginScript(current) +
 '}' +
 'function closeShadowStyleEditor() {' +
 '  document.getElementById("shadowStyleModal").className = "modal-overlay";' +
-'}' +
-'function toggleMarkBtn(kind, i) {' +
-'  var hiddenId = kind === "hour" ? "markerTextHourMask" : "markerTextSecMask";' +
-'  var hidden = document.getElementById(hiddenId);' +
-'  var mask = parseInt(hidden.value, 10) || 0;' +
-'  var btn = document.getElementById("markBtn-" + kind + "-" + i);' +
-'  var bit = 1 << i;' +
-'  if (mask & bit) { mask &= ~bit; btn.className = "mark-btn"; } else { mask |= bit; btn.className = "mark-btn active"; }' +
-'  hidden.value = String(mask);' +
 '}' +
 
 // ---- custom hour/minute/second hand popups ----------------------------
@@ -4803,11 +4732,6 @@ configPresetSchedule.clientJs(current.scheduleKnownIds) +
 'function customMarkerStyleLabel(val) {' +
 '  return ["Dot", "Line", "Square", "", "Tapered"][parseInt(val, 10)] || "Dot";' +
 '}' +
-'function markerTextTargetLabel(val) {' +
-'  if (val === "1") return "On hours";' +
-'  if (val === "2") return "Every 5s";' +
-'  return "Off";' +
-'}' +
 'function refreshEditButtonLabels() {' +
 '  ["hour", "min", "sec"].forEach(function (kind) {' +
 '    var el = document.getElementById(heHiddenPrefix(kind) + "Style");' +
@@ -4835,9 +4759,6 @@ configPresetSchedule.clientJs(current.scheduleKnownIds) +
 '    var thickEl = document.getElementById("custom" + kindCap + "Thickness");' +
 '    if (el && span) span.textContent = (thickEl && thickEl.value === "0") ? "Off" : customMarkerStyleLabel(el.value);' +
 '  });' +
-'  var numSpan = document.getElementById("numeralsStatusLabel");' +
-'  var numEl = document.getElementById("markerTextTarget");' +
-'  if (numSpan && numEl) numSpan.textContent = markerTextTargetLabel(numEl.value);' +
 '}' +
 'function updateHandStyleIconTriggerLabel(p) {' +
 '  var sel = document.getElementById(p + "Style");' +
@@ -5766,7 +5687,6 @@ require('./config/config-runtime') +
 '  var parts = [];' +
 '  var bg = document.getElementById("bgAnimMode").value;' +
 '  if (bg === "1") parts.push("planets on start");' +
-'  else if (bg === "2") parts.push("indices on start");' +
 '  var shake = document.getElementById("shakeAnimMode").value;' +
 '  var shakeParts = [];' +
 '  if (shake === "2" || shake === "3") shakeParts.push("planets");' +

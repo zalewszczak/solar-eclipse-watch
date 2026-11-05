@@ -1052,31 +1052,6 @@ module.exports =
 // caller is currently using for those two rings (preset or custom),
 // since text markers piggyback on that ring\'s own innerBorderPct/
 // innerEccentricity to decide where the numeral sits.
-'function drawTextMarkers(ctx, cx, cy, w, h, colors) {' +
-'  var target = document.getElementById("markerTextTarget").value;' +
-'  if (target === "0") return;' +
-'  var isHour = target === "1";' +
-'  var ring = isHour ? readCustomMarkerConfig("hour") : readCustomMarkerConfig("sec");' +
-'  var mask = parseInt(document.getElementById(isHour ? "markerTextHourMask" : "markerTextSecMask").value, 10) || 0;' +
-'  if (!mask) return;' +
-'  var fontSel = document.getElementById("markerTextFont");' +
-'  var opt = fontSel.options[fontSel.selectedIndex];' +
-'  var offsetPx = parseFloat(document.getElementById("markerTextOffset").value) || 0;' +
-'  var scale = w / 200;' +
-'  ctx.font = canvasFontFor(opt.getAttribute("data-preview") || "", 14 * scale, fontSel.value);' +
-'  ctx.fillStyle = colors.text;' +
-'  ctx.textAlign = "center"; ctx.textBaseline = "middle";' +
-'  for (var i = 0; i < 12; i++) {' +
-'    if (!(mask & (1 << i))) continue;' +
-'    var angle = i * 2 * Math.PI / 12;' +
-'    var offsetPct = Math.max(0, Math.min(100, ring.innerBorderPct + offsetPx));' +
-'    var pos = pointOnRing(cx, cy, w, h, angle, offsetPct, ring.innerEccentricity);' +
-'    var label = isHour ? (i === 0 ? 12 : i) : i * 5;' +
-'    var text = String(label);' +
-'    ctx.fillText(text, pos.x, pos.y);' +
-'  }' +
-'}' +
-
 'function drawBigAnalogPreview(ctx, colors, now, showSeconds, w, h, markerImageDrawn) {' +
 '  var cx = w / 2, cy = h / 2;' +
 '  var scale = w / 200;' + // every hand/shadow dimension below is a real on-watch px value (200x228 screen) -- see readHandConfig()'s own comment
@@ -1090,7 +1065,6 @@ module.exports =
 '    var secCfg = readCustomMarkerConfig("sec"), hourCfg = readCustomMarkerConfig("hour");' +
 '    drawMarkerRing(ctx, cx, cy, w, h, secCfg, 60, 5, colors);' +
 '    drawMarkerRing(ctx, cx, cy, w, h, hourCfg, 12, 0, colors);' +
-'    drawTextMarkers(ctx, cx, cy, w, h, colors);' +
 '  } else if (!markerImageDrawn) {' +
 '    ctx.font = "10px sans-serif";' +
 '    ctx.fillStyle = colors.text;' +

@@ -14,11 +14,3 @@ typedef struct {
   uint8_t color;
 } MarkerRingConfig;
 
-// Configuration for hour/second marker labels.
-typedef struct {
-  uint8_t target;
-  uint8_t font_choice;
-  int8_t offset_px;
-  uint16_t hour_mask;
-  uint16_t second_mask;
-} MarkerTextConfig;

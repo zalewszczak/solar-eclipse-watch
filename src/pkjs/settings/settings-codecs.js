@@ -215,13 +215,7 @@ function clampInt(v, lo, hi, fallback) {
 // CONFIG_MARKER_TEXT_TARGET -> ['text', 'Target'] etc. -- each stored
 // custom-marker/numerals key paired with the same group/field name
 // presets-lookups.js's MARKER_STYLE_PRESET_FIELDS uses.
-var CUSTOM_MARKER_KEY_FIELDS = {
-  CONFIG_MARKER_TEXT_TARGET: ['text', 'Target'],
-  CONFIG_MARKER_TEXT_FONT: ['text', 'Font'],
-  CONFIG_MARKER_TEXT_OFFSET: ['text', 'Offset'],
-  CONFIG_MARKER_TEXT_HOUR_MASK: ['text', 'HourMask'],
-  CONFIG_MARKER_TEXT_SEC_MASK: ['text', 'SecMask']
-};
+var CUSTOM_MARKER_KEY_FIELDS = {};
 ['hour', 'sec'].forEach(function (kind) {
   ['Style', 'Thickness', 'InnerThickness', 'InnerEcc', 'OuterEcc', 'InnerBorder', 'OuterBorder', 'Translucent', 'Color'].forEach(function (field) {
     var key = 'CONFIG_CUSTOM_' + (kind === 'hour' ? 'HOUR' : 'SEC') + '_' + field.replace(/([a-z])([A-Z])/g, '$1_$2').toUpperCase();
@@ -271,11 +265,6 @@ function customSecOuterBorderCode() {
 }
 function customSecTranslucentCode() { return customMarkerSetting('CONFIG_CUSTOM_SEC_TRANSLUCENT', 'false') === 'true' ? 1 : 0; }
 function customSecColorCode() { return clampInt(customMarkerSetting('CONFIG_CUSTOM_SEC_COLOR', '0'), 0, 2, 0); }
-function markerTextTargetCode() { return clampInt(customMarkerSetting('CONFIG_MARKER_TEXT_TARGET', '0'), 0, 2, 0); }
-function markerTextFontCode() { return clampInt(customMarkerSetting('CONFIG_MARKER_TEXT_FONT', '0'), 0, FONT_MAX_CONTENT_ID, 0); }
-function markerTextOffsetCode() { return clampInt(customMarkerSetting('CONFIG_MARKER_TEXT_OFFSET', '0'), -50, 50, 0); }
-function markerTextHourMaskCode() { return clampInt(customMarkerSetting('CONFIG_MARKER_TEXT_HOUR_MASK', '4095'), 0, 4095, 4095); }
-function markerTextSecMaskCode() { return clampInt(customMarkerSetting('CONFIG_MARKER_TEXT_SEC_MASK', '4095'), 0, 4095, 4095); }
 
 // Hour/minute/second hand system -- see HandConfig in hand_layer.h for
 // what each field means. Style 0-2 are the original dot/triangle/square;
@@ -562,10 +551,10 @@ function hourlyVibeStartMinCode() { return minutesSinceMidnight(getSetting('CONF
 function hourlyVibeEndMinCode() { return minutesSinceMidnight(getSetting('CONFIG_HOURLY_VIBE_END_TIME', '00:00')); }
 function hourlyVibeDaysMaskCode() { return clampInt(getSetting('CONFIG_HOURLY_VIBE_DAYS_MASK', '127'), 0, 127, 127); }
 function hourlyVibeOverrideQuietCode() { return getSetting('CONFIG_HOURLY_VIBE_OVERRIDE_QUIET', 'true') === 'true' ? 1 : 0; }
-// Radio-style, exactly one of 0=off, 1=planets, 2=markers -- see bg_anim_mode's own comment in eclipse_data.h.
+// Radio-style, 0=off, 1=planets -- see bg_anim_mode's own comment in eclipse_data.h.
 function bgAnimModeCode() {
   var v = parseInt(getSetting('CONFIG_BG_ANIM_MODE', '0'), 10);
-  return [0, 1, 2].indexOf(v) === -1 ? 0 : v;
+  return v === 1 ? 1 : 0;
 }
 // Radio-style, exactly one of 0=off, 1=smooth second hand, 2=Planet seek, 3=Both -- see shake_anim_mode's own comment in eclipse_data.h.
 function shakeAnimModeCode() {
@@ -696,11 +685,6 @@ module.exports = {
   customSecOuterBorderCode: customSecOuterBorderCode,
   customSecTranslucentCode: customSecTranslucentCode,
   customSecColorCode: customSecColorCode,
-  markerTextTargetCode: markerTextTargetCode,
-  markerTextFontCode: markerTextFontCode,
-  markerTextOffsetCode: markerTextOffsetCode,
-  markerTextHourMaskCode: markerTextHourMaskCode,
-  markerTextSecMaskCode: markerTextSecMaskCode,
   handStyleFieldCode: handStyleFieldCode,
   handColorFieldCode: handColorFieldCode,
   handMainColorFieldCode: handMainColorFieldCode,

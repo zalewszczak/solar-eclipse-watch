@@ -68,37 +68,10 @@ void feature_layout_recompute(FeaturesState *state) {
     GPoint center = GPoint(screen.size.w / 2, screen.size.h / 2);
     uint8_t pct = d->custom_hour_marker.thickness != 0 ? d->custom_hour_marker.inner_border_pct : 100;
     uint8_t ecc = d->custom_hour_marker.thickness != 0 ? d->custom_hour_marker.inner_eccentricity : 100;
-    uint8_t h_offset = 0;
-    if (d->marker_text.target != 0) {
-      if (d->marker_text.target == 1) { // hours
-        int16_t marker_pct = d->custom_hour_marker.thickness == 0 ? 100 + d->marker_text.offset_px : d->custom_hour_marker.inner_border_pct + d->marker_text.offset_px;
-        if(marker_pct>100) {
-          marker_pct = 100;
-        } else if (marker_pct < 0) {
-          marker_pct = 0;
-        }
-        pct = marker_pct;
-        ecc = d->custom_hour_marker.thickness == 0 ? 100 : d->custom_hour_marker.inner_eccentricity;
-      } else { // seconds
-        int16_t marker_pct = d->custom_second_marker.thickness == 0 ? 100 + d->marker_text.offset_px : d->custom_second_marker.inner_border_pct + d->marker_text.offset_px;
-        if(marker_pct>100) {
-          marker_pct = 100;
-        } else if (marker_pct < 0) {
-          marker_pct = 0;
-        }
-        pct = marker_pct;
-        ecc = d->custom_second_marker.thickness == 0 ? 100 : d->custom_second_marker.inner_eccentricity;
-      }
-      h_offset = (font_lookup_height(d->marker_text.font_choice) + font_lookup_y_offset(d->marker_text.font_choice)) / 2;
-    }
     GPoint top_pt = marker_layer_point_on_ring(center, screen, 0, pct, ecc);
     GPoint right_pt = marker_layer_point_on_ring(center, screen, TRIG_MAX_ANGLE / 4, pct, ecc);
     GPoint bottom_pt = marker_layer_point_on_ring(center, screen, TRIG_MAX_ANGLE / 2, pct, ecc);
     GPoint left_pt = marker_layer_point_on_ring(center, screen, (TRIG_MAX_ANGLE * 3) / 4, pct, ecc);
-    top_pt.y += h_offset;
-    right_pt.x -= h_offset; // close enough
-    bottom_pt.y -= h_offset;
-    left_pt.x += h_offset;
     int16_t margin = 2;
     if (top_pt.y + margin > dyn_upper_offset) dyn_upper_offset = top_pt.y + margin;
     if (screen.size.h - bottom_pt.y + margin > dyn_bottom_shift) dyn_bottom_shift = screen.size.h - bottom_pt.y + margin;

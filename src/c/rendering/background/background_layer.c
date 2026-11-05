@@ -1,6 +1,5 @@
 #include "./background_layer.h"
 #include "../render_math.h"
-#include "./background_overlays.h"
 #include "../../data/eclipse_status.h"
 #include "../../data/eclipse_ui.h"
 #include "../../graphics/subpixel.h"
@@ -104,7 +103,6 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
   bool skip_body_paint = state->planet_seek_active || (state->bg_anim_active && d->bg_anim_mode == 1);
 
 // Same "skip it here, draw it fresh as an overlay after the cache
-  bool skip_marker_paint = state->bg_anim_active && d->bg_anim_mode == 2;
 
   int current_phase = celestial_compute_eclipse_phase(d, now);
   bool current_iss_visible = celestial_compute_iss_visible(d, now, sky_dark_for_bodies);
@@ -165,9 +163,6 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
     }
     if (state->bg_anim_active && d->bg_anim_mode == 1) {
       celestial_layer_draw_bg_anim_planets(ctx, bounds, d, &state->celestial);
-    }
-    if (state->bg_anim_active && d->bg_anim_mode == 2) {
-      background_overlays_draw_marker_animation(ctx, &state->markers, d, bounds, now, state->bg_anim_elapsed_ms, BACKGROUND_ANIMATION_DURATION_MS);
     }
     return;
   }
@@ -295,10 +290,10 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
   }
 
 // Hour/second markers -- analog mode only. Drawn on top of
-  if (d->bottom_style == 1 && !skip_marker_paint) {
+  if (d->bottom_style == 1) {
     GColor bg, main_color, accent_color;
     eclipse_ui_get_active_color_scheme(d, now, &bg, &main_color, &accent_color);
-    marker_layer_draw(ctx, &state->markers, center, bounds, d, main_color, accent_color, bg, false, 0);
+    marker_layer_draw(ctx, &state->markers, center, bounds, d, main_color, accent_color, bg);
   }
 
 // Cache the base composition before drawing transient overlays. The cache
@@ -314,9 +309,6 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
                                        state->planet_seek_heading_deg,
                                        celestial_bodies_planet_seek_eased_t_1000(state->planet_seek_elapsed_ms, d),
                                        d->label_style, main_color, state->planet_seek_elapsed_ms);
-  }
-  if (state->bg_anim_active && d->bg_anim_mode == 2) {
-    background_overlays_draw_marker_animation(ctx, &state->markers, d, bounds, now, state->bg_anim_elapsed_ms, BACKGROUND_ANIMATION_DURATION_MS);
   }
   if (state->bg_anim_active && d->bg_anim_mode == 1) {
     celestial_layer_draw_bg_anim_planets(ctx, bounds, d, &state->celestial);
@@ -364,12 +356,9 @@ void background_layer_set_labels_visible(Layer *layer, bool show) {
 
 void background_layer_set_background_animation(Layer *layer, bool active, uint16_t elapsed_ms) {
   CanvasState *state = (CanvasState *)layer_get_data(layer);
-  bool was_active = state->bg_anim_active;
   state->bg_anim_active = active;
   state->bg_anim_elapsed_ms = elapsed_ms;
-// Marker animation changes only its transient overlay on top of an
-  uint8_t mode = state->data ? state->data->bg_anim_mode : 1;
-  if (mode == 1 || active != was_active) background_cache_invalidate(&state->cache);
+  background_cache_invalidate(&state->cache);
   layer_mark_dirty(layer);
 }
 

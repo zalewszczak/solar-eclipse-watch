@@ -312,7 +312,7 @@ static void apply_cstrings(DictionaryIterator *iter, EclipseData *d) {
 
 // Consolidated settings fields use fixed wire layouts.
 // HANDS, MARKER_RINGS, and EDGE_LINE_COLOR_MODE use fixed byte layouts;
-// MARKER_TEXT and COLORS are unpacked field-by-field.
+// COLORS is unpacked field-by-field.
 _Static_assert(sizeof(HandConfig) == 14, "HANDS wire format assumes a 14-byte HandConfig");
 _Static_assert(sizeof(MarkerRingConfig) == 8, "MARKER_RINGS wire format assumes an 8-byte MarkerRingConfig");
 
@@ -333,16 +333,6 @@ static void apply_consolidated_fields(DictionaryIterator *iter, EclipseData *d) 
   // EDGE_LINE_COLOR_MODE is a primitive-only payload: eight color-mode bytes, one per slot.
   if ((t = dict_find(iter, base + MK_EDGE_LINE_COLOR_MODE)) && t->length >= 8) {
     memcpy(d->edge_line_color_mode, t->value->data, 8);
-  }
-
-  // MARKER_TEXT: target, font, signed offset, two little-endian masks.
-  if ((t = dict_find(iter, base + MK_MARKER_TEXT)) && t->length >= 7) {
-    uint8_t *b = t->value->data;
-    d->marker_text.target = b[0];
-    d->marker_text.font_choice = b[1];
-    d->marker_text.offset_px = (int8_t)b[2];
-    d->marker_text.hour_mask = (uint16_t)(b[3] | (b[4] << 8));
-    d->marker_text.second_mask = (uint16_t)(b[5] | (b[6] << 8));
   }
 
   // COLORS: six custom colors; night_scheme_enabled is sent separately.
@@ -372,7 +362,7 @@ CommsChangeFlags comms_decoder_apply(DictionaryIterator *iter, EclipseData *data
   Tuple *sb = dict_find(iter, base + MK_SETTINGS_U8_BLOB);
   if (sb && sb->length >= SETTINGS_BLOCK_LEN) {
     memcpy(&d->SETTINGS_BLOCK_FIRST, sb->value->data, SETTINGS_BLOCK_LEN);
-    if (d->bg_anim_mode > 2) d->bg_anim_mode = 0;
+    if (d->bg_anim_mode > 1) d->bg_anim_mode = 0;
     if (d->shake_anim_mode > 3) d->shake_anim_mode = 0;
     changes |= COMMS_CHANGE_CLOCK_FONT | COMMS_CHANGE_LAYOUT | COMMS_CHANGE_HANDS |
                COMMS_CHANGE_CANVAS | COMMS_CHANGE_PANEL;

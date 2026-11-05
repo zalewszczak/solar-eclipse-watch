@@ -1418,21 +1418,6 @@ var MARKER_STYLE_SECOND_PRESETS = [
   { style: 2, thickness: 1, innerThickness: 1, innerEccentricity: 0,   outerEccentricity: 0,   innerBorderPct: 73,  outerBorderPct: 80,  translucent: false, color: 0 }, // Classy
   { style: 0, thickness: 0, innerThickness: 1, innerEccentricity: 100, outerEccentricity: 100, innerBorderPct: 100, outerBorderPct: 100, translucent: false, color: 0 }  // None (draws nothing)
 ];
-// Numerals (marker text) for each preset -- same fields as the Custom
-// style's "Numerals" popup / MarkerTextConfig. `target`: 0 off, 1 hour
-// ring, 2 second ring; while it's 0 (every preset for now) nothing is
-// drawn and the rest is inert, but still sent as-is so a preset that
-// wants numerals only has to fill its row in here. `font` is a
-// FONT_LOOKUP content id; `offset` -50..50 px from the ring's inner
-// edge; `hourMask`/`secondMask` 12-bit bitmasks of which of the 12
-// hour/5-second marks get a label (4095 = all); `roman` I, II, III...
-var MARKER_STYLE_TEXT_PRESETS = [
-  { target: 0, font: 0, offset: 0, hourMask: 4095, secondMask: 4095 }, // Minimal
-  { target: 2, font: 2, offset: -45, hourMask: 4095, secondMask: 4095 }, // Braun
-  { target: 0, font: 0, offset: 0, hourMask: 4095, secondMask: 4095 }, // Swiss
-  { target: 0, font: 0, offset: 0, hourMask: 4095, secondMask: 4095 }, // Classy
-  { target: 0, font: 0, offset: 0, hourMask: 4095, secondMask: 4095 }  // None
-];
 
 // bigAnalogMarkerStyle value -> index into the three arrays above. Any
 // style not listed here (3-7 bitmap, 8 custom) isn't a marker preset.
@@ -1456,17 +1441,6 @@ function markerRingPresetToFields(p) {
   };
 }
 
-// Same idea for numerals: the markerText* inputs' own names/values.
-function markerTextPresetToFields(t) {
-  return {
-    Target: String(t.target),
-    Font: String(t.font),
-    Offset: String(t.offset),
-    HourMask: String(t.hourMask),
-    SecMask: String(t.secondMask)
-  };
-}
-
 // bigAnalogMarkerStyle value ("0"/"1"/"2"/"9"/"10") -> { hour: {...},
 // sec: {...}, text: {...} } of the field values above. Built once here
 // from the three arrays so both consumers -- the config page
@@ -1477,8 +1451,7 @@ Object.keys(MARKER_STYLE_PRESET_INDEX).forEach(function (styleId) {
   var i = MARKER_STYLE_PRESET_INDEX[styleId];
   MARKER_STYLE_PRESET_FIELDS[styleId] = {
     hour: markerRingPresetToFields(MARKER_STYLE_HOUR_PRESETS[i]),
-    sec: markerRingPresetToFields(MARKER_STYLE_SECOND_PRESETS[i]),
-    text: markerTextPresetToFields(MARKER_STYLE_TEXT_PRESETS[i])
+    sec: markerRingPresetToFields(MARKER_STYLE_SECOND_PRESETS[i])
   };
 });
 
@@ -1514,7 +1487,7 @@ var FAQ_ITEMS = [
     ['What are the hourly vibrations?', 'Eclipz can provide periodic vibration reminders just like my other watchfaces. You can configure the vibration type, interval, start and end time, active weekdays and whether Quiet Time should be overridden in Other section.'],
     ['Why is an option disabled?', 'Usually because another setting makes it incompatible. For example, some large clock fonts cannot accommodate seconds or side features. Eclipz disables combinations that would render poorly on the watch or break down the display, I left some overrides here and there but not for things I know that cant be legally done.'],
     ['Can I customize the analog hands?', 'Absolutely. I spent too much time on hands customization so you are more than welcome to do so. Big Analog includes predefined hand styles and a Custom option for editing the hour, minute and second hands, center circle and shadow style. You can pick one of the predefined hands then click Custom and go wild from there. Share your best results'],
-    ['Can I customize the analog indices (markers)?', 'Yes. Choose a predefined indice design or select Custom to edit the hour indices, second indices and numerals.'],
+    ['Can I customize the analog indices (markers)?', 'Yes. Choose a predefined indice design or select Custom to edit the hour and second indices.'],
     ['What does semi-transparent mean?', 'For supported Big Digital digits and analog markers, semi-transparency lets some of the underlying sky or background remain visible through the graphic at the expense of contrast of given elements.'],
     ['Features are sometimes obstructed by analog hands, can you fix this?', 'You can fix it by selecting Draw features beneath hands, which places feature text above the analog hands instead of below them. You can find this option at the bottom of Features section.'],
     ['Can I change the units?', 'Yes. Weather settings include separate choices for temperature, wind speed, air quality and altitude units. You can find these in Weather section.'],
@@ -1545,7 +1518,6 @@ module.exports = {
   HAND_PRESETS: HAND_PRESETS,
   MARKER_STYLE_HOUR_PRESETS: MARKER_STYLE_HOUR_PRESETS,
   MARKER_STYLE_SECOND_PRESETS: MARKER_STYLE_SECOND_PRESETS,
-  MARKER_STYLE_TEXT_PRESETS: MARKER_STYLE_TEXT_PRESETS,
   MARKER_STYLE_PRESET_INDEX: MARKER_STYLE_PRESET_INDEX,
   MARKER_STYLE_PRESET_FIELDS: MARKER_STYLE_PRESET_FIELDS,
   FAQ_ITEMS: FAQ_ITEMS

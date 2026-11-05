@@ -12,19 +12,6 @@ var fontOptionsHtml = configFonts.fontOptionsHtml;
 var fontLookupEntry = configFonts.fontLookupEntry;
 var fontFlag = configFonts.fontFlag;
 
-function markBtnGridHtml(kind, maskStr) {
-  var mask = parseInt(maskStr, 10);
-  if (isNaN(mask)) mask = 0;
-  var html = '<div class="mark-btn-grid">';
-  for (var i = 0; i < 12; i++) {
-    var label = kind === 'hour' ? (i === 0 ? 12 : i) : (i * 5);
-    var active = (mask & (1 << i)) !== 0;
-    html += '<button type="button" class="mark-btn' + (active ? ' active' : '') +
-      '" id="markBtn-' + kind + '-' + i + '" onclick="toggleMarkBtn(\'' + kind + '\',' + i + ')">' + label + '</button>';
-  }
-  return html + '</div>';
-}
-
 // The 16 fields that actually get sent to the watch for the custom
 // marker system -- kept as hidden inputs (same pattern as the corner
 // slots' hidden color inputs) since they're edited inside the two
@@ -48,8 +35,7 @@ function customMarkerHiddenInputsHtml(current) {
     customHourTranslucent: 'false', customHourColor: '0',
     customSecStyle: '0', customSecThickness: '1', customSecInnerThickness: '1',
     customSecInnerEcc: '0', customSecOuterEcc: '0', customSecInnerBorder: '70', customSecOuterBorder: '100',
-    customSecTranslucent: 'false', customSecColor: '0',
-    markerTextHourMask: '4095', markerTextSecMask: '4095'
+    customSecTranslucent: 'false', customSecColor: '0'
   };
   var html = '';
   for (var key in d) {
@@ -177,65 +163,9 @@ function customMarkerModalHtml(kind, title, thicknessMax) {
 // as the hour/second button grids always have) rather than draft-then-
 // Save, since there's no risk of an inconsistent in-between state the
 // way there is with the ring geometry popups.
-function textMarkerModalHtml(current) {
-  var markerTextFontId = parseInt(current.markerTextFont || '0', 10);
-    return (
-'<div class="modal-overlay" id="textMarkerModal" onclick="if (event.target === this) closeTextMarkerEditor();">' +
-'  <div class="modal-box">' +
-'    <div class="modal-title">Edit numerals</div>' +
-'    <div class="modal-scroll-body">' +
-
-'    <label>Numbers</label>' +
-      modeButtonGroupHtml('markerTextTargetGroup', 'markerTextTarget', [
-        { value: '0', label: 'Off' },
-        { value: '1', label: 'On hours' },
-        { value: '2', label: 'Every 5s' }
-      ], current.markerTextTarget || '0', 'selectMarkerTextTarget') +
-'    <div class="help">Choose whether to show numbers on the hour ring, every 5-second mark, or neither.</div>' +
-
-'    <div id="markerTextOptions" style="' + (current.markerTextTarget && current.markerTextTarget !== '0' ? '' : 'display:none;') + '">' +
-'      <label for="markerTextFont" style="margin-top:10px;">Font</label>' +
-'      <select id="markerTextFont" onchange="onMarkerTextFontChange()" style="display:none;">' + fontOptionsHtml(parseInt(current.markerTextFont || '0', 10), false) + '</select>' +
-'      <button type="button" class="font-picker-btn font-picker-trigger" id="markerTextFontTrigger" onclick="openFontPicker(\'markerTextFont\')">' +
-'        <span class="font-picker-preview" id="markerTextFontTriggerPreview"></span>' +
-'        <span class="font-picker-name" id="markerTextFontTriggerName"></span>' +
-'      </button>' +
-
-
-'      <div class="slider-row">' +
-'        <label for="markerTextOffset">Offset from index <span class="val" id="markerTextOffsetVal">' + esc(current.markerTextOffset || '0') + 'px</span></label>' +
-'        <div class="slider-with-buttons">' +
-'        <button type="button" class="slider-step-btn" onclick="stepSlider(\'markerTextOffset\', -1)">&minus;</button>' +
-'        <input type="range" id="markerTextOffset" min="-50" max="50" step="1" value="' + esc(current.markerTextOffset || '0') + '" oninput="document.getElementById(\'markerTextOffsetVal\').textContent = this.value + \'px\';">' +
-'        <button type="button" class="slider-step-btn" onclick="stepSlider(\'markerTextOffset\', 1)">+</button>' +
-'        </div>' +
-'      </div>' +
-'      <div class="help">Moves the numbers outward or inward relative to the marker ring.</div>' +
-
-'      <div id="markerTextHourGrid" style="' + (current.markerTextTarget === '1' ? '' : 'display:none;') + '">' +
-'        <label style="margin-top:10px;">Which hours get a number</label>' +
-          markBtnGridHtml('hour', current.markerTextHourMask !== undefined ? current.markerTextHourMask : '4095') +
-'      </div>' +
-'      <div id="markerTextSecGrid" style="' + (current.markerTextTarget === '2' ? '' : 'display:none;') + '">' +
-'        <label style="margin-top:10px;">Which 5-second marks get a number</label>' +
-          markBtnGridHtml('sec', current.markerTextSecMask !== undefined ? current.markerTextSecMask : '4095') +
-'      </div>' +
-'    </div>' +
-
-'    </div>' +
-'    <div class="modal-footer">' +
-'    <button type="button" class="modal-cancel-btn" onclick="closeTextMarkerEditor()" style="margin-top:14px;">Close</button>' +
-'    </div>' +
-'  </div>' +
-'</div>'
-  );
-}
-
 module.exports = {
-  markBtnGridHtml: markBtnGridHtml,
   MARKER_BORDER_MIN: MARKER_BORDER_MIN,
   MARKER_BORDER_MAX: MARKER_BORDER_MAX,
   customMarkerHiddenInputsHtml: customMarkerHiddenInputsHtml,
-  customMarkerModalHtml: customMarkerModalHtml,
-  textMarkerModalHtml: textMarkerModalHtml
+  customMarkerModalHtml: customMarkerModalHtml
 };

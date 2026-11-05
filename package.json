@@ -1,7 +1,7 @@
 {
-  "name": "eclipse-watch",
+  "name": "pebble-eclipse-watch",
   "author": "zalew",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "keywords": [
     "pebble-app",
     "watchface",
@@ -125,7 +125,6 @@
       "WEATHER_LAST_UPDATE",
       "HANDS",
       "MARKER_RINGS",
-      "MARKER_TEXT",
       "COLORS",
       "BATTERY_SAVER_PHASE",
       "UV_INDEX_CURRENT_X10",
