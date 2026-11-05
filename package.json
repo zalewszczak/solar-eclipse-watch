@@ -44,6 +44,22 @@
       "configurable",
       "health"
     ],
+    "usesPermissions": [
+      "Location",
+      {
+        "name": "Internet",
+        "parameters": {
+          "domains": [
+            "api.open-meteo.com",
+            "air-quality-api.open-meteo.com",
+            "services.swpc.noaa.gov",
+            "celestrak.org",
+            "nominatim.openstreetmap.org",
+            "api.openweathermap.org"
+          ]
+        }
+      }
+    ],
     "configPage": "config.html",
     "messageKeys": [
       "MESSAGE_TYPE",
