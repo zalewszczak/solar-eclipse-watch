@@ -55,7 +55,8 @@
             "services.swpc.noaa.gov",
             "celestrak.org",
             "nominatim.openstreetmap.org",
-            "api.openweathermap.org"
+            "api.openweathermap.org",
+            "opensky-network.org"
           ]
         }
       }
