@@ -25,7 +25,7 @@
  * what you see here is exactly what you'll get.
  */
 
-var APP_VERSION = "1.4-beta";
+var APP_VERSION = "1.4.1-beta";
 
 // servicelog require removed here -- serviceStatusRowsHtml() (its
 // only user in this file) moved to config/config-debug.js, which
@@ -1272,7 +1272,7 @@ configPresetSchedule.css +
 '      <div class="about-info-row"><div class="about-info-label">Platform</div><div class="about-info-value">Pebble Time 2 / Emery</div></div>' +
 '    </div>' +
 '    <div class="about-description">Find out more about the project on github, feel free to contribute as well.</div>' +
-'    <a class="about-source" href="https://github.com/zalewszczak/solar-eclipse-watch" target="_blank" rel="noopener noreferrer">Source code on GitHub</a>' +
+  '    <a class="about-source" href="#" onclick="event.preventDefault(); Pebble.openUrl(\'https://github.com/zalewszczak/solar-eclipse-watch\'); return false;">Source code on GitHub</a>' +
 '    <button type="button" class="about-ok-btn" onclick="closeAboutModal()">OK</button>' +
 '  </div>' +
 '</div>' +
@@ -1506,12 +1506,16 @@ handEditorModalHtml('sec', 'Edit second hand') +
 '        <div class="donate-method-title">PayPal</div>' +
 '        <div class="donate-method-note">The easiest option. FYI: payments below ~1USD are swallowed by transaction fees and I recieve nothing. ¯\_(ツ)_/¯</div>' +
 '        <div class="donate-paypal">' +
-'          <form action="https://www.paypal.com/cgi-bin/webscr" method="post" target="_top">' +
-'            <input type="hidden" name="cmd" value="_s-xclick">' +
-'            <input type="hidden" name="hosted_button_id" value="D3C427GK2PGE8">' +
-'            <input type="image" src="https://www.paypalobjects.com/en_US/i/btn/btn_donate_LG.gif" border="0" name="submit" alt="Donate with PayPal">' +
-'            <img alt="" border="0" src="https://www.paypalobjects.com/pl_PL/i/scr/pixel.gif" width="1" height="1">' +
-'          </form>' +
+'          <p style="margin-top:24px;font-size:13px;opacity:.7">' +
+'            <a href="#" onclick="event.preventDefault(); Pebble.openUrl(\'https://www.paypal.com/donate/?hosted_button_id=D3C427GK2PGE8\'); return false;" ' +
+'            style="display:inline-block;background:#FFC439;color:#003087;' +
+'            padding:11px 25px;border-radius:5px;text-decoration:none;' +
+'            font-family:Arial,sans-serif;font-size:16px;font-weight:bold;' +
+'            box-shadow:0 2px 4px rgba(0,0,0,.2);">' +
+'            <b>Pay</b><span style="color:#009cde;font-weight:bold;">Pal</span>' +
+'             Donate' +
+'            </a>' +
+'          </p>' +
 '        </div>' +
 '      </div>' +
 '      <div class="donate-method">' +

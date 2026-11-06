@@ -1,7 +1,7 @@
 {
   "name": "pebble-eclipse-watch",
   "author": "zalew",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "keywords": [
     "pebble-app",
     "watchface",
@@ -56,7 +56,13 @@
             "celestrak.org",
             "nominatim.openstreetmap.org",
             "api.openweathermap.org",
-            "opensky-network.org"
+            "opensky-network.org",
+            "fonts.googleapis.com",
+            "fonts.gstatic.com",
+            "fonts.cdnfonts.com",
+            "static.wfonts.com",
+            "www.paypal.com",
+            "www.paypalobjects.com"
           ]
         }
       }
