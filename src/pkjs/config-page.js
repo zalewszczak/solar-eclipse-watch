@@ -25,7 +25,7 @@
  * what you see here is exactly what you'll get.
  */
 
-var APP_VERSION = "1.4.1-beta";
+var APP_VERSION = "1.4.2-beta";
 
 // servicelog require removed here -- serviceStatusRowsHtml() (its
 // only user in this file) moved to config/config-debug.js, which
@@ -1285,8 +1285,9 @@ configPresetSchedule.css +
 '    </div>' +
 '    <div class="slot-edit-scroll" id="slotEditScroll">' +
 '    <div class="mode-btn-group" id="slotEditKindGroup" style="margin-top:2px;">' +
-'      <button type="button" class="mode-btn" onclick="slotEditSetKind(false)">PREDEFINED</button>' +
-'      <button type="button" class="mode-btn" onclick="slotEditSetKind(true)">CUSTOM</button>' +
+'      <button type="button" class="mode-btn" onclick="slotEditSetMode(\'off\')">OFF</button>' +
+'      <button type="button" class="mode-btn" onclick="slotEditSetMode(\'predefined\')">PREDEFINED</button>' +
+'      <button type="button" class="mode-btn" onclick="slotEditSetMode(\'custom\')">CUSTOM</button>' +
 '    </div>' +
 '    <input type="checkbox" id="slotEditCustomPrimsToggle" style="display:none;">' +
 '    <div id="slotEditPrebuiltBlock">' +
@@ -3338,6 +3339,14 @@ configPlugins.pluginScript(current) +
 '  }' +
 '  return "none";' + // unrecognized id -- fall back rather than leave both dropdowns unset
 '}' +
+// "None" is no longer a category in the slot editor: it is the OFF mode of the
+// OFF / PREDEFINED / CUSTOM row. Its data entry stays so id 0 still resolves.
+'function firstSlotEditCategoryId() {' +
+'  for (var i = 0; i < CORNER_CATEGORIES.length; i++) {' +
+'    if (CORNER_CATEGORIES[i].id !== "none") return CORNER_CATEGORIES[i].id;' +
+'  }' +
+'  return "none";' +
+'}' +
 'function findCategory(categoryId) {' +
 '  for (var i = 0; i < CORNER_CATEGORIES.length; i++) {' +
 '    if (CORNER_CATEGORIES[i].id === categoryId) return CORNER_CATEGORIES[i];' +
@@ -3543,8 +3552,8 @@ configPlugins.pluginScript(current) +
 '  document.getElementById("slotBtn-cornerTR").classList.toggle("slot-corner-below-bar", isDigitalTopMode);' +
 '}' +
 'function setSlotEditorColorGroupVisibility(contentVal) {' +
-'  var customOn = document.getElementById("slotEditCustomPrimsToggle").checked;' +
-'  document.getElementById("slotEditColorGroup").style.display = (contentVal === "0" && !customOn) ? "none" : "flex";' +
+'  var mode = slotEditMode();' +
+'  document.getElementById("slotEditColorGroup").style.display = (mode === "off" || (mode === "predefined" && contentVal === "0")) ? "none" : "flex";' +
 '}' +
 'function setSlotEditorColorButtons(value) {' +
 '  SLOT_EDITOR_DRAFT_COLOR = parseInt(value, 10) || 0;' +
@@ -3569,7 +3578,7 @@ configPlugins.pluginScript(current) +
 // called once at page init, see the bottom of this script.
 'function renderCategoryButtons() {' +
 '  var group = document.getElementById("slotEditCategoryGroup");' +
-'  group.innerHTML = CORNER_CATEGORIES.map(function (c) {' +
+'  group.innerHTML = CORNER_CATEGORIES.filter(function (c) { return c.id !== "none"; }).map(function (c) {' +
 '    return \'<button type="button" class="category-btn" data-category="\' + c.id + \'" onclick="selectSlotEditCategory(\\\'\' + c.id + \'\\\')" title="\' + c.label + \'">\' + c.icon + \'</button>\';' +
 '  }).join("");' +
 '}' +
@@ -3611,6 +3620,12 @@ configPlugins.pluginScript(current) +
 '  var contentVal = document.getElementById(def.contentId).value;' +
 '  var colorVal = document.getElementById(def.colorId).value;' +
 '  var categoryId = categoryForContentId(contentVal);' +
+// OFF slots (content 0) have no category of their own any more: preselect the
+// first real one so switching to PREDEFINED lands somewhere sensible.
+'  if (categoryId === "none") {' +
+'    categoryId = firstSlotEditCategoryId();' +
+'    contentVal = String(findCategory(categoryId).items[0].id);' +
+'  }' +
 '  document.getElementById("slotEditCategory").value = categoryId;' +
 '  updateCategoryButtonActive(categoryId);' +
 '  var contentSelect = document.getElementById("slotEditContent");' +
@@ -3631,7 +3646,10 @@ configPlugins.pluginScript(current) +
 'function saveSlotEditor() {' +
 '  if (!CURRENT_SLOT_KEY) return;' +
 '  var def = SLOT_DEFS[CURRENT_SLOT_KEY];' +
-'  document.getElementById(def.contentId).value = document.getElementById("slotEditContent").value;' +
+'  var editMode = slotEditMode();' +
+// OFF commits the "None" content and no custom sequence; the other modes keep
+// committing exactly what they did before (PREDEFINED clears the sequence).
+'  document.getElementById(def.contentId).value = editMode === "off" ? "0" : document.getElementById("slotEditContent").value;' +
 '  document.getElementById(def.colorId).value = String(SLOT_EDITOR_DRAFT_COLOR);' +
 '  if (def.customPrimsId) {' +
 '    var committed = composerCommitValue();' +
@@ -4369,7 +4387,10 @@ configPlugins.pluginScript(current) +
 // select/textarea with an id inside them -- deliberately NOT a hand-
 // maintained field list, so this never goes stale as fields get added
 // to any of them.
-'var PRESET_SCOPE_IDS = ["section-style", "section-colors", "section-corners", "section-animation"];' +
+// Besides the four sections, two small popups hold style settings that have no
+// control in a section: Center circle (radius, colour) and Shadow style
+// (solid/translucent, angle). They are part of a style too.
+'var PRESET_SCOPE_IDS = ["section-style", "section-colors", "section-corners", "section-animation", "centerCircleModal", "shadowStyleModal"];' +
 'function collectStyleCornersJson() {' +
 '  var obj = {};' +
 '  PRESET_SCOPE_IDS.forEach(function (containerId) {' +
@@ -4420,6 +4441,11 @@ configPlugins.pluginScript(current) +
 '    }' +
 '    if (el.type === "checkbox") el.checked = !!obj[id]; else el.value = obj[id];' +
 '  });' +
+'  refreshModeButtonGroup("shadowTranslucentGroup", "shadowTranslucent");' +
+'  var ccRadiusOut = document.getElementById("centerCircleRadiusVal");' +
+'  if (ccRadiusOut) ccRadiusOut.textContent = document.getElementById("centerCircleRadius").value + "px";' +
+'  var shAngleOut = document.getElementById("shadowAngleVal");' +
+'  if (shAngleOut) shAngleOut.textContent = document.getElementById("shadowAngle").value + "\u00b0";' +
 '  selectVerticalOption("bgAnimModeGroup", "bgAnimMode", document.getElementById("bgAnimMode").value);' +
 '  selectVerticalOption("shakeAnimModeGroup", "shakeAnimMode", document.getElementById("shakeAnimMode").value);' +
 '  onBottomStyleChange();' +

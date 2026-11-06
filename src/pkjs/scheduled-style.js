@@ -122,6 +122,10 @@ var FIELD_MAP = {
   customSecTranslucent: ['CONFIG_CUSTOM_SEC_TRANSLUCENT', 'b'],
   customSecColor: ['CONFIG_CUSTOM_SEC_COLOR', 's'],
   skyMode: ['CONFIG_SKY_MODE', 's'],
+  shadowTranslucent: ['CONFIG_SHADOW_TRANSLUCENT', 's'],
+  shadowAngle: ['CONFIG_SHADOW_ANGLE', 's'],
+  centerCircleRadius: ['CONFIG_CENTER_CIRCLE_RADIUS', 's'],
+  centerCircleColor: ['CONFIG_CENTER_CIRCLE_COLOR', 's'],
   labelStyle: ['CONFIG_LABEL_STYLE', 's'],
   outlineStyle: ['CONFIG_OUTLINE_ENABLED', 's'],
   customBgValue: ['CONFIG_CUSTOM_BG', 's'],
@@ -180,6 +184,13 @@ var DUAL_MAP = {
 // Elements in the preset scope that are UI state only, or that are handled
 // explicitly in applyPreset() below instead of through the tables.
 var UI_ONLY_IDS = ['showAllColorPresets', 'bigDigitalTransparent', '__pluginSlots'];
+// Ids that older versions of the settings page put into saved styles but that no
+// control (and no stored setting) exists for any more: the numerals-ring masks
+// and the startup clock animation mode. They are dropped silently instead of
+// being reported as "unknown" by the schedule popup, and applyPreset() skips them.
+// (startuClockAnimMode is the spelling found in a saved style; the correctly
+// spelled one is listed too.)
+var LEGACY_IDS = ['markerTextHourMask', 'markerTextSecMask', 'startuClockAnimMode', 'startupClockAnimMode'];
 var SPECIAL_IDS = ['bottomStyleValue'];
 
 function knownIds() {
@@ -187,7 +198,7 @@ function knownIds() {
   var k;
   for (k in FIELD_MAP) if (FIELD_MAP.hasOwnProperty(k)) ids.push(k);
   for (k in DUAL_MAP) if (DUAL_MAP.hasOwnProperty(k)) ids.push(k);
-  return ids.concat(UI_ONLY_IDS, SPECIAL_IDS);
+  return ids.concat(UI_ONLY_IDS, SPECIAL_IDS, LEGACY_IDS);
 }
 
 function normalizeBottomStyle(v) {
@@ -239,6 +250,7 @@ function applyPreset(preset) {
     }
     // An empty user-built sequence is meaningful (it switches the slot back to its prebuilt feature).
     if (v === null || v === undefined || (v === '' && !/CustomPrims$/.test(id))) continue;
+    if (LEGACY_IDS.indexOf(id) >= 0) continue;
     var f = FIELD_MAP[id];
     if (f) {
       setSetting(f[0], toStored(f[1], v));
@@ -393,6 +405,7 @@ module.exports = {
   FIELD_MAP: FIELD_MAP,
   DUAL_MAP: DUAL_MAP,
   UI_ONLY_IDS: UI_ONLY_IDS,
+  LEGACY_IDS: LEGACY_IDS,
   knownIds: knownIds,
   applyPreset: applyPreset,
   parseSchedule: parseSchedule,

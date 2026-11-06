@@ -223,8 +223,7 @@ sections) as a single blob:
 
 Both build the underlying design snapshot the same way, produced by
 walking every `input`/`select`/`textarea` with an `id` inside the
-page's `#section-style`, `#section-colors`, and `#section-corners`
-containers (see `collectStyleCornersJson()` in
+page's `#section-style`, `#section-colors`, `#section-corners` and `#section-animation` containers plus the Center circle and Shadow style popups (see `collectStyleCornersJson()` in
 `src/pkjs/config-page.js`). Style Presets stores that object directly;
 Example styles wraps it as one field (`preset`) alongside a `title`
 and `description` for its preview popup -- either way, a design

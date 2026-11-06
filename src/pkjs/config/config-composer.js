@@ -354,7 +354,16 @@ function composerClientBody() {
   // ---- lifecycle hooks called from the slot editor ----------------------
   function composerOpen(def) {
     var section = document.getElementById("slotEditCustomPrimsSection");
-    if (!def.customPrimsId) { section.style.display = "none"; section.setAttribute("data-available", "0"); document.getElementById("slotEditCustomPrimsToggle").checked = false; document.getElementById("slotEditPrebuiltBlock").style.display = ""; COMPOSER.items = []; slotEditUpdateKindButtons(); return; }
+    var storedContent = document.getElementById(def.contentId).value;
+    if (!def.customPrimsId) {
+      section.style.display = "none"; section.setAttribute("data-available", "0");
+      document.getElementById("slotEditCustomPrimsToggle").checked = false;
+      COMPOSER.items = [];
+      // No user-built sequence for this slot: only OFF and PREDEFINED apply.
+      SLOT_EDIT_OFF = (String(parseInt(storedContent, 10) || 0) === "0");
+      slotEditApplyKind();
+      return;
+    }
     section.style.display = "";
     section.setAttribute("data-available", "1");
     composerBuildPalette();
@@ -363,46 +372,67 @@ function composerClientBody() {
     COMPOSER.selected = -1;
     COMPOSER.dragFrom = -1;
     document.getElementById("slotEditCustomPrimsToggle").checked = (COMPOSER.items.length > 0);
-    document.getElementById("slotEditCustomPrimsBody").style.display = COMPOSER.items.length ? "" : "none";
-    // Building from elements replaces the Category/Content pickers.
-    document.getElementById("slotEditPrebuiltBlock").style.display = COMPOSER.items.length ? "none" : "";
+    // OFF = nothing built and the predefined content is "None".
+    SLOT_EDIT_OFF = (!COMPOSER.items.length && (parseInt(storedContent, 10) || 0) === 0);
+    composerSetError("");
+    slotEditApplyKind();
+  }
+
+  // The slot editor's top button row is a three-way mode: OFF (the slot shows
+  // nothing), PREDEFINED (Category + Content pickers) or CUSTOM (user-built
+  // sequence). OFF is SLOT_EDIT_OFF; CUSTOM is the hidden toggle checkbox
+  // (kept because the save/preview code reads it); PREDEFINED is neither.
+  // Switching modes keeps the other modes' working copies, so going back
+  // restores them; saveSlotEditor() commits only the active mode.
+  var SLOT_EDIT_OFF = false;
+  function slotEditMode() {
+    if (SLOT_EDIT_OFF) return "off";
+    return document.getElementById("slotEditCustomPrimsToggle").checked ? "custom" : "predefined";
+  }
+  function slotEditUpdateKindButtons() {
+    var mode = slotEditMode();
+    var group = document.getElementById("slotEditKindGroup");
+    var btns = group.getElementsByClassName("mode-btn");
+    var modes = ["off", "predefined", "custom"];
+    var customAvailable = document.getElementById("slotEditCustomPrimsSection").getAttribute("data-available") !== "0";
+    for (var i = 0; i < btns.length; i++) {
+      btns[i].className = "mode-btn" + (modes[i] === mode ? " active" : "");
+      if (modes[i] === "custom") btns[i].style.display = customAvailable ? "" : "none";
+    }
+  }
+  // Shows only what the current mode needs, then refreshes the dependent UI.
+  function slotEditApplyKind() {
+    var mode = slotEditMode();
+    document.getElementById("slotEditPrebuiltBlock").style.display = mode === "predefined" ? "" : "none";
+    document.getElementById("slotEditCustomPrimsBody").style.display = mode === "custom" ? "" : "none";
     setSlotEditorColorGroupVisibility(document.getElementById("slotEditContent").value);
     composerSetError("");
     slotEditUpdateKindButtons();
     composerRender();
   }
-
-  // Turning the toggle on with an empty working copy seeds it from the
-  // Content dropdown's current choice ("start from what's already there").
-  // Turning it off keeps the working copy (re-enabling restores it) but
-  // saveSlotEditor() then commits nothing.
-  function slotEditUpdateKindButtons() {
-    var on = document.getElementById("slotEditCustomPrimsToggle").checked;
-    var group = document.getElementById("slotEditKindGroup");
-    var btns = group.getElementsByClassName("mode-btn");
-    for (var i = 0; i < btns.length; i++) btns[i].className = "mode-btn" + ((i === 1) === on ? " active" : "");
-    group.style.display = document.getElementById("slotEditCustomPrimsSection").getAttribute("data-available") === "0" ? "none" : "";
-  }
-  function slotEditSetKind(custom) {
-    document.getElementById("slotEditCustomPrimsToggle").checked = !!custom;
-    composerOnToggle();
-  }
-
-  function composerOnToggle() {
-    var on = document.getElementById("slotEditCustomPrimsToggle").checked;
-    document.getElementById("slotEditCustomPrimsBody").style.display = on ? "" : "none";
-    // Category and Content (with their labels) are hidden while building from
-    // elements; the style buttons stay, and the preview follows them.
-    document.getElementById("slotEditPrebuiltBlock").style.display = on ? "none" : "";
-    setSlotEditorColorGroupVisibility(document.getElementById("slotEditContent").value);
-    if (on && !COMPOSER.items.length) {
+  function slotEditSetMode(mode) {
+    var toggle = document.getElementById("slotEditCustomPrimsToggle");
+    var prevMode = slotEditMode();
+    SLOT_EDIT_OFF = (mode === "off");
+    toggle.checked = (mode === "custom");
+    if (mode === "predefined") {
+      // Coming from OFF, the Content select may still be on "None": land on
+      // the first real category's first item instead.
+      var sel = document.getElementById("slotEditContent");
+      if (!parseInt(sel.value, 10) && document.getElementById("slotEditCategory").value === "none") {
+        selectSlotEditCategory(firstSlotEditCategoryId());
+      }
+    } else if (mode === "custom" && !COMPOSER.items.length && prevMode === "predefined") {
+      // Coming from PREDEFINED, seed an empty working copy from the Content
+      // dropdown's current choice ("start from what's already there"). Coming
+      // from OFF there is nothing to start from, so the sequence starts empty.
       COMPOSER.items = composerItemsForContent(document.getElementById("slotEditContent").value);
       COMPOSER.selected = -1;
     }
-    composerSetError("");
-    slotEditUpdateKindButtons();
-    composerRender();
+    slotEditApplyKind();
   }
+  function slotEditSetKind(custom) { slotEditSetMode(custom ? "custom" : "predefined"); }
+  function composerOnToggle() { slotEditApplyKind(); }
 
   // ---- live preview at the top of the popup ------------------------------
   // Draws the feature the way the watch shows it: the feature font, the
@@ -410,8 +440,9 @@ function composerClientBody() {
   // and the outline setting. Icons are the real icon art (same helpers as the
   // main preview). Called whenever anything that affects it changes.
   function slotEditPreviewLabel() {
-    var customOn = document.getElementById("slotEditCustomPrimsToggle").checked;
-    if (customOn) return composerPreviewLabel(composerSerialize(COMPOSER.items));
+    var mode = slotEditMode();
+    if (mode === "off") return "";
+    if (mode === "custom") return composerPreviewLabel(composerSerialize(COMPOSER.items));
     var contentVal = document.getElementById("slotEditContent").value;
     return parseInt(contentVal, 10) ? primitiveDecompositionText(contentVal, true) : "";
   }
@@ -513,10 +544,10 @@ function composerClientBody() {
   // composer refuses to commit (a message is shown and the popup must stay
   // open -- report Section 23: never silently truncate).
   function composerCommitValue() {
-    if (!document.getElementById("slotEditCustomPrimsToggle").checked) return "";
+    if (slotEditMode() !== "custom") return "";
     var n = COMPOSER.items.length;
     if (n > COMPOSER_MAX) { composerSetError("Feature can have only " + COMPOSER_MAX + " elements"); return null; }
-    if (n < 1) { composerSetError("Add at least one element, or turn off the custom sequence."); return null; }
+    if (n < 1) { composerSetError("Add at least one element, or switch to PREDEFINED or OFF."); return null; }
     return composerSerialize(COMPOSER.items);
   }
 }
